@@ -1,0 +1,111 @@
+{
+  "branch": "P446_cross_domain_v1",
+  "base_model": "C:/Users/41876/WorkBuddy/Claw/spirit_p444_micro.pt",
+  "base_hash": "db67ed91b433d2de",
+  "timestamp": "2026-06-06 23:07:05",
+  "params": {
+    "threshold": 0.15,
+    "lr": 1e-05,
+    "epochs": 5,
+    "qi_style": "qi_main"
+  },
+  "samples": {
+    "total": 21,
+    "trained": 17,
+    "validated": 4
+  },
+  "sample_records": [
+    {
+      "hash": "ec108f5ef526a27f",
+      "root_question": "如何评估量化策略的回测效果？",
+      "error": 0.19242058753967284
+    },
+    {
+      "hash": "099bfe6e19e83648",
+      "root_question": "远程医疗的隐私保护最佳实践？",
+      "error": 0.18814846515655514
+    },
+    {
+      "hash": "16f807e2098ccc2c",
+      "root_question": "跨学科项目式学习如何有效评价？",
+      "error": 0.1512202978134155
+    },
+    {
+      "hash": "2a42d872de698c4b",
+      "root_question": "如何设计风控系统的熔断机制？",
+      "error": 0.2034684085845947
+    },
+    {
+      "hash": "a1d9a5ff73188522",
+      "root_question": "零信任安全架构的核心原则是什么？",
+      "error": 0.3126214504241943
+    },
+    {
+      "hash": "5c1210fc55ead198",
+      "root_question": "如何构建可复用的设计系统？",
+      "error": 0.22325549125671384
+    },
+    {
+      "hash": "629ff870a2585bd1",
+      "root_question": "如何检测和防御供应链攻击？",
+      "error": 0.17400357723236082
+    },
+    {
+      "hash": "71d96d2a34931d61",
+      "root_question": "如何构建投资组合的风险平价模型？",
+      "error": 0.20519218444824217
+    },
+    {
+      "hash": "04ac4aa54f5dcd4d",
+      "root_question": "医学影像分析的AI模型评估指标？",
+      "error": 0.2436352729797363
+    },
+    {
+      "hash": "295039936eae5607",
+      "root_question": "AI辅助诊断系统如何确保可靠性？",
+      "error": 0.3089914774894714
+    },
+    {
+      "hash": "a15960b6fff3540f",
+      "root_question": "游戏化学习机制的设计原则？",
+      "error": 0.31905279159545896
+    },
+    {
+      "hash": "5f16349dc4f12519",
+      "root_question": "量化因子筛选的标准是什么？",
+      "error": 0.22904732465744015
+    },
+    {
+      "hash": "51ec263a8da2472a",
+      "root_question": "如何设计API网关的安全策略？",
+      "error": 0.16194310426712033
+    },
+    {
+      "hash": "be0297480412d58b",
+      "root_question": "如何管理项目优先级?",
+      "error": 0.1533991670608521
+    },
+    {
+      "hash": "7557e26054424a78",
+      "root_question": "响应式设计的断点策略如何选择？",
+      "error": 0.25773491144180294
+    },
+    {
+      "hash": "d91d214429a484e5",
+      "root_question": "SOC安全运营中心的告警分级策略？",
+      "error": 0.15372952461242673
+    },
+    {
+      "hash": "0936feddfac6d347",
+      "root_question": "数据可视化的图表选择原则是什么？",
+      "error": 0.20456639528274534
+    }
+  ],
+  "performance": {
+    "best_val_loss": 0.272884588688612,
+    "train_time_s": 2.72,
+    "ref_avg_err_before": 0.028970708250999472,
+    "ref_avg_err_after": 0.04885852058728533,
+    "ref_ok_rate_after": 0.6666666666666666
+  }
+}
