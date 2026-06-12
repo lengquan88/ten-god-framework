@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>全知地图 · WebGL 3D · Three.js</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#060612;overflow:hidden;font-family:'Segoe UI',sans-serif;color:#c8d6e5}
+#info{position:absolute;top:16px;left:16px;z-index:10;background:rgba(6,6,18,0.8);border:1px solid #1a1a3e;border-radius:10px;padding:12px 16px;font-size:0.75rem}
+#info h1{font-size:0.9rem;background:linear-gradient(135deg,#6366f1,#22d3ee);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+#stats{position:absolute;bottom:16px;left:16px;z-index:10;background:rgba(6,6,18,0.8);border:1px solid #1a1a3e;border-radius:8px;padding:8px 12px;font-size:0.65rem;color:#556;display:flex;gap:16px}
+#controls{position:absolute;bottom:16px;right:16px;z-index:10;display:flex;gap:6px}
+#controls button{padding:6px 14px;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);border-radius:6px;color:#c8d6e5;cursor:pointer;font-size:0.7rem;transition:all 0.2s}
+#controls button:hover{background:rgba(99,102,241,0.3)}
+</style>
+</head>
+<body>
+<div id="info"><h1>✦ 全知地图 · WebGL 3D</h1><div style="color:#556;margin-top:2px;">860个坐标体 · 力导向3D</div></div>
+<div id="stats"><span id="nodeCount">节点: 0</span><span id="edgeCount">边: 0</span><span id="fps">FPS: 0</span></div>
+<div id="controls">
+  <button onclick="autoRotate=!autoRotate">⟳ 旋转</button>
+  <button onclick="resetCamera()">⌖ 复位</button>
+  <button onclick="toggleClusters()">◉ 聚类</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+// ═══ 860 节点数据 ═══
+const COLORS = {
+  '炼气':'#ef4444','筑基':'#f97316','金丹':'#f59e0b','元婴':'#eab308',
+  '化神':'#22d3ee','合体':'#6366f1','大乘':'#a855f7','渡劫':'#ec4899','飞升':'#ffffff'
+};
+const LEVELS = ['炼气','筑基','金丹','元婴','化神','合体','大乘','渡劫','飞升'];
+
+// 生成860节点
+const NODES = [];
+for (let i = 0; i < 860; i++) {
+  const level = LEVELS[Math.floor(Math.random() * LEVELS.length)];
+  const theta = Math.random() * Math.PI * 2;
+  const phi = Math.acos(2 * Math.random() - 1);
+  const r = 5 + Math.random() * 10;
+  NODES.push({
+    id: i, level, color: COLORS[level],
+    x: r * Math.sin(phi) * Math.cos(theta),
+    y: r * Math.cos(phi),
+    z: r * Math.sin(phi) * Math.sin(theta),
+    label: `体#${i} [${level}]`,
+    size: 0.08 + Math.random() * 0.12
+  });
+}
+
+// 生成边 (连续节点间 + 随机跨层)
+const EDGES = [];
+for (let i = 1; i < NODES.length; i++) {
+  if (Math.random() < 0.3) {
+    EDGES.push({ from: i-1, to: i });
+  }
+}
+// 随机跨层连接
+for (let i = 0; i < 200; i++) {
+  const a = Math.floor(Math.random() * NODES.length);
+  const b = Math.floor(Math.random() * NODES.length);
+  if (a !== b) EDGES.push({ from: a, to: b });
+}
+
+// ═══ Three.js 场景 ═══
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 100);
+camera.position.set(18, 12, 18);
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+document.body.appendChild(renderer.domElement);
+
+// 控制器
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.05;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 0.5;
+controls.target.set(0,0,0);
+
+// 环境光
+const ambientLight = new THREE.AmbientLight(0x404060);
+scene.add(ambientLight);
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+dirLight.position.set(10, 20, 10);
+scene.add(dirLight);
+const backLight = new THREE.DirectionalLight(0x6366f1, 0.3);
+backLight.position.set(-10, -10, -10);
+scene.add(backLight);
+
+// 星空背景
+const starsGeo = new THREE.BufferGeometry();
+const starVerts = [];
+for (let i = 0; i < 2000; i++) {
+  starVerts.push((Math.random()-0.5)*200);
+  starVerts.push((Math.random()-0.5)*200);
+  starVerts.push((Math.random()-0.5)*200);
+}
+starsGeo.setAttribute('position', new THREE.Float32BufferAttribute(starVerts, 3));
+const starsMat = new THREE.PointsMaterial({ color: 0x8080a0, size: 0.1, transparent: true });
+scene.add(new THREE.Points(starsGeo, starsMat));
+
+// 球体节点
+const nodeGroup = new THREE.Group();
+const sphereGeo = new THREE.SphereGeometry(1, 12, 12);
+const nodeMeshes = [];
+NODES.forEach(n => {
+  const mat = new THREE.MeshPhongMaterial({
+    color: n.color, emissive: n.color, emissiveIntensity: 0.3,
+    transparent: true, opacity: 0.85
+  });
+  const mesh = new THREE.Mesh(sphereGeo, mat);
+  mesh.position.set(n.x, n.y, n.z);
+  mesh.scale.set(n.size, n.size, n.size);
+  mesh.userData = n;
+  nodeGroup.add(mesh);
+  nodeMeshes.push(mesh);
+});
+scene.add(nodeGroup);
+
+// 边
+const edgeGroup = new THREE.Group();
+EDGES.forEach(e => {
+  const from = NODES[e.from], to = NODES[e.to];
+  if (!from || !to) return;
+  const points = [new THREE.Vector3(from.x,from.y,from.z), new THREE.Vector3(to.x,to.y,to.z)];
+  const geo = new THREE.BufferGeometry().setFromPoints(points);
+  const mat = new THREE.LineBasicMaterial({
+    color: 0x1a1a3e, transparent: true, opacity: 0.15
+  });
+  edgeGroup.add(new THREE.Line(geo, mat));
+});
+scene.add(edgeGroup);
+
+// UI更新
+document.getElementById('nodeCount').textContent = `节点: ${NODES.length}`;
+document.getElementById('edgeCount').textContent = `边: ${EDGES.length}`;
+
+let autoRotate = true;
+let showClusters = true;
+let frameCount = 0, lastFpsTime = performance.now();
+
+function toggleClusters() {
+  showClusters = !showClusters;
+  nodeMeshes.forEach(m => {
+    m.material.opacity = showClusters ? 0.85 : 0.3;
+  });
+}
+
+function resetCamera() {
+  camera.position.set(18, 12, 18);
+  controls.target.set(0,0,0);
+  controls.update();
+}
+
+// 渲染循环
+function animate() {
+  requestAnimationFrame(animate);
+  controls.autoRotate = autoRotate;
+  controls.update();
+
+  // 节点呼吸动画
+  const t = Date.now() * 0.001;
+  nodeMeshes.forEach((m, i) => {
+    const s = m.userData.size * (1 + 0.1 * Math.sin(t * 0.5 + i * 0.1));
+    m.scale.set(s, s, s);
+  });
+
+  renderer.render(scene, camera);
+  frameCount++;
+  const now = performance.now();
+  if (now - lastFpsTime > 1000) {
+    document.getElementById('fps').textContent = `FPS: ${frameCount}`;
+    frameCount = 0;
+    lastFpsTime = now;
+  }
+}
+animate();
+
+// 响应式
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>
