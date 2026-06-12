@@ -1,0 +1,11 @@
+v1.0.0 — 十神架构元框架  
+  
+核心引擎: tengod_scan, omni_map, shenke_bridge, auto_healer, fix_all_chains  
+飞升组件: shenke_optimizer, tengod_causal, tengod_doctrine  
+掌道组件: shenke_evolution, tengod_drift_detect, init_tengod, shenke_daemon  
+文档: WHITEPAPER, CASE_STUDY, README, CONTRIBUTING, CHANGELOG  
+演示: demo_project, demo.py  
+模板: finance, ecommerce, iot, default  
+CI/CD: GitHub Actions workflow  
+  
+Co-Authored-By: AtomCode (deepseek-v4-pro) <noreply@atomgit.com>  
