@@ -1,0 +1,33 @@
+{
+  "tree_id": "e2e_test_001",
+  "eight_layer": {
+    "consciousness": 0.78,
+    "coherence": 0.71
+  },
+  "cd_calibration": {
+    "n_iterations": 1,
+    "converged": true
+  },
+  "laplacian_injection": {
+    "action": "meta_cognition 0.200->0.245 (谱间隙0.180>阈值); depth 0.150->0.180; consciousness_weight 0.150->0.171 (Fiedler=0.350)",
+    "features": {
+      "spectral_gap": 0.18,
+      "fiedler_value": 0.35,
+      "spectral_entropy": 0.75
+    }
+  },
+  "zuowang_grid": {
+    "triggered": true,
+    "respiration_modulation": 1.69,
+    "suppressed_palaces": [
+      "坎一",
+      "巽四",
+      "离九"
+    ],
+    "enhanced_palaces": [
+      "坤二",
+      "中五",
+      "艮八"
+    ]
+  }
+}
