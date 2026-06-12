@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "spacetime-cognition": {
+      "command": "python3",
+      "args": ["C:/Users/41876/WorkBuddy/Claw/mcp_server.py"],
+      "description": "时空影像认知系统 — Ψ意识评估、推背图预言、认知画像、跨对话记忆"
+    }
+  }
+}
