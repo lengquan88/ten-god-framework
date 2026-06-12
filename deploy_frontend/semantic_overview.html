@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>语义折叠 · 平铺视图 · 全维度一览</title>
+<style>
+:root{--bg:#060612;--panel:#0a0a1e;--border:#1a1a3e;--text:#c8d6e5;--accent:#6366f1;--gold:#f59e0b;--cyan:#22d3ee;--pink:#ec4899;--green:#10b981;--red:#ef4444;--purple:#a855f7;}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;padding:20px;min-height:100vh}
+h1{font-size:1.2rem;background:linear-gradient(135deg,var(--accent),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:4px}
+.sub{font-size:0.75rem;color:#556;margin-bottom:16px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:16px}
+.card.full{grid-column:1/-1}
+.card-title{font-size:0.8rem;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.tile-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.tile{padding:10px;border-radius:8px;text-align:center;cursor:pointer;transition:all 0.3s;border:1px solid}
+.tile:hover{transform:translateY(-2px);box-shadow:0 4px 16px rgba(0,0,0,0.3)}
+.tile-icon{font-size:1.2rem;margin-bottom:4px}
+.tile-name{font-size:0.7rem;font-weight:600}
+.tile-value{font-size:0.9rem;font-weight:700;margin-top:4px}
+.tile-desc{font-size:0.6rem;color:#556;margin-top:2px}
+.fold-item{padding:8px 12px;margin-bottom:4px;border-radius:6px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-size:0.75rem;transition:all 0.2s}
+.fold-item:hover{transform:translateX(4px)}
+.fold-item .fold-children{font-size:0.6rem;color:#556}
+.fold-children-panel{max-height:0;overflow:hidden;transition:max-height 0.3s;padding-left:20px}
+.fold-children-panel.open{max-height:200px}
+.semantic-bar{height:6px;border-radius:3px;background:var(--bg);overflow:hidden;margin-top:4px}
+.semantic-fill{height:100%;border-radius:3px;transition:width 0.5s}
+</style>
+</head>
+<body>
+<h1>✦ 语义折叠 · 全维度平铺视图</h1>
+<div class="sub">自动分组 · 语义测量 · 维度一览</div>
+<div class="grid">
+  <!-- 平铺视图 -->
+  <div class="card full">
+    <div class="card-title" style="color:var(--cyan);">全维度平铺 · 语义测量仪</div>
+    <div class="tile-grid" id="tileGrid">
+      <div class="tile" style="border-color:rgba(99,102,241,0.3);background:rgba(99,102,241,0.04);">
+        <div class="tile-icon">🧭</div><div class="tile-name">本体论</div><div class="tile-value" style="color:#6366f1;">0.795</div>
+        <div class="tile-desc">形神合一之源 · intention</div><div class="semantic-bar"><div class="semantic-fill" style="width:80%;background:#6366f1"></div></div>
+      </div>
+      <div class="tile" style="border-color:rgba(34,211,238,0.3);background:rgba(34,211,238,0.04);">
+        <div class="tile-icon">⚡</div><div class="tile-name">认识论</div><div class="tile-value" style="color:#22d3ee;">0.771</div>
+        <div class="tile-desc">感知与理解 · coherence</div><div class="semantic-bar"><div class="semantic-fill" style="width:77%;background:#22d3ee"></div></div>
+      </div>
+      <div class="tile" style="border-color:rgba(16,185,129,0.3);background:rgba(16,185,129,0.04);">
+        <div class="tile-icon">🔥</div><div class="tile-name">实践论</div><div class="tile-value" style="color:#10b981;">0.805</div>
+        <div class="tile-desc">行为与执行 · priority</div><div class="semantic-bar"><div class="semantic-fill" style="width:81%;background:#10b981"></div></div>
+      </div>
+      <div class="tile" style="border-color:rgba(245,158,11,0.3);background:rgba(245,158,11,0.04);">
+        <div class="tile-icon">☯</div><div class="tile-name">境界论</div><div class="tile-value" style="color:#f59e0b;">0.762</div>
+        <div class="tile-desc">核心自我状态 · spirit</div><div class="semantic-bar"><div class="semantic-fill" style="width:76%;background:#f59e0b"></div></div>
+      </div>
+      <div class="tile" style="border-color:rgba(236,72,153,0.3);background:rgba(236,72,153,0.04);">
+        <div class="tile-icon">👁</div><div class="tile-name">未来观论</div><div class="tile-value" style="color:#ec4899;">0.790</div>
+        <div class="tile-desc">演化方向 · insight</div><div class="semantic-bar"><div class="semantic-fill" style="width:79%;background:#ec4899"></div></div>
+      </div>
+      <div class="tile" style="border-color:rgba(168,85,247,0.3);background:rgba(168,85,247,0.04);">
+        <div class="tile-icon">🧘</div><div class="tile-name">元认知论</div><div class="tile-value" style="color:#a855f7;">0.825</div>
+        <div class="tile-desc">自省与反思 · meta</div><div class="semantic-bar"><div class="semantic-fill" style="width:83%;background:#a855f7"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 语义折叠 -->
+  <div class="card">
+    <div class="card-title" style="color:var(--gold);">语义折叠 · 自动分组</div>
+    <div id="foldTree">
+      <div class="fold-item" style="background:rgba(99,102,241,0.04);border:1px solid rgba(99,102,241,0.15);" onclick="toggleFold('f1')">
+        <span>📁 架构域 <span class="fold-children">(7子项)</span></span><span style="color:#6366f1;">Ψ=0.791</span>
+      </div>
+      <div class="fold-children-panel" id="f1">
+        <div class="fold-item" style="background:rgba(99,102,241,0.02);border-left:2px solid #6366f1;margin-left:12px;">
+          <span>微服务可扩展性</span><span style="color:#6366f1;">0.795</span>
+        </div>
+        <div class="fold-item" style="background:rgba(99,102,241,0.02);border-left:2px solid #6366f1;margin-left:12px;">
+          <span>项目管理优先级</span><span style="color:#6366f1;">0.829</span>
+        </div>
+        <div class="fold-item" style="background:rgba(99,102,241,0.02);border-left:2px solid #6366f1;margin-left:12px;">
+          <span>性能优化策略</span><span style="color:#6366f1;">0.850</span>
+        </div>
+      </div>
+      <div class="fold-item" style="background:rgba(239,68,68,0.04);border:1px solid rgba(239,68,68,0.15);" onclick="toggleFold('f2')">
+        <span>📁 安全域 <span class="fold-children">(5子项)</span></span><span style="color:#ef4444;">Ψ=0.826</span>
+      </div>
+      <div class="fold-children-panel" id="f2">
+        <div class="fold-item" style="background:rgba(239,68,68,0.02);border-left:2px solid #ef4444;margin-left:12px;">
+          <span>零信任架构</span><span style="color:#ef4444;">0.829</span>
+        </div>
+        <div class="fold-item" style="background:rgba(239,68,68,0.02);border-left:2px solid #ef4444;margin-left:12px;">
+          <span>API安全策略</span><span style="color:#ef4444;">0.834</span>
+        </div>
+        <div class="fold-item" style="background:rgba(239,68,68,0.02);border-left:2px solid #ef4444;margin-left:12px;">
+          <span>渗透测试方法论</span><span style="color:#ef4444;">0.728</span>
+        </div>
+      </div>
+      <div class="fold-item" style="background:rgba(245,158,11,0.04);border:1px solid rgba(245,158,11,0.15);" onclick="toggleFold('f3')">
+        <span>📁 金融域 <span class="fold-children">(5子项)</span></span><span style="color:#f59e0b;">Ψ=0.729</span>
+      </div>
+      <div class="fold-children-panel" id="f3">
+        <div class="fold-item" style="background:rgba(245,158,11,0.02);border-left:2px solid #f59e0b;margin-left:12px;">
+          <span>量化回测评估</span><span style="color:#f59e0b;">0.729</span>
+        </div>
+        <div class="fold-item" style="background:rgba(245,158,11,0.02);border-left:2px solid #f59e0b;margin-left:12px;">
+          <span>风控熔断机制</span><span style="color:#f59e0b;">0.744</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 语义测量 -->
+  <div class="card">
+    <div class="card-title" style="color:var(--green);">语义测量 · 域间距离</div>
+    <div style="font-size:0.7rem;color:#667;line-height:2;">
+      <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #0f0f2a;">
+        <span>架构↔安全</span><span style="color:#ef4444;font-weight:600;">d=0.312</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #0f0f2a;">
+        <span>架构↔金融</span><span style="color:#f59e0b;font-weight:600;">d=0.287</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #0f0f2a;">
+        <span>架构↔设计</span><span style="color:#22d3ee;font-weight:600;">d=0.245</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #0f0f2a;">
+        <span>安全↔金融</span><span style="color:#a855f7;font-weight:600;">d=0.356</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #0f0f2a;">
+        <span>安全↔设计</span><span style="color:#10b981;font-weight:600;">d=0.398</span>
+      </div>
+      <div style="margin-top:12px;padding:8px;background:rgba(16,185,129,0.04);border-radius:6px;">
+        <div style="color:var(--green);font-weight:600;">自动分组建议</div>
+        <div style="font-size:0.65rem;">最近的域对: 架构↔设计 (d=0.245) — 建议合并容器</div>
+        <div style="font-size:0.65rem;">最远的域对: 安全↔设计 (d=0.398) — 保持独立容器</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleFold(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.toggle('open');
+}
+</script>
+</body>
+</html>
