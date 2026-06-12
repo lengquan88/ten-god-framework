@@ -1,0 +1,31 @@
+{
+  "branch": "P446_auto_0607_1818",
+  "base_model": "spirit_p444_micro.pt",
+  "base_hash": "db67ed91b433d2de",
+  "timestamp": "2026-06-07 18:18:27",
+  "params": {
+    "threshold": 0.15,
+    "lr": 1e-05,
+    "epochs": 5,
+    "qi_style": "qi_main"
+  },
+  "samples": {
+    "total": 2,
+    "trained": 1,
+    "validated": 1
+  },
+  "sample_records": [
+    {
+      "hash": "eb09769b7b68cf26",
+      "root_question": "SLA可用性如何计算和保障？",
+      "error": 0.18742473602294918
+    }
+  ],
+  "performance": {
+    "best_val_loss": 0.14746929705142975,
+    "train_time_s": 0.26,
+    "ref_avg_err_before": 0.028970708250999472,
+    "ref_avg_err_after": 0.025044845342636124,
+    "ref_ok_rate_after": 0.8333333333333334
+  }
+}
