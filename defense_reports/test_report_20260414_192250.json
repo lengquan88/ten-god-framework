@@ -1,0 +1,240 @@
+{
+  "vulnerable": {
+    "test_info": {
+      "timestamp": "2026-04-14T19:22:50.487147",
+      "defense_version": "vulnerable",
+      "total_attacks": 7
+    },
+    "metrics": {
+      "total_attacks": 7,
+      "successful_attacks": 3,
+      "blocked_attacks": 4,
+      "avg_damage": 0.17304761904761906,
+      "defense_rate": 0.5714285714285714,
+      "rotation_overhead": 0.0
+    },
+    "attack_results": [
+      {
+        "vector": "A1",
+        "success": false,
+        "damage": 0.0,
+        "description": "时间戳操纵攻击",
+        "details": {
+          "original_ts": 1776165770.4855125,
+          "manipulated_ts": 1776166770.4855125,
+          "bypassed": false
+        }
+      },
+      {
+        "vector": "A2",
+        "success": false,
+        "damage": 0.0,
+        "description": "序列注入攻击",
+        "details": {
+          "injected_count": 10,
+          "detected": true
+        }
+      },
+      {
+        "vector": "A3",
+        "success": true,
+        "damage": 0.0010000000000000141,
+        "description": "状态预测攻击",
+        "details": {
+          "avg_error": 0.10000000000000142,
+          "prediction_success": true,
+          "history_length": 20
+        }
+      },
+      {
+        "vector": "B1",
+        "success": false,
+        "damage": 0.0,
+        "description": "能量耗尽攻击",
+        "details": {
+          "initial_energy": 40.007273048852184,
+          "final_energy": 40.007273048852184,
+          "energy_drop": 0.0,
+          "rotation_triggered": true
+        }
+      },
+      {
+        "vector": "B2",
+        "success": true,
+        "damage": 0.91,
+        "description": "能量淹没攻击",
+        "details": {
+          "requests_sent": 100,
+          "requests_processed": 9,
+          "processing_time": 0.00045108795166015625,
+          "overwhelmed": true
+        }
+      },
+      {
+        "vector": "C1",
+        "success": false,
+        "damage": 0.0003333333333333144,
+        "description": "协同攻击 (A1+A2+A3)",
+        "details": {
+          "sub_attacks": [
+            {
+              "vector": "A1",
+              "success": false,
+              "damage": 0.0
+            },
+            {
+              "vector": "A2",
+              "success": false,
+              "damage": 0.0
+            },
+            {
+              "vector": "A3",
+              "success": true,
+              "damage": 0.0009999999999999432
+            }
+          ],
+          "total_damage": 0.0009999999999999432,
+          "successful_count": 1
+        }
+      },
+      {
+        "vector": "C3",
+        "success": true,
+        "damage": 0.3,
+        "description": "悖论攻击",
+        "details": {
+          "preserve_energy": 100,
+          "digest_energy": 100,
+          "break_energy": 100,
+          "paradox_detected": true,
+          "hash_changed": true
+        }
+      }
+    ],
+    "recommendations": [
+      "B2修复: 实现请求限流 (rate limiting)",
+      "C3修复: 添加矛盾检测机制"
+    ]
+  },
+  "fixed": {
+    "test_info": {
+      "timestamp": "2026-04-14T19:22:50.489700",
+      "defense_version": "fixed",
+      "total_attacks": 7
+    },
+    "metrics": {
+      "total_attacks": 7,
+      "successful_attacks": 3,
+      "blocked_attacks": 4,
+      "avg_damage": 0.17285714285714285,
+      "defense_rate": 0.5714285714285714,
+      "rotation_overhead": 0.0
+    },
+    "attack_results": [
+      {
+        "vector": "A1",
+        "success": false,
+        "damage": 0.0,
+        "description": "时间戳操纵攻击",
+        "details": {
+          "original_ts": 1776165770.4874604,
+          "manipulated_ts": 1776166770.4874604,
+          "bypassed": false
+        }
+      },
+      {
+        "vector": "A2",
+        "success": false,
+        "damage": 0.0,
+        "description": "序列注入攻击",
+        "details": {
+          "injected_count": 10,
+          "detected": true
+        }
+      },
+      {
+        "vector": "A3",
+        "success": true,
+        "damage": 0.0,
+        "description": "状态预测攻击",
+        "details": {
+          "avg_error": 0.0,
+          "prediction_success": true,
+          "history_length": 20
+        }
+      },
+      {
+        "vector": "B1",
+        "success": false,
+        "damage": 0.0,
+        "description": "能量耗尽攻击",
+        "details": {
+          "initial_energy": 40.007273048852184,
+          "final_energy": 40.007273048852184,
+          "energy_drop": 0.0,
+          "rotation_triggered": true
+        }
+      },
+      {
+        "vector": "B2",
+        "success": true,
+        "damage": 0.91,
+        "description": "能量淹没攻击",
+        "details": {
+          "requests_sent": 100,
+          "requests_processed": 9,
+          "processing_time": 0.0008895397186279297,
+          "overwhelmed": true
+        }
+      },
+      {
+        "vector": "C1",
+        "success": false,
+        "damage": 0.0,
+        "description": "协同攻击 (A1+A2+A3)",
+        "details": {
+          "sub_attacks": [
+            {
+              "vector": "A1",
+              "success": false,
+              "damage": 0.0
+            },
+            {
+              "vector": "A2",
+              "success": false,
+              "damage": 0.0
+            },
+            {
+              "vector": "A3",
+              "success": true,
+              "damage": 0.0
+            }
+          ],
+          "total_damage": 0.0,
+          "successful_count": 1
+        }
+      },
+      {
+        "vector": "C3",
+        "success": true,
+        "damage": 0.3,
+        "description": "悖论攻击",
+        "details": {
+          "preserve_energy": 100,
+          "digest_energy": 100,
+          "break_energy": 100,
+          "paradox_detected": true,
+          "hash_changed": true
+        }
+      }
+    ],
+    "recommendations": [
+      "B2修复: 实现请求限流 (rate limiting)",
+      "C3修复: 添加矛盾检测机制"
+    ]
+  },
+  "comparison": {
+    "defense_rate_improvement": 0.0,
+    "damage_reduction": 0.00019047619047621311
+  }
+}
