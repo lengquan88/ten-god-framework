@@ -1,0 +1,38 @@
+{
+  "主干": {
+    "name": "主干",
+    "model_path": "spirit_p444_micro.pt",
+    "qi_style": "qi_main",
+    "domain": "比肩·架构",
+    "pillar": "",
+    "sample_count": 0,
+    "avg_psi": 0.0,
+    "centroid": null,
+    "created_at": 1780806076.9861567,
+    "description": "主干模型 (7域基础)"
+  },
+  "跨域": {
+    "name": "跨域",
+    "model_path": "P446_branches/P446_cross_domain_v1.pt",
+    "qi_style": "qi_main",
+    "domain": "偏财·创新",
+    "pillar": "",
+    "sample_count": 25,
+    "avg_psi": 0.7542,
+    "centroid": null,
+    "created_at": 1780806077.098605,
+    "description": "5域容器发散 (金融/设计/安全/教育/医疗)"
+  },
+  "安全深": {
+    "name": "安全深",
+    "model_path": "P446_branches/P446_security_v1.pt",
+    "qi_style": "qi_main",
+    "domain": "七杀·品质",
+    "pillar": "",
+    "sample_count": 20,
+    "avg_psi": 0.7495,
+    "centroid": null,
+    "created_at": 1780806080.5117779,
+    "description": "安全深度容器 (20条深度安全)"
+  }
+}
