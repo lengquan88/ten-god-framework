@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Claw 类脑AI系统架构全景图</title>
+    <style>
+        /* ========== 全局重置 ========== */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", system-ui, -apple-system, sans-serif;
+            background: #0b0e17;
+            color: #e8edf5;
+            min-height: 100vh;
+            padding: 40px 30px;
+        }
+
+        /* ========== 标题区 ========== */
+        .header {
+            text-align: center;
+            padding: 30px 0 50px 0;
+        }
+        .header h1 {
+            font-size: 2.6rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #60a5fa, #a78bfa, #f472b6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: 4px;
+        }
+        .header .sub {
+            font-size: 1rem;
+            color: #6b7294;
+            margin-top: 12px;
+            letter-spacing: 6px;
+        }
+
+        /* ========== 架构容器 ========== */
+        .arch-container {
+            max-width: 1360px;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        /* ========== 每一层 ========== */
+        .layer {
+            display: flex;
+            align-items: stretch;
+            margin-bottom: 0;
+            position: relative;
+            z-index: 2;
+            border-radius: 16px;
+            overflow: visible;
+            transition: filter 0.3s, box-shadow 0.3s;
+        }
+        .layer:hover {
+            filter: brightness(1.08);
+            box-shadow: 0 0 32px rgba(255,255,255,0.06);
+        }
+
+        /* -- 层标签(左侧) -- */
+        .layer-label {
+            min-width: 140px;
+            max-width: 140px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 18px 12px;
+            border-radius: 14px 0 0 14px;
+            font-weight: 700;
+            font-size: 1.05rem;
+            letter-spacing: 2px;
+            text-align: center;
+            line-height: 1.5;
+            flex-shrink: 0;
+            position: relative;
+        }
+        .layer-label .badge {
+            font-size: 0.75rem;
+            opacity: 0.7;
+            font-weight: 400;
+            margin-top: 4px;
+            letter-spacing: 1px;
+        }
+
+        /* -- 层内容(右侧) -- */
+        .layer-content {
+            flex: 1;
+            padding: 18px 22px;
+            border-radius: 0 14px 14px 0;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 12px;
+        }
+
+        /* ========== 各层配色 ========== */
+        .layer-1  .layer-label  { background: linear-gradient(135deg, #1e3a5f, #1a2a4a); color: #93c5fd; }
+        .layer-1  .layer-content{ background: linear-gradient(135deg, rgba(30,58,95,0.55), rgba(26,42,74,0.35)); border: 1px solid rgba(59,130,246,0.25); border-left: none; }
+
+        .layer-2  .layer-label  { background: linear-gradient(135deg, #1e3b3a, #1a2f2e); color: #6ee7b7; }
+        .layer-2  .layer-content{ background: linear-gradient(135deg, rgba(30,59,58,0.55), rgba(26,47,46,0.35)); border: 1px solid rgba(52,211,153,0.25); border-left: none; }
+
+        .layer-3  .layer-label  { background: linear-gradient(135deg, #3b2e4a, #2e1f3a); color: #c4b5fd; }
+        .layer-3  .layer-content{ background: linear-gradient(135deg, rgba(59,46,74,0.55), rgba(46,31,58,0.35)); border: 1px solid rgba(139,92,246,0.25); border-left: none; }
+
+        .layer-4  .layer-label  { background: linear-gradient(135deg, #4a2e2e, #3a1f1f); color: #fca5a5; }
+        .layer-4  .layer-content{ background: linear-gradient(135deg, rgba(74,46,46,0.55), rgba(58,31,31,0.35)); border: 1px solid rgba(239,68,68,0.25); border-left: none; }
+
+        .layer-5  .layer-label  { background: linear-gradient(135deg, #3b3b1e, #2e2e1a); color: #fde68a; }
+        .layer-5  .layer-content{ background: linear-gradient(135deg, rgba(59,59,30,0.55), rgba(46,46,26,0.35)); border: 1px solid rgba(250,204,21,0.25); border-left: none; }
+
+        .layer-6  .layer-label  { background: linear-gradient(135deg, #2e1f3b, #1f1330); color: #f9a8d4; }
+        .layer-6  .layer-content{ background: linear-gradient(135deg, rgba(46,31,59,0.55), rgba(31,19,48,0.35)); border: 1px solid rgba(232,121,249,0.25); border-left: none; }
+
+        .layer-7  .layer-label  { background: linear-gradient(135deg, #2e2e4a, #1f1f3a); color: #818cf8; }
+        .layer-7  .layer-content{ background: linear-gradient(135deg, rgba(46,46,74,0.55), rgba(31,31,58,0.35)); border: 1px solid rgba(99,102,241,0.25); border-left: none; }
+
+        /* ========== 模块卡片 ========== */
+        .module {
+            background: rgba(255,255,255,0.06);
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 10px;
+            padding: 10px 16px;
+            font-size: 0.85rem;
+            cursor: default;
+            position: relative;
+            transition: background 0.25s, border-color 0.25s, transform 0.2s;
+            line-height: 1.4;
+            white-space: nowrap;
+        }
+        .module:hover {
+            background: rgba(255,255,255,0.13);
+            border-color: rgba(255,255,255,0.25);
+            transform: translateY(-2px);
+        }
+        .module .fn {
+            font-size: 0.65rem;
+            opacity: 0.55;
+            display: block;
+            margin-top: 2px;
+            white-space: normal;
+        }
+        .module-group {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px;
+        }
+        .module-sep {
+            width: 1px;
+            height: 28px;
+            background: rgba(255,255,255,0.10);
+            flex-shrink: 0;
+        }
+
+        /* ========== Tooltip (纯CSS) ========== */
+        .module[data-tip] {
+            position: relative;
+        }
+        .module[data-tip]::after {
+            content: attr(data-tip);
+            position: absolute;
+            bottom: calc(100% + 10px);
+            left: 50%;
+            transform: translateX(-50%) scale(0.9);
+            background: rgba(11,14,23,0.95);
+            color: #e8edf5;
+            font-size: 0.78rem;
+            padding: 8px 14px;
+            border-radius: 8px;
+            white-space: nowrap;
+            max-width: 320px;
+            white-space: normal;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s, transform 0.2s;
+            border: 1px solid rgba(255,255,255,0.10);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+            z-index: 100;
+            line-height: 1.5;
+            text-align: left;
+        }
+        .module[data-tip]::before {
+            content: "";
+            position: absolute;
+            bottom: calc(100% + 4px);
+            left: 50%;
+            transform: translateX(-50%) scale(0.9);
+            border: 6px solid transparent;
+            border-top-color: rgba(255,255,255,0.10);
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s, transform 0.2s;
+            z-index: 100;
+        }
+        .module[data-tip]:hover::after,
+        .module[data-tip]:hover::before {
+            opacity: 1;
+            transform: translateX(-50%) scale(1);
+        }
+
+        /* ========== SVG 箭头 ========== */
+        .arrow-layer {
+            position: relative;
+            z-index: 1;
+            height: 44px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: -2px 0 -2px 0;
+            pointer-events: none;
+        }
+        .arrow-layer svg {
+            display: block;
+        }
+
+        /* ========== 数据流标注 ========== */
+        .flow-label {
+            position: absolute;
+            font-size: 0.65rem;
+            color: #6b7294;
+            letter-spacing: 1px;
+            background: rgba(11,14,23,0.8);
+            padding: 2px 10px;
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.05);
+            white-space: nowrap;
+        }
+
+        /* ========== 响应式 ========== */
+        @media (max-width: 860px) {
+            body { padding: 20px 14px; }
+            .header h1 { font-size: 1.8rem; }
+            .layer { flex-direction: column; }
+            .layer-label {
+                min-width: 100%;
+                max-width: 100%;
+                border-radius: 14px 14px 0 0;
+                padding: 12px 10px;
+                font-size: 0.95rem;
+                flex-direction: row;
+                gap: 8px;
+            }
+            .layer-label .badge { margin-top: 0; }
+            .layer-content {
+                border-radius: 0 0 14px 14px;
+                border-left: 1px solid inherit;
+                border-top: none;
+            }
+            .module { white-space: normal; font-size: 0.8rem; }
+            .arrow-layer { height: 32px; }
+            .arrow-layer svg { transform: scale(0.7); }
+        }
+        @media (max-width: 480px) {
+            .header h1 { font-size: 1.4rem; letter-spacing: 2px; }
+            .layer-content { padding: 12px 14px; gap: 8px; }
+            .module { padding: 7px 12px; font-size: 0.75rem; }
+            .module-group { gap: 6px; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ==================== 标题 ==================== -->
+<header class="header">
+    <h1>Claw 类脑AI系统架构全景图</h1>
+    <div class="sub">七层认知闭环 · 拓扑语义引擎 · 记忆永生 · 司命假面</div>
+</header>
+
+<!-- ==================== 架构图 ==================== -->
+<div class="arch-container">
+
+    <!-- ===== 第1层：输入层 ===== -->
+    <div class="layer layer-1">
+        <div class="layer-label">
+            输入层
+            <span class="badge">L1 · 接入</span>
+        </div>
+        <div class="layer-content">
+            <div class="module-group">
+                <span class="module" data-tip="微信消息路由与命令处理, 将对话/指令分发给下游模块。\n路径: src/integration/wechat/">微信集成
+                    <span class="fn">消息路由 · 命令处理</span>
+                </span>
+                <span class="module-sep"></span>
+                <span class="module" data-tip="REST / WebSocket API端点，对外暴露系统能力。\n路径: api_server.py / llm_synthesis_api.py">API 服务
+                    <span class="fn">REST / WebSocket</span>
+                </span>
+                <span class="module-sep"></span>
+                <span class="module" data-tip="DeepSeek LLM 客户端，驱动语义理解与生成。\n路径: deepseek_client.py">DeepSeek LLM
+                    <span class="fn">语义理解 &amp; 生成</span>
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 箭头 L1 → L2 -->
+    <div class="arrow-layer">
+        <svg width="36" height="44" viewBox="0 0 36 44" fill="none">
+            <path d="M18 6 L18 34 M8 24 L18 36 L28 24" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/>
+        </svg>
+        <span class="flow-label" style="right:15%;bottom:2px;">向量化 · 语义解析</span>
+    </div>
+
+    <!-- ===== 第2层：拓扑语义引擎 ===== -->
+    <div class="layer layer-2">
+        <div class="layer-label">
+            拓扑语义引擎
+            <span class="badge">L2 · 表征</span>
+        </div>
+        <div class="layer-content">
+            <div class="module" data-tip="持久同调核心, ripser/scipy 双引擎驱动拓扑分析。\n路径: topo_semantic/core.py">持久同调核心
+                <span class="fn">ripser / scipy 双引擎</span>
+            </div>
+            <div class="module" data-tip="Ψ 四大算子：自指涉持久同调、坐忘注意力、语义流曲折度、语义递归深度。\n路径: topo_semantic/operators.py">Ψ 四大算子
+                <span class="fn">自指涉 · 坐忘注意力 · 曲折度 · 递归深度</span>
+            </div>
+            <div class="module" data-tip="嵌入三后端：BGE / TF-IDF / API，灵活切换。\n路径: topo_semantic/embedding_provider.py">嵌入三后端
+                <span class="fn">BGE · TF-IDF · API</span>
+            </div>
+            <div class="module" data-tip="FAISS 向量索引，高性能近似最近邻搜索。\n路径: topo_semantic/vector_index.py">向量索引 FAISS
+                <span class="fn">近似最近邻搜索</span>
+            </div>
+            <div class="module" data-tip="语义搜索引擎，结合拓扑特征进行检索。\n路径: topo_semantic/search_service.py">语义搜索
+                <span class="fn">拓扑增强检索</span>
+            </div>
+            <div class="module" data-tip="原始集优化：遗传算法 / 禁忌搜索 / MCMC。\n路径: topo_semantic/primitive_set/">原始集优化
+                <span class="fn">遗传 · 禁忌 · MCMC</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 箭头 L2 → L3 -->
+    <div class="arrow-layer">
+        <svg width="36" height="44" viewBox="0 0 36 44" fill="none">
+            <path d="M18 6 L18 34 M8 24 L18 36 L28 24" stroke="#34d399" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/>
+        </svg>
+        <span class="flow-label" style="right:12%;bottom:2px;">拓扑特征 → 层级映射</span>
+    </div>
+
+    <!-- ===== 第3层：认知八层桥接器 ===== -->
+    <div class="layer layer-3">
+        <div class="layer-label">
+            认知八层桥接器
+            <span class="badge">L3 · 映射</span>
+        </div>
+        <div class="layer-content">
+            <div class="module" data-tip="PsiConsciousnessBridge：Ψ算子 → 八层结构化认知评估。\n路径: cognition_psi_bridge/bridge.py">PsiConsciousnessBridge
+                <span class="fn">Ψ算子 → 八层结构化评估</span>
+            </div>
+            <div class="module" data-tip="L1 编码 → 原始输入符号化与特征编码。">L1 编码</div>
+            <div class="module" data-tip="L2 语义流 → 语义信息的流动与聚合。">L2 语义流</div>
+            <div class="module" data-tip="L3 拓扑 → 语义拓扑结构提取。">L3 拓扑</div>
+            <div class="module" data-tip="L4 意识涌现 → 高层语义模式的涌现。">L4 意识涌现</div>
+            <div class="module" data-tip="L5 注意力 → 注意力机制聚焦关键信息。">L5 注意力</div>
+            <div class="module" data-tip="L6 元认知 → 对认知过程的自我监控。">L6 元认知</div>
+            <div class="module" data-tip="L7 固化 → 认知结果固化与结构化。">L7 固化</div>
+            <div class="module" data-tip="L8 跃迁 → 认知层级跃迁与质变。">L8 跃迁</div>
+        </div>
+    </div>
+
+    <!-- 箭头 L3 → L4 -->
+    <div class="arrow-layer">
+        <svg width="36" height="44" viewBox="0 0 36 44" fill="none">
+            <path d="M18 6 L18 34 M8 24 L18 36 L28 24" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/>
+        </svg>
+        <span class="flow-label" style="right:18%;bottom:2px;">层级评估 → 裁决</span>
+    </div>
+
+    <!-- ===== 第4层：评估与裁决系统 ===== -->
+    <div class="layer layer-4">
+        <div class="layer-label">
+            评估与裁决系统
+            <span class="badge">L4 · 裁决</span>
+        </div>
+        <div class="layer-content">
+            <div class="module" data-tip="advanced_spirit_evaluator.py (~2468行)\n核心神似评估器，对语义深层结构进行评分。">神似评估器
+                <span class="fn">~2468 行 · 深度评分</span>
+            </div>
+            <div class="module" data-tip="三视角裁决器，从多个认知视角综合判定。\n路径: perspective_adjudicator_v3.py">三视角裁决器
+                <span class="fn">多视角综合判定</span>
+            </div>
+            <div class="module" data-tip="增强版神似评估，追加精细化的评估维度。\n路径: enhanced_spirit_evaluator.py">增强版评估器
+                <span class="fn">精细化维度</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 箭头 L4 → L5 -->
+    <div class="arrow-layer">
+        <svg width="36" height="44" viewBox="0 0 36 44" fill="none">
+            <path d="M18 6 L18 34 M8 24 L18 36 L28 24" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/>
+        </svg>
+        <span class="flow-label" style="right:14%;bottom:2px;">裁决结果 → 认知闭环</span>
+    </div>
+
+    <!-- ===== 第5层：七层认知闭环 ===== -->
+    <div class="layer layer-5">
+        <div class="layer-label">
+            七层认知闭环
+            <span class="badge">L5 · 认知</span>
+        </div>
+        <div class="layer-content">
+            <div class="module" data-tip="元认知层：对自身认知过程的监控与调节。\n路径: claw_seven_layer_core.py">元认知层</div>
+            <div class="module" data-tip="认知发生引擎：驱动认知过程的生成与演化。">认知发生引擎</div>
+            <div class="module" data-tip="负反馈检测：识别系统中的偏差并触发修正。">负反馈检测</div>
+            <div class="module" data-tip="主动关联：在不同信息片段间建立语义关联。">主动关联</div>
+            <div class="module" data-tip="反事实沙箱：模拟反事实场景进行推演。">反事实沙箱</div>
+            <div class="module" data-tip="预警推送：识别潜在问题并推送预警。">预警推送</div>
+            <div class="module" data-tip="反馈回路：闭环调节确保系统稳定。">反馈回路</div>
+            <div class="module" data-tip="长期记忆固化：将认知结果持久化到记忆系统。">长期记忆固化</div>
+        </div>
+    </div>
+
+    <!-- 箭头 L5 → L6 -->
+    <div class="arrow-layer">
+        <svg width="36" height="44" viewBox="0 0 36 44" fill="none">
+            <path d="M18 6 L18 34 M8 24 L18 36 L28 24" stroke="#facc15" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/>
+        </svg>
+        <span class="flow-label" style="right:12%;bottom:2px;">固化 → 永生存储</span>
+    </div>
+
+    <!-- ===== 第6层：记忆永生系统 ===== -->
+    <div class="layer layer-6">
+        <div class="layer-label">
+            记忆永生系统
+            <span class="badge">L6 · 存储</span>
+        </div>
+        <div class="layer-content">
+            <div class="module" data-tip="记忆胶囊：封装与存储完整的记忆单元。\n路径: src/memory/immortal/capsule.py">记忆胶囊
+                <span class="fn">记忆单元封装</span>
+            </div>
+            <div class="module" data-tip="主图谱：记忆关系的知识图谱存储。\n路径: src/memory/immortal/graph.py">主图谱
+                <span class="fn">知识图谱</span>
+            </div>
+            <div class="module" data-tip="遗忘曲线：模拟人类遗忘规律，优化记忆保留。\n路径: src/memory/immortal/forgetting_curve.py">遗忘曲线
+                <span class="fn">类人遗忘规律</span>
+            </div>
+            <div class="module" data-tip="自我完善九模协议：九种模式驱动人格自我进化。\n路径: src/memory/immortal/persona_self_perfection.py">自我完善
+                <span class="fn">九模协议 · 人格进化</span>
+            </div>
+            <div class="module" data-tip="云同步：跨设备记忆数据同步。\n路径: src/memory/immortal/cloud_sync.py">云同步
+                <span class="fn">跨设备同步</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 箭头 L6 → L7 -->
+    <div class="arrow-layer">
+        <svg width="36" height="44" viewBox="0 0 36 44" fill="none">
+            <path d="M18 6 L18 34 M8 24 L18 36 L28 24" stroke="#e879f9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/>
+        </svg>
+        <span class="flow-label" style="right:16%;bottom:2px;">记忆供给 → 调度防御</span>
+    </div>
+
+    <!-- ===== 第7层：司命假面系统 ===== -->
+    <div class="layer layer-7">
+        <div class="layer-label">
+            司命假面系统
+            <span class="badge">L7 · 调度</span>
+        </div>
+        <div class="layer-content">
+            <div class="module" data-tip="洛书279智能体，多智能体协作与调度。\n路径: luoshu_279_agents.py">洛书279智能体
+                <span class="fn">多智能体调度</span>
+            </div>
+            <div class="module" data-tip="九宫司命核心，司命系统的中枢决策。\n路径: 九宫司命_核心.py">九宫司命核心
+                <span class="fn">中枢决策</span>
+            </div>
+            <div class="module" data-tip="司命假面核心，假面切换与管理机制。\n路径: 司命假面_core.py">司命假面核心
+                <span class="fn">假面切换管理</span>
+            </div>
+            <div class="module" data-tip="N系列自进化模块，持续自我优化迭代。\n路径: n_series/">N系列自进化
+                <span class="fn">自我迭代优化</span>
+            </div>
+            <div class="module" data-tip="云笈太乙罗经防御系列：安全防御与对抗防护。\n路径: 云笈太乙罗经防御系列">云笈太乙罗经防御
+                <span class="fn">安全 · 对抗防护</span>
+            </div>
+            <div class="module" data-tip="幻阵系列：语义混淆与对抗欺骗防御。\n路径: 幻阵系列">幻阵系列
+                <span class="fn">语义混淆 · 欺骗防御</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== 底部数据流流向说明 ===== -->
+    <div style="margin-top: 50px; padding: 20px 24px; background: rgba(255,255,255,0.03); border-radius: 14px; border: 1px solid rgba(255,255,255,0.06);">
+        <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 10px; font-size: 0.82rem; color: #6b7294;">
+            <span style="color:#93c5fd;">输入</span>
+            <span style="opacity:0.4;">→</span>
+            <span style="color:#6ee7b7;">拓扑语义引擎</span>
+            <span style="opacity:0.4;">→</span>
+            <span style="color:#c4b5fd;">认知八层桥接器</span>
+            <span style="opacity:0.4;">→</span>
+            <span style="color:#fca5a5;">评估裁决</span>
+            <span style="opacity:0.4;">→</span>
+            <span style="color:#fde68a;">七层认知闭环</span>
+            <span style="opacity:0.4;">→</span>
+            <span style="color:#f9a8d4;">记忆永生</span>
+            <span style="opacity:0.4;">→</span>
+            <span style="color:#818cf8;">司命假面</span>
+        </div>
+        <div style="text-align: center; margin-top: 12px; font-size: 0.7rem; color: #4a5070; letter-spacing: 1px;">
+            微信/API  →  向量化 + 持久同调  →  层级映射  →  打分裁决  →  认知处理  →  永生存储  →  调度与防御
+        </div>
+    </div>
+
+</div>
+
+</body>
+</html>
