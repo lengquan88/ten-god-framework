@@ -1,0 +1,10 @@
+{
+  "action": "heal_complete",
+  "event_id": "viol_07b60ada6cd3",
+  "violation_code": "9101",
+  "strategy": "notify",
+  "status": "success",
+  "immune_id": "immune_43856712",
+  "_timestamp": 1780014871.6327155,
+  "_source": "C:Claw"
+}
