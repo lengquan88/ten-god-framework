@@ -1,0 +1,72 @@
+# 评估引擎服务 Dockerfile — 多阶段构建
+# FastAPI 评估引擎，端口 8002，集成 BGE 语义嵌入与形神评估
+
+# === Stage 1: 依赖安装 ===
+FROM python:3.11-slim AS builder
+
+WORKDIR /build
+
+# 安装编译工具（torch/sentence-transformers 的 C 扩展依赖）
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    libffi-dev \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# 仅复制依赖声明，利用 Docker 层缓存
+COPY spirit-form-api/evaluation-service/requirements.txt .
+
+# 安装到独立目录，便于多阶段复制
+RUN pip install --no-cache-dir --target=/build/deps -r requirements.txt
+
+# === Stage 2: 运行镜像 ===
+FROM python:3.11-slim
+
+LABEL maintainer="中华文明数字永生体"
+LABEL version="2.0.0"
+LABEL description="形神合一评估引擎服务 - 对话评估 / 形神得分 / 境界判定"
+
+WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
+ENV PYTHONIOENCODING=utf-8
+ENV USERNAME=spiritform
+
+# 安装运行时系统库
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libffi8 \
+    libssl3 \
+    libopenblas0 \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# 创建非 root 用户
+RUN groupadd -r spiritform && useradd -r -g spiritform -d /app -s /bin/bash spiritform
+
+# 从 builder 阶段复制依赖
+COPY --from=builder /build/deps /usr/local/lib/python3.11/site-packages/
+
+# 复制应用代码（评估服务 + 拓扑语义模块）
+COPY spirit-form-api/evaluation-service/ ./evaluation-service/
+COPY topo_semantic/ ./topo_semantic/
+COPY cognition_psi_bridge/ ./cognition_psi_bridge/
+
+# 创建运行时目录与模型缓存目录
+RUN mkdir -p /app/logs /app/data /app/models \
+    && chown -R spiritform:spiritform /app
+
+# 切换到非 root 用户
+USER spiritform
+
+# 暴露端口
+EXPOSE 8002
+
+# 健康检查（BGE 模型冷启动需要额外等待时间）
+HEALTHCHECK --interval=20s --timeout=15s --start-period=60s --retries=3 \
+    CMD python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8002/health')" || exit 1
+
+# 启动命令
+CMD ["python3", "evaluation-service/main.py"]
