@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>神似评估器 · 对话质量看板 ◉ · Cloud Edition</title>
+<script src="cloud_config.js"></script>
+<style>
+:root {
+  --bg-primary: #080810;
+  --bg-secondary: #0c0c18;
+  --bg-card: #101022;
+  --accent: #5eead4;
+  --accent-dim: #5eead422;
+  --text-primary: #e0e0f0;
+  --text-secondary: #8080a0;
+  --border: #1e1e3a;
+  --success: #34d399;
+  --warning: #fbbf24;
+  --danger: #f87171;
+  --info: #60a5fa;
+  --purple: #a78bfa;
+  --pink: #f472b6;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body {
+  font-family:'Segoe UI',system-ui,sans-serif;
+  background:var(--bg-primary);color:var(--text-primary);
+  min-height:100vh;overflow-x:hidden;
+}
+body::before{
+  content:'';position:fixed;top:-50%;left:-50%;
+  width:200%;height:200%;
+  background:radial-gradient(ellipse at 30%20%,#5eead408 0%,transparent 50%),
+              radial-gradient(ellipse at 70%80%,#f472b608 0%,transparent 50%);
+  z-index:0;pointer-events:none;
+}
+.dashboard{position:relative;z-index:1;max-width:1400px;margin:0 auto;padding:24px;}
+
+/* Header */
+.header{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:20px 28px;background:var(--bg-card);
+  border:1px solid var(--border);border-radius:16px;margin-bottom:24px;
+}
+.header h1{
+  font-size:1.4rem;font-weight:700;
+  background:linear-gradient(135deg,var(--accent),var(--purple));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+}
+.header .sub{font-size:0.8rem;color:var(--text-secondary);margin-top:4px;}
+.api-status{
+  display:flex;align-items:center;gap:8px;
+  padding:6px 14px;border-radius:20px;font-size:0.8rem;
+  background:var(--bg-primary);border:1px solid var(--border);
+}
+.api-dot{width:8px;height:8px;border-radius:50%;animation:pulse 2s infinite;}
+.api-dot.online{background:var(--success);box-shadow:0 0 6px #34d39988;}
+.api-dot.offline{background:var(--danger);animation:none;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.6}}
+
+/* Grid */
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+.grid.single{grid-template-columns:1fr}
+.card{
+  background:var(--bg-card);border:1px solid var(--border);
+  border-radius:16px;padding:20px;margin-bottom:20px;
+}
+.card-title{
+  font-size:0.9rem;font-weight:600;margin-bottom:16px;
+  color:var(--accent);display:flex;align-items:center;gap:8px;
+}
+
+/* Input */
+.input-group{display:flex;flex-direction:column;gap:12px;}
+.input-group label{font-size:0.8rem;color:var(--text-secondary);}
+.input-group textarea,.input-group input{
+  background:var(--bg-primary);color:var(--text-primary);
+  border:1px solid var(--border);border-radius:8px;
+  padding:10px 14px;font-size:0.85rem;resize:vertical;
+  transition:border-color 0.2s;
+}
+.input-group textarea:focus,.input-group input:focus{
+  outline:none;border-color:var(--accent);
+}
+.domain-grid{
+  display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;
+}
+.domain-btn{
+  background:var(--bg-primary);color:var(--text-primary);
+  border:1px solid var(--border);border-radius:8px;
+  padding:6px 14px;cursor:pointer;font-size:0.8rem;
+  transition:all 0.2s;
+}
+.domain-btn:hover{border-color:var(--accent);background:var(--accent-dim);}
+.domain-btn.active{border-color:var(--accent);background:var(--accent-dim);color:var(--accent);}
+.eval-btn{
+  background:linear-gradient(135deg,var(--accent),var(--purple));
+  color:var(--bg-primary);border:none;border-radius:8px;
+  padding:10px 24px;cursor:pointer;font-weight:600;font-size:0.9rem;
+  transition:all 0.2s;align-self:flex-start;
+}
+.eval-btn:hover{transform:translateY(-1px);box-shadow:0 4px 20px #5eead444;}
+.eval-btn:disabled{opacity:0.5;cursor:not-allowed;}
+
+/* Results */
+.psi-big{
+  font-size:3.5rem;font-weight:700;text-align:center;
+  background:linear-gradient(135deg,var(--accent),var(--info));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  line-height:1;
+}
+.psi-label{text-align:center;font-size:0.75rem;color:var(--text-secondary);margin-top:4px;}
+.psi-diagnosis{
+  text-align:center;font-size:0.9rem;margin-top:8px;
+  padding:6px 12px;border-radius:8px;display:inline-block;
+}
+.dim-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px;}
+.dim-item{
+  background:var(--bg-primary);border:1px solid var(--border);
+  border-radius:8px;padding:10px;text-align:center;
+}
+.dim-label{font-size:0.65rem;color:var(--text-secondary);}
+.dim-value{font-size:1.2rem;font-weight:600;margin-top:2px;}
+.qi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px;}
+.qi-item{
+  background:var(--bg-primary);border:1px solid var(--border);
+  border-radius:8px;padding:8px;text-align:center;
+}
+.qi-label{font-size:0.65rem;color:var(--text-secondary);}
+.qi-value{font-size:1rem;font-weight:600;margin-top:2px;}
+.qi-bar{
+  height:4px;border-radius:2px;margin-top:6px;
+  background:var(--bg-secondary);overflow:hidden;
+}
+.qi-bar-fill{height:100%;border-radius:2px;transition:width 0.5s;}
+
+/* History chart */
+canvas{margin-top:12px;border-radius:8px;max-height:180px;}
+.history-list{margin-top:12px;max-height:200px;overflow-y:auto;}
+.history-item{
+  display:flex;justify-content:space-between;
+  padding:4px 8px;font-size:0.75rem;color:var(--text-secondary);
+  border-bottom:1px solid var(--border);
+}
+
+/* Nodes */
+.node-list{margin-top:8px;}
+.node-item{
+  padding:8px 12px;margin-bottom:4px;
+  background:var(--bg-primary);border-radius:6px;
+  font-size:0.8rem;border-left:3px solid var(--border);
+  display:flex;justify-content:space-between;align-items:center;
+}
+.node-score{font-size:0.7rem;color:var(--text-secondary);white-space:nowrap;margin-left:8px;}
+
+/* Loading */
+.loading{text-align:center;padding:20px;color:var(--text-secondary);}
+.loading .spinner{
+  width:24px;height:24px;border:2px solid var(--border);
+  border-top-color:var(--accent);border-radius:50%;
+  animation:spin 0.8s linear infinite;margin:0 auto 8px;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+@media(max-width:800px){
+  .grid{grid-template-columns:1fr}
+  .dim-grid{grid-template-columns:repeat(2,1fr)}
+}
+</style>
+</head>
+<body>
+<div class="dashboard">
+
+  <!-- Header -->
+  <div class="header">
+    <div>
+      <h1>◉ 神似评估器 · 对话质量看板 v1.0</h1>
+      <div class="sub">P444 地支藏干 · P446 容器发散 · 本中余三气评估</div>
+    </div>
+    <div class="api-status" id="apiStatus">
+      <div class="api-dot offline" id="apiDot"></div>
+      <span id="apiStatusText">检查连接中...</span>
+    </div>
+  </div>
+
+  <div class="grid">
+    <!-- Left Panel: Input + Controls -->
+    <div class="card">
+      <div class="card-title">📝 对话输入</div>
+      <div class="domain-grid" id="domainGrid"></div>
+      <div class="input-group">
+        <label>根问题 (Root Question)</label>
+        <input id="rootQuestion" value="零信任安全架构的核心原则是什么?" spellcheck="false">
+      </div>
+      <div class="input-group" style="margin-top:12px;">
+        <label>回答节点 (每行一条)</label>
+        <textarea id="answers" rows="4" spellcheck="false">永不信任始终验证是零信任基石
+最小权限原则限制横向移动
+每项请求都需要身份验证
+微隔离替代传统边界防护</textarea>
+      </div>
+      <div class="input-group" style="margin-top:12px;">
+        <label>Qi 风格</label>
+        <select id="qiStyle" style="background:var(--bg-primary);color:var(--text-primary);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:0.85rem;">
+          <option value="qi_main">qi_main (平衡) [默认]</option>
+          <option value="balanced">balanced (均衡)</option>
+          <option value="qi_aggressive">qi_aggressive (激进)</option>
+          <option value="qi_detail">qi_detail (细节)</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:12px;margin-top:16px;">
+        <button class="eval-btn" id="evalBtn" onclick="evaluate()">◉ 评估</button>
+        <button class="eval-btn" style="background:var(--bg-primary);color:var(--text-primary);border:1px solid var(--border);" onclick="domainSnapshot()">📊 全域快照</button>
+      </div>
+    </div>
+
+    <!-- Right Panel: Results -->
+    <div>
+      <!-- Ψ Score -->
+      <div class="card" id="psiCard">
+        <div class="card-title">Ψ 神似指数</div>
+        <div id="psiResult">
+          <div class="loading"><div class="spinner"></div>等待评估...</div>
+        </div>
+      </div>
+      <!-- History Chart -->
+      <div class="card">
+        <div class="card-title">📈 Ψ 趋势</div>
+        <canvas id="psiChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Node Detail -->
+  <div class="card" id="nodeDetailCard" style="display:none;">
+    <div class="card-title">🔍 节点级分析</div>
+    <div class="node-list" id="nodeDetail"></div>
+  </div>
+
+</div>
+
+<script>
+// ═══ 配置 ═══
+const API = window.SpiritAPI ? window.SpiritAPI.baseUrl : 'http://localhost:8000';
+const API_KEY = window.SpiritAPI ? window.SpiritAPI.apiKey : 'spirit-p444-dev-key';
+
+const DOMAINS = {
+  '架构': {q:'如何提升系统架构的可扩展性?',a:['采用微服务架构将功能模块解耦独立部署','引入消息队列降低服务间依赖','实现水平扩展通过负载均衡','使用缓存层减少数据库压力']},
+  '金融': {q:'如何评估量化策略的回测效果?',a:['夏普比率和最大回撤是核心指标','验证策略在牛熊市表现一致性','过拟合检测使用交叉验证','滑点和交易成本是回测实盘差距主因']},
+  '安全': {q:'零信任安全架构的核心原则是什么?',a:['永不信任始终验证是零信任基石','最小权限原则限制横向移动','每项请求都需要身份验证','微隔离替代传统边界防护']},
+  '设计': {q:'如何评估UI设计的一致性原则?',a:['色彩系统和排版体系全局统一','组件库设计规范是一致性基础','交互模式在所有页面保持一致','核心是减少用户认知负担']},
+  '安全深':{q:'渗透测试的方法论和工具链?',a:['信息收集使用Nmap和Shodan资产测绘','漏洞扫描使用Nessus和OpenVAS','利用阶段验证漏洞的可利用性','核心是出具修复建议而非仅报告漏洞']},
+};
+
+let historyData = [];
+let psiChart = null;
+
+// ═══ 初始化 ═══
+async function init() {
+  // API 状态检查
+  try {
+    const r = await fetch(`${API}/`);
+    const d = await r.json();
+    document.getElementById('apiDot').className = 'api-dot online';
+    document.getElementById('apiStatusText').textContent =
+      `v${d.version} | 在线 | branch=${d.branch_loaded ? '✅' : '❌'}`;
+  } catch(e) {
+    document.getElementById('apiStatusText').textContent = '❌ API 未运行';
+  }
+
+  // 域按钮
+  const grid = document.getElementById('domainGrid');
+  Object.keys(DOMAINS).forEach(name => {
+    const btn = document.createElement('button');
+    btn.className = 'domain-btn';
+    btn.textContent = name;
+    btn.onclick = () => {
+      document.querySelectorAll('.domain-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const d = DOMAINS[name];
+      document.getElementById('rootQuestion').value = d.q;
+      document.getElementById('answers').value = d.a.join('\n');
+    };
+    grid.appendChild(btn);
+  });
+  // 默认选中
+  const firstBtn = grid.querySelector('.domain-btn');
+  if (firstBtn) { firstBtn.classList.add('active'); }
+
+  // 图表初始化
+  const canvas = document.getElementById('psiChart');
+  if (canvas && window.Chart) {
+    psiChart = new Chart(canvas, {
+      type: 'line',
+      data: { labels:[], datasets:[{
+        label:'Ψ', data:[], borderColor:'#5eead4', backgroundColor:'#5eead422',
+        tension:0.3, fill:true, pointRadius:3, pointHoverRadius:5
+      }]},
+      options: {
+        responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{display:false}},
+        scales:{
+          x:{display:true, ticks:{color:'#8080a0',maxTicksLimit:8}},
+          y:{min:0,max:1,ticks:{color:'#8080a0',stepSize:0.2}}
+        }
+      }
+    });
+  }
+
+  // 自动评估架构域
+  autoEval();
+}
+
+// ═══ 评估 ═══
+async function evaluate() {
+  const btn = document.getElementById('evalBtn');
+  btn.disabled = true; btn.textContent = '评估中...';
+  const start = performance.now();
+
+  try {
+    const q = document.getElementById('rootQuestion').value.trim();
+    const a = document.getElementById('answers').value.split('\n').filter(s => s.trim());
+    const qi = document.getElementById('qiStyle').value;
+
+    const r = await fetch(`${API}/evaluate`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${API_KEY}`},
+      body: JSON.stringify({root_question:q, answers:a, qi_style:qi, return_explain:true})
+    });
+    const d = await r.json();
+    const elapsed = ((performance.now()-start)/1000).toFixed(2);
+
+    if (d.spirit_score !== undefined) displayResult(d, elapsed, a);
+    else throw new Error(d.detail || 'API错误');
+  } catch(e) {
+    document.getElementById('psiResult').innerHTML =
+      `<div style="text-align:center;padding:20px;color:var(--danger);">
+        ❌ 评估失败: ${e.message}<br>
+        <span style="font-size:0.75rem;color:var(--text-secondary);">确保 API 在 ${API} 运行</span>
+      </div>`;
+  }
+  btn.disabled = false; btn.textContent = '◉ 评估';
+}
+
+function displayResult(d, elapsed, answers) {
+  const s = d.spirit_score;
+
+  // Ψ 大数字
+  document.getElementById('psiResult').innerHTML = `
+    <div class="psi-big" style="color:${s>=0.8?'var(--success)':s>=0.6?'var(--accent)':s>=0.4?'var(--warning)':'var(--danger)'}">${s.toFixed(4)}</div>
+    <div class="psi-label">Ψ 神似指数 · ${elapsed}s</div>
+    ${d.diagnosis ? `<div class="psi-diagnosis" style="background:${s>=0.6?'var(--accent-dim)':'var(--bg-primary)'};color:${s>=0.8?'var(--success)':s>=0.6?'var(--accent)':'var(--warning)'}">${d.diagnosis}</div>` : ''}
+    <div class="dim-grid">
+      ${['intention','coherence','priority','insight'].map(k =>
+        `<div class="dim-item">
+          <div class="dim-label">${k}</div>
+          <div class="dim-value" style="color:${(d.dimensions[k]||0)>=0.7?'var(--success)':'var(--warning)'}">${(d.dimensions[k]||0).toFixed(4)}</div>
+        </div>`
+      ).join('')}
+    </div>
+    <div class="qi-grid">
+      ${d.qi_scores ? ['b','z','y'].map(k => {
+        const label = {b:'本气·核心意图',z:'中气·逻辑连贯',y:'余气·细节洞见'}[k];
+        const pct = ((d.qi_scores[k]||0)/0.5*100).toFixed(0);
+        return `<div class="qi-item">
+          <div class="qi-label">${label}</div>
+          <div class="qi-value">${(d.qi_scores[k]||0).toFixed(4)}</div>
+          <div class="qi-bar"><div class="qi-bar-fill" style="width:${Math.min(pct,100)}%;background:${k==='b'?'var(--accent)':k==='z'?'var(--info)':'var(--purple)'}"></div></div>
+        </div>`;
+      }).join('') : ''}
+    </div>
+  `;
+
+  // 节点级分析
+  if (d.explain && d.explain.nodes) {
+    document.getElementById('nodeDetailCard').style.display = 'block';
+    document.getElementById('nodeDetail').innerHTML = d.explain.nodes.map(n =>
+      `<div class="node-item">
+        <span>#${n.id}: ${n.ans}</span>
+        <span class="node-score">int=${(n.intention||0).toFixed(3)} coh=${(n.coherence||0).toFixed(3)}</span>
+      </div>`
+    ).join('');
+  }
+
+  // 历史记录
+  const label = new Date().toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  historyData.push({label, psi:s, t:Date.now()});
+  if (historyData.length > 30) historyData.shift();
+  updateChart();
+}
+
+function updateChart() {
+  if (!psiChart) return;
+  psiChart.data.labels = historyData.map(h => h.label);
+  psiChart.data.datasets[0].data = historyData.map(h => h.psi);
+  psiChart.update('none');
+}
+
+// ═══ 自动评估 ═══
+function autoEval() {
+  const q = document.getElementById('rootQuestion').value;
+  const a = document.getElementById('answers').value;
+  if (q && a) evaluate();
+}
+
+// ═══ 全域快照 ═══
+async function domainSnapshot() {
+  const btn = document.querySelector('.eval-btn:last-child');
+  btn.disabled = true; btn.textContent = '快照中...';
+  const results = [];
+  for (const [name, d] of Object.entries(DOMAINS)) {
+    try {
+      const r = await fetch(`${API}/evaluate`, {
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':`Bearer ${API_KEY}`},
+        body: JSON.stringify({root_question:d.q, answers:d.a, qi_style:'qi_main', return_explain:false})
+      });
+      const data = await r.json();
+      results.push({name, psi:data.spirit_score});
+      historyData.push({label:`${name}`, psi:data.spirit_score, t:Date.now()});
+    } catch(e) { results.push({name, psi:0}); }
+  }
+  if (historyData.length > 30) historyData = historyData.slice(-30);
+  updateChart();
+
+  document.getElementById('psiResult').innerHTML = `
+    <div class="psi-label" style="margin-bottom:8px;">全域快照 (${new Date().toLocaleTimeString()})</div>
+    ${results.map(r => `
+      <div style="display:flex;justify-content:space-between;padding:4px 8px;border-bottom:1px solid var(--border);font-size:0.85rem;">
+        <span>${r.name}</span>
+        <span style="color:${r.psi>=0.6?'var(--success)':'var(--warning)'};font-weight:600;">Ψ=${r.psi.toFixed(4)}</span>
+      </div>
+    `).join('')}
+  `;
+  btn.disabled = false; btn.textContent = '📊 全域快照';
+}
+
+// ═══ 启动 ═══
+document.addEventListener('DOMContentLoaded', init);
+</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+</body>
+</html>
