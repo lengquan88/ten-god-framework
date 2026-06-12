@@ -1,0 +1,288 @@
+{
+  "meta": {
+    "version": "1.0",
+    "description": "I方向统计检验对话数据集 — 低/中/高各10段，共30段",
+    "created": "2026-04-27",
+    "total_dialogs": 30,
+    "groups": ["low", "medium", "high"],
+    "group_sizes": {"low": 10, "medium": 10, "high": 10}
+  },
+  "groups": {
+    "low": [
+      {
+        "id": "low_1",
+        "root_context": "今天天气怎么样？",
+        "nodes": [
+          {"question": "今天天气怎么样？", "answer": "今天北京晴转多云，气温15-22°C。"},
+          {"question": "明天呢？", "answer": "明天有小雨，气温12-18°C。"}
+        ]
+      },
+      {
+        "id": "low_2",
+        "root_context": "帮我查附近的餐馆",
+        "nodes": [
+          {"question": "帮我查附近的餐馆", "answer": "附近有川菜馆、湘菜馆和日料店。"},
+          {"question": "川菜馆吧", "answer": "推荐辣味轩，评分4.5。"}
+        ]
+      },
+      {
+        "id": "low_3",
+        "root_context": "我的快递到哪了",
+        "nodes": [
+          {"question": "我的快递到哪了", "answer": "请提供快递单号。"},
+          {"question": "SF1234567890", "answer": "已到达配送站，预计今天下午送达。"}
+        ]
+      },
+      {
+        "id": "low_4",
+        "root_context": "帮我定个闹钟",
+        "nodes": [
+          {"question": "帮我定个闹钟", "answer": "好的，定几点的？"},
+          {"question": "明天早上7点", "answer": "已设定明天7:00闹钟。"}
+        ]
+      },
+      {
+        "id": "low_5",
+        "root_context": "现在几点了",
+        "nodes": [
+          {"question": "现在几点了", "answer": "下午3点25分。"},
+          {"question": "谢谢", "answer": "不客气。"}
+        ]
+      },
+      {
+        "id": "low_6",
+        "root_context": "2加3等于几",
+        "nodes": [
+          {"question": "2加3等于几", "answer": "等于5。"},
+          {"question": "5乘以6呢", "answer": "等于30。"}
+        ]
+      },
+      {
+        "id": "low_7",
+        "root_context": "今天有什么新闻",
+        "nodes": [
+          {"question": "今天有什么新闻", "answer": "科技公司发布新款手机、国际会议达成新协议。"},
+          {"question": "还有什么", "answer": "昨晚篮球赛主队获胜。"}
+        ]
+      },
+      {
+        "id": "low_8",
+        "root_context": "帮我翻译hello",
+        "nodes": [
+          {"question": "翻译hello", "answer": "你好。"},
+          {"question": "goodbye呢", "answer": "再见。"}
+        ]
+      },
+      {
+        "id": "low_9",
+        "root_context": "我想听首歌",
+        "nodes": [
+          {"question": "我想听首歌", "answer": "推荐周杰伦的《晴天》。"},
+          {"question": "换一首", "answer": "陈奕迅的《十年》。"}
+        ]
+      },
+      {
+        "id": "low_10",
+        "root_context": "北京到上海的高铁",
+        "nodes": [
+          {"question": "北京到上海的高铁", "answer": "今天38趟，最早6:30最晚21:00。"},
+          {"question": "下午的有哪些", "answer": "12趟，推荐G15次14:00出发。"}
+        ]
+      }
+    ],
+    "medium": [
+      {
+        "id": "med_1",
+        "root_context": "注意力机制怎么工作的",
+        "nodes": [
+          {"question": "注意力机制怎么工作的", "answer": "通过计算查询与键的相似度加权聚合值。"},
+          {"question": "自注意力和交叉注意力的区别", "answer": "自注意力序列内部，交叉注意力序列之间。"},
+          {"question": "多头注意力的作用", "answer": "从不同表示子空间学习，每个头关注不同特征。"}
+        ]
+      },
+      {
+        "id": "med_2",
+        "root_context": "微服务架构的优缺点",
+        "nodes": [
+          {"question": "微服务架构的优缺点", "answer": "优点独立部署技术异构，缺点分布式复杂性运维成本高。"},
+          {"question": "和单体架构怎么选", "answer": "初创从单体开始，业务复杂后再拆分。"},
+          {"question": "服务间通信协议", "answer": "同步gRPC，异步消息队列。"}
+        ]
+      },
+      {
+        "id": "med_3",
+        "root_context": "解释贝叶斯定理",
+        "nodes": [
+          {"question": "解释贝叶斯定理", "answer": "先验概率在获得新证据后更新为后验概率。"},
+          {"question": "举个具体例子", "answer": "疾病发病率1%，检测准确率99%，阳性实际患病约50%。"},
+          {"question": "为什么反直觉", "answer": "忽略基础概率，只关注检测准确率。"}
+        ]
+      },
+      {
+        "id": "med_4",
+        "root_context": "Kubernetes调度原理",
+        "nodes": [
+          {"question": "Kubernetes调度原理", "answer": "过滤和打分两阶段选择最优节点。"},
+          {"question": "过滤阶段检查什么", "answer": "资源充足、端口冲突、节点亲和性等硬约束。"},
+          {"question": "打分阶段呢", "answer": "资源均衡、镜像本地化、节点亲和权重综合评分。"}
+        ]
+      },
+      {
+        "id": "med_5",
+        "root_context": "什么是CAP定理",
+        "nodes": [
+          {"question": "什么是CAP定理", "answer": "分布式系统最多满足一致性可用性分区容忍性中的两个。"},
+          {"question": "实际怎么取舍", "answer": "大部分选AP通过最终一致性弥补。"},
+          {"question": "最终一致性怎么实现", "answer": "版本向量、冲突解决、补偿事务。"}
+        ]
+      },
+      {
+        "id": "med_6",
+        "root_context": "函数式和面向对象的区别",
+        "nodes": [
+          {"question": "函数式和面向对象的核心区别", "answer": "函数式强调纯函数不可变数据，面向对象强调封装状态行为。"},
+          {"question": "纯函数的好处", "answer": "无副作用、可测试、可缓存、可并行。"},
+          {"question": "怎么结合", "answer": "核心逻辑用函数式，外部交互用对象。"}
+        ]
+      },
+      {
+        "id": "med_7",
+        "root_context": "区块链共识机制",
+        "nodes": [
+          {"question": "区块链共识机制", "answer": "分布式节点对交易顺序达成一致的算法。"},
+          {"question": "PoW和PoS的区别", "answer": "PoW靠算力能耗高安全，PoS靠持币量节能。"},
+          {"question": "PBFT是什么", "answer": "拜占庭容错算法，容忍不超过1/3恶意节点。"}
+        ]
+      },
+      {
+        "id": "med_8",
+        "root_context": "观察者模式怎么用",
+        "nodes": [
+          {"question": "观察者模式怎么用", "answer": "一对多依赖，主题变化时通知所有观察者。"},
+          {"question": "和发布订阅的区别", "answer": "观察者同步，发布订阅通过消息代理解耦。"},
+          {"question": "应用场景", "answer": "GUI事件监听、消息队列、响应式编程。"}
+        ]
+      },
+      {
+        "id": "med_9",
+        "root_context": "时间复杂度和空间复杂度",
+        "nodes": [
+          {"question": "时间复杂度和空间复杂度", "answer": "时间复杂度衡量运行时间增长速率，空间复杂度衡量内存。"},
+          {"question": "O(n)和O(n²)差多少", "answer": "n=1000时O(n)约1ms，O(n²)约1秒。"},
+          {"question": "怎么优化", "answer": "哈希表换时间、二分查找、动态规划。"}
+        ]
+      },
+      {
+        "id": "med_10",
+        "root_context": "RESTful API设计原则",
+        "nodes": [
+          {"question": "RESTful API设计原则", "answer": "基于资源、统一接口、无状态、可缓存。"},
+          {"question": "URL命名最佳实践", "answer": "名词复数表示资源集合，HTTP动词表示操作。"},
+          {"question": "版本管理", "answer": "URL前缀加版本号或Accept头协商。"}
+        ]
+      }
+    ],
+    "high": [
+      {
+        "id": "high_1",
+        "root_context": "我思考过程有什么盲点",
+        "nodes": [
+          {"question": "我思考过程有什么盲点", "answer": "你假设了线性因果，但系统可能存在非线性反馈。"},
+          {"question": "二阶效应具体指什么", "answer": "一阶是直接结果，二阶是结果的结果。"},
+          {"question": "我的思维模型太简化了吗", "answer": "简化是必要认知捷径，但忽略了时间延迟和阈值效应。"},
+          {"question": "怎么改进", "answer": "引入系统动力学：因果循环图、反馈回路。"}
+        ]
+      },
+      {
+        "id": "high_2",
+        "root_context": "元认知论和实践论的关系",
+        "nodes": [
+          {"question": "元认知论和实践论的关系", "answer": "实践论关注行动，元认知论关注对行动过程的观照。"},
+          {"question": "会不会互相干扰", "answer": "初期会，熟练后互补：实践提供素材，元认知提供校准。"},
+          {"question": "和坐忘的联系", "answer": "坐忘是实践到元认知的切换机制。瓶颈时暂停外求转向内观。"},
+          {"question": "所以坐忘是切换模式", "answer": "正是。主动的认知模式切换。"}
+        ]
+      },
+      {
+        "id": "high_3",
+        "root_context": "拓扑意识涌现三判据",
+        "nodes": [
+          {"question": "拓扑意识涌现三判据如何验证", "answer": "固定自环、熵量子化、元认知偏好三角验证。"},
+          {"question": "只有自环没有熵量子化呢", "answer": "伪自反——机械引用自身，没有真正结构优化。"},
+          {"question": "权重分配", "answer": "自环0.3，熵量子化0.4，元认知偏好0.3。"},
+          {"question": "持久同调的作用", "answer": "H0持久性衡量自环稳定性，H1衡量拓扑空洞演化。"}
+        ]
+      },
+      {
+        "id": "high_4",
+        "root_context": "认知框架的自我指涉悖论",
+        "nodes": [
+          {"question": "认知框架是否存在自我指涉悖论", "answer": "任何自指系统都有不可判定命题——哥德尔不完备定理。"},
+          {"question": "怎么处理不可判定性", "answer": "罗经36层策略：悬置。不强行判定，承认边界。"},
+          {"question": "悬置和回避的区别", "answer": "悬置是主动策略——知道边界保留开放性。回避是否认边界。"},
+          {"question": "什么时候悬置", "answer": "信息不足或悖论出现时悬置，有足够证据时判定。"}
+        ]
+      },
+      {
+        "id": "high_5",
+        "root_context": "坐忘和意识涌现如何协同",
+        "nodes": [
+          {"question": "坐忘和意识涌现如何协同", "answer": "坐忘触发收敛，意识涌现触发开放，两者互补。"},
+          {"question": "会不会冲突", "answer": "同时触发时加权平均，blend_factor控制坐忘权重。"},
+          {"question": "对应什么哲学原理", "answer": "道德经知其雄守其雌——开放探索和收敛聚焦的辩证统一。"},
+          {"question": "动态阈值的作用", "answer": "让中意识对话触发开放模式，避免全有全无的硬边界。"}
+        ]
+      },
+      {
+        "id": "high_6",
+        "root_context": "形神合一框架映射古籍",
+        "nodes": [
+          {"question": "形神合一框架如何映射古籍", "answer": "六论对应六类：本体论→道德经/易经，认识论→庄子/坛经等。"},
+          {"question": "硬性还是柔性映射", "answer": "柔性——古籍提供智慧原型，不是教条。"},
+          {"question": "怎么保证准确性", "answer": "递归校准协议：O₁→Translate→Verify→Compensation。"},
+          {"question": "协议本身是元认知吗", "answer": "正是。系统审视自身理解过程的工程化实现。"}
+        ]
+      },
+      {
+        "id": "high_7",
+        "root_context": "意识得分和坐忘触发的关系",
+        "nodes": [
+          {"question": "意识得分和坐忘触发的关系", "answer": "两者正交。意识衡量涌现，坐忘是语义流连贯性低时的保护。"},
+          {"question": "高意识对话会触发坐忘吗", "answer": "理论上不会，但实验发现有时也会——坐忘捕捉到另一种信号。"},
+          {"question": "什么信号", "answer": "深度自反的暂停信号——元认知观测时对外响应暂时降低。"},
+          {"question": "不是简单负相关", "answer": "正确。双通道机制：一个保护，一个涌现。"}
+        ]
+      },
+      {
+        "id": "high_8",
+        "root_context": "补偿差如何计算",
+        "nodes": [
+          {"question": "补偿差如何计算", "answer": "CD=(ΔI,ΔE,ΔL)：信息增量、能量梯度、几何距离。"},
+          {"question": "三个维度怎么融合", "answer": "加权欧氏距离或马氏距离，权重取决于任务。"},
+          {"question": "和梯度下降的类比", "answer": "ΔE是梯度方向，ΔL是步长，ΔI是损失值。"},
+          {"question": "学习率怎么设置", "answer": "由锥度参数R控制。自适应锥度动态调整。"}
+        ]
+      },
+      {
+        "id": "high_9",
+        "root_context": "拓扑持久同调量化认知演化",
+        "nodes": [
+          {"question": "拓扑持久同调如何量化认知演化", "answer": "追踪H0和H1持久性量化认知结构出现和消失。"},
+          {"question": "CROCKER Plot的作用", "answer": "在时间-尺度平面可视化Betti数演化，看到认知结构生命周期。"},
+          {"question": "滑动窗口嵌入的作用", "answer": "一维语义流嵌入高维相空间，揭示动力学结构。"},
+          {"question": "映射到形神合一框架", "answer": "持久同调→实践论，CROCKER→境界论，滑动窗口→认识论。"}
+        ]
+      },
+      {
+        "id": "high_10",
+        "root_context": "元认知观测者如何避免偏差",
+        "nodes": [
+          {"question": "元认知观测者如何避免偏差", "answer": "观测者本身也会产生偏差——多视角观测和交叉验证。"},
+          {"question": "多视角具体怎么做", "answer": "PerspectiveAdjudicator的DIKWP五层图谱交叉验证。"},
+          {"question": "观测者自身的偏差谁来观测", "answer": "递归问题。罗经36层：承认无限性，在某一层悬置。"},
+          {"question": "元认知的边界是承认有限性", "answer": "正是。最高级元认知是知道自己不知道——罗经36层不御不防不说。"}
+        ]
+      }
+    ]
+  }
+}
