@@ -1,0 +1,1506 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>云笈七签 · 全模态循环智能体操作系统</title>
+<style>
+/* ========== CSS Custom Properties ========== */
+:root {
+  --bg-deep: #080c18;
+  --bg-cosmic: #0a0f24;
+  --dong-zhen: #8b5cf6;   /* 洞真 - 紫 */
+  --dong-xuan: #3b82f6;   /* 洞玄 - 蓝 */
+  --dong-shen: #f59e0b;   /* 洞神 - 金 */
+  --perception: #10b981;  /* 感知 - 绿 */
+  --generation: #e2e8f0;  /* 生成 - 白 */
+  --decision: #ef4444;    /* 决策 - 赤 */
+  --yin-glow: #1e1b4b;    /* 阴鱼暗光 */
+  --yang-glow: #fef3c7;   /* 阳鱼明光 */
+  --border-subtle: rgba(139, 92, 246, 0.2);
+  --border-glow: rgba(139, 92, 246, 0.5);
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --glass-bg: rgba(15, 18, 40, 0.85);
+  --glass-border: rgba(139, 92, 246, 0.15);
+  --font-zh: 'Noto Serif SC', 'STSong', 'SimSun', serif;
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', monospace;
+}
+
+/* ========== Reset & Base ========== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font-zh);
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ========== Starfield Canvas ========== */
+#starfield {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* ========== Main Container ========== */
+#app-container {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 1fr 320px 1fr;
+  grid-template-rows: 60px 1fr 60px;
+  grid-template-areas:
+    "header header header"
+    "yin core yang"
+    "footer footer footer";
+  height: 100vh;
+  gap: 8px;
+  padding: 8px;
+}
+
+/* ========== Header ========== */
+#header {
+  grid-area: header;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+}
+
+#header .title-group {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+#header .yunjia-seal {
+  font-size: 28px;
+  color: var(--dong-zhen);
+  text-shadow: 0 0 20px rgba(139, 92, 246, 0.6);
+  letter-spacing: 4px;
+  font-family: var(--font-zh);
+}
+
+#header .system-title {
+  font-size: 14px;
+  color: var(--text-secondary);
+  letter-spacing: 6px;
+}
+
+#header .cycle-display {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--dong-shen);
+}
+
+#cycle-number {
+  font-size: 24px;
+  font-weight: bold;
+  background: linear-gradient(135deg, var(--dong-zhen), var(--dong-shen));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ========== Core Sphere Area ========== */
+#core-zone {
+  grid-area: core;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+#hun-yuan-container {
+  width: 280px;
+  height: 280px;
+  position: relative;
+}
+
+#hun-yuan-sphere {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  position: relative;
+  background: radial-gradient(circle at 35% 35%, rgba(139, 92, 246, 0.3), rgba(8, 12, 24, 0.9) 70%);
+  box-shadow:
+    0 0 60px rgba(139, 92, 246, 0.3),
+    0 0 120px rgba(59, 130, 246, 0.15),
+    inset 0 0 80px rgba(139, 92, 246, 0.1);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  animation: hunYuanPulse 4s ease-in-out infinite;
+}
+
+#hun-yuan-sphere::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  border-top-color: var(--dong-shen);
+  border-right-color: var(--dong-zhen);
+  animation: sphereOrbit 8s linear infinite;
+}
+
+#hun-yuan-sphere::after {
+  content: '';
+  position: absolute;
+  inset: 20%;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, transparent 0%, rgba(139, 92, 246, 0.4) 25%, transparent 50%, rgba(245, 158, 11, 0.4) 75%, transparent 100%);
+  animation: yinYangSpin 12s linear infinite;
+}
+
+#sphere-label {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 48px;
+  color: var(--dong-zhen);
+  text-shadow: 0 0 30px rgba(139, 92, 246, 0.8);
+  z-index: 2;
+  pointer-events: none;
+}
+
+#sphere-mode {
+  position: absolute;
+  bottom: -40px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 12px;
+  color: var(--text-muted);
+  letter-spacing: 4px;
+  white-space: nowrap;
+}
+
+/* ========== Yin Zone (Left - Input) ========== */
+#yin-zone {
+  grid-area: yin;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.panel {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  padding: 16px;
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.panel-header .icon { font-size: 18px; }
+.panel-header .label {
+  font-size: 13px;
+  letter-spacing: 3px;
+  color: var(--text-secondary);
+}
+
+/* Input Panel */
+#input-panel .input-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+#wish-input {
+  flex: 1;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  color: var(--text-primary);
+  padding: 12px;
+  font-family: var(--font-zh);
+  font-size: 14px;
+  resize: none;
+  outline: none;
+  transition: border-color 0.3s;
+}
+
+#wish-input:focus {
+  border-color: var(--dong-zhen);
+  box-shadow: 0 0 20px rgba(139, 92, 246, 0.15);
+}
+
+#wish-input::placeholder {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.btn-row {
+  display: flex;
+  gap: 8px;
+}
+
+.btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(15, 18, 40, 0.8);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-family: var(--font-zh);
+  font-size: 12px;
+  letter-spacing: 2px;
+  transition: all 0.3s;
+}
+
+.btn:hover {
+  border-color: var(--dong-zhen);
+  box-shadow: 0 0 15px rgba(139, 92, 246, 0.2);
+}
+
+.btn.primary {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.3), rgba(59, 130, 246, 0.2));
+  border-color: rgba(139, 92, 246, 0.4);
+}
+
+.btn.primary:hover {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.5), rgba(59, 130, 246, 0.3));
+  box-shadow: 0 0 25px rgba(139, 92, 246, 0.3);
+}
+
+/* ========== Yang Zone (Right - Output) ========== */
+#yang-zone {
+  grid-area: yang;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#output-panel .output-content {
+  flex: 1;
+  overflow-y: auto;
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--text-secondary);
+  padding: 8px 0;
+}
+
+.output-content::-webkit-scrollbar {
+  width: 3px;
+}
+
+.output-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.output-content::-webkit-scrollbar-thumb {
+  background: rgba(139, 92, 246, 0.3);
+  border-radius: 4px;
+}
+
+.output-block {
+  margin-bottom: 16px;
+  padding: 12px;
+  border-left: 2px solid var(--dong-zhen);
+  background: rgba(139, 92, 246, 0.05);
+  border-radius: 0 8px 8px 0;
+  animation: fadeSlideIn 0.6s ease-out;
+}
+
+.output-block .block-label {
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: var(--dong-zhen);
+  margin-bottom: 6px;
+}
+
+.output-block .block-text {
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+/* ========== Footer ========== */
+#footer {
+  grid-area: footer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+}
+
+.module-tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.module-tab {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: var(--font-zh);
+  font-size: 11px;
+  letter-spacing: 2px;
+  transition: all 0.3s;
+}
+
+.module-tab:hover {
+  color: var(--text-primary);
+  background: rgba(139, 92, 246, 0.1);
+}
+
+.module-tab.active {
+  color: var(--dong-shen);
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-dot.active {
+  background: var(--perception);
+  box-shadow: 0 0 8px var(--perception);
+  animation: statusPulse 2s ease-in-out infinite;
+}
+
+.status-dot.idle {
+  background: var(--text-muted);
+}
+
+/* ========== Modal Overlay (Alchemy / Star Chart / Mission) ========== */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(4px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-overlay.show { display: flex; }
+
+.modal-panel {
+  width: 700px;
+  max-height: 80vh;
+  background: var(--bg-cosmic);
+  border: 1px solid var(--border-glow);
+  border-radius: 16px;
+  padding: 24px;
+  overflow-y: auto;
+  box-shadow: 0 0 60px rgba(139, 92, 246, 0.2);
+  animation: modalIn 0.4s ease-out;
+}
+
+.modal-panel h2 {
+  font-size: 20px;
+  letter-spacing: 4px;
+  margin-bottom: 20px;
+  color: var(--dong-zhen);
+  text-align: center;
+}
+
+.modal-panel .close-btn {
+  position: absolute;
+  top: 16px; right: 16px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 20px;
+  cursor: pointer;
+}
+
+/* ========== Alchemy Furnace ========== */
+.alchemy-interface {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.furnace-viz {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.furnace-flame {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(239, 68, 68, 0.6), rgba(245, 158, 11, 0.3), transparent 70%);
+  animation: flameFlicker 1.5s ease-in-out infinite;
+}
+
+.furnace-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.fire-selector {
+  display: flex;
+  gap: 8px;
+}
+
+.fire-btn {
+  flex: 1;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 11px;
+  letter-spacing: 2px;
+  transition: all 0.3s;
+}
+
+.fire-btn:hover, .fire-btn.selected {
+  border-color: var(--decision);
+  color: var(--decision);
+}
+
+.ingredient-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ingredient-tag {
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: rgba(139, 92, 246, 0.15);
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  font-size: 11px;
+  color: var(--dong-zhen);
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.ingredient-tag:hover {
+  background: rgba(139, 92, 246, 0.3);
+}
+
+.pill-result {
+  margin-top: 12px;
+  padding: 16px;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  border-radius: 8px;
+  text-align: center;
+  font-size: 24px;
+}
+
+/* ========== Celestial Chart ========== */
+.star-chart {
+  width: 100%;
+  height: 300px;
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px;
+  background: radial-gradient(ellipse at center, rgba(139, 92, 246, 0.1), transparent 70%);
+}
+
+/* ========== Agent Panel ========== */
+.agent-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.agent-card {
+  padding: 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(15, 18, 40, 0.6);
+  transition: all 0.3s;
+}
+
+.agent-card:hover {
+  border-color: var(--dong-zhen);
+  box-shadow: 0 0 20px rgba(139, 92, 246, 0.15);
+  transform: translateY(-2px);
+}
+
+.agent-card .agent-icon {
+  font-size: 28px;
+  margin-bottom: 8px;
+}
+
+.agent-card .agent-name {
+  font-size: 14px;
+  font-weight: bold;
+  color: var(--text-primary);
+  letter-spacing: 2px;
+}
+
+.agent-card .agent-domain {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.agent-card .agent-status {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+}
+
+/* ========== Animations ========== */
+@keyframes hunYuanPulse {
+  0%, 100% { box-shadow: 0 0 60px rgba(139, 92, 246, 0.3), 0 0 120px rgba(59, 130, 246, 0.15); }
+  50% { box-shadow: 0 0 80px rgba(139, 92, 246, 0.5), 0 0 150px rgba(59, 130, 246, 0.25); }
+}
+
+@keyframes sphereOrbit {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes yinYangSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes statusPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+@keyframes flameFlicker {
+  0%, 100% { transform: scale(1); opacity: 0.8; }
+  25% { transform: scale(1.1) translateY(-2px); opacity: 1; }
+  50% { transform: scale(0.95); opacity: 0.7; }
+  75% { transform: scale(1.05) translateY(-1px); opacity: 0.9; }
+}
+
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes modalIn {
+  from { opacity: 0; transform: scale(0.9) translateY(20px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes qiFlow {
+  0% { transform: translateY(100%); opacity: 0; }
+  50% { opacity: 0.6; }
+  100% { transform: translateY(-100%); opacity: 0; }
+}
+
+/* ========== Responsive ========== */
+@media (max-width: 1000px) {
+  #app-container {
+    grid-template-columns: 1fr;
+    grid-template-rows: 60px 1fr 280px 1fr 60px;
+    grid-template-areas:
+      "header"
+      "core"
+      "yin"
+      "yang"
+      "footer";
+  }
+  #core-zone { flex-direction: row; }
+  #hun-yuan-container { width: 180px; height: 180px; }
+}
+
+/* ========== Qi Particle Effects ========== */
+.qi-particle {
+  position: fixed;
+  pointer-events: none;
+  z-index: 2;
+  border-radius: 50%;
+  animation: qiFlow 3s ease-out forwards;
+}
+
+.qi-particle.yin {
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.6), transparent);
+  box-shadow: 0 0 8px rgba(139, 92, 246, 0.4);
+}
+
+.qi-particle.yang {
+  background: radial-gradient(circle, rgba(245, 158, 11, 0.6), transparent);
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
+}
+
+/* ========== Tao Yang (Bottom Right) Eight Trigrams Decoration ========== */
+.trigram-decoration {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  font-size: 64px;
+  opacity: 0.06;
+  pointer-events: none;
+  z-index: 0;
+  color: var(--dong-zhen);
+}
+</style>
+</head>
+<body>
+
+<!-- Starfield Background -->
+<canvas id="starfield"></canvas>
+
+<!-- Ambient Decoration -->
+<div class="trigram-decoration">☯</div>
+
+<!-- App Container -->
+<div id="app-container">
+
+  <!-- ===== HEADER ===== -->
+  <header id="header">
+    <div class="title-group">
+      <span class="yunjia-seal">雲笈七籤</span>
+      <span class="system-title">全模態循環智能體操作系統 · YUNJIA OS v1.0</span>
+    </div>
+    <div class="cycle-display">
+      <span>周天運行</span>
+      <span>第</span>
+      <span id="cycle-number">3628</span>
+      <span>周天</span>
+      <span class="status-dot active"></span>
+      <span style="color: var(--perception); font-size: 11px;">道法自然</span>
+    </div>
+  </header>
+
+  <!-- ===== YIN ZONE (Left - Input) ===== -->
+  <section id="yin-zone">
+    <div class="panel" id="input-panel" style="flex: 2;">
+      <div class="panel-header">
+        <span class="icon">☯</span>
+        <span class="label">· 陰 · 願念投送 ·</span>
+      </div>
+      <div class="input-area">
+        <textarea id="wish-input" placeholder="於此處投下願念...&#10;問天地之道，探神仙之秘&#10;煉金丹妙藥，觀周天星圖..."></textarea>
+        <div class="btn-row">
+          <button class="btn primary" onclick="submitWish()">✦ 投送願念</button>
+          <button class="btn" onclick="clearInput()">清淨</button>
+          <select id="modal-select" class="btn" style="color:var(--text-muted);">
+            <option value="text">文字</option>
+            <option value="image">圖像</option>
+            <option value="voice">語音</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" id="agent-mini-panel" style="flex: 1;">
+      <div class="panel-header">
+        <span class="icon">✦</span>
+        <span class="label">· 仙庭監察 ·</span>
+      </div>
+      <div id="agent-mini-grid" style="display:flex; flex-wrap:wrap; gap:8px; font-size:11px;">
+        <!-- Injected by JS -->
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== CORE ZONE (Center - Hun Yuan Sphere) ===== -->
+  <section id="core-zone">
+    <div id="hun-yuan-container" onclick="cycleClick()">
+      <div id="hun-yuan-sphere"></div>
+      <div id="sphere-label">道</div>
+    </div>
+    <div id="sphere-mode">混元 · 循環不息</div>
+  </section>
+
+  <!-- ===== YANG ZONE (Right - Output) ===== -->
+  <section id="yang-zone">
+    <div class="panel" id="output-panel" style="flex: 2;">
+      <div class="panel-header">
+        <span class="icon">☀</span>
+        <span class="label">· 陽 · 天書顯現 ·</span>
+      </div>
+      <div class="output-content" id="output-content">
+        <div class="output-block">
+          <div class="block-label">【洞真 · 核心教義】</div>
+          <div class="block-text">
+            道可道，非常道。名可名，非常名。<br>
+            無名天地之始，有名萬物之母。<br>
+            故常無欲，以觀其妙；常有欲，以觀其徼。<br>
+            此兩者同出而異名，同謂之玄。玄之又玄，眾妙之門。
+          </div>
+        </div>
+        <div class="output-block">
+          <div class="block-label">【系統初始化 · 第3628周天】</div>
+          <div class="block-text">
+            三洞四輔已就位。七大神智能體已喚醒。<br>
+            陰陽循環引擎運行穩定。<br>
+            紫微大帝（感知）、文昌帝君（分析）、太上老君（生成）、<br>
+            東華帝君（記憶）、真武大帝（決策）、太白金星（交互）、<br>
+            道德天尊（循環）—— 等待願念投送。
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" id="quick-panel" style="flex: 0.5;">
+      <div class="panel-header">
+        <span class="icon">◈</span>
+        <span class="label">· 三洞四輔 ·</span>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:6px; font-size:11px;">
+        <div style="display:flex; align-items:center; gap:8px; padding:4px 8px; border-left:2px solid var(--dong-zhen);">
+          <span style="color:var(--dong-zhen);">洞真</span>
+          <span style="color:var(--text-muted);">核心教義/哲學 | 卷1-4</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px; padding:4px 8px; border-left:2px solid var(--dong-xuan);">
+          <span style="color:var(--dong-xuan);">洞玄</span>
+          <span style="color:var(--text-muted);">法術/儀式 | 卷5-20</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px; padding:4px 8px; border-left:2px solid var(--dong-shen);">
+          <span style="color:var(--dong-shen);">洞神</span>
+          <span style="color:var(--text-muted);">神仙/譜系 | 卷21-40</span>
+        </div>
+        <hr style="border-color:var(--border-subtle); margin:4px 0;">
+        <div style="display:flex; align-items:center; gap:8px; padding:4px 8px; border-left:2px solid var(--perception);">
+          <span style="color:var(--perception);">太玄</span>
+          <span style="color:var(--text-muted);">系統底層</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px; padding:4px 8px; border-left:2px solid var(--generation);">
+          <span style="color:var(--generation);">太平</span>
+          <span style="color:var(--text-muted);">交互與界面</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px; padding:4px 8px; border-left:2px solid var(--dong-xuan);">
+          <span style="color:var(--dong-xuan);">太清</span>
+          <span style="color:var(--text-muted);">存儲與記憶</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px; padding:4px 8px; border-left:2px solid var(--decision);">
+          <span style="color:var(--decision);">正一</span>
+          <span style="color:var(--text-muted);">用戶與身份</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== FOOTER ===== -->
+  <footer id="footer">
+    <div class="module-tabs">
+      <button class="module-tab" data-module="home" onclick="switchModule('home')">◈ 混元</button>
+      <button class="module-tab active" data-module="alchemy" onclick="switchModule('alchemy')">⊹ 煉丹爐</button>
+      <button class="module-tab" data-module="chart" onclick="switchModule('chart')">◎ 周天圖譜</button>
+      <button class="module-tab" data-module="mission" onclick="switchModule('mission')">✦ 度人經</button>
+      <button class="module-tab" data-module="agents" onclick="switchModule('agents')">☯ 神仙譜</button>
+    </div>
+    <div class="status-indicator">
+      <span>三洞 | 洞真·洞玄·洞神</span>
+      <span>|</span>
+      <span>四輔 | 太玄·太平·太清·正一</span>
+      <span>|</span>
+      <span class="status-dot active"></span>
+      <span>DAO_ENGINE: RUNNING</span>
+    </div>
+  </footer>
+
+</div>
+
+<!-- ========== MODALS ========== -->
+
+<!-- Alchemy Furnace Modal -->
+<div class="modal-overlay" id="alchemy-modal">
+  <div class="modal-panel">
+    <h2>⊹ 煉 丹 爐 ⊹</h2>
+    <div class="alchemy-interface">
+      <div class="furnace-viz">
+        <div class="furnace-flame" id="furnace-flame"></div>
+        <span style="font-size:11px; color:var(--text-muted);" id="furnace-status">等待藥材...</span>
+      </div>
+      <div class="furnace-controls">
+        <label style="font-size:11px; color:var(--text-secondary); letter-spacing:2px;">爐火類型</label>
+        <div class="fire-selector" id="fire-selector">
+          <button class="fire-btn selected" data-fire="tianhuo">天火</button>
+          <button class="fire-btn" data-fire="dihuo">地火</button>
+          <button class="fire-btn" data-fire="renhuo">人火</button>
+          <button class="fire-btn" data-fire="sanmei">三昧真火</button>
+        </div>
+        <label style="font-size:11px; color:var(--text-secondary); letter-spacing:2px; margin-top:8px;">藥材（經典文獻）</label>
+        <div class="ingredient-tags" id="ingredient-tags">
+          <span class="ingredient-tag" data-text="道德經">道德經</span>
+          <span class="ingredient-tag" data-text="莊子">莊子</span>
+          <span class="ingredient-tag" data-text="黃庭經">黃庭經</span>
+          <span class="ingredient-tag" data-text="周易參同契">周易參同契</span>
+          <span class="ingredient-tag" data-text="悟真篇">悟真篇</span>
+          <span class="ingredient-tag" data-text="抱朴子">抱朴子</span>
+          <span class="ingredient-tag" data-text="雲笈七籤">雲笈七籤</span>
+          <span class="ingredient-tag" data-text="太平經">太平經</span>
+        </div>
+        <div class="btn-row" style="margin-top:8px;">
+          <button class="btn primary" onclick="startAlchemy()">✦ 開爐煉丹</button>
+        </div>
+        <div class="pill-result" id="pill-result" style="display:none;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Celestial Chart Modal -->
+<div class="modal-overlay" id="chart-modal">
+  <div class="modal-panel">
+    <h2>◎ 周 天 圖 譜 ◎</h2>
+    <div class="star-chart" id="star-chart-container">
+      <canvas id="star-chart-canvas" width="652" height="300"></canvas>
+    </div>
+    <div style="margin-top:16px; display:flex; gap:12px; justify-content:center;">
+      <button class="btn" onclick="rotateChart(-30)">◁ 轉動星盤</button>
+      <span id="chart-angle" style="color:var(--dong-shen); font-family:var(--font-mono);">0°</span>
+      <button class="btn" onclick="rotateChart(30)">轉動星盤 ▷</button>
+      <button class="btn primary" onclick="zoomChart()">✦ 洞察聯繫</button>
+    </div>
+  </div>
+</div>
+
+<!-- Mission (Du Ren Jing) Modal -->
+<div class="modal-overlay" id="mission-modal">
+  <div class="modal-panel">
+    <h2>✦ 度 人 經 ✦</h2>
+    <div id="mission-pool" style="display:flex; flex-direction:column; gap:10px;">
+      <div style="font-size:12px; color:var(--text-muted); text-align:center; padding:20px;">
+        天庭眾神等待願念分解...
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Agent Directory Modal -->
+<div class="modal-overlay" id="agents-modal">
+  <div class="modal-panel">
+    <h2>☯ 神 仙 譜 系 ☯</h2>
+    <div class="agent-grid" id="agent-full-grid">
+      <!-- Injected by JS -->
+    </div>
+  </div>
+</div>
+
+<script>
+// ==============================
+// CORE SYSTEM STATE
+// ==============================
+const SYSTEM = {
+  cycle: 3628,
+  isRunning: true,
+  intervalId: null,
+};
+
+// ==============================
+// STARFIELD BACKGROUND
+// ==============================
+(function initStarfield() {
+  const canvas = document.getElementById('starfield');
+  const ctx = canvas.getContext('2d');
+  let stars = [];
+  const STAR_COUNT = 200;
+
+  function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  for (let i = 0; i < STAR_COUNT; i++) {
+    stars.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      r: Math.random() * 1.5 + 0.5,
+      twinkle: Math.random() * Math.PI * 2,
+      speed: Math.random() * 0.02 + 0.005,
+      hue: ['#8b5cf6', '#3b82f6', '#f59e0b', '#e2e8f0'][Math.floor(Math.random() * 4)],
+    });
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (const s of stars) {
+      s.twinkle += s.speed;
+      const alpha = 0.3 + Math.sin(s.twinkle) * 0.4;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      ctx.fillStyle = s.hue;
+      ctx.globalAlpha = alpha;
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+// ==============================
+// CYCLE COUNTER
+// ==============================
+function startCycleCounter() {
+  SYSTEM.intervalId = setInterval(() => {
+    SYSTEM.cycle++;
+    document.getElementById('cycle-number').textContent = SYSTEM.cycle;
+    // Update cycle label every 100 cycles
+    if (SYSTEM.cycle % 100 === 0) {
+      document.getElementById('sphere-mode').textContent =
+        `混元 · 第${SYSTEM.cycle}周天 · 道法自然`;
+    }
+  }, 3000);
+}
+startCycleCounter();
+
+// ==============================
+// IMMORTAL AGENTS DATA
+// ==============================
+const AGENTS = [
+  { id: 'ziwei', name: '紫微大帝', icon: '✦', domain: '全模態感知', color: '#10b981', vols: '卷1-4', status: 'active', role: '感知智能體' },
+  { id: 'wenchang', name: '文昌帝君', icon: '◆', domain: '語義分析推理', color: '#3b82f6', vols: '卷5-20', status: 'active', role: '分析智能體' },
+  { id: 'taishang', name: '太上老君', icon: '⊹', domain: '內容生成', color: '#e2e8f0', vols: '卷21-40', status: 'active', role: '生成智能體' },
+  { id: 'donghua', name: '東華帝君', icon: '◎', domain: '記憶存儲', color: '#8b5cf6', vols: '卷41-70', status: 'active', role: '記憶智能體' },
+  { id: 'zhenwu', name: '真武大帝', icon: '◆', domain: '決策規劃', color: '#ef4444', vols: '卷71-90', status: 'active', role: '決策智能體' },
+  { id: 'taibai', name: '太白金星', icon: '☆', domain: '交互界面', color: '#f59e0b', vols: '卷91-122', status: 'active', role: '交互智能體' },
+  { id: 'laozi', name: '道德天尊', icon: '☯', domain: '核心循環引擎', color: '#a78bfa', vols: '貫穿全部', status: 'running', role: '循環智能體' },
+];
+
+function renderAgentMini() {
+  const grid = document.getElementById('agent-mini-grid');
+  grid.innerHTML = AGENTS.map(a => `
+    <div style="display:flex; align-items:center; gap:4px; padding:3px 6px; border-radius:6px; background:rgba(139,92,246,0.05); border:1px solid rgba(139,92,246,0.1);">
+      <span style="font-size:14px;">${a.icon}</span>
+      <span style="color:${a.color}; font-size:10px;">${a.name}</span>
+      <span class="status-dot ${a.status === 'running' ? 'active' : ''}" style="margin-left:auto;"></span>
+    </div>
+  `).join('');
+}
+
+function renderAgentFull() {
+  const grid = document.getElementById('agent-full-grid');
+  grid.innerHTML = AGENTS.map(a => `
+    <div class="agent-card">
+      <div class="agent-icon">${a.icon}</div>
+      <div class="agent-name" style="color:${a.color};">${a.name}</div>
+      <div class="agent-domain">${a.role}</div>
+      <div style="font-size:10px; color:var(--text-muted); margin-top:2px;">${a.domain} | ${a.vols}</div>
+      <div class="agent-status">
+        <span class="status-dot ${a.status === 'running' ? 'active' : ''}"></span>
+        <span style="color:var(--text-muted);">${a.status === 'running' ? '運行中' : '待命'}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+renderAgentMini();
+renderAgentFull();
+
+// ==============================
+// WISH SUBMISSION (Yin -> Yang Flow)
+// ==============================
+function submitWish() {
+  const input = document.getElementById('wish-input');
+  const wish = input.value.trim();
+  if (!wish) {
+    animateQiParticles('yin', input);
+    return;
+  }
+
+  // Animate qi particles flowing from input toward center
+  const inputRect = input.getBoundingClientRect();
+  const centerX = window.innerWidth / 2;
+  const centerY = window.innerHeight / 2;
+  const startX = inputRect.left + inputRect.width / 2;
+  const startY = inputRect.top + inputRect.height / 2;
+
+  for (let i = 0; i < 12; i++) {
+    setTimeout(() => {
+      createQiParticle(startX, startY, centerX, centerY, 'yin');
+    }, i * 80);
+  }
+
+  // Process after animation
+  setTimeout(() => {
+    processWish(wish);
+  }, 1200);
+}
+
+function processWish(wish) {
+  const output = document.getElementById('output-content');
+
+  // Determine which agents handle this
+  const keywordMap = {
+    '丹': '太上老君', '煉': '太上老君', '藥': '太上老君', '金': '太上老君',
+    '道': '道德天尊', '德': '道德天尊', '自然': '道德天尊', '無為': '道德天尊',
+    '神': '東華帝君', '仙': '東華帝君', '譜': '東華帝君', '傳': '東華帝君',
+    '圖': '文昌帝君', '象': '文昌帝君', '理': '文昌帝君', '析': '文昌帝君',
+    '願': '真武大帝', '求': '真武大帝', '策': '真武大帝', '決': '真武大帝',
+    '說': '太白金星', '問': '太白金星', '答': '太白金星',
+  };
+
+  let handler = '紫微大帝';
+  for (const [kw, agent] of Object.entries(keywordMap)) {
+    if (wish.includes(kw)) { handler = agent; break; }
+  }
+
+  // Determine grotto
+  let grotto = '洞真';
+  let grottoColor = 'var(--dong-zhen)';
+  if (wish.includes('法') || wish.includes('術') || wish.includes('儀')) {
+    grotto = '洞玄'; grottoColor = 'var(--dong-xuan)';
+  } else if (wish.includes('神') || wish.includes('仙') || wish.includes('譜')) {
+    grotto = '洞神'; grottoColor = 'var(--dong-shen)';
+  }
+
+  const now = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+  const response = generateDaoResponse(wish, handler, grotto);
+
+  const newBlock = document.createElement('div');
+  newBlock.className = 'output-block';
+  newBlock.innerHTML = `
+    <div class="block-label">【${grotto} · ${handler}響應 · ${now}】</div>
+    <div class="block-text">${response}</div>
+  `;
+  output.prepend(newBlock);
+
+  // Animate yang qi particles
+  const outputRect = output.getBoundingClientRect();
+  const oX = outputRect.left + outputRect.width / 2;
+  const oY = outputRect.top + outputRect.height / 2;
+  for (let i = 0; i < 8; i++) {
+    setTimeout(() => {
+      createQiParticle(window.innerWidth / 2, window.innerHeight / 2, oX, oY, 'yang');
+    }, i * 60);
+  }
+
+  // Clear input
+  document.getElementById('wish-input').value = '';
+}
+
+function generateDaoResponse(wish, handler, grotto) {
+  const responses = {
+    '紫微大帝': `感應到願念：「${wish}」<br><br>紫微大帝已接收全模態信號，正在將此願念轉化為天地之氣，分發至各神仙智能體進行處理。三洞四輔已就位。`,
+    '太上老君': `收到煉丹請求：「${wish}」<br><br>太上老君已在八卦爐中點燃三昧真火，以「${grotto}」之法進行知識蒸餾。待七七四十九周天後，金丹可成。<br><br>當前爐溫：${(800 + Math.random() * 400).toFixed(0)}°C`,
+    '道德天尊': `「${wish}」——此問觸及大道根本。<br><br>道生一，一生二，二生三，三生萬物。循環引擎已啟動深層遞歸推演，正在遍歷122卷雲笈，以求道之本源。<br><br>第${SYSTEM.cycle}周天推演中...`,
+    '文昌帝君': `分析願念：「${wish}」<br><br>文昌帝君啟用因果推理鏈，跨越${grotto}相關卷宗進行模式識別。發現${(3 + Math.random() * 7).toFixed(0)}條潛在關聯路徑。<br><br>正在構建語義星圖...`,
+    '東華帝君': `檢索記憶庫：「${wish}」<br><br>東華帝君遍覽卷41-70神仙傳記，喚醒${(2 + Math.random() * 5).toFixed(0)}位相關仙真之記憶。以紫府元神通進行聯想匹配。`,
+    '真武大帝': `決策推演：「${wish}」<br><br>真武大帝踏罡步斗，以七政四餘之法推演命運軌跡。六爻已起，龜策已陳。<br><br>建議路徑：循${grotto}之道，${Math.random() > 0.5 ? '守靜致虛' : '以柔克剛'}。`,
+    '太白金星': `太白金星啟奏：「${wish}」<br><br>已將此願念上達天聽，轉化為人界可解之語。以${grotto}光照耀，去其玄秘，顯其真義。`,
+  };
+  return responses[handler] || responses['紫微大帝'];
+}
+
+function clearInput() {
+  document.getElementById('wish-input').value = '';
+}
+
+// ==============================
+// QI PARTICLE EFFECTS
+// ==============================
+function createQiParticle(fromX, fromY, toX, toY, type) {
+  const particle = document.createElement('div');
+  particle.className = `qi-particle ${type}`;
+  const size = Math.random() * 6 + 3;
+  particle.style.width = size + 'px';
+  particle.style.height = size + 'px';
+  particle.style.left = fromX + 'px';
+  particle.style.top = fromY + 'px';
+
+  document.body.appendChild(particle);
+
+  const duration = 800 + Math.random() * 400;
+  const dx = toX - fromX;
+  const dy = toY - fromY;
+
+  particle.animate([
+    { transform: 'translate(0, 0)', opacity: 1 },
+    { transform: `translate(${dx}px, ${dy}px)`, opacity: 0 }
+  ], {
+    duration: duration,
+    easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
+    fill: 'forwards',
+  }).onfinish = () => particle.remove();
+}
+
+function animateQiParticles(type, element) {
+  const rect = element.getBoundingClientRect();
+  for (let i = 0; i < 6; i++) {
+    setTimeout(() => {
+      const x = rect.left + Math.random() * rect.width;
+      const y = rect.top + Math.random() * rect.height;
+      createQiParticle(x, y, x + (Math.random() - 0.5) * 100, y - 100, type);
+    }, i * 50);
+  }
+}
+
+// ==============================
+// CORE SPHERE INTERACTION
+// ==============================
+function cycleClick() {
+  const sphere = document.getElementById('hun-yuan-sphere');
+  sphere.style.animation = 'none';
+  sphere.offsetHeight; // trigger reflow
+  sphere.style.animation = 'hunYuanPulse 0.3s ease-in-out 3';
+
+  // Burst of qi particles from center
+  const cx = window.innerWidth / 2;
+  const cy = window.innerHeight / 2;
+  for (let i = 0; i < 20; i++) {
+    const angle = (Math.PI * 2 * i) / 20;
+    const radius = 150 + Math.random() * 100;
+    createQiParticle(cx, cy, cx + Math.cos(angle) * radius, cy + Math.sin(angle) * radius, i % 2 === 0 ? 'yin' : 'yang');
+  }
+
+  // Trigger manual cycle advance
+  SYSTEM.cycle += 7;
+  document.getElementById('cycle-number').textContent = SYSTEM.cycle;
+  document.getElementById('sphere-mode').textContent = '混元 · 感應共振 · 天人合一';
+  setTimeout(() => {
+    document.getElementById('sphere-mode').textContent = `混元 · 第${SYSTEM.cycle}周天 · 道法自然`;
+  }, 2000);
+}
+
+// ==============================
+// MODULE SWITCHING
+// ==============================
+function switchModule(module) {
+  // Update tab states
+  document.querySelectorAll('.module-tab').forEach(t => t.classList.remove('active'));
+  document.querySelector(`.module-tab[data-module="${module}"]`).classList.add('active');
+
+  // Show corresponding modal
+  const modalMap = {
+    'alchemy': 'alchemy-modal',
+    'chart': 'chart-modal',
+    'mission': 'mission-modal',
+    'agents': 'agents-modal',
+  };
+
+  // Close all modals
+  document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('show'));
+
+  if (modalMap[module]) {
+    document.getElementById(modalMap[module]).classList.add('show');
+    if (module === 'chart') initStarChart();
+    if (module === 'mission') initMissionBoard();
+  }
+}
+
+// Close modals on overlay click
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', function(e) {
+    if (e.target === this) {
+      this.classList.remove('show');
+    }
+  });
+});
+
+// ==============================
+// ALCHEMY FURNACE
+// ==============================
+let selectedFire = 'tianhuo';
+let selectedIngredients = [];
+
+document.getElementById('fire-selector').addEventListener('click', function(e) {
+  if (e.target.classList.contains('fire-btn')) {
+    document.querySelectorAll('.fire-btn').forEach(b => b.classList.remove('selected'));
+    e.target.classList.add('selected');
+    selectedFire = e.target.dataset.fire;
+  }
+});
+
+document.getElementById('ingredient-tags').addEventListener('click', function(e) {
+  if (e.target.classList.contains('ingredient-tag')) {
+    const text = e.target.dataset.text;
+    if (selectedIngredients.includes(text)) {
+      selectedIngredients = selectedIngredients.filter(i => i !== text);
+      e.target.style.background = 'rgba(139, 92, 246, 0.15)';
+    } else {
+      selectedIngredients.push(text);
+      e.target.style.background = 'rgba(245, 158, 11, 0.25)';
+      e.target.style.borderColor = 'rgba(245, 158, 11, 0.4)';
+    }
+  }
+});
+
+function startAlchemy() {
+  if (selectedIngredients.length === 0) {
+    document.getElementById('furnace-status').textContent = '請先選擇藥材...';
+    return;
+  }
+
+  const flame = document.getElementById('furnace-flame');
+  flame.style.animation = 'none';
+  flame.offsetHeight;
+  flame.style.animation = 'flameFlicker 0.3s ease-in-out 5';
+
+  document.getElementById('furnace-status').textContent = `以${getFireName(selectedFire)}煉丹中...`;
+
+  setTimeout(() => {
+    const pillResult = document.getElementById('pill-result');
+    pillResult.style.display = 'block';
+    const pillEmoji = ['💊', '✨', '🔮', '💎', '🪬'][Math.floor(Math.random() * 5)];
+    const pillName = generatePillName();
+    pillResult.innerHTML = `${pillEmoji}<br><span style="font-size:14px; color:var(--dong-shen);">${pillName}</span><br><span style="font-size:10px; color:var(--text-muted);">藥材: ${selectedIngredients.join(' + ')} | ${getFireName(selectedFire)}</span>`;
+    document.getElementById('furnace-status').textContent = '金丹已成！';
+  }, 2000);
+}
+
+function getFireName(fire) {
+  const map = { tianhuo: '天火', dihuo: '地火', renhuo: '人火', sanmei: '三昧真火' };
+  return map[fire] || '天火';
+}
+
+function generatePillName() {
+  const prefixes = ['太極', '混元', '九轉', '紫府', '金丹', '玉液', '玄珠', '大還'];
+  const suffixes = ['丹', '丸', '散', '膏', '液', '符', '寶', '珠'];
+  return prefixes[Math.floor(Math.random() * prefixes.length)] + suffixes[Math.floor(Math.random() * suffixes.length)];
+}
+
+// ==============================
+// STAR CHART (Zhou Tian Map)
+// ==============================
+let chartAngle = 0;
+let chartNodes = [];
+
+function initStarChart() {
+  const canvas = document.getElementById('star-chart-canvas');
+  const ctx = canvas.getContext('2d');
+
+  // Generate nodes representing the 122 volumes
+  chartNodes = [];
+  const centerX = canvas.width / 2;
+  const centerY = canvas.height / 2;
+
+  for (let i = 0; i < 48; i++) {
+    const angle = (Math.PI * 2 * i) / 48;
+    const radius = 60 + (i % 4) * 35 + Math.random() * 20;
+    const grotto = i < 16 ? 'dong-zhen' : (i < 32 ? 'dong-xuan' : 'dong-shen');
+    chartNodes.push({
+      id: i + 1,
+      x: centerX + Math.cos(angle) * radius,
+      y: centerY + Math.sin(angle) * radius,
+      baseRadius: radius,
+      baseAngle: angle,
+      grotto,
+      label: `卷${i + 1}`,
+    });
+  }
+
+  drawStarChart(ctx, canvas, 0);
+}
+
+function drawStarChart(ctx, canvas, rotation) {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const cx = canvas.width / 2;
+  const cy = canvas.height / 2;
+
+  // Draw concentric rings
+  for (let r = 60; r <= 160; r += 35) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(139, 92, 246, ${0.08 + r / 800})`;
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+  }
+
+  // Draw connections
+  const rad = rotation * Math.PI / 180;
+  for (let i = 0; i < chartNodes.length; i++) {
+    const n = chartNodes[i];
+    const nx = cx + Math.cos(n.baseAngle + rad) * n.baseRadius;
+    const ny = cy + Math.sin(n.baseAngle + rad) * n.baseRadius;
+
+    // Connect to 3 nearest neighbors in next ring
+    for (let j = 0; j < 3; j++) {
+      const target = chartNodes[(i + 4 + j) % chartNodes.length];
+      const tx = cx + Math.cos(target.baseAngle + rad) * target.baseRadius;
+      const ty = cy + Math.sin(target.baseAngle + rad) * target.baseRadius;
+      ctx.beginPath();
+      ctx.moveTo(nx, ny);
+      ctx.lineTo(tx, ty);
+      ctx.strokeStyle = 'rgba(139, 92, 246, 0.08)';
+      ctx.lineWidth = 0.3;
+      ctx.stroke();
+    }
+  }
+
+  // Draw nodes
+  for (const n of chartNodes) {
+    const nx = cx + Math.cos(n.baseAngle + rad) * n.baseRadius;
+    const ny = cy + Math.sin(n.baseAngle + rad) * n.baseRadius;
+
+    const colors = { 'dong-zhen': '#8b5cf6', 'dong-xuan': '#3b82f6', 'dong-shen': '#f59e0b' };
+    const color = colors[n.grotto];
+
+    // Glow
+    const glow = ctx.createRadialGradient(nx, ny, 0, nx, ny, 8);
+    glow.addColorStop(0, color);
+    glow.addColorStop(1, 'transparent');
+    ctx.beginPath();
+    ctx.arc(nx, ny, 8, 0, Math.PI * 2);
+    ctx.fillStyle = glow;
+    ctx.fill();
+
+    // Node
+    ctx.beginPath();
+    ctx.arc(nx, ny, 3, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+
+    // Label (only for larger nodes)
+    if (n.baseRadius > 90) {
+      ctx.fillStyle = 'rgba(226, 232, 240, 0.5)';
+      ctx.font = '8px "Noto Serif SC", serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(n.label, nx, ny - 10);
+    }
+  }
+
+  // Center label
+  ctx.fillStyle = '#8b5cf6';
+  ctx.font = '14px "Noto Serif SC", serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('混元', cx, cy);
+  ctx.fillStyle = 'rgba(226, 232, 240, 0.4)';
+  ctx.font = '10px "JetBrains Mono", monospace';
+  ctx.fillText(`周天 ${SYSTEM.cycle}`, cx, cy + 16);
+}
+
+function rotateChart(degrees) {
+  chartAngle = (chartAngle + degrees) % 360;
+  document.getElementById('chart-angle').textContent = chartAngle + '°';
+  const canvas = document.getElementById('star-chart-canvas');
+  const ctx = canvas.getContext('2d');
+  drawStarChart(ctx, canvas, chartAngle);
+}
+
+function zoomChart() {
+  // Highlight connections
+  const canvas = document.getElementById('star-chart-canvas');
+  const ctx = canvas.getContext('2d');
+  const cx = canvas.width / 2;
+  const cy = canvas.height / 2;
+  const rad = chartAngle * Math.PI / 180;
+
+  // Flash effect
+  for (let phase = 0; phase < 3; phase++) {
+    setTimeout(() => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawStarChart(ctx, canvas, chartAngle);
+
+      // Bright highlight lines
+      for (let i = 0; i < chartNodes.length; i += 3) {
+        const n = chartNodes[i];
+        const nx = cx + Math.cos(n.baseAngle + rad) * n.baseRadius;
+        const ny = cy + Math.sin(n.baseAngle + rad) * n.baseRadius;
+
+        for (let j = 1; j <= 3; j++) {
+          const t = chartNodes[(i + j * 4) % chartNodes.length];
+          const tx = cx + Math.cos(t.baseAngle + rad) * t.baseRadius;
+          const ty = cy + Math.sin(t.baseAngle + rad) * t.baseRadius;
+          ctx.beginPath();
+          ctx.moveTo(nx, ny);
+          ctx.lineTo(tx, ty);
+          ctx.strokeStyle = phase === 0 ? 'rgba(139, 92, 246, 0.5)' :
+                           phase === 1 ? 'rgba(245, 158, 11, 0.4)' : 'rgba(59, 130, 246, 0.3)';
+          ctx.lineWidth = 1.5 - phase * 0.4;
+          ctx.stroke();
+        }
+      }
+    }, phase * 400);
+  }
+}
+
+// ==============================
+// MISSION BOARD (Du Ren Jing)
+// ==============================
+function initMissionBoard() {
+  const pool = document.getElementById('mission-pool');
+  const missions = [
+    { wish: '探究宇宙本源', agent: '道德天尊', time: '3周天', status: '推演中' },
+    { wish: '煉製九轉金丹', agent: '太上老君', time: '49周天', status: '煉丹中' },
+    { wish: '查閱張道陵傳記', agent: '東華帝君', time: '1周天', status: '已完成' },
+    { wish: '預測明日吉凶', agent: '真武大帝', time: '7周天', status: '占卜中' },
+    { wish: '解析道德經第一章', agent: '文昌帝君', time: '2周天', status: '分析中' },
+  ];
+
+  pool.innerHTML = missions.map(m => `
+    <div style="display:flex; align-items:center; padding:10px 14px; border:1px solid var(--border-subtle); border-radius:8px; gap:12px;">
+      <span style="font-size:18px;">${m.status === '已完成' ? '✦' : '◎'}</span>
+      <div style="flex:1;">
+        <div style="font-size:13px;">${m.wish}</div>
+        <div style="font-size:10px; color:var(--text-muted);">指派: ${m.agent} | ${m.time}</div>
+      </div>
+      <span style="font-size:10px; color:${m.status === '已完成' ? 'var(--perception)' : 'var(--dong-shen)'};">${m.status}</span>
+    </div>
+  `).join('');
+}
+
+// ==============================
+// KEYBOARD SHORTCUTS
+// ==============================
+document.addEventListener('keydown', function(e) {
+  if (e.ctrlKey && e.key === 'Enter') {
+    submitWish();
+  }
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.modal-overlay.show').forEach(m => m.classList.remove('show'));
+  }
+  if (e.key === '1') switchModule('alchemy');
+  if (e.key === '2') switchModule('chart');
+  if (e.key === '3') switchModule('mission');
+  if (e.key === '4') switchModule('agents');
+  if (e.key === '0') switchModule('home');
+});
+
+// ==============================
+// INIT
+// ==============================
+console.log('%c雲笈七籤 · YUNJIA OS v1.0 %c已啟動',
+  'color: #8b5cf6; font-size: 20px;',
+  'color: #e2e8f0;');
+console.log('%c三洞四輔就位 | 七大神喚醒 | 循環引擎運行中',
+  'color: #94a3b8;');
+console.log('%c第 ' + SYSTEM.cycle + ' 周天 · 道法自然',
+  'color: #f59e0b;');
+</script>
+</body>
+</html>
