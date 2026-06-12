@@ -1,0 +1,5 @@
+requirements.txt
+fastapi==0.115.6
+uvicorn==0.34.0
+torch>=2.0
+sentence-transformers
