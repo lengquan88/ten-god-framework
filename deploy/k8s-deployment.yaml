@@ -1,0 +1,283 @@
+# 司命假面 · Kubernetes 部署配置
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: siming
+  labels:
+    app: siming-mask
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: siming-config
+  namespace: siming
+data:
+  LOG_LEVEL: "info"
+  API_PORT: "8080"
+  WS_PORT: "8081"
+  ENABLE_DEEPSEEK: "true"
+  ENABLE_ZHIPU: "true"
+  AGENT_COUNT: "279"
+  PALACE_COUNT: "9"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: siming-core
+  namespace: siming
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: siming-core
+  template:
+    metadata:
+      labels:
+        app: siming-core
+    spec:
+      containers:
+        - name: siming-core
+          image: siming/siming-core:latest
+          ports:
+            - containerPort: 8080
+            - containerPort: 8081
+          envFrom:
+            - configMapRef:
+                name: siming-config
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "2Gi"
+              cpu: "1000m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jiumo-engine
+  namespace: siming
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: jiumo-engine
+  template:
+    metadata:
+      labels:
+        app: jiumo-engine
+    spec:
+      containers:
+        - name: jiumo-engine
+          image: siming/jiumo-engine:latest
+          ports:
+            - containerPort: 8082
+          envFrom:
+            - configMapRef:
+                name: siming-config
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: memory-immortal
+  namespace: siming
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: memory-immortal
+  template:
+    metadata:
+      labels:
+        app: memory-immortal
+    spec:
+      containers:
+        - name: memory-immortal
+          image: siming/memory-immortal:latest
+          ports:
+            - containerPort: 8083
+          volumeMounts:
+            - name: capsule-storage
+              mountPath: /data
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "4Gi"
+              cpu: "1000m"
+      volumes:
+        - name: capsule-storage
+          persistentVolumeClaim:
+            claimName: siming-capsules-pvc
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: luoshu-agents
+  namespace: siming
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: luoshu-agents
+  template:
+    metadata:
+      labels:
+        app: luoshu-agents
+    spec:
+      containers:
+        - name: luoshu-agents
+          image: siming/luoshu-agents:latest
+          ports:
+            - containerPort: 8084
+          envFrom:
+            - configMapRef:
+                name: siming-config
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "500m"
+            limits:
+              memory: "8Gi"
+              cpu: "4000m"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: siming-core-service
+  namespace: siming
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 8080
+      name: http
+    - port: 8081
+      targetPort: 8081
+      name: websocket
+  selector:
+    app: siming-core
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jiumo-service
+  namespace: siming
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8082
+      targetPort: 8082
+  selector:
+    app: jiumo-engine
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: memory-service
+  namespace: siming
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8083
+      targetPort: 8083
+  selector:
+    app: memory-immortal
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: luoshu-service
+  namespace: siming
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8084
+      targetPort: 8084
+  selector:
+    app: luoshu-agents
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: siming-ingress
+  namespace: siming
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+    - host: siming.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: siming-core-service
+                port:
+                  number: 80
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: siming-capsules-pvc
+  namespace: siming
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: siming-core-hpa
+  namespace: siming
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: siming-core
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
