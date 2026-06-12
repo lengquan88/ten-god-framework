@@ -1,0 +1,7 @@
+{
+  "embedding_backend": "sentence-transformers/local:bge-large-zh-v1___5",
+  "embedding_dim": 1024,
+  "index_size": 41,
+  "index_backend": "FAISSBackend",
+  "last_save": "2026-04-27T18:31:25.795420"
+}
