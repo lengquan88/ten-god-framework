@@ -1,0 +1,64 @@
+{
+  "project": "DemoApp",
+  "init_time": "2026-06-11T18:50:46.742013",
+  "total_modules": 7,
+  "classified": 6,
+  "gods": {
+    "比肩": {
+      "count": 2,
+      "modules": [
+        "api_server.py",
+        "main.py"
+      ]
+    },
+    "劫财": {
+      "count": 2,
+      "modules": [
+        "src\\auth_service.py",
+        "tests\\test_auth.py"
+      ]
+    },
+    "食神": {
+      "count": 1,
+      "modules": [
+        "src\\report_generator.py"
+      ]
+    },
+    "伤官": {
+      "count": 0,
+      "modules": []
+    },
+    "正财": {
+      "count": 1,
+      "modules": [
+        "src\\data_store.py"
+      ]
+    },
+    "偏财": {
+      "count": 0,
+      "modules": []
+    },
+    "正官": {
+      "count": 0,
+      "modules": []
+    },
+    "七杀": {
+      "count": 0,
+      "modules": []
+    },
+    "正印": {
+      "count": 0,
+      "modules": []
+    },
+    "偏印": {
+      "count": 0,
+      "modules": []
+    },
+    "未归类": {
+      "count": 1,
+      "modules": [
+        "tengod_scan.py"
+      ]
+    }
+  }
+}
