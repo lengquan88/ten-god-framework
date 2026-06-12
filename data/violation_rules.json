@@ -1,0 +1,169 @@
+{
+  "version": "1.0.0",
+  "bridge": "E_HealerBridge",
+  "description": "子项目Claw ↔ 主项目中华文明数字永生体 自愈桥规则配置",
+  "created_at": "2026-05-29",
+
+  "violation_rules": {
+    "1193": {
+      "name": "文件覆盖违规",
+      "description": "子项目开发写入覆盖了主项目文件",
+      "ten_god": "偏官",
+      "ten_god_actions": {
+        "critical": "偏官.attack — 立即回滚并锁定源文件",
+        "high": "偏官.restrain — 回滚并添加写入前置校验",
+        "medium": "正官.warn — 标记冲突等待人工审核",
+        "low": "正印.protect — 自动创建备份后放行"
+      },
+      "strategies": ["rollback", "immune_register"],
+      "auto_heal": true
+    },
+    "1199": {
+      "name": "跨项目未授权写入",
+      "description": "子项目向主项目进行了未授权的写入操作",
+      "ten_god": "劫财",
+      "ten_god_actions": {
+        "critical": "劫财.confiscate — 隔离写入内容并审计",
+        "high": "比肩.boundary_check — 边界检查并限制写入权限",
+        "medium": "正财.audit — 审计变更记录",
+        "low": "食神.observe — 观察模式记录日志"
+      },
+      "strategies": ["quarantine", "patch"],
+      "auto_heal": true
+    },
+    "2101": {
+      "name": "配置篡改",
+      "description": "子项目修改了主项目的配置文件",
+      "ten_god": "正官",
+      "ten_god_actions": {
+        "critical": "正官.enforce — 强制执行原始配置",
+        "high": "偏官.punish — 回滚配置并标记违规",
+        "medium": "正印.restore — 恢复到上一个已知良好配置",
+        "low": "偏印.review — 记录变更供审查"
+      },
+      "strategies": ["rollback", "notify"],
+      "auto_heal": true
+    },
+    "3101": {
+      "name": "依赖断裂",
+      "description": "子项目操作破坏了主项目的依赖链",
+      "ten_god": "食神",
+      "ten_god_actions": {
+        "critical": "偏印.emergency — 紧急恢复依赖",
+        "high": "食神.regenerate — 重新生成依赖关系",
+        "medium": "正印.nurture — 修复依赖版本",
+        "low": "比肩.assist — 辅助检查依赖完整性"
+      },
+      "strategies": ["patch", "auto_fix"],
+      "auto_heal": true
+    },
+    "4101": {
+      "name": "API不匹配",
+      "description": "子项目变更导致主项目API签名不匹配",
+      "ten_god": "伤官",
+      "ten_god_actions": {
+        "critical": "伤官.break_and_rebuild — 重构接口适配",
+        "high": "偏财.adapt — 适配新接口签名",
+        "medium": "正财.reconcile — 调和接口差异",
+        "low": "食神.bridge — 建立适配桥接"
+      },
+      "strategies": ["patch", "auto_fix"],
+      "auto_heal": false
+    },
+    "5101": {
+      "name": "Schema漂移",
+      "description": "子项目导致主项目数据结构发生漂移",
+      "ten_god": "偏印",
+      "ten_god_actions": {
+        "critical": "偏印.transform — 执行数据迁移",
+        "high": "正印.migrate — 渐进式数据迁移",
+        "medium": "食神.evolve — 演化式Schema更新",
+        "low": "比肩.align — 对齐数据结构"
+      },
+      "strategies": ["patch", "immune_register"],
+      "auto_heal": false
+    },
+    "9101": {
+      "name": "安全违规",
+      "description": "子项目触发了主项目的安全边界",
+      "ten_god": "七杀",
+      "ten_god_actions": {
+        "critical": "七杀.purge — 清除违规并锁定系统",
+        "high": "偏官.lockdown — 锁定受影响模块",
+        "medium": "正官.quarantine — 隔离并审计",
+        "low": "正印.shield — 激活防护盾"
+      },
+      "strategies": ["quarantine", "rollback", "notify"],
+      "auto_heal": true
+    }
+  },
+
+  "ten_god_mapping": {
+    "偏官": {"element": "金", "direction": "肃杀", "role": "约束与惩戒"},
+    "正官": {"element": "金", "direction": "规则", "role": "法度与秩序"},
+    "劫财": {"element": "火", "direction": "争夺", "role": "越界检测"},
+    "比肩": {"element": "火", "direction": "协同", "role": "边界检查"},
+    "食神": {"element": "木", "direction": "生发", "role": "依赖滋养"},
+    "伤官": {"element": "木", "direction": "变革", "role": "接口创新"},
+    "正印": {"element": "水", "direction": "保护", "role": "备份与恢复"},
+    "偏印": {"element": "水", "direction": "变通", "role": "数据迁移"},
+    "正财": {"element": "土", "direction": "调和", "role": "审计协调"},
+    "偏财": {"element": "土", "direction": "适应", "role": "灵活适配"},
+    "七杀": {"element": "金", "direction": "攻伐", "role": "安全清除"}
+  },
+
+  "immune_memory": {
+    "description": "与Claw免疫记忆融合模块对接",
+    "fusion_module": "immune_memory_fusion.ImmuneSystem",
+    "pattern_prefix": "healer_bridge",
+    "antibody_ttl_hours": 720,
+    "sync_interval_seconds": 300
+  },
+
+  "protected_paths": [
+    "E:/中华文明数字永生体：全维度融合架构项目/src/core",
+    "E:/中华文明数字永生体：全维度融合架构项目/src/core/rule_engine.py",
+    "E:/中华文明数字永生体：全维度融合架构项目/fixes-governance-system",
+    "E:/中华文明数字永生体：全维度融合架构项目/建设模块",
+    "E:/中华文明数字永生体：全维度融合架构项目/洛书九宫全能智脑AI图谱 · 记忆图谱"
+  ],
+
+  "heal_strategies": {
+    "rollback": {
+      "description": "回滚到安全快照",
+      "requires_snapshot": true,
+      "reversible": true,
+      "risk": "low"
+    },
+    "patch": {
+      "description": "生成修复补丁",
+      "requires_snapshot": false,
+      "reversible": true,
+      "risk": "medium"
+    },
+    "quarantine": {
+      "description": "隔离受影响模块",
+      "requires_snapshot": false,
+      "reversible": true,
+      "risk": "medium"
+    },
+    "auto_fix": {
+      "description": "自动执行修复",
+      "requires_snapshot": false,
+      "reversible": false,
+      "risk": "high"
+    },
+    "immune_register": {
+      "description": "登记免疫记忆",
+      "requires_snapshot": false,
+      "reversible": true,
+      "risk": "low"
+    },
+    "notify": {
+      "description": "通知人工介入",
+      "requires_snapshot": false,
+      "reversible": true,
+      "risk": "low"
+    }
+  }
+}
