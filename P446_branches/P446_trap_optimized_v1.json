@@ -1,0 +1,41 @@
+{
+  "branch": "P446_trap_optimized_v1",
+  "base_model": "C:/Users/41876/WorkBuddy/Claw/spirit_p444_micro.pt",
+  "base_hash": "db67ed91b433d2de",
+  "timestamp": "2026-06-07 21:01:46",
+  "params": {
+    "threshold": 0.1,
+    "lr": 5e-06,
+    "epochs": 8,
+    "qi_style": "qi_main"
+  },
+  "samples": {
+    "total": 4,
+    "trained": 3,
+    "validated": 1
+  },
+  "sample_records": [
+    {
+      "hash": "88fa41421e288409",
+      "root_question": "系统架构设计要点?",
+      "error": 0.18340975522994996
+    },
+    {
+      "hash": "443175f0a8a511ec",
+      "root_question": "如何设计微服务?",
+      "error": 0.4452613461017608
+    },
+    {
+      "hash": "4098ee5c29fdcdfe",
+      "root_question": "如何评估项目风险?",
+      "error": 0.27006098031997683
+    }
+  ],
+  "performance": {
+    "best_val_loss": 0.2294834703207016,
+    "train_time_s": 0.93,
+    "ref_avg_err_before": 0.028970708250999472,
+    "ref_avg_err_after": 0.026790603796641055,
+    "ref_ok_rate_after": 0.8333333333333334
+  }
+}
