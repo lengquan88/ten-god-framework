@@ -1,0 +1,81 @@
+{
+  "current_realm": "渡劫",
+  "total_records": 4,
+  "transitions": [
+    {
+      "from": "筑基",
+      "to": "化神",
+      "at_epoch": 5,
+      "timestamp": "2026-05-29T23:56:14.278272"
+    },
+    {
+      "from": "化神",
+      "to": "合体",
+      "at_epoch": 10,
+      "timestamp": "2026-05-29T23:56:14.294309"
+    },
+    {
+      "from": "合体",
+      "to": "大乘",
+      "at_epoch": 15,
+      "timestamp": "2026-05-29T23:56:14.295898"
+    },
+    {
+      "from": "大乘",
+      "to": "渡劫",
+      "at_epoch": 20,
+      "timestamp": "2026-05-29T23:56:14.297376"
+    }
+  ],
+  "history": [
+    {
+      "realm": "化神",
+      "realm_eng": "creation",
+      "score": 0.55,
+      "next_realm": "炼虚",
+      "gap_to_next": 0.0,
+      "accuracy": 0.5,
+      "loss": 0.5,
+      "epoch": 5,
+      "timestamp": "2026-05-29T23:56:14.292060",
+      "metrics": {}
+    },
+    {
+      "realm": "合体",
+      "realm_eng": "fusion",
+      "score": 0.756,
+      "next_realm": "大乘",
+      "gap_to_next": 0.024,
+      "accuracy": 0.75,
+      "loss": 0.3,
+      "epoch": 10,
+      "timestamp": "2026-05-29T23:56:14.294608",
+      "metrics": {}
+    },
+    {
+      "realm": "大乘",
+      "realm_eng": "emergence",
+      "score": 0.856,
+      "next_realm": "渡劫",
+      "gap_to_next": 0.024,
+      "accuracy": 0.88,
+      "loss": 0.25,
+      "epoch": 15,
+      "timestamp": "2026-05-29T23:56:14.296239",
+      "metrics": {}
+    },
+    {
+      "realm": "渡劫",
+      "realm_eng": "adversarial",
+      "score": 0.898,
+      "next_realm": "飞升",
+      "gap_to_next": 0.032,
+      "accuracy": 0.92,
+      "loss": 0.18,
+      "epoch": 20,
+      "timestamp": "2026-05-29T23:56:14.297647",
+      "metrics": {}
+    }
+  ],
+  "_updated": "2026-05-29T23:56:14.298254"
+}
