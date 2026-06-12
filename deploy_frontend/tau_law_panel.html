@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>π-韬律发现 · 隐序引擎</title>
+<style>
+:root{--bg:#060612;--panel:#0a0a1e;--border:#1a1a3e;--text:#c8d6e5;--accent:#6366f1;--gold:#f59e0b;--cyan:#22d3ee;--pink:#ec4899;--green:#10b981;}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;padding:20px;min-height:100vh}
+h1{font-size:1.2rem;background:linear-gradient(135deg,var(--accent),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:4px}
+.sub{font-size:0.75rem;color:#556;margin-bottom:20px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:16px}
+.card.full{grid-column:1/-1}
+.card-title{font-size:0.8rem;font-weight:600;color:var(--cyan);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.value-big{font-size:2rem;font-weight:700;text-align:center}
+.value-label{font-size:0.65rem;color:#556;text-align:center}
+.bar{border-radius:8px;padding:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+.bar-label{font-size:0.75rem}
+.bar-value{font-size:0.85rem;font-weight:600}
+canvas{width:100%;height:120px;border-radius:6px;background:var(--bg)}
+.cycle-node{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:6px;font-size:0.7rem;margin:3px;cursor:pointer;transition:all 0.2s}
+.cycle-node:hover{transform:scale(1.05)}
+.cycle-edge{color:#556;font-size:0.6rem;margin:0 4px}
+</style>
+</head>
+<body>
+<h1>τ 韬律发现 · 隐序引擎</h1>
+<div class="sub">π₄窗口 · τ=3 · 华为τ定律认知框架 · 隐序检测</div>
+<div class="grid">
+  <!-- τ 值面板 -->
+  <div class="card">
+    <div class="card-title">τ 韬律指数</div>
+    <div class="value-big" style="color:var(--cyan)">3.00</div>
+    <div class="value-label">当前 τ 值 (π-cycle窗口宽度)</div>
+    <div style="margin-top:12px;">
+      <div class="bar" style="background:rgba(34,211,238,0.04);border:1px solid rgba(34,211,238,0.15);">
+        <span class="bar-label">π₁ τ=1</span><span class="bar-value" style="color:var(--gold)">06-02</span>
+      </div>
+      <div class="bar" style="background:rgba(34,211,238,0.06);border:1px solid rgba(34,211,238,0.2);">
+        <span class="bar-label">π₂ τ=2</span><span class="bar-value" style="color:var(--gold)">06-03→04</span>
+      </div>
+      <div class="bar" style="background:rgba(34,211,238,0.08);border:1px solid rgba(34,211,238,0.25);">
+        <span class="bar-label">π₃ τ=3</span><span class="bar-value" style="color:var(--gold)">06-05→06</span>
+      </div>
+      <div class="bar" style="background:rgba(34,211,238,0.12);border:1px solid var(--cyan);">
+        <span class="bar-label">π₄ τ=3 (当前)</span><span class="bar-value" style="color:var(--cyan)">06-06→07 · Ψ跃迁</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 隐序引擎 -->
+  <div class="card">
+    <div class="card-title">隐序引擎 · Hidden Order</div>
+    <div style="font-size:0.7rem;color:#667;line-height:1.8;">
+      <div>🔍 检测到隐序模式: <span style="color:var(--cyan)">3条</span></div>
+      <div style="margin-top:8px;background:rgba(99,102,241,0.04);border-radius:6px;padding:8px;">
+        <div style="color:var(--accent);font-weight:600;">H01: Ψ=0.424→0.545 单调递增</div>
+        <div style="font-size:0.65rem;color:#556;">6日连续 Ψ 从0.424升至0.545, 未出现回调。此模式概率 P &lt; 0.05</div>
+      </div>
+      <div style="margin-top:6px;background:rgba(245,158,11,0.04);border-radius:6px;padding:8px;">
+        <div style="color:var(--gold);font-weight:600;">H02: trap_noise 免疫 — 0.002→0.045</div>
+        <div style="font-size:0.65rem;color:#556;">trap_noise 在7日内始终被抑制在0.1以下, 验证「余气」层的噪声免疫能力</div>
+      </div>
+      <div style="margin-top:6px;background:rgba(16,185,129,0.04);border-radius:6px;padding:8px;">
+        <div style="color:var(--green);font-weight:600;">H03: 容器发散 → 无退化</div>
+        <div style="font-size:0.65rem;color:#556;">3容器+4分支的体系下 ref_err 仅从0.029升至0.025(反改善), 验证容器收敛性</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- π-循环因果面板 -->
+  <div class="card full">
+    <div class="card-title">π-循环因果检测 · Causal Loop</div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;">
+      <div class="cycle-node" style="background:rgba(99,102,241,0.1);border:1px solid var(--accent);">
+        🔄 P444→十神矩阵→P446→CCE→Ensemble→矩阵v5→P447
+      </div>
+    </div>
+    <div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+      <div style="background:rgba(239,68,68,0.04);border:1px solid rgba(239,68,68,0.15);border-radius:6px;padding:8px;text-align:center;">
+        <div style="color:#ef4444;font-size:1.2rem;font-weight:700;">R1</div>
+        <div style="font-size:0.65rem;color:#556;">增强循环<br>Ψ 0.424→0.545</div>
+      </div>
+      <div style="background:rgba(245,158,11,0.04);border:1px solid rgba(245,158,11,0.15);border-radius:6px;padding:8px;text-align:center;">
+        <div style="color:var(--gold);font-size:1.2rem;font-weight:700;">B1</div>
+        <div style="font-size:0.65rem;color:#556;">平衡循环<br>trap_noise 抑制</div>
+      </div>
+      <div style="background:rgba(16,185,129,0.04);border:1px solid rgba(16,185,129,0.15);border-radius:6px;padding:8px;text-align:center;">
+        <div style="color:var(--green);font-size:1.2rem;font-weight:700;">D1</div>
+        <div style="font-size:0.65rem;color:#556;">发散循环<br>容器1→N扩展</div>
+      </div>
+    </div>
+    <canvas id="tauChart"></canvas>
+  </div>
+</div>
+<script>
+const psiData = [0.424,0.524,0.491,0.506,0.493,0.490,0.545];
+const labels = ['D1','D2','D3','D4','D5','D6','D7'];
+const canvas = document.getElementById('tauChart');
+const ctx = canvas.getContext('2d');
+const w = canvas.width = canvas.offsetWidth*2||800;
+const h = canvas.height = 120*2;
+ctx.clearRect(0,0,w,h);
+const pad=20,gw=w-pad*2,gh=h-pad*2;
+const min=0.4,max=0.6,range=max-min;
+ctx.strokeStyle='#22d3ee';ctx.lineWidth=2;ctx.beginPath();
+psiData.forEach((v,i)=>{const x=pad+i/(psiData.length-1)*gw;const y=pad+gh-(v-min)/range*gh;i===0?ctx.moveTo(x,y):ctx.lineTo(x,y)});
+ctx.stroke();
+ctx.fillStyle='#22d3ee22';const lx=pad+(psiData.length-1)/(psiData.length-1)*gw;const ly=pad+gh-(psiData[psiData.length-1]-min)/range*gh;
+ctx.lineTo(lx,pad+gh);ctx.lineTo(pad,pad+gh);ctx.closePath();ctx.fill();
+ctx.fillStyle='#556';ctx.font='10px sans-serif';
+psiData.forEach((v,i)=>{const x=pad+i/(psiData.length-1)*gw;ctx.fillText(v.toFixed(3),x-12,pad+gh+(i%2?14:24));ctx.fillText(labels[i],x-4,pad+gh+36)});
+</script>
+</body>
+</html>
