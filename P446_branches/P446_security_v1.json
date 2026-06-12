@@ -1,0 +1,71 @@
+{
+  "branch": "P446_security_v1",
+  "base_model": "C:/Users/41876/WorkBuddy/Claw/spirit_p444_micro.pt",
+  "base_hash": "db67ed91b433d2de",
+  "timestamp": "2026-06-07 07:34:49",
+  "params": {
+    "threshold": 0.15,
+    "lr": 1e-05,
+    "epochs": 5,
+    "qi_style": "qi_main"
+  },
+  "samples": {
+    "total": 11,
+    "trained": 9,
+    "validated": 2
+  },
+  "sample_records": [
+    {
+      "hash": "57ac70df6919be85",
+      "root_question": "TLS证书管理的最佳实践？",
+      "error": 0.15658871889114379
+    },
+    {
+      "hash": "d367e246c2a7908b",
+      "root_question": "零信任架构的微隔离策略如何落地？",
+      "error": 0.17399681091308594
+    },
+    {
+      "hash": "89688fe222c301db",
+      "root_question": "网络安全中的微分段技术？",
+      "error": 0.2690914726257324
+    },
+    {
+      "hash": "ac4b55e3b5c214b5",
+      "root_question": "安全编码的黄金法则？",
+      "error": 0.19334786653518676
+    },
+    {
+      "hash": "97f17d7299903330",
+      "root_question": "K8s集群的安全加固方案？",
+      "error": 0.21583967924118042
+    },
+    {
+      "hash": "e131cb82b9d20de4",
+      "root_question": "如何实施IAM的最小权限策略？",
+      "error": 0.17852532386779785
+    },
+    {
+      "hash": "cbaf16590848c0b0",
+      "root_question": "身份认证中的多因素认证策略？",
+      "error": 0.19961273193359375
+    },
+    {
+      "hash": "2fc49ca34adcbef6",
+      "root_question": "数据泄露防护的技术方案？",
+      "error": 0.1700348114967346
+    },
+    {
+      "hash": "8dfdad2b7c65de77",
+      "root_question": "如何防御勒索软件的传播？",
+      "error": 0.3166785788536072
+    }
+  ],
+  "performance": {
+    "best_val_loss": 0.05516584776341915,
+    "train_time_s": 1.52,
+    "ref_avg_err_before": 0.028970708250999472,
+    "ref_avg_err_after": 0.024260384241739874,
+    "ref_ok_rate_after": 0.8333333333333334
+  }
+}
