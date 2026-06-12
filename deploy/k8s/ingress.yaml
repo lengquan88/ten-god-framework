@@ -1,0 +1,28 @@
+# R方向: K8s Ingress — 外网访问入口
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: psi-evaluation-ingress
+  namespace: spirit-form
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - psi-api.example.com
+    secretName: psi-api-tls
+  rules:
+  - host: psi-api.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: psi-evaluation-svc
+            port:
+              number: 8002
