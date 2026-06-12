@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><title>任务心跳仪表板</title>
+<style>
+:root{--bg:#060612;--panel:#0a0a1e;--border:#1a1a3e;--text:#c8d6e5;--accent:#6366f1;--green:#10b981;--gold:#f59e0b;}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;padding:24px;}
+h1{font-size:1.2rem;background:linear-gradient(135deg,var(--accent),var(--green));-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:16px 0;}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;}
+.val{font-size:1.8rem;font-weight:700;}
+table{width:100%;border-collapse:collapse;font-size:0.75rem;}
+th,td{padding:6px 10px;text-align:left;border-bottom:1px solid var(--border);}
+th{color:#556;font-weight:600;}
+tr:hover{background:rgba(99,102,241,0.04);}
+</style>
+</head>
+<body>
+<h1>✦ 任务心跳仪表板</h1>
+<div class="grid">
+  <div class="card"><div class="val" style="color:var(--green)">514</div><div style="color:#556;font-size:0.75rem;">已完成</div></div>
+  <div class="card"><div class="val" style="color:var(--gold)">6</div><div style="color:#556;font-size:0.75rem;">待处理</div></div>
+  <div class="card"><div class="val" style="color:var(--accent)">98.8%</div><div style="color:#556;font-size:0.75rem;">完成度</div></div>
+  <div class="card"><div class="val" style="color:#22d3ee">520</div><div style="color:#556;font-size:0.75rem;">总任务</div></div>
+</div>
+<table>
+  <thead><tr><th>会话</th><th>已完成</th><th>待处理</th><th>完成度</th><th>时间戳</th></tr></thead>
+  <tbody><tr><td>2026-06-07_2049</td><td>514</td><td>6</td><td>98.8%</td><td>2026-06-07T20:49</td></tr><tr><td>2026-06-07_2018</td><td>514</td><td>6</td><td>98.8%</td><td>2026-06-07T20:18</td></tr><tr><td>2026-06-07_2018</td><td>514</td><td>6</td><td>98.8%</td><td>2026-06-07T20:18</td></tr><tr><td>2026-06-07_1944</td><td>514</td><td>6</td><td>98.8%</td><td>2026-06-07T19:44</td></tr><tr><td>2026-06-07_1943</td><td>514</td><td>6</td><td>98.8%</td><td>2026-06-07T19:43</td></tr></tbody>
+</table>
+<div style="margin-top:12px;font-size:0.65rem;color:#556;">
+  最后心跳: 2026-06-07T20:49:03.416109 | 会话: 2026-06-07_2049
+</div>
+<script>
+// 心跳轮询 (每30秒刷新)
+setTimeout(()=>location.reload(), 30000);
+</script>
+</body>
+</html>
