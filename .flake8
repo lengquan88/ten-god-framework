@@ -1,0 +1,75 @@
+[flake8]
+# Flake8 configuration for Claw project
+# See https://flake8.pycqa.org/en/latest/user/configuration.html
+
+# Maximum line length
+max-line-length = 100
+
+# Exclude directories and files
+exclude =
+    .git,
+    __pycache__,
+    .venv,
+    venv,
+    env,
+    .env,
+    build,
+    dist,
+    *.egg-info,
+    .eggs,
+    .pytest_cache,
+    .mypy_cache,
+    htmlcov,
+    .coverage,
+    .tox,
+    .nox,
+    docs/_build,
+    node_modules
+
+# Enable specific error codes
+select =
+    # Pyflakes (F)
+    F,
+    # pycodestyle (E, W)
+    E,
+    W,
+    # mccabe (C)
+    C90,
+
+# Ignore specific error codes
+ignore =
+    # Line too long (handled by black)
+    E501,
+    # Whitespace before ':' (conflicts with black)
+    E203,
+    # Line break occurred after a binary operator (conflicts with black)
+    W503,
+    # Missing module docstring (we use __init__.py)
+    C408,
+
+# Per-file ignores
+per-file-ignores =
+    # Allow unused imports in __init__.py files
+    __init__.py:F401
+    # Tests can be more permissive
+    tests/*:D100,D101,D102,D103,D104,D105,D106,D107
+    # Examples can have unused variables
+    examples/*:F841
+
+# Maximum McCabe complexity
+max-complexity = 10
+
+# Show source code for each error
+show-source = true
+
+# Show the text of the error code
+show-pep8 = true
+
+# Count the number of occurrences of each error/warning code
+count = true
+
+# Print total number of errors
+statistics = true
+
+# Do not print the file names when using --statistics
+no-show-pep8 = false
