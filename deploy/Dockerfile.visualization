@@ -1,0 +1,66 @@
+# 可视化服务 Dockerfile — 多阶段构建
+# FastAPI 森林可视化服务，端口 8003，支持 WebSocket 实时推送
+
+# === Stage 1: 依赖安装 ===
+FROM python:3.11-slim AS builder
+
+WORKDIR /build
+
+# 安装编译工具
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libffi-dev \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# 仅复制依赖声明，利用 Docker 层缓存
+COPY spirit-form-api/visualization-service/requirements.txt .
+
+# 安装到独立目录，便于多阶段复制
+RUN pip install --no-cache-dir --target=/build/deps -r requirements.txt
+
+# === Stage 2: 运行镜像 ===
+FROM python:3.11-slim
+
+LABEL maintainer="中华文明数字永生体"
+LABEL version="2.0.0"
+LABEL description="形神合一可视化服务 - 森林数据 / 实时推送 / WebSocket"
+
+WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
+ENV PYTHONIOENCODING=utf-8
+
+# 安装运行时系统库
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libffi8 \
+    libssl3 \
+    && rm -rf /var/lib/apt/lists/*
+
+# 创建非 root 用户
+RUN groupadd -r spiritform && useradd -r -g spiritform -d /app -s /bin/bash spiritform
+
+# 从 builder 阶段复制依赖
+COPY --from=builder /build/deps /usr/local/lib/python3.11/site-packages/
+
+# 复制应用代码
+COPY spirit-form-api/visualization-service/ ./visualization-service/
+
+# 创建运行时目录
+RUN mkdir -p /app/logs /app/data \
+    && chown -R spiritform:spiritform /app
+
+# 切换到非 root 用户
+USER spiritform
+
+# 暴露端口
+EXPOSE 8003
+
+# 健康检查
+HEALTHCHECK --interval=20s --timeout=10s --start-period=10s --retries=3 \
+    CMD python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8003/health')" || exit 1
+
+# 启动命令
+CMD ["python3", "visualization-service/main.py"]
