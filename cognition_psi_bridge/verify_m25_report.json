@@ -1,0 +1,9 @@
+{
+  "test_suite": "M2.5 全链路端到端验证",
+  "timestamp": "2026-05-07 21:09:35",
+  "total": 13,
+  "passed": 13,
+  "failed": 0,
+  "status": "PASSED",
+  "test_chain": "对话输入 → L1-L8评估 → CDE校准(LaplacianInjector) → 九宫调度(ZuowangGridInjector) → 闭环反馈"
+}
