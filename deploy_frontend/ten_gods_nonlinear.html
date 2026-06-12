@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>非线性十神 · 十维命理图谱</title>
+<style>
+:root{--bg:#060612;--panel:#0a0a1e;--border:#1a1a3e;--text:#c8d6e5;--accent:#6366f1;--gold:#f59e0b;--cyan:#22d3ee;--pink:#ec4899;--green:#10b981;--red:#ef4444;--purple:#a855f7;}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;padding:20px;min-height:100vh;overflow:hidden}
+h1{font-size:1.2rem;background:linear-gradient(135deg,var(--accent),var(--pink));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:4px}
+.sub{font-size:0.75rem;color:#556;margin-bottom:16px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;height:calc(100vh-100px)}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:16px;overflow:hidden}
+.card.full{grid-column:1/-1;height:60vh}
+.card-title{font-size:0.8rem;font-weight:600;color:var(--pink);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.graph-container{width:100%;height:calc(100%-40px);position:relative}
+.node{position:absolute;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.55rem;font-weight:600;cursor:pointer;transition:all 0.3s;border:2px solid;z-index:2}
+.node:hover{transform:scale(1.3);z-index:10}
+.edge{position:absolute;height:2px;transform-origin:left center;z-index:1;opacity:0.4}
+.legend{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;font-size:0.6rem}
+.legend-item{display:flex;align-items:center;gap:4px}
+.legend-dot{width:8px;height:8px;border-radius:50%}
+.detail-panel{font-size:0.7rem;color:#667;line-height:1.8;overflow-y:auto;max-height:100%}
+</style>
+</head>
+<body>
+<h1>✧ 非线性十神 · 十维命理映射</h1>
+<div class="sub">十神 + 五柱 + 容器认知引擎 · 力导向关系图谱</div>
+<div class="grid">
+  <!-- 图 -->
+  <div class="card full">
+    <div class="card-title">十神关系图谱 · Force-Directed</div>
+    <div class="graph-container" id="graph"></div>
+  </div>
+  <!-- 图例+详情 -->
+  <div class="card">
+    <div class="card-title">十神图例</div>
+    <div class="legend" id="legend"></div>
+    <div style="margin-top:12px;font-size:0.65rem;color:#667;">
+      <div>善神: 正官·正印·正财·食神</div>
+      <div>凶神: 七杀·伤官·劫财·偏印</div>
+      <div>中性: 比肩·偏财</div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">选中节点详情</div>
+    <div class="detail-panel" id="detail">点击图中节点查看详情</div>
+  </div>
+</div>
+<script>
+const NODES = [
+  {id:'正官',label:'正官·治理',x:0.5,y:0.15,color:'#6366f1',pillar:'年柱',type:'善'},
+  {id:'正印',label:'正印·文档',x:0.28,y:0.30,color:'#22d3ee',pillar:'年柱',type:'善'},
+  {id:'正财',label:'正财·核心',x:0.72,y:0.30,color:'#10b981',pillar:'日柱',type:'善'},
+  {id:'食神',label:'食神·表达',x:0.15,y:0.50,color:'#f59e0b',pillar:'月柱',type:'善'},
+  {id:'七杀',label:'七杀·品质',x:0.85,y:0.50,color:'#ef4444',pillar:'月柱',type:'凶'},
+  {id:'伤官',label:'伤官·创造',x:0.35,y:0.65,color:'#ec4899',pillar:'日柱',type:'凶'},
+  {id:'劫财',label:'劫财·集成',x:0.65,y:0.65,color:'#a855f7',pillar:'时柱',type:'凶'},
+  {id:'偏印',label:'偏印·哲科',x:0.50,y:0.80,color:'#f472b6',pillar:'时柱',type:'凶'},
+  {id:'比肩',label:'比肩·架构',x:0.20,y:0.80,color:'#5eead4',pillar:'年柱',type:'中'},
+  {id:'偏财',label:'偏财·创新',x:0.80,y:0.80,color:'#fbbf24',pillar:'胎元',type:'中'},
+];
+const EDGES = [
+  {from:'正官',to:'正印',label:'生'},{from:'正印',to:'正官',label:'克'},{from:'七杀',to:'正官',label:'冲'},
+  {from:'食神',to:'伤官',label:'合'},{from:'偏印',to:'食神',label:'克'},{from:'劫财',to:'正财',label:'冲'},
+  {from:'偏财',to:'正财',label:'生'},{from:'七杀',to:'偏印',label:'生'},{from:'比肩',to:'劫财',label:'合'},
+  {from:'正官',to:'七杀',label:'藏'},{from:'偏财',to:'比肩',label:'生'},{from:'伤官',to:'正印',label:'克'},
+  {from:'食神',to:'七杀',label:'制'},{from:'偏印',to:'伤官',label:'合'},{from:'劫财',to:'正印',label:'克'},
+];
+
+function renderGraph() {
+  const g = document.getElementById('graph');
+  const w = g.offsetWidth||600, h = g.offsetHeight||400;
+  
+  // Edges
+  EDGES.forEach(e=>{
+    const f = NODES.find(n=>n.id===e.from), t = NODES.find(n=>n.id===e.to);
+    if(!f||!t)return;
+    const fx=f.x*w, fy=f.y*h, tx=t.x*w, ty=t.y*h;
+    const dx=tx-fx, dy=ty-fy, len=Math.sqrt(dx*dx+dy*dy);
+    const el=document.createElement('div');
+    el.className='edge';
+    el.style.width=len+'px';el.style.left=fx+'px';el.style.top=fy+'px';
+    el.style.transform=`rotate(${Math.atan2(dy,dx)}rad)`;
+    el.style.background={'生':'#10b981','克':'#ef4444','冲':'#f59e0b','合':'#6366f1','藏':'#a855f7','制':'#22d3ee'}[e.label]||'#556';
+    el.style.opacity='0.3';
+    g.appendChild(el);
+  });
+  
+  // Nodes
+  NODES.forEach(n=>{
+    const el=document.createElement('div');el.className='node';
+    const size=Math.max(50,80-n.label.length*2);
+    el.style.width=size+'px';el.style.height=size+'px';
+    el.style.left=(n.x*w-size/2)+'px';el.style.top=(n.y*h-size/2)+'px';
+    el.style.borderColor=n.color;el.style.background=n.color+'11';
+    el.style.color=n.color;el.textContent=n.label.split('·')[1]||n.id;
+    el.title=n.label;el.onclick=()=>showDetail(n.id);
+    g.appendChild(el);
+  });
+  
+  // Legend
+  const leg = document.getElementById('legend');
+  NODES.forEach(n=>{
+    const d=document.createElement('div');d.className='legend-item';
+    d.innerHTML=`<span class="legend-dot" style="background:${n.color}"></span>${n.label}<span style="color:#556;font-size:0.6rem;">${n.type}</span>`;
+    leg.appendChild(d);
+  });
+}
+
+function showDetail(id) {
+  const n=NODES.find(x=>x.id===id);
+  const el=document.getElementById('detail');
+  if(!n){el.textContent='未找到节点';return;}
+  const conn=EDGES.filter(e=>e.from===id||e.to===id);
+  el.innerHTML=`
+    <div style="color:${n.color};font-weight:600;font-size:0.85rem;">${n.label}</div>
+    <div>柱位: ${n.pillar} | 类别: ${n.type}神</div>
+    <div style="margin-top:6px;font-weight:600;color:#556;">连接:</div>
+    ${conn.map(e=>`<div>↔ ${e.from==id?e.to:e.from} [${e.label}]</div>`).join('')}
+    <div style="margin-top:8px;padding:6px;background:rgba(255,255,255,0.02);border-radius:4px;">
+      <div style="color:#556;">容器映射:</div>
+      ${id==='七杀'?'<div style="color:#ef4444;">→ 安全深容器 (Ψ=0.834)</div>':''}
+      ${id==='比肩'?'<div style="color:#5eead4;">→ 主干容器 (Ψ=0.762)</div>':''}
+      ${id==='偏财'?'<div style="color:#fbbf24;">→ 跨域容器 (Ψ=0.822)</div>':''}
+    </div>
+  `;
+}
+
+renderGraph();
+showDetail('正官');
+</script>
+</body>
+</html>
