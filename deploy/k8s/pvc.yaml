@@ -1,0 +1,15 @@
+# R方向: K8s PersistentVolumeClaim — BGE模型存储
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: bge-models-pvc
+  namespace: spirit-form
+  labels:
+    app: psi-evaluation
+spec:
+  accessModes:
+    - ReadOnlyMany
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: standard
