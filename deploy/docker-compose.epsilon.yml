@@ -1,0 +1,73 @@
+# Epsilon: 时空影像认知系统 — 全栈一键启动
+# docker-compose up 启动所有子系统
+
+version: "3.8"
+
+services:
+  # ============================================================
+  # 感知节点组 — 七阶段成像定位管道
+  # ============================================================
+  oracle:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.optimized
+    container_name: psi-oracle
+    ports:
+      - "8080:8080"
+    command: python3 topo_semantic/oracle_node_server.py --port 8080
+    environment:
+      - PYTHONPATH=/app
+    volumes:
+      - ../topo_semantic:/app/topo_semantic:ro
+    restart: unless-stopped
+
+  # 推背图桥接器 (Beta — 感知+管道)
+  pipeline_oracle:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.optimized
+    container_name: psi-pipeline-oracle
+    ports:
+      - "8081:8080"
+    command: python3 pipeline_oracle_bridge.py --port 8080
+    environment:
+      - PYTHONPATH=/app
+    volumes:
+      - ../topo_semantic:/app/topo_semantic:ro
+      - .:/app:ro
+    restart: unless-stopped
+
+  # ============================================================
+  # 评估服务
+  # ============================================================
+  evaluation:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.optimized
+    container_name: psi-evaluation
+    ports:
+      - "8002:8002"
+    command: python3 spirit-form-api/evaluation-service/main.py
+    environment:
+      - PYTHONPATH=/app
+      - LOG_LEVEL=INFO
+    volumes:
+      - ../models:/models:ro
+      - psi_data:/data
+    restart: unless-stopped
+
+  # ============================================================
+  # 前端静态服务 (Nginx)
+  # ============================================================
+  dashboard:
+    image: nginx:alpine
+    container_name: psi-dashboard
+    ports:
+      - "80:80"
+    volumes:
+      - ../topo_semantic:/usr/share/nginx/html:ro
+      - ../topo_semantic/psi_explanation_dashboard.html:/usr/share/nginx/html/index.html:ro
+    restart: unless-stopped
+
+volumes:
+  psi_data:
