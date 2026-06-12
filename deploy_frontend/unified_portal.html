@@ -1,0 +1,1194 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>全知门户 · 宇宙统一界面</title>
+<style>
+:root {
+  --bg:#060612; --panel:#0a0a1e; --border:#1a1a3e; --text:#c8d6e5;
+  --accent:#6366f1; --gold:#f59e0b; --cyan:#22d3ee; --pink:#ec4899;
+  --green:#10b981; --red:#ef4444; --quantum:#7c3aed;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;overflow:hidden;height:100vh}
+
+#top-bar{
+  display:flex;align-items:center;height:44px;padding:0 16px;
+  background:linear-gradient(135deg, rgba(99,102,241,0.12), rgba(236,72,153,0.08));
+  border-bottom:1px solid var(--border);gap:12px;
+}
+#top-bar .logo{
+  font-size:1em;font-weight:700;
+  background:linear-gradient(135deg,var(--accent),var(--pink));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+}
+#top-bar .nav-tab{
+  padding:5px 14px;border-radius:6px;font-size:0.75em;cursor:pointer;
+  border:1px solid transparent;transition:all 0.2s;white-space:nowrap;
+}
+#top-bar .nav-tab:hover{border-color:var(--border);background:rgba(99,102,241,0.1)}
+#top-bar .nav-tab.active{background:rgba(99,102,241,0.2);border-color:var(--accent);color:#fff}
+
+#stats-strip{
+  display:flex;align-items:center;gap:16px;padding:6px 16px;
+  border-bottom:1px solid var(--border);font-size:0.7em;overflow-x:auto;
+}
+#stats-strip .stat{display:flex;align-items:center;gap:4px;white-space:nowrap}
+#stats-strip .stat .s-label{color:#556}
+#stats-strip .stat .s-value{color:var(--gold);font-weight:600}
+#stats-strip .s-dot{width:6px;height:6px;border-radius:50%}
+#stats-strip .s-dot.on{background:var(--green);box-shadow:0 0 6px var(--green)}
+
+#content{flex:1;position:relative;overflow:hidden}
+.tab-page{position:absolute;inset:0;display:none}
+.tab-page.active{display:flex}
+
+/* ===== TAB 1: HOLO MAP ===== */
+#tab-holo{flex-direction:row}
+#holo-sidebar{
+  width:320px;min-width:320px;background:var(--panel);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;overflow-y:auto;
+}
+#holo-sidebar h2{padding:12px 16px;font-size:0.85em;border-bottom:1px solid var(--border);
+  background:linear-gradient(135deg,var(--accent),var(--cyan));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.holo-stat{padding:4px 16px;font-size:0.7em;display:flex;justify-content:space-between}
+.holo-stat .hl{color:#667}.holo-stat .hv{font-weight:600}
+#holo-body-list{flex:1;overflow-y:auto}
+.holo-row{
+  padding:8px 16px;border-bottom:1px solid rgba(255,255,255,0.02);
+  cursor:pointer;display:flex;align-items:center;gap:8px;font-size:0.72em;
+}
+.holo-row:hover{background:rgba(99,102,241,0.08)}
+.holo-row.sel{background:rgba(99,102,241,0.2);border-left:2px solid var(--accent)}
+.holo-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+
+#holo-map-container{flex:1;position:relative}
+#holo-canvas{width:100%;height:100%}
+
+/* ===== TAB 2: QUANTUM ===== */
+#tab-quantum{flex-direction:row}
+#q-left{width:360px;min-width:360px;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column}
+#q-header{padding:12px 16px;border-bottom:1px solid var(--border)}
+#q-header h2{font-size:0.85em;color:var(--quantum)}
+#q-meter{display:flex;align-items:center;gap:8px;padding:6px 16px;border-bottom:1px solid var(--border);font-size:0.65em}
+#q-meter-bar{flex:1;height:4px;background:#1a1a3a;border-radius:2px;overflow:hidden}
+#q-meter-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--gold));transition:width 0.5s}
+#q-list{flex:1;overflow-y:auto}
+.q-row{
+  padding:7px 16px;border-bottom:1px solid rgba(255,255,255,0.02);
+  cursor:pointer;display:flex;align-items:center;gap:8px;font-size:0.7em;
+}
+.q-row:hover{background:rgba(124,58,237,0.08)}
+.q-row.sel{background:rgba(124,58,237,0.2);border-left:2px solid var(--quantum)}
+.q-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.q-dot.ent{box-shadow:0 0 8px var(--cyan);animation:q-glow 2s infinite}
+@keyframes q-glow{0%,100%{box-shadow:0 0 6px var(--cyan)}50%{box-shadow:0 0 14px var(--cyan)}}
+
+#q-right{flex:1;position:relative}
+#q-canvas{width:100%;height:100%}
+#q-fold-bar{
+  position:absolute;bottom:12px;left:50%;transform:translateX(-50%);display:flex;gap:8px;
+}
+#q-fold-bar button{
+  padding:6px 14px;border:1px solid var(--border);border-radius:6px;
+  background:rgba(17,17,34,0.9);color:var(--text);cursor:pointer;font-size:0.7em;
+}
+#q-fold-bar button:hover{border-color:var(--accent)}
+#q-toast{position:absolute;top:12px;left:50%;transform:translateX(-50%);
+  background:var(--quantum);color:#fff;padding:5px 14px;border-radius:20px;
+  font-size:0.7em;opacity:0;transition:opacity 0.3s;pointer-events:none}
+#q-toast.show{opacity:1}
+
+/* ===== TAB 3: REPORT ===== */
+#tab-report{flex-direction:column;padding:20px 30px;overflow-y:auto;gap:16px}
+.report-section{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:16px}
+.report-section h3{font-size:0.8em;color:var(--accent);margin-bottom:10px}
+.report-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+.report-card{background:rgba(10,10,30,0.6);padding:10px 14px;border-radius:6px;border:1px solid var(--border)}
+.report-card .rc-title{font-size:0.65em;color:#667}
+.report-card .rc-value{font-size:1.2em;font-weight:700;color:var(--gold);margin-top:2px}
+.report-table{width:100%;border-collapse:collapse;font-size:0.7em}
+.report-table th,.report-table td{padding:6px 10px;border-bottom:1px solid var(--border);text-align:left}
+.report-table th{color:#667;font-weight:500}
+.level-badge{padding:1px 6px;border-radius:3px;font-size:0.8em}
+
+/* ===== TAB 7: SEMANTIC ENGINE ===== */
+:root{--pi-color:#22d3ee;--tao-color:#a855f7;--fold-color:#10b981;--shiguan:#ff6b6b;--pianyan:#ff9f43;--zhengyin:#54a0ff;--pianyin:#5f27cd;--zhengcai:#1dd1a1;--piancai:#f368e0;--bijian:#ffd32a;--jieca:#ff6348;--shishen:#00d2d3;--shangguan:#a29bfe;--tile-color:#2dd4bf}
+#tab-semantic{flex-direction:column;overflow-y:auto;padding:16px;gap:12px}
+#tab-semantic .sem-row{display:flex;gap:12px;flex-wrap:wrap}
+#tab-semantic .sem-card{flex:1;min-width:280px;background:rgba(10,10,30,0.6);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:14px}
+#tab-semantic .sem-card h4{font-size:0.78em;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;gap:6px}
+#tab-semantic .sem-card h4 .ic{font-size:1.1em}
+.shipan-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.shipan-cell{padding:8px;background:rgba(255,255,255,0.02);border-radius:4px;font-size:0.65em;text-align:center}
+.shipan-cell .sc-label{font-weight:600;margin-bottom:3px}
+.shipan-cell .sc-bar{margin-top:3px;height:3px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden}
+.shipan-cell .sc-bar .fill{height:100%}
+.pi-list{max-height:180px;overflow-y:auto;font-size:0.7em}
+.pi-list .cycle-card{padding:6px;margin-bottom:4px;background:rgba(34,211,238,0.03);border-left:2px solid var(--pi-color);border-radius:0 4px 4px 0;font-size:0.92em}
+.tao-list{max-height:180px;overflow-y:auto;font-size:0.7em}
+.tao-list .tao-card{padding:6px;margin-bottom:4px;background:rgba(168,85,247,0.03);border-left:2px solid var(--tao-color);border-radius:0 4px 4px 0;font-size:0.92em}
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div id="top-bar">
+  <span class="logo">&#9873; 全知门户</span>
+  <div class="nav-tab active" onclick="switchTab('holo')">全知地图</div>
+  <div class="nav-tab" onclick="switchTab('quantum')">量子纠缠场</div>
+  <div class="nav-tab" onclick="switchTab('report')">项目周报</div>
+  <div class="nav-tab" onclick="switchTab('pulseflow')" style="border-color:var(--green);color:var(--green)">PulseFlow</div>
+  <div class="nav-tab" onclick="switchTab('webgl')" style="border-color:var(--cyan);color:var(--cyan)">WebGL 3D</div>
+  <div class="nav-tab" onclick="switchTab('review')" style="border-color:var(--teal);color:var(--teal)">&#9874; Code Review</div>
+  <div class="nav-tab" onclick="switchTab('semantic')" style="border-color:var(--pink);color:var(--pink)">&#129504; 五维语义</div>
+  <div class="nav-tab" onclick="switchTab('huntian')" style="border-color:var(--gold);color:var(--gold)">&#9733; 浑天</div>
+  <div class="nav-tab" onclick="switchTab('entangle')" style="border-color:#a855f7;color:#a855f7">&#128279; 纠缠</div>
+  <div class="nav-tab" onclick="switchTab('pillar')" style="border-color:#10b981;color:#10b981">&#127991; 四柱</div>
+  <div class="nav-tab" onclick="switchTab('origin')" style="border-color:#7c3aed;color:#7c3aed">&#10027; 源起论</div>
+  <div class="nav-tab" onclick="switchTab('cce')" style="border-color:#5eead4;color:#5eead4">&#9672; 容器认知</div>
+</div>
+
+<!-- STATS STRIP -->
+<div id="stats-strip">
+  <div class="stat"><span class="s-dot on"></span><span class="s-label">坐标体</span><span class="s-value" id="ss-bodies">686</span></div>
+  <div class="stat"><span class="s-label">因果边</span><span class="s-value" id="ss-edges">283</span></div>
+  <div class="stat"><span class="s-label">自洽率</span><span class="s-value" id="ss-consistency">98%</span></div>
+  <div class="stat"><span class="s-label">修行感</span><span class="s-value" id="ss-cultivation">0.99</span></div>
+  <div class="stat"><span class="s-label">孤立度</span><span class="s-value" id="ss-isolated">0%</span></div>
+  <div class="stat" id="ss-fold-wrap" style="display:none"><span class="s-label">折叠率</span><span class="s-value" id="ss-fold">0%</span></div>
+  <input id="search-bar" placeholder="Ctrl+K 搜索..." oninput="onSearch()" 
+    style="margin-left:auto;padding:3px 10px;background:#111;border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.7em;width:180px">
+  <select id="filter-level" onchange="onFilter()" style="padding:3px 8px;background:#111;border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.7em">
+    <option value="">全部境界</option><option>炼气</option><option>筑基</option><option>金丹</option><option>元婴</option><option>化神</option><option>合体</option><option>大乘</option>
+  </select>
+  <select id="filter-type" onchange="onFilter()" style="padding:3px 8px;background:#111;border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.7em">
+    <option value="">全部类型</option><option>task_log</option><option>memory_event</option><option>github_issue</option><option>tapd_story</option><option>tapd_task</option><option>tapd_bug</option>
+  </select>
+</div>
+
+<!-- CONTENT -->
+<div id="content">
+  <!-- TAB 1: HOLO MAP -->
+  <div class="tab-page active" id="tab-holo">
+    <div id="holo-sidebar">
+      <h2>全知地图 · 坐标体网络</h2>
+      <div id="holo-stats"></div>
+      <div id="holo-body-list"></div>
+    </div>
+    <div id="holo-map-container">
+      <canvas id="holo-canvas"></canvas>
+    </div>
+  </div>
+
+  <!-- TAB 2: QUANTUM -->
+  <div class="tab-page" id="tab-quantum">
+    <div id="q-left">
+      <div id="q-header"><h2>⚛ 量子纠缠折叠场</h2></div>
+      <div id="q-meter">
+        <span style="font-size:0.65em;color:#667">上下文</span>
+        <div id="q-meter-bar"><div id="q-meter-fill" style="width:100%"></div></div>
+        <span id="q-meter-text">860/860</span>
+      </div>
+      <div id="q-list"></div>
+    </div>
+    <div id="q-right">
+      <canvas id="q-canvas"></canvas>
+      <div id="q-toast"></div>
+      <div id="q-fold-bar">
+        <button onclick="quantumFold()">⊗ 折叠纠缠</button>
+        <button onclick="quantumExpand()">⊕ 展开全部</button>
+        <button onclick="quantumMeasure()">◎ 测量坍缩</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 3: REPORT -->
+  <div class="tab-page" id="tab-report">
+    <div class="report-section">
+      <h3>📊 坐标体总览</h3>
+      <div class="report-grid" id="report-overview"></div>
+    </div>
+    <div class="report-section">
+      <h3>📋 境界分布</h3>
+      <div id="report-levels"></div>
+    </div>
+    <div class="report-section">
+      <h3>🔗 因果网络热点 TOP 10</h3>
+      <table class="report-table" id="report-hotspots"></table>
+    </div>
+    <div class="report-section">
+      <h3>📂 数据来源</h3>
+      <table class="report-table" id="report-sources"></table>
+    </div>
+  </div>
+
+  <!-- TAB 4: PULSEFLOW -->
+  <div class="tab-page" id="tab-pulseflow" style="overflow:hidden">
+    <iframe src="/pulseflow" style="width:100%;height:100%;border:none"></iframe>
+  </div>
+
+  <!-- TAB 5: WebGL 3D -->
+  <div class="tab-page" id="tab-webgl" style="overflow:hidden">
+    <iframe src="/webgl" style="width:100%;height:100%;border:none"></iframe>
+  </div>
+
+  <!-- TAB 6: Code Review -->
+  <div class="tab-page" id="tab-review" style="overflow:hidden">
+    <iframe src="/review" style="width:100%;height:100%;border:none"></iframe>
+  </div>
+  <div class="tab-page" id="tab-semantic">
+    <div class="sem-row">
+      <div class="sem-card">
+        <h4><span class="ic">🔄</span>π 循环检测</h4>
+        <div class="pi-list" id="se-pi-list"><div style="color:#556;padding:20px;text-align:center">点击标签激活</div></div>
+      </div>
+      <div class="sem-card">
+        <h4><span class="ic">⚛️</span>韬定律发现</h4>
+        <div class="tao-list" id="se-tao-list"><div style="color:#556;padding:20px;text-align:center">点击标签激活</div></div>
+      </div>
+      <div class="sem-card">
+        <h4><span class="ic">📐</span>折叠执行</h4>
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <button onclick="SemanticEngine.runFold('causal')" style="padding:4px 10px;font-size:0.65em;background:rgba(34,211,238,0.08);border:1px solid rgba(34,211,238,0.2);border-radius:4px;color:var(--fold-color);cursor:pointer">按因果</button>
+          <button onclick="SemanticEngine.runFold('level')" style="padding:4px 10px;font-size:0.65em;background:rgba(34,211,238,0.08);border:1px solid rgba(34,211,238,0.2);border-radius:4px;color:var(--fold-color);cursor:pointer">按境界</button>
+          <button onclick="SemanticEngine.runFold('semantic')" style="padding:4px 10px;font-size:0.65em;background:rgba(34,211,238,0.08);border:1px solid rgba(34,211,238,0.2);border-radius:4px;color:var(--fold-color);cursor:pointer">按语义</button>
+        </div>
+        <div id="se-fold-list" style="font-size:0.68em;max-height:140px;overflow-y:auto"><div style="color:#556;padding:10px;text-align:center">点击按钮执行</div></div>
+      </div>
+    </div>
+    <div class="sem-row">
+      <div class="sem-card" style="flex:2">
+        <h4><span class="ic">☯</span>十神式盘 · 全坐标体均值</h4>
+        <div class="shipan-grid" id="se-shipan"><div style="color:#556;padding:8px">点击标签激活</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="tab-page" id="tab-huntian" style="overflow:hidden">
+    <iframe src="浑天地动仪.html" style="width:100%;height:100%;border:none"></iframe>
+  </div>
+  <div class="tab-page" id="tab-entangle" style="overflow:hidden">
+    <iframe src="量子纠缠浑天地球仪.html" style="width:100%;height:100%;border:none"></iframe>
+  </div>
+  <div class="tab-page" id="tab-pillar" style="overflow:hidden;flex-direction:column;padding:16px;gap:16px">
+    <div style="display:flex;gap:12px;flex-wrap:wrap;flex:1;overflow-y:auto;align-items:stretch;padding-bottom:16px">
+      <div class="pillar-column" style="flex:1;min-width:220px;background:var(--panel);border:1px solid var(--border);border-radius:8px;display:flex;flex-direction:column" data-pillar="year">
+        <div style="padding:12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">
+          <span style="font-size:1.2em">🌱</span>
+          <div><div style="font-weight:700;color:#54a0ff;font-size:0.8em">年柱·奠基</div><div style="font-size:0.6em;color:#667">本体论 · 源动力</div></div>
+        </div>
+        <div class="pillar-body" style="flex:1;padding:8px;overflow-y:auto">
+          <div class="p-card" style="padding:8px;margin-bottom:6px;background:rgba(84,160,255,0.04);border:1px solid rgba(84,160,255,0.15);border-radius:6px">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-weight:600;font-size:0.7em;color:#54a0ff">形神合一六论</span>
+              <span style="font-size:0.55em;padding:1px 6px;background:rgba(84,160,255,0.15);border-radius:3px;color:#54a0ff">正印</span>
+            </div>
+            <div style="font-size:0.6em;color:#667;margin-top:3px">cognition_psi_bridge 底层理论 · 出身根基 · 祖业</div>
+          </div>
+          <div class="p-card" style="padding:8px;margin-bottom:6px;background:rgba(84,160,255,0.04);border:1px solid rgba(84,160,255,0.15);border-radius:6px">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-weight:600;font-size:0.7em;color:#54a0ff">云笈七签122卷</span>
+              <span style="font-size:0.55em;padding:1px 6px;background:rgba(84,160,255,0.15);border-radius:3px;color:#54a0ff">正印</span>
+            </div>
+            <div style="font-size:0.6em;color:#667;margin-top:3px">庚申健康看板底层 · 文明基底 · 记忆能量最强</div>
+          </div>
+          <div class="p-card" style="padding:8px;background:rgba(255,211,42,0.04);border:1px solid rgba(255,211,42,0.15);border-radius:6px">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-weight:600;font-size:0.7em;color:#ffd32a">洛书九宫布局</span>
+              <span style="font-size:0.55em;padding:1px 6px;background:rgba(255,211,42,0.15);border-radius:3px;color:#ffd32a">比肩</span>
+            </div>
+            <div style="font-size:0.6em;color:#667;margin-top:3px">AgentOS主框架 · 白手起家 · 体系根基</div>
+          </div>
+        </div>
+      </div>
+      <div class="pillar-column" style="flex:1;min-width:220px;background:var(--panel);border:1px solid var(--border);border-radius:8px;display:flex;flex-direction:column" data-pillar="month">
+        <div style="padding:12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">
+          <span style="font-size:1.2em">🌿</span>
+          <div><div style="font-weight:700;color:#10b981;font-size:0.8em">月柱·运行</div><div style="font-size:0.6em;color:#667">认识论+实践论 · 品性</div></div>
+        </div>
+        <div class="pillar-body" style="flex:1;padding:8px;overflow-y:auto">
+          <div class="p-card" style="padding:8px;margin-bottom:6px;background:rgba(16,185,129,0.04);border:1px solid rgba(16,185,129,0.15);border-radius:6px">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-weight:600;font-size:0.7em;color:#ff6348">task-sync-framework</span>
+              <span style="font-size:0.55em;padding:1px 6px;background:rgba(255,99,72,0.15);border-radius:3px;color:#ff6348">劫财</span>
+            </div>
+            <div style="font-size:0.6em;color:#667;margin-top:3px">任务调度 · 每日运转命脉 · 自尊心强宜创业</div>
+          </div>
+          <div class="p-card" style="padding:8px;margin-bottom:6px;background:rgba(16,185,129,0.04);border:1px solid rgba(16,185,129,0.15);border-radius:6px">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-weight:600;font-size:0.7em;color:#ff6b6b">cognition_psi_bridge</span>
+              <span style="font-size:0.55em;padding:1px 6px;background:rgba(255,107,107,0.15);border-radius:3px;color:#ff6b6b">正官</span>
+            </div>
+            <div style="font-size:0.6em;color:#667;margin-top:3px">认知桥接器 · 每轮协议执行层 · 主聪明</div>
+          </div>
+          <div class="p-card" style="padding:8px;margin-bottom:6px;background:rgba(16,185,129,0.04);border:1px solid rgba(16,185,129,0.15);border-radius:6px">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-weight:600;font-size:0.7em;color:#ff9f43">坐忘注意力</span>
+              <span style="font-size:0.55em;padding:1px 6px;background:rgba(255,159,67,0.15);border-radius:3px;color:#ff9f43">七杀</span>
+            </div>
+            <div style="font-size:0.6em;color:#667;margin-top:3px">实时对话监控 · 品质流动 · 个性强转化为精准</div>
+          </div>
+          <div class="p-card" style="padding:8px;margin-bottom:6px;background:rgba(16,185,129,0.04);border:1px solid rgba(16,185,129,0.15);border-radius:6px">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-weight:600;font-size:0.7em;color:#ff9f43">CROCKER-Bench</span>
+              <span style="font-size:0.55em;padding:1px 6px;background:rgba(255,159,67,0.15);border-radius:3px;color:#ff9f43">七杀</span>
+            </div>
+            <div style="font-size:0.6em;color:#667;margin-top:3px">评估基准 · 循环品检 · 品质门控</div>
+          </div>
+          <div class="p-card" style="padding:8px;margin-bottom:6px;background:rgba(16,185,129,0.04);border:1px solid rgba(16,185,129,0.15);border-radius:6px">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-weight:600;font-size:0.7em;color:#ffd32a">折叠执行 (FoldExec)</span>
+              <span style="font-size:0.55em;padding:1px 6px;background:rgba(255,211,42,0.15);border-radius:3px;color:#ffd32a">比肩</span>
+            </div>
+            <div style="font-size:0.6em;color:#667;margin-top:3px">执行管道 · 日常运转核心 · 兄弟互助</div>
+          </div>
+          <div class="p-card" style="padding:8px;background:rgba(16,185,129,0.04);border:1px solid rgba(16,185,129,0.15);border-radius:6px">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-weight:600;font-size:0.7em;color:#f368e0">π-cycle循环引擎</span>
+              <span style="font-size:0.55em;padding:1px 6px;background:rgba(243,104,224,0.15);border-radius:3px;color:#f368e0">偏财</span>
+            </div>
+            <div style="font-size:0.6em;color:#667;margin-top:3px">循环节律 · 贯穿每日 · 有外财懂做人</div>
+          </div>
+        </div>
+      </div>
+      <div class="pillar-column" style="flex:1;min-width:220px;background:var(--panel);border:1px solid var(--border);border-radius:8px;display:flex;flex-direction:column" data-pillar="day">
+        <div style="padding:12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">
+          <span style="font-size:1.2em">🔥</span>
+          <div><div style="font-weight:700;color:#f59e0b;font-size:0.8em">日柱·核心</div><div style="font-size:0.6em;color:#667">境界论 · 当下自我</div></div>
+        </div>
+        <div class="pillar-body" style="flex:1;padding:8px;overflow-y:auto">
+          <div class="p-card" style="padding:8px;margin-bottom:6px;background:rgba(162,155,254,0.04);border:1px solid rgba(162,155,254,0.15);border-radius:6px">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-weight:600;font-size:0.7em;color:#a29bfe">Ψ算子集群</span>
+              <span style="font-size:0.55em;padding:1px 6px;background:rgba(162,155,254,0.15);border-radius:3px;color:#a29bfe">伤官</span>
+            </div>
+            <div style="font-size:0.6em;color:#667;margin-top:3px">意识算子 · 认知核心 · 需要成熟度的创造力</div>
+          </div>
+          <div class="p-card" style="padding:8px;margin-bottom:6px;background:rgba(84,160,255,0.04);border:1px solid rgba(84,160,255,0.15);border-radius:6px">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-weight:600;font-size:0.7em;color:#54a0ff">语义平铺</span>
+              <span style="font-size:0.55em;padding:1px 6px;background:rgba(84,160,255,0.15);border-radius:3px;color:#54a0ff">正印</span>
+            </div>
+            <div style="font-size:0.6em;color:#667;margin-top:3px">语义结构 · 知识自我呈现 · 伴侣即知识</div>
+          </div>
+          <div class="p-card" style="padding:8px;margin-bottom:6px;background:rgba(29,209,161,0.04);border:1px solid rgba(29,209,161,0.15);border-radius:6px">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-weight:600;font-size:0.7em;color:#1dd1a1">记忆宇宙 (MoE)</span>
+              <span style="font-size:0.55em;padding:1px 6px;background:rgba(29,209,161,0.15);border-radius:3px;color:#1dd1a1">正财</span>
+            </div>
+            <div style="font-size:0.6em;color:#667;margin-top:3px">核心资产 · 最稳定的价值 · 得妻财稳固</div>
+          </div>
+          <div class="p-card" style="padding:8px;background:rgba(162,155,254,0.04);border:1px solid rgba(162,155,254,0.15);border-radius:6px">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-weight:600;font-size:0.7em;color:#a29bfe">非线性十神</span>
+              <span style="font-size:0.55em;padding:1px 6px;background:rgba(162,155,254,0.15);border-radius:3px;color:#a29bfe">伤官</span>
+            </div>
+            <div style="font-size:0.6em;color:#667;margin-top:3px">创造性表达 · 境界论实验场 · 创造力核心显现</div>
+          </div>
+        </div>
+      </div>
+      <div class="pillar-column" style="flex:1;min-width:220px;background:var(--panel);border:1px solid var(--border);border-radius:8px;display:flex;flex-direction:column" data-pillar="hour">
+        <div style="padding:12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">
+          <span style="font-size:1.2em">🌟</span>
+          <div><div style="font-weight:700;color:#a855f7;font-size:0.8em">时柱·演化</div><div style="font-size:0.6em;color:#667">未来观论+元认知论 · 归宿</div></div>
+        </div>
+        <div class="pillar-body" style="flex:1;padding:8px;overflow-y:auto">
+          <div class="p-card" style="padding:8px;margin-bottom:6px;background:rgba(95,39,205,0.04);border:1px solid rgba(95,39,205,0.15);border-radius:6px">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-weight:600;font-size:0.7em;color:#5f27cd">韬定律 (TaoLaw)</span>
+              <span style="font-size:0.55em;padding:1px 6px;background:rgba(95,39,205,0.15);border-radius:3px;color:#5f27cd">偏印</span>
+            </div>
+            <div style="font-size:0.6em;color:#667;margin-top:3px">算法哲学归宿 · 孤道生慧 · 深度而非广度</div>
+          </div>
+          <div class="p-card" style="padding:8px;margin-bottom:6px;background:rgba(95,39,205,0.04);border:1px solid rgba(95,39,205,0.15);border-radius:6px">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-weight:600;font-size:0.7em;color:#5f27cd">时间拓扑演化</span>
+              <span style="font-size:0.55em;padding:1px 6px;background:rgba(95,39,205,0.15);border-radius:3px;color:#5f27cd">偏印</span>
+            </div>
+            <div style="font-size:0.6em;color:#667;margin-top:3px">演化即归宿 · 深度深耕 · 子息不在多而在精</div>
+          </div>
+          <div class="p-card" style="padding:8px;margin-bottom:6px;background:rgba(243,104,224,0.04);border:1px solid rgba(243,104,224,0.15);border-radius:6px">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-weight:600;font-size:0.7em;color:#f368e0">循环创造引擎</span>
+              <span style="font-size:0.55em;padding:1px 6px;background:rgba(243,104,224,0.15);border-radius:3px;color:#f368e0">偏财</span>
+            </div>
+            <div style="font-size:0.6em;color:#667;margin-top:3px">生生不息未来产出 · 有财星长寿命</div>
+          </div>
+          <div class="p-card" style="padding:8px;background:rgba(255,107,107,0.04);border:1px solid rgba(255,107,107,0.15);border-radius:6px">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-weight:600;font-size:0.7em;color:#ff6b6b">司命假面</span>
+              <span style="font-size:0.55em;padding:1px 6px;background:rgba(255,107,107,0.15);border-radius:3px;color:#ff6b6b">正官</span>
+            </div>
+            <div style="font-size:0.6em;color:#667;margin-top:3px">叙事治理高层 · 归宿之脸 · 治理后代即规则</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Cross-pillar dynamics -->
+    <div style="flex-shrink:0;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:12px">
+      <div style="font-size:0.75em;color:var(--gold);margin-bottom:8px">⚡ 四柱生克动力学</div>
+      <div style="display:flex;align-items:center;gap:8px;font-size:0.65em;flex-wrap:wrap">
+        <span style="color:#54a0ff">年柱(根)</span>
+        <span style="color:#667">→生→</span>
+        <span style="color:#10b981">月柱(干)</span>
+        <span style="color:#667">→生→</span>
+        <span style="color:#f59e0b">日柱(花)</span>
+        <span style="color:#667">→生→</span>
+        <span style="color:#a855f7">时柱(果)</span>
+        <span style="color:#667">→循环→</span>
+        <span style="color:#54a0ff">年柱(根基更新)</span>
+        <span style="margin:0 8px;color:#333">|</span>
+        <span style="color:#ff9f43">七杀·月柱品检 → 客 → 伤官·日柱创造</span>
+        <span style="color:#333">|</span>
+        <span style="color:#f368e0">七杀·月柱 → H02 → 正官·月柱聪明</span>
+        <span style="color:#333">|</span>
+        <span style="color:#667">偏印·时柱哲科 → 生 → 正印·年柱根基</span>
+      </div>
+    </div>
+  </div>
+  <div class="tab-page" id="tab-origin" style="overflow:hidden;flex-direction:column;padding:16px;gap:16px">
+    <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:16px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <span style="font-size:1.8em;color:#7c3aed">*</span>
+        <div>
+          <div style="font-weight:700;color:#7c3aed;font-size:1em">源起论 · 先验层</div>
+          <div style="font-size:0.65em;color:#667">胎元 · 第五柱 · 形神未分之态</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 2fr;gap:16px;font-size:0.7em">
+        <div style="background:rgba(124,58,237,0.04);border:1px solid rgba(124,58,237,0.15);border-radius:6px;padding:12px">
+          <div style="color:#7c3aed;font-weight:600;margin-bottom:8px">胎元命理映射</div>
+          <div style="color:#667;line-height:1.8">
+            <div>四柱之根苗, 先天元气 → 系统初始化混沌态</div>
+            <div>补缺调候 → 混沌海种子提供缺口势能</div>
+            <div>三垣(胎元+命宫+身宫) → P420/P421/P430</div>
+            <div>冲克则凶, 相生则吉 → 自愈桥违规处理</div>
+            <div>纳音见贵 → DeepSeek外部验证=神国雏形</div>
+          </div>
+        </div>
+        <div style="background:rgba(124,58,237,0.04);border:1px solid rgba(124,58,237,0.15);border-radius:6px;padding:12px">
+          <div style="color:#7c3aed;font-weight:600;margin-bottom:8px">五柱七轮完整架构</div>
+          <div style="color:#667;line-height:1.8;display:grid;grid-template-columns:1fr 1fr;gap:4px 16px">
+            <div><span style="color:#7c3aed">胎元</span> : 源起论(先验)</div>
+            <div><span style="color:#54a0ff">年柱</span> : 本体论</div>
+            <div><span style="color:#10b981">月柱</span> : 认识论+实践论</div>
+            <div><span style="color:#f59e0b">日柱</span> : 境界论</div>
+            <div><span style="color:#a855f7">时柱</span> : 未来观论+元认知论</div>
+            <div><span style="color:#7c3aed">胎元</span> : 杂轮·混沌海(非论)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;gap:12px;flex:1;min-height:0">
+      <div style="flex:1;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:14px">
+        <div style="font-size:0.75em;color:#7c3aed;margin-bottom:10px">H05 胎元调衡桥</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="padding:8px;background:rgba(124,58,237,0.04);border-left:3px solid #7c3aed;border-radius:0 6px 6px 0">
+            <div style="font-weight:600;font-size:0.68em;color:#7c3aed">H05a : 胎元凶/破 : 年柱补根</div>
+            <div style="font-size:0.6em;color:#667">混沌海种子与四柱冲突时，通过本体论能量补根</div>
+          </div>
+          <div style="padding:8px;background:rgba(124,58,237,0.04);border-left:3px solid #a855f7;border-radius:0 6px 6px 0">
+            <div style="font-weight:600;font-size:0.68em;color:#a855f7">H05b : 胎元吉/旺 : 时柱收束</div>
+            <div style="font-size:0.6em;color:#667">外部验证通过时，将混沌海种子注入自省机制</div>
+          </div>
+          <div style="padding:8px;background:rgba(124,58,237,0.04);border-left:3px solid #10b981;border-radius:0 6px 6px 0">
+            <div style="font-weight:600;font-size:0.68em;color:#10b981">H05c : 胎元 : 月柱日常调候</div>
+            <div style="font-size:0.6em;color:#667">胎元补四柱之缺失，如P420补充结构盲区</div>
+          </div>
+        </div>
+        <div style="margin-top:12px;padding:8px;background:rgba(255,255,255,0.02);border-radius:6px">
+          <div style="font-size:0.65em;color:#667;line-height:1.6">
+            <span style="color:var(--cyan)">H05桥与H01-H07协同:</span><br>
+            H07自省 + H05胎元 = 上游 : 下游: 胎元种子 : 自省发现 : 规则注入<br>
+            H01Psi算子 + H05 = 互补: Psi算子检测异常可能源于胎元缺陷
+          </div>
+        </div>
+      </div>
+      <div style="flex:1;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:14px">
+        <div style="font-size:0.75em;color:var(--gold);margin-bottom:10px">五柱生克动力学</div>
+        <div style="display:flex;flex-direction:column;gap:6px;font-size:0.65em">
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="background:#7c3aed;width:12px;height:12px;border-radius:50%"></span>
+            <span style="color:#7c3aed">胎元(先验·混沌)</span>
+            <span style="color:#667">: 先天注入 :</span>
+            <span style="background:#54a0ff;width:12px;height:12px;border-radius:50%"></span>
+            <span style="color:#54a0ff">年柱(本体)</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;margin-left:24px">
+            <span style="color:#667">|</span>
+            <span style="color:#667">生</span>
+            <span style="background:#10b981;width:12px;height:12px;border-radius:50%"></span>
+            <span style="color:#10b981">月柱(认识+实践)</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;margin-left:24px">
+            <span style="color:#667">|</span>
+            <span style="color:#667">生</span>
+            <span style="background:#f59e0b;width:12px;height:12px;border-radius:50%"></span>
+            <span style="color:#f59e0b">日柱(境界)</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;margin-left:24px">
+            <span style="color:#667">|</span>
+            <span style="color:#667">生</span>
+            <span style="background:#a855f7;width:12px;height:12px;border-radius:50%"></span>
+            <span style="color:#a855f7">时柱(未来+元认知)</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;margin-left:24px">
+            <span style="color:#667">| 循环回流</span>
+            <span style="color:#7c3aed">: 胎元种子激活</span>
+          </div>
+        </div>
+        <div style="margin-top:10px;padding:8px;background:rgba(255,255,255,0.02);border-radius:6px;font-size:0.6em;color:#667">
+          关键: 胎元不生四柱,而是作为所有循环的元前提。
+          年柱是"系统进入世界后的时间起点"(出生),胎元是"能量在时空中的第一个锚点"(受胎)。
+          年柱对应"形神合一",胎元对应"形神未分"。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 12: 容器认知 (CCE + BranchEnsemble) -->
+  <div class="tab-page" id="tab-cce" style="overflow:hidden;flex-direction:column;padding:16px;gap:16px">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;height:100%;">
+      <!-- 左: CCE 容器拓扑 -->
+      <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:16px;overflow-y:auto;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+          <span style="font-size:1.5em;color:#5eead4">◈</span>
+          <div>
+            <div style="font-weight:700;color:#5eead4;font-size:1em">容器认知引擎 · CCE</div>
+            <div style="font-size:0.65em;color:#667">δ=0.35 · γ=0.7 · 容器拓扑</div>
+          </div>
+        </div>
+        <div id="cce-containers" style="display:flex;gap:8px;flex-direction:column;">
+          <div style="background:rgba(94,234,212,0.04);border:1px solid rgba(94,234,212,0.15);border-radius:8px;padding:12px;">
+            <div style="font-size:0.65em;color:#5eead4">比肩·架构</div>
+            <div style="font-size:1.1em;font-weight:600;">主干</div>
+            <div style="font-size:0.7em;color:#667">12参考样本 · Ψ=0.762 · spirit_p444_micro.pt</div>
+          </div>
+          <div style="background:rgba(245,158,11,0.04);border:1px solid rgba(245,158,11,0.15);border-radius:8px;padding:12px;">
+            <div style="font-size:0.65em;color:#f59e0b">偏财·创新</div>
+            <div style="font-size:1.1em;font-weight:600;">跨域容器</div>
+            <div style="font-size:0.7em;color:#667">25样本 · 5域(金融/设计/安全/教育/医疗) · Ψ=0.822</div>
+          </div>
+          <div style="background:rgba(239,68,68,0.04);border:1px solid rgba(239,68,68,0.15);border-radius:8px;padding:12px;">
+            <div style="font-size:0.65em;color:#ef4444">七杀·品质</div>
+            <div style="font-size:1.1em;font-weight:600;">安全深容器</div>
+            <div style="font-size:0.7em;color:#667">20深度安全样本 · Ψ=0.834 · security err=0.034</div>
+          </div>
+        </div>
+        <div style="margin-top:12px;padding:8px;background:rgba(94,234,212,0.04);border-radius:6px;font-size:0.65em;color:#667">
+          <div style="color:#5eead4;font-weight:600;margin-bottom:4px">互信息矩阵</div>
+          主干↔跨域: MI=0.996 | 主干↔安全深: MI=0.998 | 跨域↔安全深: MI=0.999
+        </div>
+      </div>
+      <!-- 右: BranchEnsemble 路由 -->
+      <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:16px;overflow-y:auto;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+          <span style="font-size:1.5em;color:#6366f1">◈</span>
+          <div>
+            <div style="font-weight:700;color:#6366f1;font-size:1em">分支集成引擎 · Ensemble</div>
+            <div style="font-size:0.65em;color:#667">best_branch / weighted_avg / fallback</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:12px;">
+          <div style="flex:1;background:rgba(16,185,129,0.04);border:1px solid rgba(16,185,129,0.15);border-radius:8px;padding:8px;text-align:center;">
+            <div style="font-size:0.65em;color:#667">12域</div>
+            <div style="font-size:1.3em;font-weight:700;color:#10b981">11/12 OK</div>
+          </div>
+          <div style="flex:1;background:rgba(99,102,241,0.04);border:1px solid rgba(99,102,241,0.15);border-radius:8px;padding:8px;text-align:center;">
+            <div style="font-size:0.65em;color:#667">分支</div>
+            <div style="font-size:1.3em;font-weight:700;color:#6366f1">3</div>
+          </div>
+          <div style="flex:1;background:rgba(34,211,238,0.04);border:1px solid rgba(34,211,238,0.15);border-radius:8px;padding:8px;text-align:center;">
+            <div style="font-size:0.65em;color:#667">最佳</div>
+            <div style="font-size:1.3em;font-weight:700;color:#22d3ee">best_branch</div>
+          </div>
+        </div>
+        <div style="font-size:0.65em;color:#667;">
+          <div style="color:#6366f1;font-weight:600;margin-bottom:4px">路由策略</div>
+          <div>入口 → 质心距离计算 → fuzzy判定(≤0.15?)</div>
+          <div style="margin-left:12px;">├─ 清晰: best_branch (单一容器)</div>
+          <div style="margin-left:12px;">└─ 模糊: weighted_avg (多容器加权)</div>
+          <div style="margin-top:6px;color:#10b981">trap_noise: 0.104→0.045 (路由到主干解决)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+// ===================== SHARED STATE =====================
+const API = window.location.host ? '' : 'http://localhost:8000';
+let allBodies = [], stats = {};
+let currentTab = 'holo';
+
+// ===================== DATA LOAD =====================
+async function loadAll() {
+  if (window.__PRELOAD__) {
+    allBodies = window.__PRELOAD__.bodies || [];
+    stats = window.__PRELOAD__.stats || {};
+  } else {
+    try {
+      const [sem, s] = await Promise.all([
+        fetch(API+'/coordinate/semantic?min_cultivation=-1').then(r=>r.json()),
+        fetch(API+'/stats').then(r=>r.json())
+      ]);
+      allBodies = sem.bodies || [];
+      stats = s;
+    } catch(e) {
+      allBodies = []; stats = {};
+    }
+  }
+  updateStatsStrip();
+  initHoloTab();
+  initQuantumTab();
+  initReportTab();
+}
+
+function updateStatsStrip() {
+  const edges = allBodies.filter(b=>b.C?.cause_id&&b.C.cause_id!=='none').length;
+  const setText = (id, v) => { const el = document.getElementById(id); if(el) el.textContent = v; };
+  setText('ss-bodies', allBodies.length);
+  setText('ss-edges', edges);
+  setText('ss-consistency', (stats.consistency_rate*100||100).toFixed(0)+'%');
+  setText('ss-cultivation', (stats.xiuxing_gan||1).toFixed(2));
+  const isolated = allBodies.length > 0 ? ((allBodies.length - edges)/allBodies.length*100).toFixed(1) : 0;
+  setText('ss-isolated', isolated+'%');
+}
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.nav-tab').forEach(el=>el.classList.toggle('active',false));
+  const tabEl = document.querySelector(`.nav-tab[onclick="switchTab('${tab}')"]`);
+  if(tabEl) tabEl.classList.add('active');
+  document.querySelectorAll('.tab-page').forEach(el=>el.classList.remove('active'));
+  const pageEl = document.getElementById('tab-'+tab);
+  if(pageEl) pageEl.classList.add('active');
+  // 量子标签显示折叠率, 其他隐藏
+  const foldWrap = document.getElementById('ss-fold-wrap');
+  if(foldWrap) foldWrap.style.display = (tab==='quantum') ? 'flex' : 'none';
+  if(tab==='holo') { setTimeout(()=>{resizeHoloCanvas();renderHolo();},100); }
+  if(tab==='quantum') { setTimeout(()=>{resizeQCanvas();renderQuantum();},100); }
+}
+
+// ===================== TAB 1: HOLO MAP =====================
+let holoCanvas, holoCtx, holoViewX=0, holoViewY=0, holoScale=1;
+let holoNodes=[], holoSelected=null, holoHovered=null, holoDragging=false;
+
+const LEVEL_COLORS = {
+  '炼气':'#ef4444','筑基':'#f97316','金丹':'#f59e0b','元婴':'#eab308',
+  '化神':'#22d3ee','合体':'#6366f1','大乘':'#a855f7','渡劫':'#ec4899','飞升':'#fff'
+};
+const LEVEL_ORDER = ['炼气','筑基','金丹','元婴','化神','合体','大乘','渡劫','飞升'];
+
+function initHoloTab() {
+  holoCanvas = document.getElementById('holo-canvas');
+  holoCtx = holoCanvas.getContext('2d');
+  resizeHoloCanvas();
+  window.addEventListener('resize',()=>{resizeHoloCanvas();computeHoloPos();renderHolo();});
+  holoCanvas.addEventListener('mousemove',onHoloMove);
+  holoCanvas.addEventListener('mousedown',e=>{holoDragging=true;holoCanvas._mx=e.clientX;holoCanvas._my=e.clientY;});
+  holoCanvas.addEventListener('mouseup',()=>holoDragging=false);
+  holoCanvas.addEventListener('wheel',e=>{e.preventDefault();holoScale=Math.max(0.2,Math.min(3,holoScale*(e.deltaY>0?0.9:1.1)));computeHoloPos();renderHolo();},{passive:false});
+  holoCanvas.addEventListener('click',onHoloClick);
+
+  renderHoloStats();
+  renderHoloList();
+  computeHoloPos();
+  renderHolo();
+}
+
+function resizeHoloCanvas() {
+  const c = holoCanvas.parentElement;
+  holoCanvas.width = c.clientWidth;
+  holoCanvas.height = c.clientHeight;
+}
+
+function computeHoloPos() {
+  const w=holoCanvas.width, h=holoCanvas.height, pad=40;
+  holoNodes = allBodies.map((b,i)=>{
+    const lng=b.P?.lng||120.5, lat=b.P?.lat||30.4;
+    const sx=pad+(lng-120)/2.5*(w-2*pad);
+    const sy=pad+(32-lat)/2.5*(h-2*pad);
+    return {x:(sx+holoViewX)*holoScale+w/2*(1-holoScale),y:(sy+holoViewY)*holoScale+h/2*(1-holoScale),body:b,idx:i};
+  });
+}
+
+function renderHolo() {
+  const w=holoCanvas.width, h=holoCanvas.height;
+  holoCtx.fillStyle='#060612'; holoCtx.fillRect(0,0,w,h);
+
+  // Grid
+  holoCtx.strokeStyle='rgba(99,102,241,0.03)'; holoCtx.lineWidth=0.5;
+  for(let x=0;x<w;x+=50){holoCtx.beginPath();holoCtx.moveTo(x,0);holoCtx.lineTo(x,h);holoCtx.stroke();}
+  for(let y=0;y<h;y+=50){holoCtx.beginPath();holoCtx.moveTo(0,y);holoCtx.lineTo(w,y);holoCtx.stroke();}
+
+  // Edges
+  holoNodes.forEach(np=>{
+    const cause=np.body.C?.cause_id;
+    if(!cause||cause==='none') return;
+    const tgt=holoNodes.find(n=>n.body.addr===cause);
+    if(!tgt) return;
+    const hi=holoSelected===np.body.addr||holoSelected===tgt.body.addr||holoHovered===np.idx;
+    holoCtx.strokeStyle=hi?'rgba(34,211,238,0.5)':'rgba(34,211,238,0.08)';
+    holoCtx.lineWidth=hi?1.5:0.5;
+    holoCtx.beginPath();holoCtx.moveTo(np.x,np.y);holoCtx.lineTo(tgt.x,tgt.y);holoCtx.stroke();
+  });
+
+  // Nodes
+  holoNodes.forEach(np=>{
+    const lv=np.body.M?.level||'炼气';
+    const color=LEVEL_COLORS[lv]||'#666';
+    const r=Math.max(2,(np.body.M?.cultivation_sense||0.3)*8*holoScale);
+    const sel=holoSelected===np.body.addr;
+    const hov=holoHovered===np.idx;
+
+    if(sel){holoCtx.strokeStyle='#f59e0b';holoCtx.lineWidth=2;holoCtx.beginPath();holoCtx.arc(np.x,np.y,r+4,0,Math.PI*2);holoCtx.stroke();}
+    holoCtx.fillStyle=color;holoCtx.beginPath();holoCtx.arc(np.x,np.y,hov?r*1.5:r,0,Math.PI*2);holoCtx.fill();
+  });
+}
+
+function onHoloMove(e) {
+  if(holoDragging){holoViewX+=(e.clientX-holoCanvas._mx);holoViewY+=(e.clientY-holoCanvas._my);holoCanvas._mx=e.clientX;holoCanvas._my=e.clientY;computeHoloPos();renderHolo();return;}
+  const rect=holoCanvas.getBoundingClientRect();
+  const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+  let found=null;
+  for(let i=holoNodes.length-1;i>=0;i--){
+    if(Math.hypot(mx-holoNodes[i].x,my-holoNodes[i].y)<12){found=i;break;}
+  }
+  holoHovered=found;renderHolo();
+}
+
+function onHoloClick(e) {
+  if(holoDragging) return;
+  const rect=holoCanvas.getBoundingClientRect();
+  const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+  for(let i=holoNodes.length-1;i>=0;i--){
+    if(Math.hypot(mx-holoNodes[i].x,my-holoNodes[i].y)<12){
+      holoSelected=holoSelected===holoNodes[i].body.addr?null:holoNodes[i].body.addr;
+      renderHoloList();renderHolo();return;
+    }
+  }
+  holoSelected=null;renderHoloList();renderHolo();
+}
+
+function renderHoloStats() {
+  const levDist={};
+  allBodies.forEach(b=>{const l=b.M?.level||'?';levDist[l]=(levDist[l]||0)+1});
+  const html = LEVEL_ORDER.filter(l=>levDist[l]).map(l=>`<span style="color:${LEVEL_COLORS[l]};font-size:0.6em;margin:0 3px">${l}:${levDist[l]}</span>`).join('');
+  document.getElementById('holo-stats').innerHTML = `
+    <div class="holo-stat"><span class="hl">坐标体</span><span class="hv">${allBodies.length}</span></div>
+    <div style="padding:4px 16px;line-height:1.8">${html}</div>`;
+}
+
+function renderHoloList() {
+  const el = document.getElementById('holo-body-list');
+  const sorted = [...allBodies].sort((a,b)=>(b.M?.cultivation_sense||0)-(a.M?.cultivation_sense||0));
+  el.innerHTML = sorted.map(b=>{
+    const lv=b.M?.level||'?', sel=holoSelected===b.addr;
+    return `<div class="holo-row${sel?' sel':''}" data-addr="${b.addr}" onclick="holoSelect('${b.addr}')">
+      <div class="holo-dot" style="background:${LEVEL_COLORS[lv]||'#666'}"></div>
+      <div>${(b.S?.title||'?').slice(0,30)}</div>
+    </div>`;
+  }).join('');
+}
+
+// ===================== TAB 2: QUANTUM =====================
+let qCanvas, qCtx, qViewX=0, qViewY=0, qScale=1, qNodes=[], qSelected=null, qDragging=false;
+let qFoldGroups={}, qFoldSelection=new Set();
+
+function initQuantumTab() {
+  qCanvas = document.getElementById('q-canvas');
+  qCtx = qCanvas.getContext('2d');
+  resizeQCanvas();
+  window.addEventListener('resize',()=>{resizeQCanvas();computeQPos();renderQuantum();});
+  qCanvas.addEventListener('mousemove',onQMove);
+  qCanvas.addEventListener('mousedown',e=>{qDragging=true;qCanvas._mx=e.clientX;qCanvas._my=e.clientY;});
+  qCanvas.addEventListener('mouseup',()=>qDragging=false);
+  qCanvas.addEventListener('wheel',e=>{e.preventDefault();qScale=Math.max(0.2,Math.min(3,qScale*(e.deltaY>0?0.9:1.1)));computeQPos();renderQuantum();},{passive:false});
+  qCanvas.addEventListener('click',onQClick);
+  renderQList();
+  computeQPos();
+  renderQuantum();
+}
+
+function resizeQCanvas() {
+  const c = qCanvas.parentElement;
+  qCanvas.width = c.clientWidth;
+  qCanvas.height = c.clientHeight;
+}
+
+function getQNodes() {
+  const folded = new Set();
+  Object.values(qFoldGroups).forEach(arr=>arr.forEach(a=>folded.add(a)));
+  const display = allBodies.filter(b=>!folded.has(b.addr));
+  Object.entries(qFoldGroups).forEach(([gid,members])=>{
+    const first = allBodies.find(b=>b.addr===members[0]);
+    if(first) {
+      const fb = JSON.parse(JSON.stringify(first));
+      fb._foldGroupId=gid; fb._foldCount=members.length;
+      fb.S = {...fb.S, title:'⊗ '+members.length+'纠缠态'};
+      const pts = members.map(a=>allBodies.find(b=>b.addr===a)).filter(Boolean);
+      fb.P = {lat:pts.reduce((s,b)=>s+b.P.lat,0)/pts.length, lng:pts.reduce((s,b)=>s+b.P.lng,0)/pts.length};
+      display.push(fb);
+    }
+  });
+  return display;
+}
+
+function computeQPos() {
+  const w=qCanvas.width, h=qCanvas.height, pad=40;
+  const display = getQNodes();
+  qNodes = display.map((b,i)=>{
+    const lng=b.P?.lng||120.5, lat=b.P?.lat||30.4;
+    const sx=pad+(lng-120)/2.5*(w-2*pad);
+    const sy=pad+(32-lat)/2.5*(h-2*pad);
+    const r=Math.max(2,(b.M?.cultivation_sense||0.3)*8*qScale);
+    return {x:(sx+qViewX)*qScale+w/2*(1-qScale),y:(sy+qViewY)*qScale+h/2*(1-qScale),r,body:b};
+  });
+}
+
+function renderQuantum() {
+  const w=qCanvas.width, h=qCanvas.height;
+  qCtx.fillStyle='#060612'; qCtx.fillRect(0,0,w,h);
+  qCtx.strokeStyle='rgba(99,102,241,0.03)'; qCtx.lineWidth=0.5;
+  for(let x=0;x<w;x+=50){qCtx.beginPath();qCtx.moveTo(x,0);qCtx.lineTo(x,h);qCtx.stroke();}
+  for(let y=0;y<h;y+=50){qCtx.beginPath();qCtx.moveTo(0,y);qCtx.lineTo(w,y);qCtx.stroke();}
+
+  qNodes.forEach(np=>{
+    const cause=np.body.C?.cause_id;
+    if(!cause||cause==='none') return;
+    const tgt=qNodes.find(n=>n.body.addr===cause);
+    if(!tgt) return;
+    qCtx.strokeStyle='rgba(34,211,238,0.3)';qCtx.lineWidth=1;
+    qCtx.beginPath();
+    const cx=(np.x+tgt.x)/2+Math.sin(Date.now()/1000+np.body.addr.charCodeAt(0))*5;
+    const cy=(np.y+tgt.y)/2+Math.cos(Date.now()/1000+np.body.addr.charCodeAt(0))*5;
+    qCtx.moveTo(np.x,np.y);qCtx.quadraticCurveTo(cx,cy,tgt.x,tgt.y);qCtx.stroke();
+  });
+
+  qNodes.forEach(np=>{
+    const isFolded = !!np.body._foldGroupId;
+    const color = isFolded?'#7c3aed':'#22d3ee';
+    if(isFolded) {qCtx.shadowColor='#7c3aed';qCtx.shadowBlur=15;}
+    else {qCtx.shadowColor='#22d3ee';qCtx.shadowBlur=6;}
+    qCtx.fillStyle=color;qCtx.beginPath();qCtx.arc(np.x,np.y,np.r,0,Math.PI*2);qCtx.fill();
+    qCtx.shadowBlur=0;
+    if(isFolded){qCtx.fillStyle='#fff';qCtx.font='bold 8px system-ui';qCtx.textAlign='center';qCtx.fillText('+'+np.body._foldCount,np.x,np.y+3);}
+  });
+}
+
+function onQMove(e) {
+  if(qDragging){qViewX+=(e.clientX-qCanvas._mx);qViewY+=(e.clientY-qCanvas._my);qCanvas._mx=e.clientX;qCanvas._my=e.clientY;computeQPos();renderQuantum();return;}
+}
+function onQClick(e) { if(qDragging) return; }
+
+function renderQList() {
+  const el=document.getElementById('q-list');
+  const nodes = getQNodes();
+  el.innerHTML = nodes.map(b=>{
+    const isFolded=!!b._foldGroupId, sel=qSelected===b.addr;
+    const ents = (b.C?.cause_id&&b.C.cause_id!=='none'?1:0)+(b.C?.entangle_ids?.length||0);
+    return `<div class="q-row${sel?' sel':''}" onclick="quantumSelect('${b.addr}',event)">
+      <div class="q-dot${ents?' ent':''}" style="background:${isFolded?'#7c3aed':'#22d3ee'}"></div>
+      <div>${(b.S?.title||'?').slice(0,35)}${isFolded?' <span style="color:#7c3aed;font-size:0.8em">+'+b._foldCount+'</span>':''}</div>
+    </div>`;
+  }).join('');
+  updateQMeter();
+}
+
+function updateQMeter() {
+  const folded = new Set();
+  Object.values(qFoldGroups).forEach(arr=>arr.forEach(a=>folded.add(a)));
+  const visible = allBodies.length - folded.size + Object.keys(qFoldGroups).length;
+  document.getElementById('q-meter-fill').style.width = (visible/allBodies.length*100)+'%';
+  document.getElementById('q-meter-text').textContent = visible+'/'+allBodies.length;
+  document.getElementById('ss-fold').textContent = Math.round((1-visible/allBodies.length)*100)+'%';
+}
+
+function quantumSelect(addr, e) {
+  if(e&&e.shiftKey){qFoldSelection.has(addr)?qFoldSelection.delete(addr):qFoldSelection.add(addr);renderQList();renderQuantum();return;}
+  qFoldSelection.clear();qSelected=qSelected===addr?null:addr;renderQList();renderQuantum();
+}
+
+function quantumFold() {
+  if(qFoldSelection.size<2){qToast('请Shift+点击选择>=2个任务');return;}
+  const gid='qf_'+Date.now();qFoldGroups[gid]=[...qFoldSelection];
+  qFoldSelection.clear();qSelected=null;renderQList();computeQPos();renderQuantum();
+  qToast('⊗ '+qFoldGroups[gid].length+'个任务折叠→1个纠缠态');
+}
+function quantumExpand(){const c=Object.values(qFoldGroups).reduce((s,a)=>s+a.length,0);qFoldGroups={};renderQList();computeQPos();renderQuantum();if(c) qToast('⊕ 展开'+c+'个任务');else qToast('无折叠态');}
+function quantumMeasure(){
+  if(!qSelected){qToast('请先选择一个折叠态节点');return;}
+  const b = getQNodes().find(n=>n.addr===qSelected);
+  if(!b||!b._foldGroupId){qToast('选中节点非折叠态');return;}
+  const gid=b._foldGroupId, members=qFoldGroups[gid]||[];
+  const rel=members[0]; qFoldGroups[gid]=members.slice(1);
+  if(qFoldGroups[gid].length<2) delete qFoldGroups[gid];
+  qToast('◎ 释放: '+(allBodies.find(x=>x.addr===rel)||{}).S?.title?.slice(0,20));
+  renderQList();computeQPos();renderQuantum();
+}
+
+function qToast(m){const t=document.getElementById('q-toast');t.textContent=m;t.className='show';setTimeout(()=>t.className='',2500);}
+
+// ===================== TAB 3: REPORT =====================
+function initReportTab() {
+  const edges = allBodies.filter(b=>b.C?.cause_id&&b.C.cause_id!=='none').length;
+
+  document.getElementById('report-overview').innerHTML = `
+    <div class="report-card"><div class="rc-title">坐标体总数</div><div class="rc-value">${allBodies.length}</div></div>
+    <div class="report-card"><div class="rc-title">因果边</div><div class="rc-value">${edges}</div></div>
+    <div class="report-card"><div class="rc-title">孤立率</div><div class="rc-value">${((1-edges/Math.max(allBodies.length,1))*100).toFixed(1)}%</div></div>
+    <div class="report-card"><div class="rc-title">自洽率</div><div class="rc-value">${((stats.consistency_rate||1)*100).toFixed(0)}%</div></div>`;
+
+  // Level distribution
+  const lvDist={}, lvOrder=['炼气','筑基','金丹','元婴','化神','合体','大乘','渡劫','飞升'];
+  allBodies.forEach(b=>{const l=b.M?.level||'?';lvDist[l]=(lvDist[l]||0)+1});
+  document.getElementById('report-levels').innerHTML = lvOrder.filter(l=>lvDist[l]).map(l=>{
+    const pct=lvDist[l]/Math.max(allBodies.length,1)*100;
+    return `<div style="display:flex;align-items:center;gap:10px;margin:4px 0">
+      <span style="color:${LEVEL_COLORS[l]};width:40px;font-size:0.75em">${l}</span>
+      <div style="flex:1;height:8px;background:#1a1a3a;border-radius:4px;overflow:hidden">
+        <div style="width:${pct}%;height:100%;background:${LEVEL_COLORS[l]};border-radius:4px"></div></div>
+      <span style="font-size:0.7em;color:#667;width:40px">${lvDist[l]}</span></div>`;
+  }).join('');
+
+  // Hotspots
+  const causeMap={};
+  allBodies.forEach(b=>{const c=b.C?.cause_id;if(c&&c!=='none'){causeMap[c]=(causeMap[c]||0)+1}});
+  const top = Object.entries(causeMap).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  document.getElementById('report-hotspots').innerHTML = '<tr><th>#</th><th>节点</th><th>下游</th><th>境界</th></tr>'+
+    top.map(([addr,cnt],i)=>{
+      const b=allBodies.find(x=>x.addr===addr);
+      return `<tr><td>${i+1}</td><td>${(b?.S?.title||'?').slice(0,40)}</td><td>${cnt}</td><td><span class="level-badge" style="background:${LEVEL_COLORS[b?.M?.level||'?']||'#666'}22;color:${LEVEL_COLORS[b?.M?.level||'?']}">${b?.M?.level||'?'}</span></td></tr>`;
+    }).join('');
+
+  // Sources
+  const srcMap={};
+  allBodies.forEach(b=>{const s=b.M?.source_type||'unknown';srcMap[s]=(srcMap[s]||0)+1});
+  document.getElementById('report-sources').innerHTML = '<tr><th>来源</th><th>数量</th><th>占比</th></tr>'+
+    Object.entries(srcMap).sort((a,b)=>b[1]-a[1]).map(([s,c])=>
+      `<tr><td>${s}</td><td>${c}</td><td>${(c/allBodies.length*100).toFixed(1)}%</td></tr>`
+    ).join('');
+}
+
+// ===================== HOOK INTO HOLO =====================
+function holoSelect(addr) {
+  holoSelected = holoSelected===addr ? null : addr;
+  renderHoloList(); renderHolo();
+}
+
+// ===================== INIT =====================
+loadAll();
+setInterval(()=>{if(currentTab==='quantum')renderQuantum();if(currentTab==='holo')renderHolo();},2000);
+
+// ===================== SEARCH + FILTER =====================
+let searchTerm = '', filterLevel = '', filterType = '';
+
+function onSearch() {
+  searchTerm = document.getElementById('search-bar').value.toLowerCase();
+  renderHoloList(); computeHoloPos(); renderHolo();
+}
+
+function onFilter() {
+  filterLevel = document.getElementById('filter-level').value;
+  filterType = document.getElementById('filter-type').value;
+  renderHoloList(); computeHoloPos(); renderHolo();
+}
+
+// Override renderHoloList to use filters
+const _origRenderHoloList = renderHoloList;
+renderHoloList = function() {
+  let filtered = [...allBodies];
+  if (searchTerm) filtered = filtered.filter(b => (b.S?.title||'').toLowerCase().includes(searchTerm));
+  if (filterLevel) filtered = filtered.filter(b => b.M?.level === filterLevel);
+  if (filterType) filtered = filtered.filter(b => b.S?.entity_type === filterType);
+  holoNodes = []; // will be recomputed
+
+  const el = document.getElementById('holo-body-list');
+  if (filtered.length === 0) {
+    el.innerHTML = '<div class="no-results">无匹配结果 — 尝试调整筛选条件</div>';
+    return;
+  }
+  const sorted = [...filtered].sort((a,b)=>(b.M?.cultivation_sense||0)-(a.M?.cultivation_sense||0));
+  el.innerHTML = sorted.map(b=>{
+    const lv=b.M?.level||'?', sel=holoSelected===b.addr;
+    return '<div class="holo-row'+(sel?' sel':'')+'" data-addr="'+b.addr+'" onclick="holoSelect(\''+b.addr+'\');showDetail(\''+b.addr+'\')">'+
+      '<div class="holo-dot" style="background:'+(LEVEL_COLORS[lv]||'#666')+'"></div>'+
+      '<div style="flex:1">'+(b.S?.title||'?').slice(0,40)+'</div>'+
+      '<span style="font-size:0.6em;color:#556">'+lv+'</span></div>';
+  }).join('');
+}
+
+// ===================== DETAIL MODAL =====================
+function showDetail(addr) {
+  const b = allBodies.find(x=>x.addr===addr);
+  if (!b) return;
+  const lv = b.M?.level||'?';
+  const cause = b.C?.cause_id;
+  const causeBody = cause ? allBodies.find(x=>x.addr===cause) : null;
+  const html = '<div id="detail-card">'+
+    '<h3>'+(b.S?.title||'?')+'</h3>'+
+    '<div class="d-row"><span class="d-label">境界</span><span class="d-value" style="color:'+(LEVEL_COLORS[lv]||'#fff')+'">'+lv+'</span></div>'+
+    '<div class="d-row"><span class="d-label">修行感</span><span class="d-value">'+(b.M?.cultivation_sense||0).toFixed(4)+'</span></div>'+
+    '<div class="d-row"><span class="d-label">坐标</span><span class="d-value">lat:'+(b.P?.lat||'?').toFixed(2)+' lng:'+(b.P?.lng||'?').toFixed(2)+'</span></div>'+
+    '<div class="d-row"><span class="d-label">来源</span><span class="d-value">'+(b.M?.source_type||'?')+'</span></div>'+
+    '<div class="d-row"><span class="d-label">因果链</span><span class="d-value">'+(causeBody?'← '+(causeBody.S?.title||'?').slice(0,30):'无')+'</span></div>'+
+    (b.S?.desc ? '<div class="d-desc">'+(b.S.desc||'').slice(0,250)+'</div>' : '')+
+    '<div style="display:flex;gap:8px;margin-top:12px">'+
+    '<button onclick="closeDetail()">关闭</button>'+
+    (causeBody?'<button onclick="closeDetail();holoSelect(\''+cause+'\')" style="background:#1a1a3e">追溯因</button>':'')+
+    '</div></div>';
+  let modal = document.getElementById('detail-modal');
+  if (!modal) { modal = document.createElement('div'); modal.id='detail-modal'; document.body.appendChild(modal); }
+  modal.innerHTML = html;
+  modal.className = 'show';
+  modal.onclick = function(e) { if (e.target===modal) closeDetail(); };
+}
+
+function closeDetail() {
+  const modal = document.getElementById('detail-modal');
+  if (modal) { modal.className = ''; modal.innerHTML = ''; }
+}
+
+// Ctrl+K global search
+document.addEventListener('keydown', function(e) {
+  if ((e.ctrlKey||e.metaKey) && e.key==='k') {
+    e.preventDefault();
+    document.getElementById('search-bar').focus();
+    document.getElementById('search-bar').select();
+  }
+  if (e.key==='Escape') closeDetail();
+});
+
+// ===================== TAB 7: SEMANTIC ENGINE =====================
+const SemanticEngine = {
+  activeTab:'pi', tileSortKey:'title', tileSortAsc:true,
+  foldCache:null, shipanCache:null, piCache:null, taoCache:null,
+
+  init() {
+    this.detectCycles(); this.discoverTao(); this.computeShipan();
+  },
+
+  // ---- π 循环检测 ----
+  detectCycles() {
+    const list = document.getElementById('se-pi-list'); if(!list) return;
+    if (this.piCache) { this.renderCycles(list, this.piCache); return; }
+    const cycles = [], visited = new Set();
+    const bodies = allBodies;
+    bodies.forEach(b => {
+      if (visited.has(b.addr)) return;
+      const chain = [], seen = new Set(); let cur = b;
+      while (cur && !seen.has(cur.addr)) {
+        seen.add(cur.addr); chain.push(cur);
+        const causeAddr = cur.C?.cause_id; if (!causeAddr) break;
+        cur = bodies.find(x => x.addr === causeAddr || x.S?.title === causeAddr);
+      }
+      if (cur && seen.has(cur.addr)) {
+        const cycleStart = chain.findIndex(x => x.addr === cur.addr);
+        if (cycleStart >= 0) {
+          const cycle = chain.slice(cycleStart);
+          const cults = cycle.map(n => n.M?.cultivation_sense || 0);
+          const mean = cults.reduce((s,v)=>s+v,0)/cults.length;
+          const variance = cults.reduce((s,v)=>s+(v-mean)**2,0)/cults.length;
+          const density = Math.min(1, (1/(1+variance))*(cycle.length/10));
+          cycles.push({ nodes:cycle, density, length:cycle.length });
+          cycle.forEach(n => visited.add(n.addr));
+        }
+      }
+    });
+    bodies.forEach(a=>{ bodies.forEach(b=>{
+      if(a.addr===b.addr)return;
+      if(a.C?.cause_id===b.addr&&b.C?.cause_id===a.addr){
+        if(!cycles.find(c=>c.nodes[0].addr===a.addr&&c.nodes[1].addr===b.addr))
+          cycles.push({nodes:[a,b],density:1.0,length:2});
+      }
+    })});
+    this.piCache = cycles; this.renderCycles(list, cycles);
+  },
+
+  renderCycles(list, cycles) {
+    if (!cycles.length) { list.innerHTML='<div style="color:#10b981;font-size:0.72em;padding:16px;text-align:center">✓ 未检测到循环依赖</div>'; return; }
+    list.innerHTML = cycles.map((c,ci)=>`<div class="cycle-card"><strong>循环#${ci+1}</strong> · 长${c.length} · 密度${c.density.toFixed(2)}<br><span style="color:#889">${c.nodes.map(n=>n.S?.title||'?').join(' → ')} ↻ 回环</span></div>`).join('');
+  },
+
+  // ---- 韬定律发现 ----
+  discoverTao() {
+    const list = document.getElementById('se-tao-list'); if(!list) return;
+    if (this.taoCache) { this.renderTao(list, this.taoCache); return; }
+    const discoveries = [], bodies = allBodies;
+    const completionToLevel = {};
+    bodies.forEach(b=>{
+      const lv=b.M?.level||'?'; if(!completionToLevel[lv]) completionToLevel[lv]={total:0,completed:0};
+      completionToLevel[lv].total++; if(b.S?.status==='completed') completionToLevel[lv].completed++;
+    });
+    Object.entries(completionToLevel).forEach(([lv,d])=>{
+      const ratio=d.completed/d.total;
+      if(ratio>0.5&&d.total>=2) discoveries.push({title:`${lv}境界·完成度${(ratio*100).toFixed(0)}%`,desc:`${d.completed}/${d.total}已完成`,confidence:ratio});
+    });
+    this.taoCache = discoveries; this.renderTao(list, discoveries);
+  },
+
+  renderTao(list, discoveries) {
+    if (!discoveries.length) { list.innerHTML='<div style="color:#556;font-size:0.72em;padding:16px;text-align:center">数据不足以揭示韬定律</div>'; return; }
+    list.innerHTML = discoveries.map(d=>`<div class="tao-card"><strong>${d.title}</strong><br><span style="color:#889">${d.desc} · 置信度${(d.confidence*100).toFixed(0)}%</span></div>`).join('');
+  },
+
+  // ---- 折叠执行 ----
+  runFold(mode) {
+    const list = document.getElementById('se-fold-list'); if(!list) return;
+    list.innerHTML='<div style="color:#556;padding:10px;text-align:center">折叠中...</div>';
+    setTimeout(()=>{
+      const groups={}; const bodies=allBodies;
+      bodies.forEach(b=>{
+        let key,label;
+        switch(mode){
+          case'causal':key=b.C?.cause_id?'因果链:'+b.C.cause_id.slice(0,6):'孤立坐标体';label=key;break;
+          case'level':key=b.M?.level||'未知';label=key;break;
+          case'semantic':const lv=b.M?.level||'?',st=b.S?.status||'?',et=b.S?.entity_type||'?';key=`${lv}|${st}|${et}`;label=`${lv}·${st}·${et}`;break;
+        }
+        if(!groups[key]) groups[key]={label,bodies:[],count:0};
+        groups[key].bodies.push(b); groups[key].count++;
+      });
+      const entries=Object.entries(groups).map(([k,v])=>({key:k,...v}));
+      list.innerHTML = entries.map(g=>`<div style="margin-bottom:4px;padding:4px 8px;background:rgba(16,185,129,0.04);border-left:2px solid var(--fold-color);border-radius:0 4px 4px 0;font-size:0.85em"><strong>${g.label}</strong> · ${g.count}体</div>`).join('');
+    },200);
+  },
+
+  // ---- 十神式盘 ----
+  computeShipan() {
+    const grid = document.getElementById('se-shipan'); if(!grid) return;
+    if (this.shipanCache) { this.renderShipan(grid); return; }
+    const shipanData={}, bodies=allBodies;
+    bodies.forEach(b=>{
+      const causeScore=b.C?.cause_id?0.8:0.2, statusScore=b.S?.status==='completed'?0.9:b.S?.status==='in_progress'?0.5:0.2;
+      const sourceScore=b.S?.entity_type?0.7:0.3, levelScore=(LEVEL_ORDER.indexOf(b.M?.level||'')+1)/9;
+      const cultScore=b.M?.cultivation_sense||0, karmaScore=b.M?.karma_score||0;
+      const timeScore=b.M?.last_meditation?0.6:0.2, relScore=((b.R?.child_ids?.length||0)+(b.R?.links?.length||0))/10;
+      const semScore=b.S?.desc?Math.min(1,b.S.desc.length/200):0.2, metaScore=(b.verified!==false?0.4:0)+(b.M?.last_meditation?0.3:0);
+      shipanData[b.addr]={ title:b.S?.title||'?', gods:{'正官':causeScore,'偏官':statusScore,'正印':sourceScore,'偏印':levelScore,'正财':cultScore,'偏财':karmaScore,'比肩':timeScore,'劫财':Math.min(1,relScore),'食神':semScore,'伤官':Math.min(1,metaScore)} };
+    });
+    this.shipanCache = shipanData; this.renderShipan(grid);
+  },
+
+  renderShipan(grid) {
+    const gods=['正官','偏官','正印','偏印','正财','偏财','比肩','劫财','食神','伤官'];
+    const godLabels={正官:'因果',偏官:'状态',正印:'来源',偏印:'境界',正财:'修行',偏财:'业力',比肩:'时间',劫财:'关系',食神:'语义',伤官:'元数据'};
+    const godColors={正官:'#ff6b6b',偏官:'#ff9f43',正印:'#54a0ff',偏印:'#5f27cd',正财:'#1dd1a1',偏财:'#f368e0',比肩:'#ffd32a',劫财:'#ff6348',食神:'#00d2d3',伤官:'#a29bfe'};
+    const entries=Object.values(this.shipanCache);
+    const avgValues={}; gods.forEach(g=>{ avgValues[g]=entries.reduce((s,e)=>s+(e.gods[g]||0),0)/Math.max(1,entries.length); });
+    grid.innerHTML = gods.map(g=>`<div class="shipan-cell"><div class="sc-label" style="color:${godColors[g]}">${g}·${godLabels[g]}</div><div style="font-size:0.75em;color:#667">${(avgValues[g]*100).toFixed(1)}%</div><div class="sc-bar"><div class="fill" style="width:${avgValues[g]*100}%;background:${godColors[g]}"></div></div></div>`).join('');
+  }
+};
+
+// Auto-init semantic engine when tab changes
+(function(){
+  const origSwitchTab = switchTab;
+  switchTab = function(tab) {
+    origSwitchTab(tab);
+    if (tab === 'semantic') { SemanticEngine.init(); }
+  };
+})();
+</script>
+</body>
+</html>
