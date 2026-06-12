@@ -1,0 +1,31 @@
+# R方向: K8s Service — 内部服务暴露
+apiVersion: v1
+kind: Service
+metadata:
+  name: psi-evaluation-svc
+  namespace: spirit-form
+  labels:
+    app: psi-evaluation
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8002
+    targetPort: 8002
+    protocol: TCP
+    name: http
+  selector:
+    app: psi-evaluation
+---
+# Headless Service for internal service discovery
+apiVersion: v1
+kind: Service
+metadata:
+  name: psi-evaluation-headless
+  namespace: spirit-form
+spec:
+  clusterIP: None
+  ports:
+  - port: 8002
+    targetPort: 8002
+  selector:
+    app: psi-evaluation
