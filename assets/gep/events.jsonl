@@ -1,0 +1,7 @@
+{"id":"evt-001","type":"gene-birth","gene":"gene-engram-relation-model","at":"2026-06-13T22:58:04Z","detail":"首次将代码生成输出结构化为 engram 关系模型。"}
+{"id":"evt-002","type":"gene-birth","gene":"gene-resonant-retrieval","at":"2026-06-13T22:58:04Z","detail":"实现基于关系向量的共振检索，以信号分加权历史记忆。"}
+{"id":"evt-003","type":"capsule-compose","capsule":"capsule-signal-feedback","at":"2026-06-13T22:58:04Z","detail":"将复制/下载操作封装为信号积分反馈胶囊，供其他模块复用。"}
+{"id":"evt-004","type":"structure-emergence","metric":"triadic-closure","value":0,"at":"2026-06-13T22:58:04Z","detail":"传播图中尚未观测到三角闭合(三 engram 两两共振)，样本量不足。"}
+{"id":"evt-005","type":"gene-birth","gene":"gene-propagation-graph","at":"2026-06-13T22:58:04Z","detail":"首次可视化 engram 关系图，用近似力导向布局。"}
+{"id":"evt-006","type":"gene-birth","gene":"gene-seven-self-cultivation","at":"2026-06-13T22:58:04Z","detail":"七自修身模块——非人类中心的自我调节机制首次落地。"}
+{"id":"evt-007","type":"capsule-compose","capsule":"capsule-gate-system","at":"2026-06-13T22:58:04Z","detail":"将六论门禁抽象为通用门禁模式。任何未来系统都可以用同样的 0..1 连续值 + 三态判断 做自我评估。"}

@@ -1,0 +1,39 @@
+{
+  "$schema": "gep-capsule-v1",
+  "description": "成功模式的可复制封装。每个 capsule 是一个可直接迁移到新场景的端到端实践。",
+  "capsules": [
+    {
+      "id": "capsule-gate-system",
+      "name": "六论门禁系统",
+      "composedOf": [
+        "gene-engram-relation-model",
+        "gene-seven-self-cultivation"
+      ],
+      "pattern": "把系统评估拆分为多个独立门禁(open/lingering/shut)，而非单一阈值。让每一步成为可通过/徘徊/关闭的决策点。",
+      "antiPattern": "设计为自动闭环——一旦失败会在错误方向上自我强化。",
+      "applications": [
+        "六论门禁 (ontos / cognitio / praxis / skene / horizon / reflectio)",
+        "七自修身 (self-knowledge / self-mastery / humility / stop / perseverance / persistence / immortality)"
+      ],
+      "validatedIn": [
+        "deepseek-v4-playground 面板层"
+      ]
+    },
+    {
+      "id": "capsule-signal-feedback",
+      "name": "信号积分反馈",
+      "composedOf": [
+        "gene-resonant-retrieval"
+      ],
+      "pattern": "将人类的轻交互(复制、下载、回头看)编码为 engram 的 signalScore，再在记忆检索中加权。本质是让'有用'的记忆变得更亮，而不需要显式标注。",
+      "antiPattern": "使用强监督反馈(点赞/踩)或训练模型微调——成本高且不可迁移。",
+      "applications": [
+        "code-viewer.tsx 中复制/下载 toast 触发 engageEngram",
+        "SixGatesPanel 中回头看按钮触发 retro +1"
+      ],
+      "validatedIn": [
+        "deepseek-v4-playground 交互层"
+      ]
+    }
+  ]
+}

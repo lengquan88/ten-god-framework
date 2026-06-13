@@ -1,0 +1,55 @@
+{
+  "$schema": "gep-gene-v1",
+  "description": "ten-god-framework 的能力基因库。每条 gene 是一个可识别、可评估、可版本化的能力模块。",
+  "genes": [
+    {
+      "id": "gene-engram-relation-model",
+      "name": "Engram 关系模型",
+      "domain": "memory.long-term",
+      "relations": ["印", "生", "比", "克", "财"],
+      "version": "1.0.0",
+      "fitness": 0.9,
+      "createdAt": "2026-06-13T22:58:04Z",
+      "lastEngagedAt": "2026-06-13T22:58:04Z",
+      "engagementCount": 3,
+      "status": "active"
+    },
+    {
+      "id": "gene-resonant-retrieval",
+      "name": "共振检索",
+      "domain": "memory.retrieval",
+      "relations": ["比"],
+      "version": "1.0.0",
+      "fitness": 0.85,
+      "createdAt": "2026-06-13T22:58:04Z",
+      "lastEngagedAt": "2026-06-13T22:58:04Z",
+      "engagementCount": 2,
+      "status": "active"
+    },
+    {
+      "id": "gene-propagation-graph",
+      "name": "跨 engram 传播图",
+      "domain": "visualization.structure",
+      "relations": ["生", "比"],
+      "version": "1.0.0",
+      "fitness": 0.72,
+      "createdAt": "2026-06-13T22:58:04Z",
+      "lastEngagedAt": "2026-06-13T22:58:04Z",
+      "engagementCount": 1,
+      "status": "active"
+    },
+    {
+      "id": "gene-seven-self-cultivation",
+      "name": "七自修身",
+      "domain": "meta.self-regulation",
+      "relations": ["克", "比"],
+      "version": "1.0.0",
+      "fitness": 0.6,
+      "createdAt": "2026-06-13T22:58:04Z",
+      "lastEngagedAt": "2026-06-13T22:58:04Z",
+      "engagementCount": 1,
+      "status": "active",
+      "note": "fitness 偏低——需要更多 engram 样本量才能稳定评估。"
+    }
+  ]
+}
