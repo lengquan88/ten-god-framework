@@ -9,7 +9,9 @@ import time
 import uuid
 import json
 import os
-from typing import Any, Dict, List, Optional, Union
+import math
+import re
+from typing import Any, Dict, List, Optional, Tuple, Union
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -339,6 +341,116 @@ class KnowledgeBase:
             self._db_conn.close()
             self._db_conn = None
 
+    # -------- 向量相似度查询 --------
+
+    def _node_text(self, node: KnowledgeNode) -> str:
+        """将节点序列化为可搜索文本（名称 + 类型 + 属性）"""
+        parts: List[str] = [node.name, node.node_type]
+        for k, v in node.properties.items():
+            parts.append(str(k))
+            parts.append(str(v))
+        return " ".join(parts)
+
+    def _char_ngrams(self, text: str, n: int = 2) -> Dict[str, int]:
+        """提取字符 n-gram 并统计频次（中文与英文通用）"""
+        text = text.lower()
+        # 去掉标点仅保留有效字符（保留中英文与数字）
+        text = re.sub(r"[\s+\.\!\/_,$%^*(+\"\']+|[+——！，。？、~@#￥%……&*（）]+", " ", text)
+        grams: Dict[str, int] = {}
+        if len(text) < n:
+            grams[text] = 1
+            return grams
+        for i in range(len(text) - n + 1):
+            gram = text[i:i + n]
+            grams[gram] = grams.get(gram, 0) + 1
+        return grams
+
+    def _cosine(self, a: Dict[str, int], b: Dict[str, int]) -> float:
+        """稀疏向量余弦相似度"""
+        if not a or not b:
+            return 0.0
+        common = set(a.keys()) & set(b.keys())
+        dot = sum(a[k] * b[k] for k in common)
+        norma = math.sqrt(sum(v * v for v in a.values()))
+        normb = math.sqrt(sum(v * v for v in b.values()))
+        if norma == 0 or normb == 0:
+            return 0.0
+        return dot / (norma * normb)
+
+    def query_nearest(
+        self,
+        query: str,
+        top_k: int = 5,
+        node_type: Optional[str] = None,
+        min_score: float = 0.0,
+    ) -> List[Dict[str, Any]]:
+        """按查询文本检索最相似的知识节点。
+
+        采用字符 n-gram + 余弦相似度，零外部依赖，适合中英文混合场景。
+
+        Args:
+            query: 查询词，例如"人工智能"、"神经网络"
+            top_k: 返回结果数量
+            node_type: 可选，限定返回类型
+            min_score: 最小相似度阈值（0-1），低于则剔除
+
+        Returns:
+            [{id, name, node_type, score, node}, ...] 按分数从高到低排序
+
+        Example:
+            >>> kb = KnowledgeBase()
+            >>> kb.add_node("深度学习", node_type="concept", properties={"领域": "AI"})
+            >>> kb.add_node("炒菜", node_type="concept", properties={"领域": "生活"})
+            >>> results = kb.query_nearest("深度学习 人工智能", top_k=3)
+            >>> for r in results:
+            >>>     print(r["name"], round(r["score"], 3))
+        """
+        if not query or not self._nodes:
+            return []
+
+        query_vec = self._char_ngrams(query, n=2)
+
+        candidates: List[Tuple[str, float, KnowledgeNode]] = []
+        for node_id, node in self._nodes.items():
+            if node_type and node.node_type != node_type:
+                continue
+            node_vec = self._char_ngrams(self._node_text(node), n=2)
+            score = self._cosine(query_vec, node_vec)
+            if score > min_score:
+                candidates.append((node_id, score, node))
+
+        # 按分数降序
+        candidates.sort(key=lambda x: x[1], reverse=True)
+        top = candidates[:top_k]
+
+        return [
+            {
+                "id": n.id,
+                "name": n.name,
+                "node_type": n.node_type,
+                "score": round(s, 4),
+                "node": n,
+            }
+            for _, s, n in top
+        ]
+
+    # -------- 便捷批量导入 --------
+
+    def bulk_add(self, records: List[Dict[str, Any]]) -> List[KnowledgeNode]:
+        """批量添加节点。records 每项形如：
+        {"name": "..., "node_type": "..., "properties": {...}, "id": "..."}
+        """
+        nodes: List[KnowledgeNode] = []
+        for rec in records:
+            node = self.add_node(
+                name=rec["name"],
+                node_type=rec.get("node_type", "default"),
+                properties=rec.get("properties", {}),
+                node_id=rec.get("id"),
+            )
+            nodes.append(node)
+        return nodes
+
 
 __all__ = ["KnowledgeBase", "KnowledgeNode", "KnowledgeEdge", "StorageBackend"]
-__version__ = "1.1.0"
+__version__ = "1.2.0"

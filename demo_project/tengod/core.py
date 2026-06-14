@@ -213,10 +213,75 @@ class TenGodCore:
         self.balancer.set_state(target, reason=reason)
         return self.balancer.stats()
 
+    # ============ 新功能集成：食神流式 / 正财搜索 / 正官 API ============
+
+    def generate_stream(self, prompt: str, format: str = "text",
+                        style: str = "default") -> Any:
+        """调用食神流式生成内容。
+
+        返回一个可迭代对象，每次 yield 一小块文本（字符串）。
+        若食神模块不可用，返回空列表。
+        """
+        if not self.generator or not self.OutputFormat or not self.GenerationConfig:
+            return []
+        fmt_map = {
+            "text": self.OutputFormat.TEXT,
+            "markdown": self.OutputFormat.MARKDOWN,
+            "md": self.OutputFormat.MARKDOWN,
+            "json": self.OutputFormat.JSON,
+            "html": self.OutputFormat.HTML,
+        }
+        config = self.GenerationConfig(
+            format=fmt_map.get(format, self.OutputFormat.TEXT),
+            style=style,
+        )
+        return self.generator.generate_stream(prompt, config)
+
+    def generate_collect(self, prompt: str, format: str = "text",
+                         style: str = "default") -> str:
+        """调用食神生成内容，一次性返回完整内容（内部走流式）。"""
+        return "".join(self.generate_stream(prompt, format=format, style=style))
+
+    def search_knowledge(self, query: str, top_k: int = 5,
+                         node_type: Optional[str] = None,
+                         min_score: float = 0.0) -> List[Dict[str, Any]]:
+        """正财模块：向量相似度查询知识库节点。"""
+        if not self.kb:
+            return []
+        return self.kb.query_nearest(query, top_k=top_k,
+                                      node_type=node_type, min_score=min_score)
+
+    def knowledge_base(self) -> Any:
+        """返回正财知识库对象（用于批量导入等高级场景）。"""
+        return self.kb
+
+    def run_api_server(self, host: str = "127.0.0.1", port: int = 8000) -> None:
+        """正官模块：启动 HTTP API 服务（阻塞式）。"""
+        try:
+            from 正官_法度调度.api_server import run_server
+            run_server(self, host=host, port=port)
+        except Exception as e:
+            print(f"[Error] 启动 API 服务失败：{e}")
+
+    def create_api_app(self) -> Any:
+        """返回 FastAPI 应用（如可用），否则返回 None。"""
+        try:
+            from 正官_法度调度.api_server import create_app
+            return create_app(self)
+        except Exception as e:
+            print(f"[Error] 创建 API 应用失败：{e}")
+            return None
+
     def export_state(self) -> Dict[str, Any]:
         """导出核心状态"""
         return {
             "name": self.name,
+            "version": "1.2.0",
+            "features": {
+                "streaming_generate": self.generator is not None,
+                "vector_search": self.kb is not None,
+                "http_api": True,
+            },
             "scheduler": self.scheduler.stats() if self.scheduler else None,
             "judge": self.judge.report() if self.judge else None,
             "config": self.config.list_with_source() if self.config else None,

@@ -6,7 +6,7 @@ content_generator.py — 内容生成器
 """
 
 from enum import Enum
-from typing import Any, Dict, List, Optional, Callable
+from typing import Any, Dict, Iterator, List, Optional, Callable
 from dataclasses import dataclass, field
 import time
 import uuid
@@ -211,6 +211,171 @@ class ContentGenerator:
             "by_provider": provider_count,
         }
 
+    # -------- 流式生成 --------
+
+    def generate_stream(
+        self,
+        prompt: str,
+        config: Optional[GenerationConfig] = None,
+        token_delay: float = 0.02,
+    ) -> Iterator[str]:
+        """流式生成内容，逐 Token 返回。
+
+        Args:
+            prompt: 提示词
+            config: 生成配置
+            token_delay: 每个 token 的模拟延迟（仅 MOCK 模式生效）
+
+        Yields:
+            逐次返回生成的片段文本（可能是字、词或句）
+
+        Usage:
+            >>> gen = ContentGenerator()
+            >>> for token in gen.generate_stream("你好"):
+            >>>     print(token, end="", flush=True)
+        """
+        if config is None:
+            config = GenerationConfig()
+
+        start_time = time.time()
+        full_content_parts: List[str] = []
+
+        if config.provider == LLMProvider.MOCK:
+            iterator = self._stream_mock(prompt, config, token_delay)
+        elif config.provider == LLMProvider.OPENAI:
+            iterator = self._stream_openai(prompt, config)
+        elif config.provider == LLMProvider.CLAUDE:
+            iterator = self._stream_claude(prompt, config)
+        elif config.provider == LLMProvider.LOCAL:
+            iterator = self._stream_local(prompt, config)
+        else:
+            iterator = self._stream_mock(prompt, config, token_delay)
+
+        for chunk in iterator:
+            full_content_parts.append(chunk)
+            yield chunk
+
+        full_content = "".join(full_content_parts)
+        self._history.append({
+            "id": str(uuid.uuid4())[:8],
+            "prompt": prompt,
+            "format": config.format.value,
+            "provider": config.provider.value,
+            "stream": True,
+            "timestamp": start_time,
+            "duration": round(time.time() - start_time, 3),
+            "length": len(full_content),
+        })
+
+    def _stream_mock(self, prompt: str, config: GenerationConfig, token_delay: float) -> Iterator[str]:
+        """MOCK 模式：逐字输出模拟内容"""
+        text = self._render_mock(prompt, config)
+        # 按字符或词切分
+        tokens: List[str] = []
+        i = 0
+        while i < len(text):
+            ch = text[i]
+            if ord(ch) > 127:  # 中文单字
+                tokens.append(ch)
+                i += 1
+            else:  # 英文按词/标点聚合
+                buf = ch
+                i += 1
+                while i < len(text) and ord(text[i]) <= 127 and not text[i].isspace():
+                    buf += text[i]
+                    i += 1
+                tokens.append(buf)
+
+        for tok in tokens:
+            time.sleep(token_delay)
+            yield tok
+
+    def _stream_openai(self, prompt: str, config: GenerationConfig) -> Iterator[str]:
+        """OpenAI 流式调用"""
+        try:
+            import openai
+            client = openai.OpenAI(
+                api_key=self._api_key or config.api_key,
+                base_url=config.base_url if config.base_url else None,
+            )
+            stream = client.chat.completions.create(
+                model=config.model or "gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=config.max_length,
+                temperature=config.temperature,
+                stream=True,
+            )
+            for chunk in stream:
+                delta = chunk.choices[0].delta.content or ""
+                if delta:
+                    yield delta
+        except ImportError:
+            yield f"[Error: openai 未安装，回退 MOCK]\n"
+            for tok in self._stream_mock(prompt, config, 0):
+                yield tok
+        except Exception as e:
+            yield f"[Error: {str(e)}] "
+            for tok in self._stream_mock(prompt, config, 0):
+                yield tok
+
+    def _stream_claude(self, prompt: str, config: GenerationConfig) -> Iterator[str]:
+        """Claude 流式调用"""
+        try:
+            import anthropic
+            client = anthropic.Anthropic(api_key=self._api_key or config.api_key)
+            with client.messages.stream(
+                model=config.model or "claude-3-haiku-20240307",
+                max_tokens=config.max_length,
+                messages=[{"role": "user", "content": prompt}],
+            ) as stream:
+                for text in stream.text_stream:
+                    yield text
+        except ImportError:
+            yield f"[Error: anthropic 未安装，回退 MOCK]\n"
+            for tok in self._stream_mock(prompt, config, 0):
+                yield tok
+        except Exception as e:
+            yield f"[Error: {str(e)}] "
+            for tok in self._stream_mock(prompt, config, 0):
+                yield tok
+
+    def _stream_local(self, prompt: str, config: GenerationConfig) -> Iterator[str]:
+        """本地 Ollama 流式调用"""
+        try:
+            import requests
+            base_url = config.base_url or "http://localhost:11434"
+            resp = requests.post(
+                f"{base_url}/api/generate",
+                json={
+                    "model": config.model or "llama2",
+                    "prompt": prompt,
+                    "stream": True,
+                },
+                stream=True,
+                timeout=120,
+            )
+            for line in resp.iter_lines(decode_unicode=True):
+                if line:
+                    try:
+                        data = json.loads(line)
+                        chunk = data.get("response", "")
+                        if chunk:
+                            yield chunk
+                    except json.JSONDecodeError:
+                        continue
+        except ImportError:
+            yield f"[Error: requests 未安装，回退 MOCK]\n"
+            for tok in self._stream_mock(prompt, config, 0):
+                yield tok
+        except Exception as e:
+            yield f"[Error: {str(e)}] "
+            for tok in self._stream_mock(prompt, config, 0):
+                yield tok
+
+    def generate_collect(self, prompt: str, config: Optional[GenerationConfig] = None) -> str:
+        """调用流式生成但一次性返回完整内容（方便统一接口）"""
+        return "".join(self.generate_stream(prompt, config))
+
 
 __all__ = ["ContentGenerator", "OutputFormat", "GenerationConfig", "LLMProvider"]
-__version__ = "1.1.0"
+__version__ = "1.2.0"
