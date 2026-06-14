@@ -38,7 +38,7 @@ class TenGodCore:
     def __init__(self, name: str = "tengod"):
         self.name = name
 
-        # 懒加载各子模块
+        # 懒加载各子模块（10 核心 + 2 扩展）
         _bijian = _safe_import("比肩_架构协同")
         _jiecai = _safe_import("劫财_攻防边界")
         _shishen = _safe_import("食神_创生输出")
@@ -49,6 +49,8 @@ class TenGodCore:
         _qisha = _safe_import("七杀_品质裁决")
         _zhengyin = _safe_import("正印_滋养守护")
         _pianyin = _safe_import("偏印_桥接通变")
+        _yuanchen = _safe_import("元辰_本源定位")
+        _taichi = _safe_import("太极_阴阳调和")
 
         self.registry = _bijian.get_registry() if _bijian else None
         self.guard = _jiecai.Guard() if _jiecai else None
@@ -60,12 +62,15 @@ class TenGodCore:
         self.test_runner = _qisha.TestRunner(verbose=False) if _qisha else None
         self.config = _zhengyin.ConfigManager() if _zhengyin else None
         self.bridge = _pianyin.BridgeRegistry() if _pianyin else None
+        self.locator = _yuanchen.YuanChenLocator() if _yuanchen else None
+        self.balancer = _taichi.TaiChiBalancer() if _taichi else None
 
         # 保存权限枚举
         self.Permission = _jiecai.Permission if _jiecai else None
         self.OutputFormat = _shishen.OutputFormat if _shishen else None
         self.GenerationConfig = _shishen.GenerationConfig if _shishen else None
         self.TaskPriority = _zhengguan.TaskPriority if _zhengguan else None
+        self.YinYang = _taichi.YinYang if _taichi else None
 
         if self.bridge and _pianyin:
             self.bridge.register_converter("json", _pianyin.DictToJsonConverter())
@@ -176,6 +181,38 @@ class TenGodCore:
             "duration": round(result.duration, 3),
         }
 
+    def locate_project(self) -> Dict[str, Any]:
+        """元辰：项目根目录定位"""
+        if not self.locator:
+            return {"error": "locator unavailable"}
+        self.locator.locate()
+        return self.locator.summary()
+
+    def balance_state(self, metrics: Optional[Dict[str, float]] = None) -> Dict[str, Any]:
+        """太极：阴阳调和状态"""
+        if not self.balancer:
+            return {"error": "balancer unavailable"}
+        if metrics is not None:
+            self.balancer.evaluate(metrics)
+        stats = self.balancer.stats()
+        stats["history"] = self.balancer.get_history(limit=5)
+        return stats
+
+    def set_balance_state(self, state: str, reason: str = "") -> Dict[str, Any]:
+        """太极：设置阴阳状态"""
+        if not self.balancer or not self.YinYang:
+            return {"error": "balancer unavailable"}
+        state_map = {
+            "yin": self.YinYang.YIN,
+            "yang": self.YinYang.YANG,
+            "balanced": self.YinYang.BALANCED,
+        }
+        target = state_map.get(state)
+        if target is None:
+            return {"error": f"unknown state: {state}"}
+        self.balancer.set_state(target, reason=reason)
+        return self.balancer.stats()
+
     def export_state(self) -> Dict[str, Any]:
         """导出核心状态"""
         return {
@@ -187,6 +224,8 @@ class TenGodCore:
             "registered_components": self.registry.list_all() if self.registry else [],
             "registered_adapters": self.bridge.list_adapters() if self.bridge else [],
             "registered_converters": self.bridge.list_converters() if self.bridge else [],
+            "locator": self.locator.summary() if self.locator else None,
+            "balancer": self.balancer.stats() if self.balancer else None,
         }
 
 

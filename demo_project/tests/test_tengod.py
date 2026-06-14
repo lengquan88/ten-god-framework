@@ -200,6 +200,53 @@ def test_pianyin_adapter():
     assert "user_name" in snake
 
 
+def test_yuanchen_locator():
+    """元辰_本源定位：项目定位器测试"""
+    from 元辰_本源定位 import YuanChenLocator
+
+    locator = YuanChenLocator()
+    project = locator.locate()
+
+    assert project is not None
+    assert project.name is not None
+    assert len(project.submodules) >= 0
+
+    summary = locator.summary()
+    assert "path" in summary
+    assert "name" in summary
+
+    paths = locator.get_core_paths()
+    assert "root" in paths
+    assert "tengod" in paths
+
+
+def test_taichi_balancer():
+    """太极_阴阳调和：状态平衡器测试"""
+    from 太极_阴阳调和 import TaiChiBalancer, YinYang
+
+    balancer = TaiChiBalancer(initial_state=YinYang.BALANCED)
+    assert balancer.get_state() == YinYang.BALANCED
+
+    # 切换状态
+    balancer.set_state(YinYang.YANG, reason="active mode")
+    assert balancer.get_state() == YinYang.YANG
+
+    # toggle
+    balancer.toggle(reason="toggle test")
+    state = balancer.get_state()
+    assert state == YinYang.YIN or state == YinYang.YANG
+
+    # 基于指标评估
+    balancer.evaluate({"cpu": 0.1, "mem": 0.1})
+    stats = balancer.stats()
+    assert "current_state" in stats
+    assert stats["transitions"] > 0
+
+    # 回归平衡态
+    balancer.balance(reason="back to normal")
+    assert balancer.get_state() == YinYang.BALANCED
+
+
 if __name__ == "__main__":
     tests = [
         test_bijian_registry,
@@ -214,6 +261,8 @@ if __name__ == "__main__":
         test_qisha_runner,
         test_zhengyin_config,
         test_pianyin_adapter,
+        test_yuanchen_locator,
+        test_taichi_balancer,
     ]
 
     passed = 0

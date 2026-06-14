@@ -108,7 +108,7 @@ class KnowledgeBase:
         if os.path.exists(json_path):
             try:
                 with open(json_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
+                    data = json.load(f)
                 for n in data.get("nodes", []):
                     self._nodes[n["id"]] = KnowledgeNode(
                         id=n["id"],
