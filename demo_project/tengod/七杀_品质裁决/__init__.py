@@ -6,6 +6,7 @@
 
 from .quality_judge import QualityJudge, Score, Grade
 from .test_runner import TestRunner, TestCase, TestResult, TestStatus
+from .code_scanner import CodeScanner, ScanReport, ScanIssue, ScanLevel
 
 __all__ = [
     "QualityJudge",
@@ -15,5 +16,9 @@ __all__ = [
     "TestCase",
     "TestResult",
     "TestStatus",
+    "CodeScanner",
+    "ScanReport",
+    "ScanIssue",
+    "ScanLevel",
 ]
-__version__ = "1.0.0"
+__version__ = "1.5.0"

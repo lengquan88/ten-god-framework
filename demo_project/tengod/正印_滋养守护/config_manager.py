@@ -8,7 +8,7 @@ config_manager.py — 配置管理器
 import os
 import json
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 from dataclasses import dataclass, field
 
 
@@ -234,6 +234,11 @@ class ConfigWatcher:
         self._running = False
         self._thread: Optional[threading.Thread] = None
         self._mtime = os.path.getmtime(file_path) if os.path.exists(file_path) else 0
+        self._on_change_callbacks: List[Callable[[Dict[str, Any]], None]] = []
+
+    def on_change(self, callback: Callable[[Dict[str, Any]], None]) -> None:
+        """注册配置变更回调。回调接收新旧配置字典 {old: ..., new: ...}"""
+        self._on_change_callbacks.append(callback)
 
     def start(self) -> None:
         import threading
@@ -254,9 +259,17 @@ class ConfigWatcher:
                 continue
             mtime = os.path.getmtime(self._file_path)
             if mtime != self._mtime:
+                old_config = dict(self._config.list_all())
                 self._mtime = mtime
                 try:
                     self._config.load_from_file(self._file_path)
+                    new_config = dict(self._config.list_all())
                     print(f"[ConfigWatcher] 配置已热加载：{self._file_path}")
+                    # 触发变更回调
+                    for cb in self._on_change_callbacks:
+                        try:
+                            cb({"old": old_config, "new": new_config, "file": self._file_path})
+                        except Exception as cb_err:
+                            print(f"[ConfigWatcher] 回调错误：{cb_err}")
                 except Exception as e:
                     print(f"[ConfigWatcher] 热加载失败：{e}")

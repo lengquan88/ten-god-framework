@@ -110,6 +110,10 @@ class TenGodCore:
         _yuanchen = _safe_import("元辰_本源定位")
         _taichi = _safe_import("太极_阴阳调和")
 
+        # Oracle 引擎（推背图认知）
+        _oracle_mod = _safe_import("伤官_破界创新")
+        self.oracle = _oracle_mod.OracleEngine() if _oracle_mod else None
+
         self.registry = _bijian.get_registry() if _bijian else None
         self.guard = _jiecai.Guard() if _jiecai else None
         self.generator = _shishen.ContentGenerator(name=f"{name}_generator") if _shishen else None
@@ -365,22 +369,61 @@ class TenGodCore:
         if init_seed and self.kb:
             try:
                 seeds = [
+                    # 先秦诸子
                     {"name": "儒家", "node_type": "school",
-                     "properties": {"代表": "孔子/孟子", "典籍": "论语/孟子"}},
+                     "properties": {"代表": "孔子/孟子/荀子", "典籍": "论语/孟子/大学/中庸", "核心": "仁义礼智信", "年代": "春秋战国"}},
                     {"name": "道家", "node_type": "school",
-                     "properties": {"代表": "老子/庄子", "典籍": "道德经/庄子"}},
+                     "properties": {"代表": "老子/庄子/列子", "典籍": "道德经/庄子/列子", "核心": "道法自然/无为", "年代": "春秋战国"}},
+                    {"name": "法家", "node_type": "school",
+                     "properties": {"代表": "韩非子/商鞅/李斯", "典籍": "韩非子/商君书", "核心": "以法治国", "年代": "战国"}},
+                    {"name": "墨家", "node_type": "school",
+                     "properties": {"代表": "墨子", "典籍": "墨子", "核心": "兼爱非攻/尚贤", "年代": "春秋战国"}},
+                    {"name": "兵家", "node_type": "school",
+                     "properties": {"代表": "孙子/孙膑", "典籍": "孙子兵法/孙膑兵法", "核心": "知己知彼/不战而屈人之兵", "年代": "春秋战国"}},
+                    {"name": "医家", "node_type": "school",
+                     "properties": {"代表": "扁鹊/华佗/张仲景", "典籍": "黄帝内经/伤寒杂病论/本草纲目", "核心": "阴阳五行/辨证论治", "年代": "先秦至东汉"}},
+                    # 经典典籍
                     {"name": "易经", "node_type": "classic",
-                     "properties": {"地位": "群经之首", "内容": "六十四卦"}},
+                     "properties": {"地位": "群经之首", "内容": "六十四卦/系辞/十翼", "三易": "连山/归藏/周易"}},
+                    {"name": "诗经", "node_type": "classic",
+                     "properties": {"篇数": 305, "类别": "风雅颂", "年代": "西周至春秋"}},
+                    {"name": "尚书", "node_type": "classic",
+                     "properties": {"别称": "书经", "内容": "上古政事文献", "年代": "虞夏商周"}},
+                    {"name": "礼记", "node_type": "classic",
+                     "properties": {"核心篇": "大学/中庸/礼运", "内容": "礼乐制度/大同理想"}},
+                    {"name": "春秋", "node_type": "classic",
+                     "properties": {"作者": "孔子", "体例": "编年史", "三传": "左传/公羊/谷梁"}},
+                    {"name": "史记", "node_type": "classic",
+                     "properties": {"作者": "司马迁", "体例": "纪传体通史", "起止": "黄帝—汉武帝", "地位": "史家之绝唱"}},
+                    # 宇宙哲学
                     {"name": "河图", "node_type": "cosmic",
-                     "properties": {"结构": "1-10黑白点", "对应": "八卦"}},
+                     "properties": {"结构": "1-10黑白点", "对应": "先天八卦", "方位": "坐北朝南/天一生水"}},
                     {"name": "洛书", "node_type": "cosmic",
-                     "properties": {"结构": "3x3九宫幻方", "对应": "九畴"}},
+                     "properties": {"结构": "3x3九宫幻方", "对应": "九畴/后天八卦", "数": "戴九履一"}},
                     {"name": "阴阳", "node_type": "concept",
-                     "properties": {"核心": "对立统一", "应用": "中医/风水"}},
+                     "properties": {"核心": "对立统一", "应用": "中医/风水/哲学/兵法", "出处": "周易·系辞"}},
                     {"name": "五行", "node_type": "concept",
-                     "properties": {"构成": "金木水火土", "关系": "相生相克"}},
+                     "properties": {"构成": "金木水火土", "关系": "相生：木→火→土→金→水；相克：木克土/火克金/土克水/金克木/水克火", "应用": "中医/命理/风水"}},
                     {"name": "太极", "node_type": "concept",
-                     "properties": {"图像": "阴阳鱼", "出处": "周易·系辞"}},
+                     "properties": {"图像": "阴阳鱼太极图", "出处": "周易·系辞上", "含义": "无极而太极/一生二"}},
+                    {"name": "八卦", "node_type": "concept",
+                     "properties": {"构成": "乾坤震巽坎离艮兑", "代表": "天地雷风水火山泽", "演变": "伏羲先天/文王后天"}},
+                    # 历史人物
+                    {"name": "孔子", "node_type": "historical_figure",
+                     "properties": {"生卒": "前551-前479", "思想": "仁/礼/中庸", "贡献": "删述六经/有教无类", "学派": "儒家"}},
+                    {"name": "老子", "node_type": "historical_figure",
+                     "properties": {"生卒": "约前571-前471", "思想": "道法自然/无为", "著作": "道德经", "学派": "道家"}},
+                    {"name": "诸葛亮", "node_type": "historical_figure",
+                     "properties": {"生卒": "181-234", "称号": "卧龙/武侯", "代表": "出师表/八阵图", "领域": "政治/军事/发明"}},
+                    {"name": "李白", "node_type": "historical_figure",
+                     "properties": {"生卒": "701-762", "称号": "诗仙", "风格": "浪漫豪放", "代表作": "将进酒/蜀道难"}},
+                    {"name": "苏轼", "node_type": "historical_figure",
+                     "properties": {"生卒": "1037-1101", "称号": "东坡居士", "领域": "诗词/书法/绘画/美食", "代表作": "赤壁赋/水调歌头"}},
+                    # 科技发明
+                    {"name": "四大发明", "node_type": "technology",
+                     "properties": {"造纸": "蔡伦-东汉", "印刷": "毕昇活字-北宋", "火药": "唐", "指南针": "战国司南—宋"}},
+                    {"name": "都江堰", "node_type": "technology",
+                     "properties": {"建造者": "李冰父子", "年代": "公元前256年", "原理": "无坝引水/鱼嘴分水", "地位": "世界水利工程鼻祖"}},
                 ]
                 for s in seeds:
                     self.kb.upsert_node(s["name"], node_type=s["node_type"],
@@ -439,11 +482,40 @@ class TenGodCore:
         _request_id_var.reset(token)
         return summary
 
+    def consult_oracle(self, question: str, mode: str = "auto") -> Dict[str, Any]:
+        """推背图 Oracle 咨询。
+
+        Args:
+            question: 咨询问题
+            mode: 推演模式 (tuibeitu/zhouyi/zigua/hetu/luoshu/auto)
+
+        Returns:
+            卦象、干支、解释等结果字典
+        """
+        if not self.oracle:
+            return {"error": "Oracle 引擎未就绪"}
+        result = self.oracle.cast(question)
+        return {
+            "question": question,
+            "mode": mode,
+            "hexagram": result.hexagram,
+            "hexagram_index": result.hexagram_index,
+            "upper_trigram": result.upper_trigram,
+            "lower_trigram": result.lower_trigram,
+            "gan_zhi": result.gan_zhi,
+            "wuxing": result.wuxing,
+            "judgment": result.judgment,
+            "prediction": result.prediction,
+            "wisdom": result.wisdom,
+            "interpretation": self.oracle.interpret(result),
+            "stats": self.oracle.stats(),
+        }
+
     def export_state(self) -> Dict[str, Any]:
         """导出核心状态"""
         return {
             "name": self.name,
-            "version": "1.3.0",
+            "version": "1.5.0",
             "request_id": get_request_id(),
             "features": {
                 "streaming_generate": self.generator is not None,
@@ -454,6 +526,9 @@ class TenGodCore:
                 "session_management": self.generator is not None,
                 "orm_persistence": self.kb is not None,
                 "exception_tracking": True,
+                "oracle_engine": self.oracle is not None,
+                "code_scanner": True,
+                "metrics": True,
             },
             "scheduler": self.scheduler.stats() if self.scheduler else None,
             "judge": self.judge.report() if self.judge else None,
@@ -464,6 +539,7 @@ class TenGodCore:
             "registered_converters": self.bridge.list_converters() if self.bridge else [],
             "locator": self.locator.summary() if self.locator else None,
             "balancer": self.balancer.stats() if self.balancer else None,
+            "oracle": self.oracle.stats() if self.oracle else None,
         }
 
 
@@ -482,4 +558,4 @@ def get_core() -> TenGodCore:
 __all__ = ["TenGodCore", "get_core",
            "get_request_id", "generate_request_id",
            "register_exception_handler", "handle_exception", "get_exception_log"]
-__version__ = "1.3.0"
+__version__ = "1.5.0"

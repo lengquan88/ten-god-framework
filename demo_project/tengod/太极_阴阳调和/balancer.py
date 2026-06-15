@@ -42,6 +42,7 @@ class TaiChiBalancer:
             YinYang.YANG: [],
             YinYang.BALANCED: [],
         }
+        self._degradation_handler: Optional[Callable[[Dict[str, Any]], None]] = None
 
     def get_state(self) -> YinYang:
         """获取当前状态"""
@@ -142,13 +143,32 @@ class TaiChiBalancer:
         if not recommendations:
             recommendations.append("保持当前状态")
 
-        return {
+        result = {
             "state": stats.get("state"),
             "score": score,
             "degraded": degraded,
             "reason": "; ".join(reasons),
             "recommendations": recommendations,
         }
+
+        # 触发降级处理器
+        if degraded and self._degradation_handler:
+            try:
+                self._degradation_handler(result)
+            except Exception as e:
+                print(f"[TaiChi] 降级处理器错误：{e}")
+
+        return result
+
+    def set_degradation_handler(self, handler: Callable[[Dict[str, Any]], None]) -> None:
+        """设置降级处理器。当 auto_balance 检测到异常指标时调用。
+        
+        handler 接收 auto_balance 的结果字典，可用于：
+        - 降低 API 限流阈值
+        - 关闭非核心服务
+        - 发送告警通知
+        """
+        self._degradation_handler = handler
 
     def enter_degraded_mode(self, reason: str = "") -> None:
         """进入降级模式（阴态）：减少计算资源占用"""

@@ -5,6 +5,7 @@
 """
 
 from .innovator import Innovator, Idea, InnovationType
+from .oracle_engine import OracleEngine, OracleResult, OracleMode
 
-__all__ = ["Innovator", "Idea", "InnovationType"]
-__version__ = "1.0.0"
+__all__ = ["Innovator", "Idea", "InnovationType", "OracleEngine", "OracleResult", "OracleMode"]
+__version__ = "1.5.0"

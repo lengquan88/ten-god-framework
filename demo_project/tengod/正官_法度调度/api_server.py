@@ -276,7 +276,7 @@ app = None  # 供 uvicorn: APP_MODULE 使用
 
 try:
     from fastapi import FastAPI, Body, HTTPException, Request, Depends
-    from fastapi.responses import JSONResponse, StreamingResponse
+    from fastapi.responses import JSONResponse, StreamingResponse, Response
     from pydantic import BaseModel, Field
     _FASTAPI_AVAILABLE = True
 
@@ -444,6 +444,35 @@ def create_app(core: Optional[Any] = None) -> Any:
     def api_status():
         state = core.export_state()
         return ApiResponse(code=0, message="ok", data=state).to_dict()
+
+    # Prometheus 指标
+
+    @fast_app.get("/metrics", tags=["系统"])
+    def api_metrics():
+        """Prometheus 格式指标暴露"""
+        try:
+            from metrics import get_metrics
+            return Response(
+                content=get_metrics().generate_text(),
+                media_type="text/plain; charset=utf-8",
+            )
+        except Exception:
+            return Response(
+                content="# metrics unavailable\n",
+                media_type="text/plain; charset=utf-8",
+            )
+
+    # -------- Oracle 推背图 --------
+
+    class _OracleRequest(BaseModel):
+        question: str = Field(..., description="咨询问题")
+        mode: Optional[str] = "auto"
+
+    @fast_app.post("/api/oracle", tags=["推背图"])
+    def api_oracle(req: _OracleRequest):
+        """推背图 Oracle 咨询 — 提交问题获取卦象解释"""
+        result = core.consult_oracle(req.question, req.mode)
+        return ApiResponse(code=0, message="ok", data=result).to_dict()
 
     # -------- 认证路由 --------
 
@@ -893,6 +922,22 @@ class SimpleHttpServer:
         # 健康检查
         if path in ("/", "/health") and method == "GET":
             return 200, {"status": "ok", "version": "1.3.0", "mode": "simple-http"}
+
+        # Prometheus 指标
+        if path == "/metrics" and method == "GET":
+            try:
+                from metrics import get_metrics
+                return 200, get_metrics().generate_text()
+            except Exception:
+                return 200, "# metrics unavailable\n"
+
+        # Oracle 推背图
+        if path == "/api/oracle" and method == "POST":
+            question = data.get("question", "")
+            if not question:
+                return 400, {"code": 400, "message": "question 参数不能为空"}
+            result = self.core.consult_oracle(question)
+            return 200, ApiResponse(code=0, message="ok", data=result).to_dict()
 
         # 状态总览
         if path == "/api/status" and method == "GET":
