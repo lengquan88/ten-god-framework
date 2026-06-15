@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>十神架构 · 控制台</title>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700;900&family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
+
+  :root {
+    --bg-deep: #0a0a0f;
+    --bg-panel: #12121a;
+    --bg-card: #181825;
+    --bg-hover: #1e1e2e;
+    --border: #27273a;
+    --text-primary: #e8e4dd;
+    --text-secondary: #8b8a8e;
+    --text-muted: #5a5a60;
+    --gold: #c9a96e;
+    --gold-bright: #f0d78c;
+    --gold-dim: #8b6f3a;
+    --jade: #5b8c5a;
+    --jade-bright: #7ec87e;
+    --cinnabar: #c4554d;
+    --cinnabar-bright: #ff6b5b;
+    --water: #4a6fa5;
+    --water-bright: #6b9fd4;
+    --fire: #d4833a;
+    --earth: #8b7355;
+    --metal: #c9b99a;
+    --radius: 8px;
+    --shadow: 0 4px 24px rgba(0,0,0,0.4);
+    --font-display: 'Noto Serif SC', serif;
+    --font-body: 'Noto Sans SC', sans-serif;
+    --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg-deep);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    line-height: 1.6;
+    overflow-x: hidden;
+    min-height: 100vh;
+  }
+  body::before {
+    content: ''; position: fixed; inset: 0;
+    background: radial-gradient(ellipse at 80% 0%, rgba(201,169,110,0.06) 0%, transparent 60%),
+                radial-gradient(ellipse at 20% 100%, rgba(74,111,165,0.05) 0%, transparent 60%);
+    pointer-events: none; z-index: 0;
+  }
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+  /* Layout */
+  .app { position: relative; z-index: 1; }
+  .header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 20px 32px; border-bottom: 1px solid var(--border);
+    background: rgba(18,18,26,0.8); backdrop-filter: blur(12px);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .header-brand { display: flex; align-items: center; gap: 14px; }
+  .header-logo {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--gold) 0%, var(--gold-dim) 100%);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-display); font-weight: 900; font-size: 22px;
+    color: var(--bg-deep); box-shadow: 0 0 20px rgba(201,169,110,0.3);
+    animation: logoPulse 3s ease-in-out infinite;
+  }
+  @keyframes logoPulse {
+    0%,100% { box-shadow: 0 0 20px rgba(201,169,110,0.3); }
+    50% { box-shadow: 0 0 35px rgba(201,169,110,0.5); }
+  }
+  .header-title { font-family: var(--font-display); font-size: 22px; font-weight: 700; letter-spacing: 2px; }
+  .header-title span { color: var(--gold); }
+  .header-version {
+    font-size: 11px; color: var(--text-muted); background: var(--bg-card);
+    padding: 3px 10px; border-radius: 12px; border: 1px solid var(--border);
+  }
+  .header-status {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; color: var(--jade-bright);
+  }
+  .header-status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--jade-bright); animation: dotPulse 2s ease-in-out infinite;
+  }
+  @keyframes dotPulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .header-status.error { color: var(--cinnabar-bright); }
+  .header-status.error .header-status-dot { background: var(--cinnabar-bright); }
+
+  .nav {
+    display: flex; gap: 4px; padding: 12px 32px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(10,10,15,0.6);
+  }
+  .nav-btn {
+    padding: 8px 20px; border: 1px solid transparent; border-radius: 6px;
+    background: transparent; color: var(--text-secondary); font-size: 13px;
+    cursor: pointer; transition: var(--transition); font-family: var(--font-body);
+    font-weight: 500;
+  }
+  .nav-btn:hover { color: var(--text-primary); background: var(--bg-hover); }
+  .nav-btn.active {
+    color: var(--gold-bright); background: rgba(201,169,110,0.08);
+    border-color: rgba(201,169,110,0.2);
+  }
+
+  .main { padding: 24px 32px; max-width: 1400px; margin: 0 auto; }
+
+  /* Cards */
+  .card {
+    background: var(--bg-panel); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 24px; transition: var(--transition);
+    box-shadow: var(--shadow);
+  }
+  .card:hover { border-color: rgba(201,169,110,0.15); }
+  .card-title {
+    font-family: var(--font-display); font-size: 16px; font-weight: 600;
+    margin-bottom: 16px; display: flex; align-items: center; gap: 8px;
+  }
+  .card-title::before {
+    content: ''; width: 3px; height: 18px; background: var(--gold);
+    border-radius: 2px;
+  }
+
+  /* Grid */
+  .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+
+  /* Feature badge */
+  .feature-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+  .feature-badge {
+    display: flex; align-items: center; gap: 8px; padding: 10px 14px;
+    border-radius: 6px; background: var(--bg-card); border: 1px solid var(--border);
+    font-size: 12px; transition: var(--transition);
+  }
+  .feature-badge.on { border-color: rgba(91,140,90,0.3); color: var(--jade-bright); }
+  .feature-badge.off { color: var(--text-muted); opacity: 0.5; }
+  .feature-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--text-muted);
+  }
+  .feature-badge.on .feature-dot { background: var(--jade-bright); box-shadow: 0 0 6px rgba(91,140,90,0.5); }
+
+  /* Stats */
+  .stat-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 18px 20px;
+    text-align: center; transition: var(--transition);
+  }
+  .stat-card:hover { border-color: var(--gold-dim); }
+  .stat-value {
+    font-family: var(--font-display); font-size: 32px; font-weight: 700;
+    color: var(--gold-bright);
+  }
+  .stat-label { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+
+  /* Module card */
+  .module-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 16px 18px; transition: var(--transition);
+  }
+  .module-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.3); }
+  .module-name {
+    font-family: var(--font-display); font-size: 15px; font-weight: 600; margin-bottom: 4px;
+  }
+  .module-role { font-size: 11px; color: var(--text-secondary); }
+  .module-status {
+    display: inline-block; margin-top: 8px; padding: 3px 10px; border-radius: 10px;
+    font-size: 11px; font-weight: 500;
+  }
+  .module-status.ready { background: rgba(91,140,90,0.15); color: var(--jade-bright); border: 1px solid rgba(91,140,90,0.2); }
+  .module-status.unavailable { background: rgba(196,85,77,0.1); color: var(--text-muted); border: 1px solid rgba(196,85,77,0.1); }
+  .module-status.degraded { background: rgba(212,131,58,0.15); color: var(--fire); border: 1px solid rgba(212,131,58,0.2); }
+
+  /* Knowledge graph */
+  .graph-container {
+    position: relative; min-height: 400px; background: var(--bg-card);
+    border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden;
+  }
+  .graph-node {
+    position: absolute; padding: 6px 14px; border-radius: 20px;
+    font-size: 12px; font-weight: 500; white-space: nowrap;
+    transition: transform 0.2s, box-shadow 0.2s; cursor: pointer;
+  }
+  .graph-node:hover { transform: scale(1.08); z-index: 10; }
+  .graph-node.school { background: rgba(201,169,110,0.2); border: 1px solid var(--gold-dim); color: var(--gold-bright); }
+  .graph-node.classic { background: rgba(74,111,165,0.2); border: 1px solid var(--water); color: var(--water-bright); }
+  .graph-node.concept { background: rgba(91,140,90,0.2); border: 1px solid var(--jade); color: var(--jade-bright); }
+  .graph-node.cosmic { background: rgba(212,131,58,0.2); border: 1px solid var(--fire); color: var(--fire); }
+  .graph-node.historical_figure { background: rgba(196,85,77,0.2); border: 1px solid var(--cinnabar); color: var(--cinnabar-bright); }
+  .graph-node.technology { background: rgba(139,115,85,0.2); border: 1px solid var(--earth); color: var(--earth); }
+  .graph-node.default { background: rgba(255,255,255,0.05); border: 1px solid var(--border); color: var(--text-secondary); }
+  .graph-svg { position: absolute; inset: 0; pointer-events: none; }
+
+  /* Oracle */
+  .oracle-form { display: flex; gap: 12px; margin-bottom: 16px; }
+  .oracle-input {
+    flex: 1; padding: 12px 16px; background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius); color: var(--text-primary); font-family: var(--font-body);
+    font-size: 14px; outline: none; transition: var(--transition);
+  }
+  .oracle-input:focus { border-color: var(--gold-dim); box-shadow: 0 0 0 2px rgba(201,169,110,0.1); }
+  .oracle-input::placeholder { color: var(--text-muted); }
+  .btn {
+    padding: 10px 24px; border: 1px solid var(--border); border-radius: var(--radius);
+    background: var(--bg-card); color: var(--text-primary); font-family: var(--font-body);
+    font-size: 13px; font-weight: 500; cursor: pointer; transition: var(--transition);
+  }
+  .btn:hover { background: var(--bg-hover); }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--gold-dim) 0%, var(--gold) 100%);
+    border-color: var(--gold); color: var(--bg-deep); font-weight: 600;
+  }
+  .btn-primary:hover { box-shadow: 0 0 16px rgba(201,169,110,0.3); }
+  .btn-danger { border-color: var(--cinnabar); color: var(--cinnabar-bright); }
+  .btn-danger:hover { background: rgba(196,85,77,0.1); }
+
+  .oracle-result {
+    padding: 24px; background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius);
+  }
+  .oracle-hexagram {
+    font-family: var(--font-display); font-size: 48px; font-weight: 900;
+    color: var(--gold-bright); text-align: center; margin-bottom: 12px;
+  }
+  .oracle-detail {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+    margin-top: 16px;
+  }
+  .oracle-field { text-align: center; }
+  .oracle-field-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+  .oracle-field-value { font-size: 14px; font-weight: 500; margin-top: 4px; }
+
+  /* Task list */
+  .task-list { display: flex; flex-direction: column; gap: 8px; }
+  .task-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px; background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 6px; font-size: 13px; transition: var(--transition);
+  }
+  .task-item:hover { border-color: var(--text-muted); }
+  .task-status {
+    padding: 3px 10px; border-radius: 10px; font-size: 11px; font-weight: 500;
+  }
+  .task-status.pending { background: rgba(74,111,165,0.15); color: var(--water-bright); }
+  .task-status.running { background: rgba(212,131,58,0.15); color: var(--fire); }
+  .task-status.done { background: rgba(91,140,90,0.15); color: var(--jade-bright); }
+  .task-status.failed { background: rgba(196,85,77,0.15); color: var(--cinnabar-bright); }
+
+  /* Metrics */
+  .metric-bar {
+    height: 6px; background: var(--bg-card); border-radius: 3px; overflow: hidden; margin-top: 6px;
+  }
+  .metric-fill { height: 100%; border-radius: 3px; transition: width 0.6s ease; }
+  .metric-fill.gold { background: linear-gradient(90deg, var(--gold-dim), var(--gold-bright)); }
+
+  /* Loading */
+  .loading { text-align: center; padding: 40px; color: var(--text-muted); }
+  .spinner {
+    display: inline-block; width: 24px; height: 24px; border: 2px solid var(--border);
+    border-top-color: var(--gold); border-radius: 50%; animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Responsive */
+  @media (max-width: 900px) {
+    .grid-2,.grid-3 { grid-template-columns: 1fr; }
+    .grid-4 { grid-template-columns: repeat(2, 1fr); }
+    .nav { padding: 8px 16px; overflow-x: auto; }
+    .main { padding: 16px; }
+    .oracle-detail { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useCallback, useRef } = React;
+
+const API = '/api';
+
+const MODULES = [
+  { name: '食神', role: '创生输出', key: 'streaming_generate' },
+  { name: '正财', role: '知识固化', key: 'vector_search' },
+  { name: '正官', role: '法度调度', key: 'http_api' },
+  { name: '劫财', role: '攻防边界', key: 'jwt_auth' },
+  { name: '伤官', role: '破界创新', key: 'oracle_engine' },
+  { name: '偏财', role: '奇招演化', key: 'rate_limiting' },
+  { name: '太极', role: '阴阳调和', key: 'exception_tracking' },
+  { name: '比肩', role: '架构协同', key: 'session_management' },
+  { name: '七杀', role: '品质裁决', key: 'code_scanner' },
+  { name: '正印', role: '滋养守护', key: 'metrics' },
+  { name: '偏印', role: '桥接通变', key: 'orm_persistence' },
+  { name: '元辰', role: '本源定位', key: 'exception_tracking' },
+];
+
+// ─── Dashboard ──────────────────────────────────────────
+function Dashboard({ state }) {
+  const features = state?.features || {};
+  const knowledge = state?.knowledge || {};
+  return (
+    <div>
+      <div className="grid-4" style={{ marginBottom: 24 }}>
+        <div className="stat-card">
+          <div className="stat-value">{state?.version || '1.5.0'}</div>
+          <div className="stat-label">版本</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value">{knowledge.nodes || 0}</div>
+          <div className="stat-label">知识节点</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value">{knowledge.edges || 0}</div>
+          <div className="stat-label">知识关联</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value">{Object.values(features).filter(Boolean).length}</div>
+          <div className="stat-label">可用功能</div>
+        </div>
+      </div>
+
+      <div className="grid-2">
+        <div className="card">
+          <div className="card-title">功能矩阵</div>
+          <div className="feature-grid">
+            {Object.entries(features).map(([k, v]) => (
+              <div key={k} className={`feature-badge ${v ? 'on' : 'off'}`}>
+                <span className="feature-dot"></span>
+                <span>{k.replace(/_/g, ' ')}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="card">
+          <div className="card-title">十神模块</div>
+          <div className="grid-2" style={{ gap: 10 }}>
+            {MODULES.map(m => (
+              <div key={m.name} className="module-card">
+                <div className="module-name">{m.name}</div>
+                <div className="module-role">{m.role}</div>
+                <span className={`module-status ${features[m.key] ? 'ready' : 'unavailable'}`}>
+                  {features[m.key] ? '就绪' : '待命'}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Knowledge Graph ────────────────────────────────────
+function KnowledgeGraph({ state }) {
+  const [nodes, setNodes] = useState([]);
+  const [edges, setEdges] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const containerRef = useRef(null);
+  const [dims, setDims] = useState({ w: 800, h: 500 });
+
+  useEffect(() => {
+    fetch(API + '/knowledge/nodes')
+      .then(r => r.json())
+      .then(d => { setNodes(d.data?.items || []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    if (containerRef.current) {
+      setDims({ w: containerRef.current.offsetWidth, h: Math.max(500, containerRef.current.offsetWidth * 0.55) });
+    }
+  }, [nodes]);
+
+  useEffect(() => {
+    if (!nodes.length) return;
+    const cx = dims.w / 2, cy = dims.h / 2, rx = dims.w * 0.42, ry = dims.h * 0.38;
+    const positioned = nodes.map((n, i) => {
+      const angle = (i / nodes.length) * Math.PI * 2 + (i % 3) * 0.3;
+      const r = 0.5 + (i % 4) * 0.15;
+      return {
+        ...n,
+        x: cx + Math.cos(angle) * rx * r - 40,
+        y: cy + Math.sin(angle) * ry * r - 16,
+      };
+    });
+    setEdges(positioned.flatMap((n, i) =>
+      positioned.slice(i + 1, i + 3).map((m, j) => ({
+        id: `${n.id}-${m.id}`,
+        x1: n.x + 40, y1: n.y + 16,
+        x2: m.x + 40, y2: m.y + 16,
+      }))
+    ));
+    setNodes(positioned);
+  }, [nodes.length, dims]);
+
+  return (
+    <div className="card">
+      <div className="card-title" style={{ justifyContent: 'space-between' }}>
+        <span>知识图谱（{nodes.length} 节点）</span>
+        <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 400 }}>
+          部分节点关系可视化
+        </span>
+      </div>
+      {loading ? (
+        <div className="loading"><div className="spinner"></div></div>
+      ) : (
+        <div className="graph-container" ref={containerRef} style={{ height: dims.h }}>
+          <svg className="graph-svg" width={dims.w} height={dims.h}>
+            {edges.map(e => (
+              <line key={e.id} x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2}
+                stroke="var(--border)" strokeWidth={0.5} opacity={0.4} />
+            ))}
+          </svg>
+          {nodes.map(n => (
+            <div key={n.id} className={`graph-node ${n.node_type || 'default'}`}
+              style={{ left: Math.max(0, n.x), top: Math.max(0, n.y) }}>
+              {n.name}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Oracle ─────────────────────────────────────────────
+function Oracle() {
+  const [question, setQuestion] = useState('中华文明传承之道');
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const consult = async () => {
+    if (!question.trim()) return;
+    setLoading(true); setError(''); setResult(null);
+    try {
+      const r = await fetch(API + '/oracle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: question.trim() }),
+      });
+      const d = await r.json();
+      if (d.code === 0) setResult(d.data);
+      else setError(d.message || '咨询失败');
+    } catch (e) {
+      setError('API 连接失败');
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div>
+      <div className="card" style={{ marginBottom: 20 }}>
+        <div className="card-title">推背图 Oracle · 认知引擎</div>
+        <div className="oracle-form">
+          <input className="oracle-input" value={question}
+            onChange={e => setQuestion(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && consult()}
+            placeholder="输入你的问题，叩问天地之道..." />
+          <button className="btn btn-primary" onClick={consult} disabled={loading}>
+            {loading ? '推演中…' : '叩问'}
+          </button>
+        </div>
+        {error && <div style={{ color: 'var(--cinnabar-bright)', fontSize: 13 }}>{error}</div>}
+      </div>
+
+      {result && (
+        <div className="oracle-result">
+          <div className="oracle-hexagram">{result.hexagram}</div>
+          <div style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: 13, marginBottom: 16 }}>
+            {result.gan_zhi} · {result.wuxing}
+          </div>
+          <div className="oracle-detail">
+            {[
+              { label: '上卦', value: result.upper_trigram },
+              { label: '下卦', value: result.lower_trigram },
+              { label: '卦序', value: `第${result.hexagram_index + 1}卦` },
+              { label: '五行', value: result.wuxing },
+            ].map(f => (
+              <div key={f.label} className="oracle-field">
+                <div className="oracle-field-label">{f.label}</div>
+                <div className="oracle-field-value">{f.value}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: 20, padding: 16, background: 'var(--bg-card)', borderRadius: 6, border: '1px solid var(--border)' }}>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 8 }}>卦辞 / 判词</div>
+            <div style={{ fontSize: 14, lineHeight: 1.8 }}>{result.judgment}</div>
+          </div>
+          {result.prediction && (
+            <div style={{ marginTop: 12, padding: 16, background: 'rgba(201,169,110,0.05)', borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)' }}>
+              <div style={{ fontSize: 13, color: 'var(--gold-dim)', marginBottom: 8 }}>推背预测</div>
+              <div style={{ fontSize: 14, color: 'var(--gold-bright)', lineHeight: 1.8 }}>{result.prediction}</div>
+            </div>
+          )}
+          {result.wisdom && (
+            <div style={{ marginTop: 12, padding: 16, background: 'rgba(91,140,90,0.05)', borderRadius: 6, border: '1px solid rgba(91,140,90,0.1)' }}>
+              <div style={{ fontSize: 13, color: 'var(--jade)', marginBottom: 8 }}>人生智慧</div>
+              <div style={{ fontSize: 14, color: 'var(--text-primary)', lineHeight: 1.8 }}>{result.wisdom}</div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Tasks ──────────────────────────────────────────────
+function Tasks() {
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [funcName, setFuncName] = useState('');
+
+  const fetchTasks = useCallback(async () => {
+    try {
+      const r = await fetch(API + '/status');
+      const d = await r.json();
+      const scheduler = d.data?.scheduler;
+      if (scheduler?.by_status) {
+        const all = [];
+        Object.entries(scheduler.by_status).forEach(([status, count]) => {
+          for (let i = 0; i < count; i++) {
+            all.push({ id: `${status}-${i}`, status, name: `任务 ${i + 1}` });
+          }
+        });
+        setTasks(all);
+      }
+    } catch (e) { /* ignore */ }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { fetchTasks(); const i = setInterval(fetchTasks, 5000); return () => clearInterval(i); }, [fetchTasks]);
+
+  const submitTask = async () => {
+    if (!funcName.trim()) return;
+    await fetch(API + '/tasks/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ func_name: funcName.trim() }),
+    });
+    setFuncName('');
+    fetchTasks();
+  };
+
+  return (
+    <div>
+      <div className="card" style={{ marginBottom: 20 }}>
+        <div className="card-title">提交任务</div>
+        <div className="oracle-form">
+          <input className="oracle-input" value={funcName}
+            onChange={e => setFuncName(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && submitTask()}
+            placeholder="任务函数名 (e.g. generate, evaluate, innovate)" />
+          <button className="btn btn-primary" onClick={submitTask}>提交</button>
+        </div>
+      </div>
+      <div className="card">
+        <div className="card-title">任务列表</div>
+        {loading ? (
+          <div className="loading"><div className="spinner"></div></div>
+        ) : tasks.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: 30, color: 'var(--text-muted)', fontSize: 14 }}>
+            暂无运行中的任务
+          </div>
+        ) : (
+          <div className="task-list">
+            {tasks.map(t => (
+              <div key={t.id} className="task-item">
+                <span>{t.id}</span>
+                <span className={`task-status ${t.status}`}>{t.status}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Metrics ────────────────────────────────────────────
+function MetricsView({ state }) {
+  const [metricsText, setMetricsText] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/metrics')
+      .then(r => r.text())
+      .then(t => setMetricsText(t))
+      .catch(() => setMetricsText('# metrics unavailable\n'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const parseMetrics = () => {
+    const lines = metricsText.split('\n').filter(l => l && !l.startsWith('#'));
+    const result = {};
+    lines.forEach(l => {
+      const [name, val] = l.split(' ');
+      if (name && val) result[name] = parseFloat(val) || val;
+    });
+    return result;
+  };
+
+  const parsed = parseMetrics();
+
+  return (
+    <div>
+      <div className="grid-4" style={{ marginBottom: 24 }}>
+        <div className="stat-card">
+          <div className="stat-value">{parsed['tengod_uptime_seconds'] ? Math.floor(parsed['tengod_uptime_seconds']) : '—'}</div>
+          <div className="stat-label">运行秒数</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value">{parsed['tengod_http_requests_total'] || '—'}</div>
+          <div className="stat-label">HTTP 请求</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value">{parsed['tengod_tasks_total'] || '—'}</div>
+          <div className="stat-label">任务总数</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value">{parsed['tengod_errors_total'] || '—'}</div>
+          <div className="stat-label">错误数</div>
+        </div>
+      </div>
+      <div className="card">
+        <div className="card-title">Prometheus 指标</div>
+        {loading ? (
+          <div className="loading"><div className="spinner"></div></div>
+        ) : (
+          <pre style={{ fontSize: 12, color: 'var(--text-secondary)', overflow: 'auto', maxHeight: 400, fontFamily: 'monospace', lineHeight: 1.5 }}>
+            {metricsText || '# 无可用指标'}
+          </pre>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── App ────────────────────────────────────────────────
+function App() {
+  const [tab, setTab] = useState('dashboard');
+  const [state, setState] = useState(null);
+  const [connected, setConnected] = useState(false);
+  const [error, setError] = useState(false);
+
+  const fetchState = useCallback(async () => {
+    try {
+      const r = await fetch(API + '/status');
+      const d = await r.json();
+      setState(d.data); setConnected(true); setError(false);
+    } catch (e) {
+      setError(true); setConnected(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchState(); const i = setInterval(fetchState, 8000); return () => clearInterval(i); }, [fetchState]);
+
+  const tabs = [
+    { id: 'dashboard', label: '总览', icon: '▣' },
+    { id: 'knowledge', label: '知识图谱', icon: '◈' },
+    { id: 'oracle', label: '推背图', icon: '☯' },
+    { id: 'tasks', label: '任务', icon: '⚙' },
+    { id: 'metrics', label: '指标', icon: '◉' },
+  ];
+
+  return (
+    <div className="app">
+      <header className="header">
+        <div className="header-brand">
+          <div className="header-logo">神</div>
+          <div>
+            <div className="header-title">十<span>神</span>架构</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: 1 }}>
+              中华文明数字永生体
+            </div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <span className="header-version">v{state?.version || '1.5.0'}</span>
+          <div className={`header-status ${error ? 'error' : ''}`}>
+            <span className="header-status-dot"></span>
+            {error ? '离线' : '运行中'}
+          </div>
+        </div>
+      </header>
+
+      <nav className="nav">
+        {tabs.map(t => (
+          <button key={t.id} className={`nav-btn ${tab === t.id ? 'active' : ''}`}
+            onClick={() => setTab(t.id)}>
+            {t.icon} {t.label}
+          </button>
+        ))}
+      </nav>
+
+      <main className="main">
+        {!connected && !state && tab === 'dashboard' && (
+          <div className="loading">
+            <div className="spinner"></div>
+            <div style={{ marginTop: 12 }}>正在连接十神服务...</div>
+          </div>
+        )}
+        {tab === 'dashboard' && state && <Dashboard state={state} />}
+        {tab === 'knowledge' && <KnowledgeGraph state={state} />}
+        {tab === 'oracle' && <Oracle />}
+        {tab === 'tasks' && <Tasks />}
+        {tab === 'metrics' && <MetricsView state={state} />}
+      </main>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

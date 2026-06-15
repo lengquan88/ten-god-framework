@@ -1,0 +1,17 @@
+{
+  "current_term": 0,
+  "voted_for": null,
+  "logs": [
+    {
+      "index": 0,
+      "term": 0,
+      "command": "add_knowledge",
+      "data": {
+        "name": "测试节点",
+        "type": "test"
+      },
+      "timestamp": 1781526825.9657106,
+      "committed": false
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "name": "tengod-client",
+  "version": "2.0.0",
+  "description": "十神架构 JavaScript SDK — 中华文明数字永生体 HTTP API 客户端",
+  "main": "tengod-client.js",
+  "types": "tengod-client.d.ts",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./tengod-client.js",
+      "types": "./tengod-client.d.ts"
+    }
+  },
+  "files": ["tengod-client.js", "tengod-client.d.ts"],
+  "keywords": ["tengod", "ai", "knowledge-graph", "oracle", "chinese-civilization"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tengod/tengod-client"
+  }
+}

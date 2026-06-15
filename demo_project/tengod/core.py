@@ -114,6 +114,13 @@ class TenGodCore:
         _oracle_mod = _safe_import("伤官_破界创新")
         self.oracle = _oracle_mod.OracleEngine() if _oracle_mod else None
 
+        # 共识引擎
+        _consensus_mod = _safe_import("consensus")
+        self.consensus = _consensus_mod.ConsensusEngine(
+            node_id=self.name,
+            peers=[],
+        ) if _consensus_mod else None
+
         self.registry = _bijian.get_registry() if _bijian else None
         self.guard = _jiecai.Guard() if _jiecai else None
         self.generator = _shishen.ContentGenerator(name=f"{name}_generator") if _shishen else None
@@ -511,6 +518,33 @@ class TenGodCore:
             "stats": self.oracle.stats(),
         }
 
+    def add_consensus_peer(self, node_id: str, address: str) -> bool:
+        """添加共识集群对等节点"""
+        if not self.consensus:
+            return False
+        from consensus import PeerConfig
+        self.consensus.peers[node_id] = PeerConfig(node_id=node_id, address=address)
+        return True
+
+    def remove_consensus_peer(self, node_id: str) -> bool:
+        """移除共识集群对等节点"""
+        if not self.consensus or node_id not in self.consensus.peers:
+            return False
+        del self.consensus.peers[node_id]
+        return True
+
+    def consensus_propose(self, command: str, data: Optional[Dict[str, Any]] = None) -> bool:
+        """通过共识提交操作"""
+        if not self.consensus:
+            return False
+        return self.consensus.propose(command, data)
+
+    def consensus_state(self) -> Optional[Dict[str, Any]]:
+        """查询共识状态"""
+        if not self.consensus:
+            return None
+        return self.consensus.query().__dict__
+
     def export_state(self) -> Dict[str, Any]:
         """导出核心状态"""
         return {
@@ -540,6 +574,7 @@ class TenGodCore:
             "locator": self.locator.summary() if self.locator else None,
             "balancer": self.balancer.stats() if self.balancer else None,
             "oracle": self.oracle.stats() if self.oracle else None,
+            "consensus": self.consensus.query().__dict__ if self.consensus else None,
         }
 
 

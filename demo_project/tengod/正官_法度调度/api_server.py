@@ -474,6 +474,65 @@ def create_app(core: Optional[Any] = None) -> Any:
         result = core.consult_oracle(req.question, req.mode)
         return ApiResponse(code=0, message="ok", data=result).to_dict()
 
+    # -------- 知识节点 --------
+
+    @fast_app.get("/api/knowledge/nodes", tags=["知识库"])
+    def api_knowledge_nodes(limit: int = 50, offset: int = 0):
+        """列出知识节点"""
+        if core.kb:
+            items = core.kb.query_paginated(offset=offset, page_size=limit)
+            return ApiResponse(code=0, message="ok", data={
+                "items": [{"id": n.id, "name": n.name, "node_type": n.node_type,
+                           "properties": n.properties} for n in items],
+                "total": core.kb.stats().get("nodes", 0),
+            }).to_dict()
+        return ApiResponse(code=1, message="知识库未就绪", data={"items": [], "total": 0}).to_dict()
+
+    # -------- 共识 --------
+
+    @fast_app.post("/api/consensus/vote", tags=["共识"])
+    def api_consensus_vote(req: Request):
+        """投票请求"""
+        import json
+        data = json.loads(req.body())
+        result = core.consensus.handle_vote_request(data) if core.consensus else {"vote_granted": False}
+        return result
+
+    @fast_app.post("/api/consensus/append", tags=["共识"])
+    def api_consensus_append(req: Request):
+        """日志追加"""
+        import json
+        data = json.loads(req.body())
+        result = core.consensus.handle_append_entries(data) if core.consensus else {"success": False}
+        return result
+
+    @fast_app.post("/api/consensus/peers", tags=["共识"])
+    def api_consensus_add_peer(req: Request):
+        """添加对等节点"""
+        import json
+        data = json.loads(req.body())
+        ok = core.add_consensus_peer(data.get("node_id", ""), data.get("address", ""))
+        return ApiResponse(code=0 if ok else 1, message="ok" if ok else "failed", data={}).to_dict()
+
+    @fast_app.delete("/api/consensus/peers/{node_id}", tags=["共识"])
+    def api_consensus_remove_peer(node_id: str):
+        """移除对等节点"""
+        ok = core.remove_consensus_peer(node_id)
+        return ApiResponse(code=0 if ok else 1, message="ok" if ok else "not found").to_dict()
+
+    @fast_app.get("/api/consensus/state", tags=["共识"])
+    def api_consensus_state():
+        """共识状态"""
+        return ApiResponse(code=0, message="ok", data=core.consensus_state()).to_dict()
+
+    @fast_app.post("/api/consensus/propose", tags=["共识"])
+    def api_consensus_propose(req: Request):
+        """提议操作"""
+        import json
+        data = json.loads(req.body())
+        ok = core.consensus_propose(data.get("command", ""), data.get("data", {}))
+        return ApiResponse(code=0 if ok else 1, message="ok" if ok else "not leader").to_dict()
+
     # -------- 认证路由 --------
 
     @fast_app.post("/api/auth/token", tags=["认证"])
@@ -938,6 +997,36 @@ class SimpleHttpServer:
                 return 400, {"code": 400, "message": "question 参数不能为空"}
             result = self.core.consult_oracle(question)
             return 200, ApiResponse(code=0, message="ok", data=result).to_dict()
+
+        # 知识节点
+        if path == "/api/knowledge/nodes" and method == "GET":
+            if self.core.kb:
+                items = self.core.kb.query_paginated(offset=0, page_size=100)
+                return 200, ApiResponse(code=0, message="ok", data={
+                    "items": [{"id": n.id, "name": n.name, "node_type": n.node_type,
+                               "properties": n.properties} for n in items],
+                    "total": self.core.kb.stats().get("nodes", 0),
+                }).to_dict()
+            return 200, ApiResponse(code=1, message="知识库未就绪", data={"items": [], "total": 0}).to_dict()
+
+        # 共识投票
+        if path == "/api/consensus/vote" and method == "POST":
+            result = self.core.consensus.handle_vote_request(data) if self.core.consensus else {"vote_granted": False}
+            return 200, result
+
+        # 共识日志追加
+        if path == "/api/consensus/append" and method == "POST":
+            result = self.core.consensus.handle_append_entries(data) if self.core.consensus else {"success": False}
+            return 200, result
+
+        # 共识状态
+        if path == "/api/consensus/state" and method == "GET":
+            return 200, ApiResponse(code=0, message="ok", data=self.core.consensus_state()).to_dict()
+
+        # 共识提议
+        if path == "/api/consensus/propose" and method == "POST":
+            ok = self.core.consensus_propose(data.get("command", ""), data.get("data", {}))
+            return 200, ApiResponse(code=0 if ok else 1, message="ok" if ok else "not leader").to_dict()
 
         # 状态总览
         if path == "/api/status" and method == "GET":
