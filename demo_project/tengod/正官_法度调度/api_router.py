@@ -4,8 +4,8 @@ api_router.py — 简易 API 路由器
 正官主理法度，提供统一的接口调度机制。
 """
 
-from typing import Callable, Dict, List, Any
 from functools import wraps
+from typing import Any, Callable, Dict, List
 
 
 class APIRouter:
@@ -21,6 +21,7 @@ class APIRouter:
 
     def route(self, path: str, method: str = "GET") -> Callable:
         """装饰器：注册路由"""
+
         def decorator(func: Callable) -> Callable:
             full_path = f"{self.prefix}{path}"
             if full_path not in self._routes:
@@ -33,7 +34,9 @@ class APIRouter:
                 for mw in self._middleware:
                     mw(*args, **kwargs)
                 return func(*args, **kwargs)
+
             return wrapper
+
         return decorator
 
     def get(self, path: str) -> Callable:

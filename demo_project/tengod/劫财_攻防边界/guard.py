@@ -11,18 +11,18 @@ import hmac
 import json
 import os
 import sqlite3
-import struct
 import threading
 import time
 import uuid
-from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 from dataclasses import dataclass, field
+from enum import Enum
 from functools import wraps
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 
 class Permission(Enum):
     """权限"""
+
     READ = "read"
     WRITE = "write"
     DELETE = "delete"
@@ -33,6 +33,7 @@ class Permission(Enum):
 @dataclass
 class SecurityContext:
     """安全上下文"""
+
     user_id: str
     roles: Set[str] = field(default_factory=set)
     permissions: Set[Permission] = field(default_factory=set)
@@ -57,7 +58,9 @@ class SecurityContext:
         return time.time() > self.token_exp
 
     @classmethod
-    def from_token(cls, token: str, guard: 'Guard', secret: str = "default-secret") -> Optional['SecurityContext']:
+    def from_token(
+        cls, token: str, guard: "Guard", secret: str = "default-secret"
+    ) -> Optional["SecurityContext"]:
         """从 JWT Token 构造安全上下文"""
         payload = guard.verify_token(token, secret)
         if payload is None:
@@ -121,20 +124,22 @@ class Guard:
             )
         """)
         conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_log(user_id)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_time ON audit_log(timestamp)")
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_audit_time ON audit_log(timestamp)"
+        )
         conn.close()
 
     # ========== JWT Token 实现 ==========
 
     def _base64url_encode(self, data: bytes) -> str:
         """Base64url 编码"""
-        return base64.urlsafe_b64encode(data).rstrip(b'=').decode('ascii')
+        return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
 
     def _base64url_decode(self, data: str) -> bytes:
         """Base64url 解码"""
         padding = 4 - len(data) % 4
         if padding != 4:
-            data += '=' * padding
+            data += "=" * padding
         return base64.urlsafe_b64decode(data)
 
     def generate_token(
@@ -142,7 +147,7 @@ class Guard:
         user_id: str,
         roles: List[str],
         secret: str = "default-secret",
-        expires_in: int = 86400
+        expires_in: int = 86400,
     ) -> str:
         """生成 JWT Token
 
@@ -159,27 +164,29 @@ class Guard:
         exp = now + expires_in
 
         header = {"alg": "HS256", "typ": "JWT"}
-        header_b64 = self._base64url_encode(json.dumps(header, separators=(',', ':')).encode())
+        header_b64 = self._base64url_encode(
+            json.dumps(header, separators=(",", ":")).encode()
+        )
         payload = {
             "user_id": user_id,
             "roles": roles,
             "exp": exp,
             "iat": now,
-            "jti": str(uuid.uuid4())
+            "jti": str(uuid.uuid4()),
         }
-        payload_b64 = self._base64url_encode(json.dumps(payload, separators=(',', ':')).encode())
+        payload_b64 = self._base64url_encode(
+            json.dumps(payload, separators=(",", ":")).encode()
+        )
 
         message = f"{header_b64}.{payload_b64}"
-        signature = hmac.new(
-            secret.encode(),
-            message.encode(),
-            hashlib.sha256
-        ).digest()
+        signature = hmac.new(secret.encode(), message.encode(), hashlib.sha256).digest()
         signature_b64 = self._base64url_encode(signature)
 
         return f"{message}.{signature_b64}"
 
-    def verify_token(self, token: str, secret: str = "default-secret") -> Optional[Dict]:
+    def verify_token(
+        self, token: str, secret: str = "default-secret"
+    ) -> Optional[Dict]:
         """验证 JWT Token
 
         Args:
@@ -190,7 +197,7 @@ class Guard:
             payload dict 或 None（验证失败）
         """
         try:
-            parts = token.split('.')
+            parts = token.split(".")
             if len(parts) != 3:
                 return None
 
@@ -199,9 +206,7 @@ class Guard:
             # 验证签名
             message = f"{header_b64}.{payload_b64}"
             expected_sig = hmac.new(
-                secret.encode(),
-                message.encode(),
-                hashlib.sha256
+                secret.encode(), message.encode(), hashlib.sha256
             ).digest()
             expected_sig_b64 = self._base64url_encode(expected_sig)
 
@@ -224,10 +229,7 @@ class Guard:
     # ========== 令牌桶限流 ==========
 
     def rate_limit_token_bucket(
-        self,
-        user_id: str,
-        capacity: int = 60,
-        refill_rate: float = 1.0
+        self, user_id: str, capacity: int = 60, refill_rate: float = 1.0
     ) -> Tuple[bool, Dict]:
         """令牌桶限流
 
@@ -249,15 +251,14 @@ class Guard:
                     "tokens": float(capacity),
                     "last_refill": now,
                     "capacity": capacity,
-                    "refill_rate": refill_rate
+                    "refill_rate": refill_rate,
                 }
                 self._token_buckets[user_id] = bucket
 
             # 补充令牌
             elapsed = now - bucket["last_refill"]
             bucket["tokens"] = min(
-                bucket["capacity"],
-                bucket["tokens"] + elapsed * bucket["refill_rate"]
+                bucket["capacity"], bucket["tokens"] + elapsed * bucket["refill_rate"]
             )
             bucket["last_refill"] = now
 
@@ -274,12 +275,15 @@ class Guard:
             else:
                 reset_in = (1.0 - bucket["tokens"]) / bucket["refill_rate"]
 
-            return (allowed, {
-                "remaining": int(bucket["tokens"]),
-                "capacity": bucket["capacity"],
-                "reset_in": reset_in,
-                "allowed": allowed
-            })
+            return (
+                allowed,
+                {
+                    "remaining": int(bucket["tokens"]),
+                    "capacity": bucket["capacity"],
+                    "reset_in": reset_in,
+                    "allowed": allowed,
+                },
+            )
 
     # ========== 守卫模式 ==========
 
@@ -354,13 +358,24 @@ class Guard:
                 conn = sqlite3.connect(self._audit_log_path, isolation_level=None)
                 conn.executemany(
                     "INSERT INTO audit_log (timestamp, user_id, action, resource, granted) VALUES (?, ?, ?, ?, ?)",
-                    [(e["timestamp"], e["user_id"], e["action"], e["resource"], 1 if e["granted"] else 0) for e in entries]
+                    [
+                        (
+                            e["timestamp"],
+                            e["user_id"],
+                            e["action"],
+                            e["resource"],
+                            1 if e["granted"] else 0,
+                        )
+                        for e in entries
+                    ],
                 )
                 conn.close()
             except sqlite3.Error:
                 pass
 
-    def get_audit_log(self, user_id: Optional[str] = None, limit: int = 100) -> List[Dict[str, Any]]:
+    def get_audit_log(
+        self, user_id: Optional[str] = None, limit: int = 100
+    ) -> List[Dict[str, Any]]:
         """获取审计日志
 
         优先从文件读取，合并内存日志
@@ -390,16 +405,18 @@ class Guard:
                 conn = sqlite3.connect(self._audit_log_path, isolation_level=None)
                 cursor = conn.execute(
                     "SELECT timestamp, user_id, action, resource, granted FROM audit_log ORDER BY timestamp DESC LIMIT ?",
-                    (limit * 10,)
+                    (limit * 10,),
                 )
                 for row in cursor:
-                    all_logs.append({
-                        "timestamp": row[0],
-                        "user_id": row[1],
-                        "action": row[2],
-                        "resource": row[3],
-                        "granted": bool(row[4])
-                    })
+                    all_logs.append(
+                        {
+                            "timestamp": row[0],
+                            "user_id": row[1],
+                            "action": row[2],
+                            "resource": row[3],
+                            "granted": bool(row[4]),
+                        }
+                    )
                 conn.close()
             except sqlite3.Error:
                 pass
@@ -452,6 +469,7 @@ class Guard:
 
     def enforce(self, required: Permission):
         """装饰器：强制权限检查"""
+
         def decorator(func: Callable) -> Callable:
             @wraps(func)
             def wrapper(*args, **kwargs):
@@ -463,7 +481,9 @@ class Guard:
                         f"Permission denied: {required.value} for {ctx.user_id}"
                     )
                 return func(*args, **kwargs)
+
             return wrapper
+
         return decorator
 
     def rate_limit(

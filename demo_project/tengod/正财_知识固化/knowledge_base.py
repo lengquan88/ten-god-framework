@@ -5,28 +5,30 @@ knowledge_base.py — 知识库
 支持内存存储和数据库持久化（SQLite/PostgreSQL）。
 """
 
+import json
+import math
+import os
+import re
 import time
 import uuid
-import json
-import os
-import math
-import re
-from typing import Any, Dict, List, Optional, Tuple, Union
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple
 
 
 class StorageBackend(Enum):
     """存储后端"""
-    MEMORY = "memory"     # 内存（默认）
-    SQLITE = "sqlite"     # SQLite
-    POSTGRES = "postgres" # PostgreSQL
-    JSON = "json"         # JSON 文件
+
+    MEMORY = "memory"  # 内存（默认）
+    SQLITE = "sqlite"  # SQLite
+    POSTGRES = "postgres"  # PostgreSQL
+    JSON = "json"  # JSON 文件
 
 
 @dataclass
 class KnowledgeNode:
     """知识节点"""
+
     id: str
     name: str
     node_type: str
@@ -37,6 +39,7 @@ class KnowledgeNode:
 @dataclass
 class KnowledgeEdge:
     """知识边（关系）"""
+
     source: str
     target: str
     relation: str
@@ -53,11 +56,21 @@ _SA_session_factory = None
 
 try:
     from sqlalchemy import (
-        Column, String, Float, Text, create_engine,
-        Index, asc, desc, func as sa_func,
+        Column,
+        Float,
+        Index,
+        String,
+        Text,
+        asc,
+        create_engine,
+        desc,
     )
-    from sqlalchemy.orm import declarative_base, Session, sessionmaker
+    from sqlalchemy import (
+        func as sa_func,
+    )
     from sqlalchemy.ext.automap import automap_base
+    from sqlalchemy.orm import Session, declarative_base, sessionmaker
+
     _SQLALCHEMY_AVAILABLE = True
     _SA_Base = declarative_base()
 except ImportError:
@@ -67,6 +80,7 @@ except ImportError:
 def _init_sa_tables(engine, db_path: str) -> None:
     """用 SQLAlchemy 建表（仅首次）"""
     import sqlite3
+
     # 直接用 sqlite3 建表（SQLAlchemy 已安装）
     conn = sqlite3.connect(db_path)
     conn.execute("""
@@ -132,11 +146,18 @@ class KnowledgeBase:
             self._init_postgres()
 
     def _init_sqlite(self) -> None:
-        """初始化 SQLite"""
+        """初始化 SQLite（WAL模式 + 连接优化）"""
         try:
             import sqlite3
+
             db_path = self._db_path or "knowledge.db"
-            self._db_conn = sqlite3.connect(db_path)
+            self._db_conn = sqlite3.connect(db_path, check_same_thread=False)
+            # WAL 模式：读写并发不阻塞
+            self._db_conn.execute("PRAGMA journal_mode=WAL")
+            self._db_conn.execute("PRAGMA synchronous=NORMAL")
+            self._db_conn.execute("PRAGMA foreign_keys=ON")
+            self._db_conn.execute("PRAGMA cache_size=-8000")
+            self._db_conn.execute("PRAGMA busy_timeout=5000")
             self._db_conn.execute("""
                 CREATE TABLE IF NOT EXISTS nodes (
                     id TEXT PRIMARY KEY,
@@ -154,6 +175,15 @@ class KnowledgeBase:
                     weight REAL
                 )
             """)
+            self._db_conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_nodes_type ON nodes(node_type)"
+            )
+            self._db_conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_edges_source ON edges(source)"
+            )
+            self._db_conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_edges_target ON edges(target)"
+            )
             self._db_conn.commit()
             self._load_from_sqlite()
         except ImportError:
@@ -176,12 +206,14 @@ class KnowledgeBase:
                         created_at=n.get("created_at", time.time()),
                     )
                 for e in data.get("edges", []):
-                    self._edges.append(KnowledgeEdge(
-                        source=e["source"],
-                        target=e["target"],
-                        relation=e["relation"],
-                        weight=e.get("weight", 1.0),
-                    ))
+                    self._edges.append(
+                        KnowledgeEdge(
+                            source=e["source"],
+                            target=e["target"],
+                            relation=e["relation"],
+                            weight=e.get("weight", 1.0),
+                        )
+                    )
             except (json.JSONDecodeError, IOError):
                 pass
 
@@ -189,6 +221,7 @@ class KnowledgeBase:
         """初始化 PostgreSQL"""
         try:
             import psycopg2
+
             self._db_conn = psycopg2.connect(self._conn_string)
             self._db_conn.execute("""
                 CREATE TABLE IF NOT EXISTS nodes (
@@ -228,12 +261,14 @@ class KnowledgeBase:
             )
         cursor = self._db_conn.execute("SELECT * FROM edges")
         for row in cursor:
-            self._edges.append(KnowledgeEdge(
-                source=row[0],
-                target=row[1],
-                relation=row[2],
-                weight=row[3],
-            ))
+            self._edges.append(
+                KnowledgeEdge(
+                    source=row[0],
+                    target=row[1],
+                    relation=row[2],
+                    weight=row[3],
+                )
+            )
 
     def _load_from_postgres(self) -> None:
         """从 PostgreSQL 加载"""
@@ -244,13 +279,28 @@ class KnowledgeBase:
         if self._backend == StorageBackend.SQLITE and self._db_conn:
             self._db_conn.execute(
                 "INSERT OR REPLACE INTO nodes VALUES (?, ?, ?, ?, ?)",
-                (node.id, node.name, node.node_type, json.dumps(node.properties), node.created_at),
+                (
+                    node.id,
+                    node.name,
+                    node.node_type,
+                    json.dumps(node.properties),
+                    node.created_at,
+                ),
             )
             self._db_conn.commit()
         elif self._backend == StorageBackend.POSTGRES and self._db_conn:
             self._db_conn.execute(
                 "INSERT INTO nodes VALUES (%s, %s, %s, %s, %s) ON CONFLICT (id) DO UPDATE SET name=%s, node_type=%s, properties=%s",
-                (node.id, node.name, node.node_type, json.dumps(node.properties), node.created_at, node.name, node.node_type, json.dumps(node.properties)),
+                (
+                    node.id,
+                    node.name,
+                    node.node_type,
+                    json.dumps(node.properties),
+                    node.created_at,
+                    node.name,
+                    node.node_type,
+                    json.dumps(node.properties),
+                ),
             )
             self._db_conn.commit()
 
@@ -308,7 +358,9 @@ class KnowledgeBase:
         """添加边"""
         if source not in self._nodes or target not in self._nodes:
             return None
-        edge = KnowledgeEdge(source=source, target=target, relation=relation, weight=weight)
+        edge = KnowledgeEdge(
+            source=source, target=target, relation=relation, weight=weight
+        )
         self._edges.append(edge)
         self._save_edge(edge)
         if self._backend == StorageBackend.JSON:
@@ -327,7 +379,9 @@ class KnowledgeBase:
         """按类型查找"""
         return [n for n in self._nodes.values() if n.node_type == node_type]
 
-    def neighbors(self, node_id: str, relation: Optional[str] = None) -> List[KnowledgeNode]:
+    def neighbors(
+        self, node_id: str, relation: Optional[str] = None
+    ) -> List[KnowledgeNode]:
         """获取邻居节点"""
         if node_id not in self._nodes:
             return []
@@ -346,10 +400,14 @@ class KnowledgeBase:
         if node_id not in self._nodes:
             return False
         del self._nodes[node_id]
-        self._edges = [e for e in self._edges if e.source != node_id and e.target != node_id]
+        self._edges = [
+            e for e in self._edges if e.source != node_id and e.target != node_id
+        ]
         if self._backend == StorageBackend.SQLITE and self._db_conn:
             self._db_conn.execute("DELETE FROM nodes WHERE id=?", (node_id,))
-            self._db_conn.execute("DELETE FROM edges WHERE source=? OR target=?", (node_id, node_id))
+            self._db_conn.execute(
+                "DELETE FROM edges WHERE source=? OR target=?", (node_id, node_id)
+            )
             self._db_conn.commit()
         elif self._backend == StorageBackend.JSON:
             self._save_to_json()
@@ -411,13 +469,15 @@ class KnowledgeBase:
         """提取字符 n-gram 并统计频次（中文与英文通用）"""
         text = text.lower()
         # 去掉标点仅保留有效字符（保留中英文与数字）
-        text = re.sub(r"[\s+\.\!\/_,$%^*(+\"\']+|[+——！，。？、~@#￥%……&*（）]+", " ", text)
+        text = re.sub(
+            r"[\s+\.\!\/_,$%^*(+\"\']+|[+——！，。？、~@#￥%……&*（）]+", " ", text
+        )
         grams: Dict[str, int] = {}
         if len(text) < n:
             grams[text] = 1
             return grams
         for i in range(len(text) - n + 1):
-            gram = text[i:i + n]
+            gram = text[i : i + n]
             grams[gram] = grams.get(gram, 0) + 1
         return grams
 
@@ -576,7 +636,7 @@ class KnowledgeBase:
             nodes.sort(key=lambda n: n.created_at, reverse=descending)
         total = len(nodes)
         start = (page - 1) * page_size
-        page_nodes = nodes[start:start + page_size]
+        page_nodes = nodes[start : start + page_size]
         return {
             "total": total,
             "page": page,
@@ -594,18 +654,25 @@ class KnowledgeBase:
         try:
             from sqlalchemy import create_engine
             from sqlalchemy.orm import sessionmaker
+
             engine = create_engine(f"sqlite:///{sa_path}", echo=False)
             _init_sa_tables(engine, sa_path)
             global _SA_engine, _SA_session_factory
             _SA_engine = engine
             _SA_session_factory = sessionmaker(bind=engine)
             import sqlite3
+
             conn = sqlite3.connect(sa_path)
             for node in self._nodes.values():
                 conn.execute(
                     "INSERT OR REPLACE INTO sa_nodes VALUES (?, ?, ?, ?, ?)",
-                    (node.id, node.name, node.node_type,
-                     json.dumps(node.properties, ensure_ascii=False), node.created_at),
+                    (
+                        node.id,
+                        node.name,
+                        node.node_type,
+                        json.dumps(node.properties, ensure_ascii=False),
+                        node.created_at,
+                    ),
                 )
             conn.commit()
             conn.close()
@@ -634,6 +701,7 @@ class KnowledgeBase:
         返回 {"added": N, "skipped": M, "errors": [...]}
         """
         import json
+
         added, skipped, errors = 0, 0, []
         try:
             with open(file_path, "r", encoding="utf-8") as f:
@@ -654,16 +722,21 @@ class KnowledgeBase:
                 )
                 added += 1
             except Exception as e:
-                errors.append(f"{item.get('name','?')}: {e}")
+                errors.append(f"{item.get('name', '?')}: {e}")
         return {"added": added, "skipped": skipped, "errors": errors}
 
-    def import_from_csv(self, file_path: str, name_col: str = "name",
-                        type_col: str = "node_type",
-                        props_cols: Optional[List[str]] = None) -> Dict[str, int]:
+    def import_from_csv(
+        self,
+        file_path: str,
+        name_col: str = "name",
+        type_col: str = "node_type",
+        props_cols: Optional[List[str]] = None,
+    ) -> Dict[str, int]:
         """从 CSV 文件批量导入节点（无需 pandas）。
         props_cols 为 None 时，其余列全部作为 properties。
         """
         import csv
+
         added, skipped, errors = 0, 0, []
         try:
             with open(file_path, "r", encoding="utf-8") as f:
@@ -679,10 +752,22 @@ class KnowledgeBase:
                     continue
                 ntype = row.get(type_col, "default").strip()
                 if props_cols:
-                    props = {k: v for k, v in row.items() if k not in (name_col, type_col) and k in props_cols and v.strip()}
+                    props = {
+                        k: v
+                        for k, v in row.items()
+                        if k not in (name_col, type_col)
+                        and k in props_cols
+                        and v.strip()
+                    }
                 else:
-                    props = {k: v for k, v in row.items() if k not in (name_col, type_col) and v.strip()}
-                node, created = self.upsert_node(name, node_type=ntype, properties=props)
+                    props = {
+                        k: v
+                        for k, v in row.items()
+                        if k not in (name_col, type_col) and v.strip()
+                    }
+                node, created = self.upsert_node(
+                    name, node_type=ntype, properties=props
+                )
                 added += 1
             except Exception as e:
                 errors.append(f"{name or '?'}：{e}")
@@ -706,22 +791,28 @@ class KnowledgeBase:
                 with open(file_path, "r", encoding="utf-8") as f:
                     content = f.read()
                 import re
+
                 # 简单正则：匹配 - name: xxx 和 node_type: xxx
-                entries = re.findall(r'-\s+name:\s*"?([^"\n]+)"?\s*\n\s+node_type:\s*"?([^"\n]+)"?', content)
+                entries = re.findall(
+                    r'-\s+name:\s*"?([^"\n]+)"?\s*\n\s+node_type:\s*"?([^"\n]+)"?',
+                    content,
+                )
                 for name, ntype in entries:
-                    node, created = self.upsert_node(name.strip(), node_type=ntype.strip(), properties={})
+                    node, created = self.upsert_node(
+                        name.strip(), node_type=ntype.strip(), properties={}
+                    )
                     added += 1
             except Exception as e:
                 errors.append(str(e))
             return {"added": added, "skipped": skipped, "errors": errors}
-        
+
         added, skipped, errors = 0, 0, []
         try:
             with open(file_path, "r", encoding="utf-8") as f:
                 data = yaml.safe_load(f)
         except Exception as e:
             return {"added": 0, "skipped": 0, "errors": [str(e)]}
-        
+
         items = data if isinstance(data, list) else []
         if isinstance(data, dict):
             # 尝试找顶级 list
@@ -729,7 +820,7 @@ class KnowledgeBase:
                 if isinstance(v, list):
                     items = v
                     break
-        
+
         for item in items:
             try:
                 if not item.get("name"):
@@ -742,13 +833,15 @@ class KnowledgeBase:
                 )
                 added += 1
             except Exception as e:
-                errors.append(f"{item.get('name','?')}: {e}")
+                errors.append(f"{item.get('name', '?')}: {e}")
         return {"added": added, "skipped": skipped, "errors": errors}
 
     # -------- 向量数据库集成（v1.5.0）--------
-    def use_vector_db(self, provider: str = "auto", persist_path: Optional[str] = None) -> Dict[str, Any]:
+    def use_vector_db(
+        self, provider: str = "auto", persist_path: Optional[str] = None
+    ) -> Dict[str, Any]:
         """启用向量数据库（FAISS 或 ChromaDB），优雅降级。
-        
+
         provider: "auto" | "faiss" | "chroma" | "disable"
         - auto: 优先尝试 FAISS，然后 ChromaDB，最后降级为内存
         - faiss: 仅使用 FAISS
@@ -756,8 +849,13 @@ class KnowledgeBase:
         - disable: 禁用，保留内存模式
         返回 {"provider": str, "dimension": int, "indexed": int, "error": str}
         """
-        result: Dict[str, Any] = {"provider": "memory", "dimension": 0, "indexed": 0, "error": ""}
-        
+        result: Dict[str, Any] = {
+            "provider": "memory",
+            "dimension": 0,
+            "indexed": 0,
+            "error": "",
+        }
+
         if provider == "disable":
             self._vector_provider = "memory"
             return result
@@ -765,32 +863,41 @@ class KnowledgeBase:
         # 生成所有节点文本向量
         texts = [n.name + " " + json.dumps(n.properties) for n in self._nodes.values()]
         dim = min(len(texts) * 2, 128) if texts else 128  # 降维到128或以下
-        
+
         # 尝试 FAISS
         if provider in ("auto", "faiss"):
             try:
                 import faiss
                 import numpy as np
+
                 vectors = np.random.rand(len(texts), dim).astype("float32")
                 # 真实向量：使用字符 n-gram hash
                 for i, text in enumerate(texts):
                     vec = self._char_ngrams(text, n=2)
                     norm = (sum(v**2 for v in vec.values()) or 1) ** 0.5
-                    arr = np.array(list(vec.values()) + [0.0] * max(0, dim - len(vec)), dtype=np.float32)
+                    arr = np.array(
+                        list(vec.values()) + [0.0] * max(0, dim - len(vec)),
+                        dtype=np.float32,
+                    )
                     if norm > 0:
                         arr = arr / norm
                     if len(arr) < dim:
                         arr = np.pad(arr, (0, dim - len(arr)))
                     vectors[i] = arr[:dim]
-                
+
                 index = faiss.IndexFlatIP(dim)  # 内积相似度
                 faiss.normalize_L2(vectors)
                 index.add(vectors)
-                
+
                 self._faiss_index = index
                 self._vector_dim = dim
                 self._vector_provider = "faiss"
-                result = {"provider": "faiss", "dimension": dim, "indexed": len(texts), "error": ""}
+                result = {
+                    "provider": "faiss",
+                    "dimension": dim,
+                    "indexed": len(texts),
+                    "error": "",
+                }
                 return result
             except ImportError:
                 result["error"] = "FAISS 未安装"
@@ -801,20 +908,28 @@ class KnowledgeBase:
         if provider in ("auto", "chroma"):
             try:
                 import chromadb
+
                 chroma_path = persist_path or "chroma_db"
-                client = chromadb.Client(chromadb.config.Settings(
-                    chromadb_db_path=chroma_path,
-                    allow_reset=True,
-                ))
+                client = chromadb.Client(
+                    chromadb.config.Settings(
+                        chromadb_db_path=chroma_path,
+                        allow_reset=True,
+                    )
+                )
                 coll = client.create_collection("tengod_knowledge", get_or_create=True)
-                
+
                 if texts:
                     ids = [n.id for n in self._nodes.values()]
                     coll.add(ids=ids, documents=texts)
-                
+
                 self._chroma_client = client
                 self._vector_provider = "chroma"
-                result = {"provider": "chroma", "dimension": 0, "indexed": len(texts), "error": ""}
+                result = {
+                    "provider": "chroma",
+                    "dimension": 0,
+                    "indexed": len(texts),
+                    "error": "",
+                }
                 return result
             except ImportError:
                 result["error"] = "ChromaDB 未安装"
@@ -824,37 +939,46 @@ class KnowledgeBase:
         self._vector_provider = "memory"
         return result
 
-    def vector_search(self, query: str, top_k: int = 5,
-                     min_score: float = 0.0) -> List[Dict[str, Any]]:
+    def vector_search(
+        self, query: str, top_k: int = 5, min_score: float = 0.0
+    ) -> List[Dict[str, Any]]:
         """向量数据库语义搜索（如果未启用向量 DB 则降级到 query_nearest）"""
         if not hasattr(self, "_vector_provider"):
             return self.query_nearest(query, top_k=top_k, min_score=min_score)
-        
+
         provider = getattr(self, "_vector_provider", "memory")
-        
+
         if provider == "memory":
             return self.query_nearest(query, top_k=top_k, min_score=min_score)
-        
+
         try:
             if provider == "chroma":
                 coll = self._chroma_client.get_collection("tengod_knowledge")
                 results = coll.query(query_texts=[query], n_results=top_k)
                 hits = []
-                for i, (doc_id, doc_text) in enumerate(zip(
-                        results["ids"][0], results["documents"][0])):
+                for i, (doc_id, doc_text) in enumerate(
+                    zip(results["ids"][0], results["documents"][0])
+                ):
                     # 找对应节点
-                    node = next((n for n in self._nodes.values() if n.id == doc_id), None)
+                    node = next(
+                        (n for n in self._nodes.values() if n.id == doc_id), None
+                    )
                     if node:
-                        hits.append({
-                            "id": node.id, "name": node.name,
-                            "node_type": node.node_type,
-                            "score": results["distances"][0][i] if i < len(results["distances"][0]) else 0.0,
-                            "node": node,
-                        })
+                        hits.append(
+                            {
+                                "id": node.id,
+                                "name": node.name,
+                                "node_type": node.node_type,
+                                "score": results["distances"][0][i]
+                                if i < len(results["distances"][0])
+                                else 0.0,
+                                "node": node,
+                            }
+                        )
                 return [h for h in hits if h["score"] >= min_score]
         except Exception:
             pass
-        
+
         # 降级到内存查询
         return self.query_nearest(query, top_k=top_k, min_score=min_score)
 

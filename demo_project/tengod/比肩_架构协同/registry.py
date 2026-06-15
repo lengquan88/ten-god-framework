@@ -6,13 +6,13 @@ registry.py — 组件注册中心
 
 import inspect
 import threading
-import time
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Type
+from typing import Any, Callable, Dict, List, Optional
 
 
 class ComponentState(Enum):
     """组件生命周期状态"""
+
     UNINITIALIZED = "uninitialized"
     INITIALIZING = "initializing"
     READY = "ready"
@@ -26,7 +26,9 @@ class LifecycleManager:
 
     def __init__(self):
         self._states: Dict[str, ComponentState] = {}
-        self._hooks: Dict[str, Dict[str, List[Callable]]] = {}  # name -> {on_start: [], on_stop: [], on_fail: []}
+        self._hooks: Dict[
+            str, Dict[str, List[Callable]]
+        ] = {}  # name -> {on_start: [], on_stop: [], on_fail: []}
         self._lock = threading.Lock()
 
     def register(self, name: str) -> None:
@@ -44,12 +46,18 @@ class LifecycleManager:
             hooks = self._hooks.get(name, {})
             if state == ComponentState.READY and old != ComponentState.READY:
                 for h in hooks.get("on_start", []):
-                    try: h(name)
-                    except: pass
+                    try:
+                        h(name)
+                    except:
+                        pass
             elif state in (ComponentState.STOPPED, ComponentState.FAILED):
-                for h in hooks.get("on_stop" if state == ComponentState.STOPPED else "on_fail", []):
-                    try: h(name)
-                    except: pass
+                for h in hooks.get(
+                    "on_stop" if state == ComponentState.STOPPED else "on_fail", []
+                ):
+                    try:
+                        h(name)
+                    except:
+                        pass
 
     def get_state(self, name: str) -> ComponentState:
         return self._states.get(name, ComponentState.UNINITIALIZED)
@@ -108,6 +116,7 @@ class ComponentRegistry:
                     for alias in aliases:
                         self._aliases[alias] = name
                 return func_or_class
+
             return decorator
         # 直接注册
         self._components[name] = component
@@ -155,7 +164,14 @@ class ComponentRegistry:
             self._lifecycle = LifecycleManager()
         return self._lifecycle
 
-    def register_with_lifecycle(self, name: str, component: Any, *, on_start: Optional[Callable] = None, on_stop: Optional[Callable] = None) -> bool:
+    def register_with_lifecycle(
+        self,
+        name: str,
+        component: Any,
+        *,
+        on_start: Optional[Callable] = None,
+        on_stop: Optional[Callable] = None,
+    ) -> bool:
         """注册组件并设置生命周期钩子"""
         ok = self.register(name, component)
         if ok and self._lifecycle:
@@ -178,5 +194,11 @@ def component(name: str, aliases: Optional[List[str]] = None):
     return get_registry().register(name, aliases=aliases)
 
 
-__all__ = ["ComponentRegistry", "ComponentState", "LifecycleManager", "component", "get_registry"]
+__all__ = [
+    "ComponentRegistry",
+    "ComponentState",
+    "LifecycleManager",
+    "component",
+    "get_registry",
+]
 __version__ = "1.4.0"

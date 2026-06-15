@@ -5,13 +5,12 @@ metrics.py — 统一日志与监控 v1.5.0
 """
 
 import json
-import os
 import sys
-import time
 import threading
+import time
 from collections import defaultdict
-from typing import Any, Dict, List, Optional
 from enum import Enum
+from typing import Any, Dict, List, Optional
 
 
 class LogLevel(Enum):
@@ -90,17 +89,23 @@ class PrometheusMetrics:
         self._histograms: Dict[str, List[float]] = defaultdict(list)
         self._start_time = time.time()
 
-    def counter_inc(self, name: str, value: float = 1.0, labels: Optional[Dict[str, str]] = None) -> None:
+    def counter_inc(
+        self, name: str, value: float = 1.0, labels: Optional[Dict[str, str]] = None
+    ) -> None:
         key = self._metric_key(name, labels)
         with self._lock:
             self._counters[key] += value
 
-    def gauge_set(self, name: str, value: float, labels: Optional[Dict[str, str]] = None) -> None:
+    def gauge_set(
+        self, name: str, value: float, labels: Optional[Dict[str, str]] = None
+    ) -> None:
         key = self._metric_key(name, labels)
         with self._lock:
             self._gauges[key] = value
 
-    def histogram_observe(self, name: str, value: float, labels: Optional[Dict[str, str]] = None) -> None:
+    def histogram_observe(
+        self, name: str, value: float, labels: Optional[Dict[str, str]] = None
+    ) -> None:
         key = self._metric_key(name, labels)
         with self._lock:
             self._histograms[key].append(value)
@@ -138,7 +143,11 @@ class PrometheusMetrics:
         # HELP + TYPE lines
         seen_bases: set = set()
         with self._lock:
-            all_keys = list(self._counters.keys()) + list(self._gauges.keys()) + list(self._histograms.keys())
+            all_keys = (
+                list(self._counters.keys())
+                + list(self._gauges.keys())
+                + list(self._histograms.keys())
+            )
         for key in all_keys:
             if "{" in key:
                 base = key[: key.index("{")]
@@ -164,15 +173,15 @@ class PrometheusMetrics:
                 lines.append(f"{key} {val:.6f}")
             for key, vals in self._histograms.items():
                 base = key.split("{")[0] if "{" in key else key
-                label_part = key[len(base):]
+                label_part = key[len(base) :]
                 if vals:
                     lines.append(f"{base}_sum{label_part} {sum(vals):.6f}")
                     lines.append(f"{base}_count{label_part} {len(vals)}")
 
         # Uptime
         uptime = time.time() - self._start_time
-        lines.append(f"# HELP tengod_uptime_seconds Service uptime in seconds")
-        lines.append(f"# TYPE tengod_uptime_seconds gauge")
+        lines.append("# HELP tengod_uptime_seconds Service uptime in seconds")
+        lines.append("# TYPE tengod_uptime_seconds gauge")
         lines.append(f"tengod_uptime_seconds {uptime:.2f}")
 
         return "\n".join(lines) + "\n"
@@ -182,7 +191,9 @@ class PrometheusMetrics:
         with self._lock:
             uptime = time.time() - self._start_time
             return {
-                "start_time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(self._start_time)),
+                "start_time": time.strftime(
+                    "%Y-%m-%dT%H:%M:%S", time.localtime(self._start_time)
+                ),
                 "uptime_seconds": round(uptime, 2),
                 "counters": dict(self._counters),
                 "gauges": dict(self._gauges),
@@ -204,7 +215,11 @@ def get_metrics() -> PrometheusMetrics:
 
 
 __all__ = [
-    "StructuredLogger", "PrometheusMetrics",
-    "LogLevel", "LOGGER", "get_logger", "get_metrics",
+    "StructuredLogger",
+    "PrometheusMetrics",
+    "LogLevel",
+    "LOGGER",
+    "get_logger",
+    "get_metrics",
 ]
 __version__ = "1.5.0"

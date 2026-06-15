@@ -3,12 +3,15 @@
 test_tengod.py — 十神子模块单元测试
 """
 
-import sys
 import os
+import sys
 
 # 添加项目路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tengod"))
+sys.path.insert(
+    0,
+    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tengod"),
+)
 
 
 def test_bijian_registry():
@@ -60,7 +63,7 @@ def test_shishen_generator():
 
 def test_shangguan_innovator():
     """伤官_破界创新：创新器测试"""
-    from 伤官_破界创新 import Innovator, InnovationType
+    from 伤官_破界创新 import InnovationType, Innovator
 
     inv = Innovator()
     idea = inv.combine(["A", "B", "C"])
@@ -106,7 +109,7 @@ def test_piancai_optimizer():
 
 def test_zhengguan_scheduler():
     """正官_法度调度：任务调度器测试"""
-    from 正官_法度调度 import TaskScheduler, TaskPriority, TaskStatus
+    from 正官_法度调度 import TaskPriority, TaskScheduler, TaskStatus
 
     scheduler = TaskScheduler(max_workers=2)
 
@@ -137,7 +140,7 @@ def test_zhengguan_router():
 
 def test_qisha_judge():
     """七杀_品质裁决：质量裁决器测试"""
-    from 七杀_品质裁决 import QualityJudge, Grade
+    from 七杀_品质裁决 import Grade, QualityJudge
 
     judge = QualityJudge()
     judge.add_score("功能", 95, weight=0.5)
@@ -152,7 +155,7 @@ def test_qisha_judge():
 
 def test_qisha_runner():
     """七杀_品质裁决：测试运行器测试"""
-    from 七杀_品质裁决 import TestRunner, TestStatus
+    from 七杀_品质裁决 import TestRunner
 
     runner = TestRunner(verbose=False)
 
@@ -185,7 +188,7 @@ def test_zhengyin_config():
 
 def test_pianyin_adapter():
     """偏印_桥接通变：协议适配器测试"""
-    from 偏印_桥接通变 import Adapter, DictToJsonConverter, CamelToSnakeConverter
+    from 偏印_桥接通变 import Adapter, CamelToSnakeConverter, DictToJsonConverter
 
     json_conv = DictToJsonConverter()
     adapter = Adapter("json", json_conv)

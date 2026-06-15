@@ -4,7 +4,7 @@
 元辰主理本源，承担项目的根目录定位与核心入口职责。
 """
 
-from .locator import YuanChenLocator, ProjectRoot
+from .locator import ProjectRoot, YuanChenLocator
 
 __all__ = ["YuanChenLocator", "ProjectRoot"]
 __version__ = "1.0.0"

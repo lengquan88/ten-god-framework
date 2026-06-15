@@ -43,9 +43,9 @@ import json
 import os
 import time
 from typing import Any, Dict, Generator, List, Optional, Union
-from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 from urllib.parse import urljoin
+from urllib.request import Request, urlopen
 
 
 def _json_serialize(obj: Any) -> str:
@@ -54,6 +54,7 @@ def _json_serialize(obj: Any) -> str:
 
 class TengodError(Exception):
     """十神 SDK 错误"""
+
     def __init__(self, message: str, status_code: int = 0, response: Any = None):
         super().__init__(message)
         self.status_code = status_code
@@ -69,12 +70,19 @@ class TengodClient:
         timeout: 请求超时时间（秒），默认 30
     """
 
-    def __init__(self, base_url: str = "http://localhost:8000", api_key: Optional[str] = None, timeout: float = 30.0):
+    def __init__(
+        self,
+        base_url: str = "http://localhost:8000",
+        api_key: Optional[str] = None,
+        timeout: float = 30.0,
+    ):
         self._base_url = base_url.rstrip("/")
         self._api_key = api_key
         self._timeout = timeout
 
-    def _request(self, method: str, path: str, body: Any = None, stream: bool = False) -> Any:
+    def _request(
+        self, method: str, path: str, body: Any = None, stream: bool = False
+    ) -> Any:
         url = urljoin(self._base_url, path)
         headers = {"Content-Type": "application/json", "Accept": "application/json"}
         if self._api_key:
@@ -137,22 +145,39 @@ class TengodClient:
         # 返回节点列表
         return self.list_nodes(limit=top_k)
 
-    def add_node(self, name: str, node_type: str = "default",
-                 properties: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def add_node(
+        self,
+        name: str,
+        node_type: str = "default",
+        properties: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         """添加知识节点"""
-        return self._request("POST", "/api/knowledge/nodes", body={
-            "name": name, "node_type": node_type, "properties": properties or {},
-        })
+        return self._request(
+            "POST",
+            "/api/knowledge/nodes",
+            body={
+                "name": name,
+                "node_type": node_type,
+                "properties": properties or {},
+            },
+        )
 
     # ── 内容生成 ──────────────────────────────────────
 
     def generate(self, prompt: str, style: str = "creative") -> Dict[str, Any]:
         """生成内容"""
-        return self._request("POST", "/api/generate", body={
-            "prompt": prompt, "style": style,
-        })
+        return self._request(
+            "POST",
+            "/api/generate",
+            body={
+                "prompt": prompt,
+                "style": style,
+            },
+        )
 
-    def generate_stream(self, prompt: str, style: str = "creative") -> Generator[str, None, None]:
+    def generate_stream(
+        self, prompt: str, style: str = "creative"
+    ) -> Generator[str, None, None]:
         """流式生成内容"""
         url = urljoin(self._base_url, "/api/generate/stream")
         headers = {"Content-Type": "application/json", "Accept": "text/event-stream"}
@@ -166,11 +191,18 @@ class TengodClient:
 
     # ── 任务管理 ──────────────────────────────────────
 
-    def submit_task(self, func_name: str, params: Optional[Dict[str, Any]] = None) -> str:
+    def submit_task(
+        self, func_name: str, params: Optional[Dict[str, Any]] = None
+    ) -> str:
         """提交异步任务"""
-        r = self._request("POST", "/api/tasks/submit", body={
-            "func_name": func_name, "params": params or {},
-        })
+        r = self._request(
+            "POST",
+            "/api/tasks/submit",
+            body={
+                "func_name": func_name,
+                "params": params or {},
+            },
+        )
         return r.get("data", {}).get("task_id", "")
 
     def get_task(self, task_id: str) -> Dict[str, Any]:
@@ -187,9 +219,14 @@ class TengodClient:
 
     def consult_oracle(self, question: str, mode: str = "auto") -> Dict[str, Any]:
         """推背图 Oracle 咨询"""
-        r = self._request("POST", "/api/oracle", body={
-            "question": question, "mode": mode,
-        })
+        r = self._request(
+            "POST",
+            "/api/oracle",
+            body={
+                "question": question,
+                "mode": mode,
+            },
+        )
         return r.get("data", {})
 
     # ── 代码扫描 ──────────────────────────────────────
@@ -202,9 +239,14 @@ class TengodClient:
 
     def login(self, username: str, password: str) -> str:
         """登录获取 JWT token"""
-        r = self._request("POST", "/api/auth/token", body={
-            "username": username, "password": password,
-        })
+        r = self._request(
+            "POST",
+            "/api/auth/token",
+            body={
+                "username": username,
+                "password": password,
+            },
+        )
         token = r.get("data", {}).get("access_token", "")
         if token:
             self._api_key = token
@@ -212,9 +254,15 @@ class TengodClient:
 
     def register(self, username: str, password: str, email: str = "") -> Dict[str, Any]:
         """注册新用户"""
-        return self._request("POST", "/api/auth/register", body={
-            "username": username, "password": password, "email": email,
-        })
+        return self._request(
+            "POST",
+            "/api/auth/register",
+            body={
+                "username": username,
+                "password": password,
+                "email": email,
+            },
+        )
 
 
 __all__ = ["TengodClient", "TengodError"]

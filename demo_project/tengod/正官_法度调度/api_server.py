@@ -20,18 +20,18 @@ api_server.py — 十神架构 HTTP API 服务
     run_server(app, host="0.0.0.0", port=8000)
 """
 
-import json
-import sys
-import os
-import time
-import hmac
-import hashlib
 import base64
-import uuid
-import threading
 import collections
-from typing import Any, Dict, List, Optional, Callable
-from dataclasses import dataclass, asdict
+import hashlib
+import hmac
+import json
+import os
+import sys
+import threading
+import time
+import uuid
+from dataclasses import dataclass
+from typing import Any, Callable, Dict, List, Optional
 
 # 处理路径，确保可在各种情况下导入兄弟模块
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -44,10 +44,13 @@ if os.path.dirname(_TENGOD_ROOT) not in sys.path:
 
 # ============ JWT 纯 Python 实现 ============
 
+
 class JWTAuth:
     """纯 Python 实现的 JWT 认证（HS256）"""
 
-    def __init__(self, secret_key: str = "tengod-default-secret-key-change-in-production"):
+    def __init__(
+        self, secret_key: str = "tengod-default-secret-key-change-in-production"
+    ):
         self.secret_key = secret_key.encode("utf-8")
         self.algorithm = "HS256"
         self.default_expiry = 24 * 3600  # 24小时
@@ -74,8 +77,12 @@ class JWTAuth:
         header = {"alg": self.algorithm, "typ": "JWT"}
         payload["exp"] = int(time.time()) + expiry
 
-        header_b64 = self._base64url_encode(json.dumps(header, separators=(",", ":")).encode("utf-8"))
-        payload_b64 = self._base64url_encode(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
+        header_b64 = self._base64url_encode(
+            json.dumps(header, separators=(",", ":")).encode("utf-8")
+        )
+        payload_b64 = self._base64url_encode(
+            json.dumps(payload, separators=(",", ":")).encode("utf-8")
+        )
         signature = self._create_signature(header_b64, payload_b64)
 
         return f"{header_b64}.{payload_b64}.{signature}"
@@ -142,6 +149,7 @@ _jwt_auth = JWTAuth()
 
 # ============ 限流中间件 ============
 
+
 class RateLimiter:
     """基于滑动窗口的限流器"""
 
@@ -199,6 +207,7 @@ def _check_rate_limit(identifier: str) -> Optional[int]:
 
 # ============ 会话管理（生成路由用） ============
 
+
 class SessionManager:
     """生成会话管理器"""
 
@@ -247,7 +256,9 @@ class SessionManager:
         with self._lock:
             if session_id in self._sessions:
                 s = self._sessions[session_id]
-                s["history"].append({"role": role, "content": content, "timestamp": time.time()})
+                s["history"].append(
+                    {"role": role, "content": content, "timestamp": time.time()}
+                )
                 s["last_active"] = time.time()
 
 
@@ -257,9 +268,11 @@ _session_manager = SessionManager()
 
 # ============ 数据结构 =====
 
+
 @dataclass
 class ApiResponse:
     """统一 API 响应格式"""
+
     code: int
     message: str
     data: Any = None
@@ -275,20 +288,25 @@ _FASTAPI_ERROR = ""
 app = None  # 供 uvicorn: APP_MODULE 使用
 
 try:
-    from fastapi import FastAPI, Body, HTTPException, Request, Depends
-    from fastapi.responses import JSONResponse, StreamingResponse, Response
+    from fastapi import Body, Depends, FastAPI, HTTPException, Request
+    from fastapi.responses import Response, StreamingResponse
     from pydantic import BaseModel, Field
+
     _FASTAPI_AVAILABLE = True
 
     # Pydantic 请求模型（供 FastAPI 文档与校验使用）
     class _GenerateRequest(BaseModel):
         prompt: str = Field(..., description="提示词")
         format: str = Field("text", description="输出格式：text/markdown/json/html")
-        provider: str = Field("mock", description="LLM 提供商：mock/openai/claude/local")
+        provider: str = Field(
+            "mock", description="LLM 提供商：mock/openai/claude/local"
+        )
         model: str = Field("", description="模型名，如 gpt-3.5-turbo")
         temperature: float = 0.7
         stream: bool = False
-        session_id: Optional[str] = Field(None, description="会话 ID，不提供则创建新会话")
+        session_id: Optional[str] = Field(
+            None, description="会话 ID，不提供则创建新会话"
+        )
 
     class _KnowledgeNodeRequest(BaseModel):
         name: str
@@ -314,7 +332,9 @@ try:
     class _TaskSubmitRequest(BaseModel):
         func_name: Optional[str] = Field(None, description="预定义任务名称")
         task_id: Optional[str] = Field(None, description="任务 ID，不提供则自动生成")
-        func_args: Optional[Dict[str, Any]] = Field(None, description="任务参数（JSON）")
+        func_args: Optional[Dict[str, Any]] = Field(
+            None, description="任务参数（JSON）"
+        )
         priority: str = Field("NORMAL", description="优先级：CRITICAL/HIGH/NORMAL/LOW")
         max_retries: int = Field(0, description="最大重试次数")
 
@@ -330,12 +350,22 @@ except Exception as _e:
 def _build_generation_config(data: Dict[str, Any]):
     """根据字典构造 GenerationConfig（统一给 FastAPI / SimpleHttp 使用）"""
     from 食神_创生输出 import GenerationConfig, LLMProvider, OutputFormat
+
     fmt = data.get("format", "text")
     provider = data.get("provider", "mock")
-    fmt_map = {"text": OutputFormat.TEXT, "markdown": OutputFormat.MARKDOWN,
-               "json": OutputFormat.JSON, "html": OutputFormat.HTML, "code": OutputFormat.CODE}
-    provider_map = {"mock": LLMProvider.MOCK, "openai": LLMProvider.OPENAI,
-                    "claude": LLMProvider.CLAUDE, "local": LLMProvider.LOCAL}
+    fmt_map = {
+        "text": OutputFormat.TEXT,
+        "markdown": OutputFormat.MARKDOWN,
+        "json": OutputFormat.JSON,
+        "html": OutputFormat.HTML,
+        "code": OutputFormat.CODE,
+    }
+    provider_map = {
+        "mock": LLMProvider.MOCK,
+        "openai": LLMProvider.OPENAI,
+        "claude": LLMProvider.CLAUDE,
+        "local": LLMProvider.LOCAL,
+    }
     return GenerationConfig(
         format=fmt_map.get(fmt, OutputFormat.TEXT),
         provider=provider_map.get(provider, LLMProvider.MOCK),
@@ -346,10 +376,17 @@ def _build_generation_config(data: Dict[str, Any]):
 
 # ============ 认证依赖 =====
 
+
 async def _get_current_user(request: Request) -> Dict[str, Any]:
     """FastAPI 依赖：提取并验证当前用户"""
     # 公开路由白名单
-    if request.url.path in ("/", "/health", "/api/status", "/api/auth/token", "/api/auth/verify"):
+    if request.url.path in (
+        "/",
+        "/health",
+        "/api/status",
+        "/api/auth/token",
+        "/api/auth/verify",
+    ):
         return {"user_id": "anonymous", "roles": []}
 
     # 限流检查
@@ -357,7 +394,10 @@ async def _get_current_user(request: Request) -> Dict[str, Any]:
     user_id = "anonymous"
     retry_after = _check_rate_limit(client_ip)
     if retry_after is not None:
-        raise HTTPException(status_code=429, detail=f"Rate limit exceeded. Retry after {retry_after} seconds")
+        raise HTTPException(
+            status_code=429,
+            detail=f"Rate limit exceeded. Retry after {retry_after} seconds",
+        )
 
     # 检查 Authorization header
     auth_header = request.headers.get("Authorization", "")
@@ -369,11 +409,16 @@ async def _get_current_user(request: Request) -> Dict[str, Any]:
             # 对已认证用户也限流
             retry_after = _check_rate_limit(user_id)
             if retry_after is not None:
-                raise HTTPException(status_code=429, detail=f"Rate limit exceeded. Retry after {retry_after} seconds")
+                raise HTTPException(
+                    status_code=429,
+                    detail=f"Rate limit exceeded. Retry after {retry_after} seconds",
+                )
             return payload
 
     if request.url.path.startswith("/api/"):
-        raise HTTPException(status_code=401, detail="Missing or invalid authorization token")
+        raise HTTPException(
+            status_code=401, detail="Missing or invalid authorization token"
+        )
 
     return {"user_id": "anonymous", "roles": []}
 
@@ -397,6 +442,7 @@ def create_app(core: Optional[Any] = None) -> Any:
     """
     if core is None:
         from tengod import get_core
+
         core = get_core()
 
     if not _FASTAPI_AVAILABLE:
@@ -410,31 +456,37 @@ def create_app(core: Optional[Any] = None) -> Any:
 
     # 注册预定义任务
     if core and core.scheduler:
+
         def _sample_task(x: int = 1, y: int = 2) -> int:
             return x + y
+
         _register_predefined_task("sample_add", _sample_task)
 
     # -------- 健康检查 --------
 
     @fast_app.get("/", tags=["系统"])
     def root():
-        return ApiResponse(code=0, message="十神架构服务运行中", data={
-            "version": "1.3.0",
-            "modules": {
-                "比肩": "已就绪" if core.registry else "未启用",
-                "劫财": "已就绪" if core.guard else "未启用",
-                "食神": "已就绪" if core.generator else "未启用",
-                "伤官": "已就绪" if core.innovator else "未启用",
-                "正财": "已就绪" if core.kb else "未启用",
-                "偏财": "已就绪",
-                "正官": "已就绪",
-                "七杀": "已就绪" if core.judge else "未启用",
-                "正印": "已就绪" if core.config else "未启用",
-                "偏印": "已就绪" if core.bridge else "未启用",
-                "元辰": "已就绪" if getattr(core, "locator", None) else "未启用",
-                "太极": "已就绪" if getattr(core, "balancer", None) else "未启用",
+        return ApiResponse(
+            code=0,
+            message="十神架构服务运行中",
+            data={
+                "version": "1.3.0",
+                "modules": {
+                    "比肩": "已就绪" if core.registry else "未启用",
+                    "劫财": "已就绪" if core.guard else "未启用",
+                    "食神": "已就绪" if core.generator else "未启用",
+                    "伤官": "已就绪" if core.innovator else "未启用",
+                    "正财": "已就绪" if core.kb else "未启用",
+                    "偏财": "已就绪",
+                    "正官": "已就绪",
+                    "七杀": "已就绪" if core.judge else "未启用",
+                    "正印": "已就绪" if core.config else "未启用",
+                    "偏印": "已就绪" if core.bridge else "未启用",
+                    "元辰": "已就绪" if getattr(core, "locator", None) else "未启用",
+                    "太极": "已就绪" if getattr(core, "balancer", None) else "未启用",
+                },
             },
-        }).to_dict()
+        ).to_dict()
 
     @fast_app.get("/health", tags=["系统"])
     def health():
@@ -452,6 +504,7 @@ def create_app(core: Optional[Any] = None) -> Any:
         """Prometheus 格式指标暴露"""
         try:
             from metrics import get_metrics
+
             return Response(
                 content=get_metrics().generate_text(),
                 media_type="text/plain; charset=utf-8",
@@ -481,12 +534,25 @@ def create_app(core: Optional[Any] = None) -> Any:
         """列出知识节点"""
         if core.kb:
             items = core.kb.query_paginated(offset=offset, page_size=limit)
-            return ApiResponse(code=0, message="ok", data={
-                "items": [{"id": n.id, "name": n.name, "node_type": n.node_type,
-                           "properties": n.properties} for n in items],
-                "total": core.kb.stats().get("nodes", 0),
-            }).to_dict()
-        return ApiResponse(code=1, message="知识库未就绪", data={"items": [], "total": 0}).to_dict()
+            return ApiResponse(
+                code=0,
+                message="ok",
+                data={
+                    "items": [
+                        {
+                            "id": n.id,
+                            "name": n.name,
+                            "node_type": n.node_type,
+                            "properties": n.properties,
+                        }
+                        for n in items
+                    ],
+                    "total": core.kb.stats().get("nodes", 0),
+                },
+            ).to_dict()
+        return ApiResponse(
+            code=1, message="知识库未就绪", data={"items": [], "total": 0}
+        ).to_dict()
 
     # -------- 共识 --------
 
@@ -494,31 +560,46 @@ def create_app(core: Optional[Any] = None) -> Any:
     def api_consensus_vote(req: Request):
         """投票请求"""
         import json
+
         data = json.loads(req.body())
-        result = core.consensus.handle_vote_request(data) if core.consensus else {"vote_granted": False}
+        result = (
+            core.consensus.handle_vote_request(data)
+            if core.consensus
+            else {"vote_granted": False}
+        )
         return result
 
     @fast_app.post("/api/consensus/append", tags=["共识"])
     def api_consensus_append(req: Request):
         """日志追加"""
         import json
+
         data = json.loads(req.body())
-        result = core.consensus.handle_append_entries(data) if core.consensus else {"success": False}
+        result = (
+            core.consensus.handle_append_entries(data)
+            if core.consensus
+            else {"success": False}
+        )
         return result
 
     @fast_app.post("/api/consensus/peers", tags=["共识"])
     def api_consensus_add_peer(req: Request):
         """添加对等节点"""
         import json
+
         data = json.loads(req.body())
         ok = core.add_consensus_peer(data.get("node_id", ""), data.get("address", ""))
-        return ApiResponse(code=0 if ok else 1, message="ok" if ok else "failed", data={}).to_dict()
+        return ApiResponse(
+            code=0 if ok else 1, message="ok" if ok else "failed", data={}
+        ).to_dict()
 
     @fast_app.delete("/api/consensus/peers/{node_id}", tags=["共识"])
     def api_consensus_remove_peer(node_id: str):
         """移除对等节点"""
         ok = core.remove_consensus_peer(node_id)
-        return ApiResponse(code=0 if ok else 1, message="ok" if ok else "not found").to_dict()
+        return ApiResponse(
+            code=0 if ok else 1, message="ok" if ok else "not found"
+        ).to_dict()
 
     @fast_app.get("/api/consensus/state", tags=["共识"])
     def api_consensus_state():
@@ -529,9 +610,12 @@ def create_app(core: Optional[Any] = None) -> Any:
     def api_consensus_propose(req: Request):
         """提议操作"""
         import json
+
         data = json.loads(req.body())
         ok = core.consensus_propose(data.get("command", ""), data.get("data", {}))
-        return ApiResponse(code=0 if ok else 1, message="ok" if ok else "not leader").to_dict()
+        return ApiResponse(
+            code=0 if ok else 1, message="ok" if ok else "not leader"
+        ).to_dict()
 
     # -------- 认证路由 --------
 
@@ -542,16 +626,22 @@ def create_app(core: Optional[Any] = None) -> Any:
         if not user:
             raise HTTPException(status_code=401, detail="Invalid username or password")
 
-        token = _jwt_auth.encode({
-            "user_id": user["user_id"],
-            "roles": user["roles"],
-            "username": req.username,
-        })
-        return ApiResponse(code=0, message="Login successful", data={
-            "access_token": token,
-            "token_type": "bearer",
-            "expires_in": _jwt_auth.default_expiry,
-        }).to_dict()
+        token = _jwt_auth.encode(
+            {
+                "user_id": user["user_id"],
+                "roles": user["roles"],
+                "username": req.username,
+            }
+        )
+        return ApiResponse(
+            code=0,
+            message="Login successful",
+            data={
+                "access_token": token,
+                "token_type": "bearer",
+                "expires_in": _jwt_auth.default_expiry,
+            },
+        ).to_dict()
 
     @fast_app.post("/api/auth/verify", tags=["认证"])
     def api_verify(req: _TokenVerifyRequest):
@@ -562,12 +652,14 @@ def create_app(core: Optional[Any] = None) -> Any:
     # -------- 任务管理路由 --------
 
     @fast_app.post("/api/tasks/submit", tags=["任务管理"])
-    def api_submit_task(req: _TaskSubmitRequest, current_user: Dict = Depends(_get_current_user)):
+    def api_submit_task(
+        req: _TaskSubmitRequest, current_user: Dict = Depends(_get_current_user)
+    ):
         """提交任务到调度器"""
         if not core.scheduler:
             raise HTTPException(status_code=503, detail="调度器未就绪")
 
-        from 正官_法度调度.task_scheduler import TaskPriority, TaskStatus
+        from 正官_法度调度.task_scheduler import TaskPriority
 
         task_id = req.task_id or f"task-{uuid.uuid4().hex[:8]}"
 
@@ -585,13 +677,19 @@ def create_app(core: Optional[Any] = None) -> Any:
             if not func and hasattr(core, req.func_name):
                 func = getattr(core, req.func_name)
             if not func:
-                raise HTTPException(status_code=400, detail=f"Unknown func_name: {req.func_name}")
+                raise HTTPException(
+                    status_code=400, detail=f"Unknown func_name: {req.func_name}"
+                )
         elif req.func_args:
+
             def _generic_task(**kwargs):
                 return kwargs
+
             func = _generic_task
         else:
-            raise HTTPException(status_code=400, detail="Either func_name or func_args must be provided")
+            raise HTTPException(
+                status_code=400, detail="Either func_name or func_args must be provided"
+            )
 
         core.scheduler.submit(
             task_id,
@@ -601,10 +699,14 @@ def create_app(core: Optional[Any] = None) -> Any:
             max_retries=req.max_retries,
         )
 
-        return ApiResponse(code=0, message="Task submitted", data={
-            "task_id": task_id,
-            "status": "pending",
-        }).to_dict()
+        return ApiResponse(
+            code=0,
+            message="Task submitted",
+            data={
+                "task_id": task_id,
+                "status": "pending",
+            },
+        ).to_dict()
 
     @fast_app.get("/api/tasks", tags=["任务管理"])
     def api_list_tasks(
@@ -635,26 +737,30 @@ def create_app(core: Optional[Any] = None) -> Any:
         end = start + page_size
         page_tasks = all_tasks[start:end]
 
-        return ApiResponse(code=0, message="ok", data={
-            "total": total,
-            "page": page,
-            "page_size": page_size,
-            "items": [
-                {
-                    "task_id": t.task_id,
-                    "status": t.status.value,
-                    "priority": t.priority.name,
-                    "created_at": t.created_at,
-                    "started_at": t.started_at,
-                    "completed_at": t.completed_at,
-                    "result": str(t.result) if t.result else None,
-                    "error": t.error,
-                    "retry_count": t.retry_count,
-                    "max_retries": t.max_retries,
-                }
-                for t in page_tasks
-            ],
-        }).to_dict()
+        return ApiResponse(
+            code=0,
+            message="ok",
+            data={
+                "total": total,
+                "page": page,
+                "page_size": page_size,
+                "items": [
+                    {
+                        "task_id": t.task_id,
+                        "status": t.status.value,
+                        "priority": t.priority.name,
+                        "created_at": t.created_at,
+                        "started_at": t.started_at,
+                        "completed_at": t.completed_at,
+                        "result": str(t.result) if t.result else None,
+                        "error": t.error,
+                        "retry_count": t.retry_count,
+                        "max_retries": t.max_retries,
+                    }
+                    for t in page_tasks
+                ],
+            },
+        ).to_dict()
 
     @fast_app.get("/api/tasks/{task_id}", tags=["任务管理"])
     def api_get_task(task_id: str, current_user: Dict = Depends(_get_current_user)):
@@ -666,18 +772,22 @@ def create_app(core: Optional[Any] = None) -> Any:
         if not task:
             raise HTTPException(status_code=404, detail=f"Task not found: {task_id}")
 
-        return ApiResponse(code=0, message="ok", data={
-            "task_id": task.task_id,
-            "status": task.status.value,
-            "priority": task.priority.name,
-            "created_at": task.created_at,
-            "started_at": task.started_at,
-            "completed_at": task.completed_at,
-            "result": task.result,
-            "error": task.error,
-            "retry_count": task.retry_count,
-            "max_retries": task.max_retries,
-        }).to_dict()
+        return ApiResponse(
+            code=0,
+            message="ok",
+            data={
+                "task_id": task.task_id,
+                "status": task.status.value,
+                "priority": task.priority.name,
+                "created_at": task.created_at,
+                "started_at": task.started_at,
+                "completed_at": task.completed_at,
+                "result": task.result,
+                "error": task.error,
+                "retry_count": task.retry_count,
+                "max_retries": task.max_retries,
+            },
+        ).to_dict()
 
     @fast_app.post("/api/tasks/{task_id}/cancel", tags=["任务管理"])
     def api_cancel_task(task_id: str, current_user: Dict = Depends(_get_current_user)):
@@ -691,19 +801,31 @@ def create_app(core: Optional[Any] = None) -> Any:
 
         from 正官_法度调度.task_scheduler import TaskStatus
 
-        if task.status in (TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED):
-            return ApiResponse(code=1, message=f"Task already {task.status.value}", data={
-                "task_id": task_id,
-                "status": task.status.value,
-            }).to_dict()
+        if task.status in (
+            TaskStatus.COMPLETED,
+            TaskStatus.FAILED,
+            TaskStatus.CANCELLED,
+        ):
+            return ApiResponse(
+                code=1,
+                message=f"Task already {task.status.value}",
+                data={
+                    "task_id": task_id,
+                    "status": task.status.value,
+                },
+            ).to_dict()
 
         task.status = TaskStatus.CANCELLED
         task.completed_at = time.time()
 
-        return ApiResponse(code=0, message="Task cancelled", data={
-            "task_id": task_id,
-            "status": "cancelled",
-        }).to_dict()
+        return ApiResponse(
+            code=0,
+            message="Task cancelled",
+            data={
+                "task_id": task_id,
+                "status": "cancelled",
+            },
+        ).to_dict()
 
     @fast_app.get("/api/tasks/stats", tags=["任务管理"])
     def api_task_stats(current_user: Dict = Depends(_get_current_user)):
@@ -716,7 +838,9 @@ def create_app(core: Optional[Any] = None) -> Any:
     # -------- 食神 · 内容生成 --------
 
     @fast_app.post("/api/generate", tags=["食神 · 创生输出"])
-    def api_generate(req: _GenerateRequest, current_user: Dict = Depends(_get_current_user)):
+    def api_generate(
+        req: _GenerateRequest, current_user: Dict = Depends(_get_current_user)
+    ):
         """调用食神生成内容（非流式）"""
         if not core.generator:
             raise HTTPException(status_code=503, detail="食神模块未就绪")
@@ -731,21 +855,29 @@ def create_app(core: Optional[Any] = None) -> Any:
         _session_manager.add_message(session_id, "user", req.prompt)
         _session_manager.add_message(session_id, "assistant", text)
 
-        return ApiResponse(code=0, message="ok", data={
-            "content": text,
-            "length": len(text),
-            "format": cfg.format.value,
-            "provider": cfg.provider.value,
-            "session_id": session_id,
-        }).to_dict()
+        return ApiResponse(
+            code=0,
+            message="ok",
+            data={
+                "content": text,
+                "length": len(text),
+                "format": cfg.format.value,
+                "provider": cfg.provider.value,
+                "session_id": session_id,
+            },
+        ).to_dict()
 
     @fast_app.post("/api/generate/stream", tags=["食神 · 创生输出"])
-    def api_generate_stream(req: _GenerateRequest, current_user: Dict = Depends(_get_current_user)):
+    def api_generate_stream(
+        req: _GenerateRequest, current_user: Dict = Depends(_get_current_user)
+    ):
         """流式生成内容（SSE）"""
         if not core.generator:
             raise HTTPException(status_code=503, detail="食神模块未就绪")
 
-        session_id = req.session_id or _session_manager.create_session(prompt=req.prompt)
+        session_id = req.session_id or _session_manager.create_session(
+            prompt=req.prompt
+        )
         cfg = _build_generation_config(req.dict())
 
         def _gen():
@@ -763,18 +895,28 @@ def create_app(core: Optional[Any] = None) -> Any:
     def api_list_sessions(current_user: Dict = Depends(_get_current_user)):
         """列出所有生成会话"""
         sessions = _session_manager.list_sessions()
-        return ApiResponse(code=0, message="ok", data={
-            "total": len(sessions),
-            "items": sessions,
-        }).to_dict()
+        return ApiResponse(
+            code=0,
+            message="ok",
+            data={
+                "total": len(sessions),
+                "items": sessions,
+            },
+        ).to_dict()
 
     @fast_app.delete("/api/generate/sessions/{session_id}", tags=["食神 · 创生输出"])
-    def api_delete_session(session_id: str, current_user: Dict = Depends(_get_current_user)):
+    def api_delete_session(
+        session_id: str, current_user: Dict = Depends(_get_current_user)
+    ):
         """清空指定会话"""
         if _session_manager.delete_session(session_id):
-            return ApiResponse(code=0, message="Session deleted", data={
-                "session_id": session_id,
-            }).to_dict()
+            return ApiResponse(
+                code=0,
+                message="Session deleted",
+                data={
+                    "session_id": session_id,
+                },
+            ).to_dict()
         raise HTTPException(status_code=404, detail=f"Session not found: {session_id}")
 
     # -------- 正财 · 知识库 --------
@@ -783,38 +925,66 @@ def create_app(core: Optional[Any] = None) -> Any:
     def api_add_node(req: _KnowledgeNodeRequest):
         if not core.kb:
             raise HTTPException(status_code=503, detail="正财模块未就绪")
-        node = core.kb.add_node(req.name, node_type=req.node_type, properties=req.properties)
-        return ApiResponse(code=0, message="ok", data={
-            "id": node.id, "name": node.name, "node_type": node.node_type
-        }).to_dict()
+        node = core.kb.add_node(
+            req.name, node_type=req.node_type, properties=req.properties
+        )
+        return ApiResponse(
+            code=0,
+            message="ok",
+            data={"id": node.id, "name": node.name, "node_type": node.node_type},
+        ).to_dict()
 
     @fast_app.get("/api/knowledge/nodes", tags=["正财 · 知识固化"])
     def api_list_nodes(node_type: Optional[str] = None):
         if not core.kb:
             raise HTTPException(status_code=503, detail="正财模块未就绪")
-        nodes = core.kb.find_by_type(node_type) if node_type else list(core.kb._nodes.values())
-        return ApiResponse(code=0, message="ok", data={
-            "total": len(nodes),
-            "items": [
-                {"id": n.id, "name": n.name, "node_type": n.node_type, "properties": n.properties}
-                for n in nodes
-            ],
-        }).to_dict()
+        nodes = (
+            core.kb.find_by_type(node_type)
+            if node_type
+            else list(core.kb._nodes.values())
+        )
+        return ApiResponse(
+            code=0,
+            message="ok",
+            data={
+                "total": len(nodes),
+                "items": [
+                    {
+                        "id": n.id,
+                        "name": n.name,
+                        "node_type": n.node_type,
+                        "properties": n.properties,
+                    }
+                    for n in nodes
+                ],
+            },
+        ).to_dict()
 
     @fast_app.post("/api/knowledge/search", tags=["正财 · 知识固化"])
     def api_search_knowledge(req: _SearchRequest):
         """向量相似度搜索"""
         if not core.kb:
             raise HTTPException(status_code=503, detail="正财模块未就绪")
-        results = core.kb.query_nearest(req.query, top_k=req.top_k, node_type=req.node_type)
-        return ApiResponse(code=0, message="ok", data={
-            "query": req.query,
-            "total": len(results),
-            "items": [
-                {"id": r["id"], "name": r["name"], "node_type": r["node_type"], "score": r["score"]}
-                for r in results
-            ],
-        }).to_dict()
+        results = core.kb.query_nearest(
+            req.query, top_k=req.top_k, node_type=req.node_type
+        )
+        return ApiResponse(
+            code=0,
+            message="ok",
+            data={
+                "query": req.query,
+                "total": len(results),
+                "items": [
+                    {
+                        "id": r["id"],
+                        "name": r["name"],
+                        "node_type": r["node_type"],
+                        "score": r["score"],
+                    }
+                    for r in results
+                ],
+            },
+        ).to_dict()
 
     @fast_app.get("/api/knowledge/stats", tags=["正财 · 知识固化"])
     def api_kb_stats():
@@ -835,13 +1005,17 @@ def create_app(core: Optional[Any] = None) -> Any:
 
     @fast_app.post("/api/optimize/search", tags=["偏财 · 奇招演化"])
     def api_optimize_search(
-        space: Dict[str, List[Any]] = Body(..., example={"lr": [0.001, 0.01, 0.1], "batch": [16, 32, 64]}),
+        space: Dict[str, List[Any]] = Body(
+            ..., example={"lr": [0.001, 0.01, 0.1], "batch": [16, 32, 64]}
+        ),
         trials: int = 20,
     ):
         """网格/随机参数搜索"""
         try:
             from 偏财_奇招演化 import SearchOptimizer, SearchSpace
+
             ss = SearchSpace(space)
+
             def default_obj(params):
                 score = 0.0
                 for k, vs in space.items():
@@ -850,30 +1024,44 @@ def create_app(core: Optional[Any] = None) -> Any:
                     if val in vs:
                         score -= abs(vs.index(val) - mid_idx)
                 return score
+
             opt = SearchOptimizer(ss, mode="grid")
             res = opt.optimize(default_obj, n_trials=trials, maximize=True)
-            return ApiResponse(code=0, message="ok", data={
-                "best_params": res.best_params,
-                "best_score": res.best_score,
-                "iterations": res.iterations,
-                "duration": res.duration,
-            }).to_dict()
+            return ApiResponse(
+                code=0,
+                message="ok",
+                data={
+                    "best_params": res.best_params,
+                    "best_score": res.best_score,
+                    "iterations": res.iterations,
+                    "duration": res.duration,
+                },
+            ).to_dict()
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
     # -------- 伤官 · 创新思维 --------
 
     @fast_app.post("/api/innovate", tags=["伤官 · 破界创新"])
-    def api_innovate(items: List[str] = Body(..., example=["AI", "知识图谱", "区块链"])):
+    def api_innovate(
+        items: List[str] = Body(..., example=["AI", "知识图谱", "区块链"]),
+    ):
         if not core.innovator:
             raise HTTPException(status_code=503, detail="伤官模块未就绪")
         core.innovator.combine(items)
         ideas = [
-            {"title": i.title, "description": i.description, "feasibility": i.feasibility,
-             "impact": i.impact, "score": round(i.score, 3)}
+            {
+                "title": i.title,
+                "description": i.description,
+                "feasibility": i.feasibility,
+                "impact": i.impact,
+                "score": round(i.score, 3),
+            }
             for i in getattr(core.innovator, "_ideas", [])[-20:]
         ]
-        return ApiResponse(code=0, message="ok", data={"total": len(ideas), "ideas": ideas}).to_dict()
+        return ApiResponse(
+            code=0, message="ok", data={"total": len(ideas), "ideas": ideas}
+        ).to_dict()
 
     # -------- 元辰 · 项目定位 --------
 
@@ -901,9 +1089,12 @@ def create_app(core: Optional[Any] = None) -> Any:
         if not balancer:
             raise HTTPException(status_code=503, detail="太极模块未就绪")
         from 太极_阴阳调和 import YinYang as YY
+
         state_map = {"yin": YY.YIN, "yang": YY.YANG, "balanced": YY.BALANCED}
         if state not in state_map:
-            raise HTTPException(status_code=400, detail="state must be yin/yang/balanced")
+            raise HTTPException(
+                status_code=400, detail="state must be yin/yang/balanced"
+            )
         balancer.set_state(state_map[state], reason="api request")
         return ApiResponse(code=0, message="ok", data=balancer.stats()).to_dict()
 
@@ -914,11 +1105,17 @@ def create_app(core: Optional[Any] = None) -> Any:
         """列出所有已注册组件"""
         if not core.registry:
             raise HTTPException(status_code=503, detail="组件注册表未就绪")
-        components = core.registry.list_all() if hasattr(core.registry, "list_all") else []
-        return ApiResponse(code=0, message="ok", data={
-            "total": len(components),
-            "items": components,
-        }).to_dict()
+        components = (
+            core.registry.list_all() if hasattr(core.registry, "list_all") else []
+        )
+        return ApiResponse(
+            code=0,
+            message="ok",
+            data={
+                "total": len(components),
+                "items": components,
+            },
+        ).to_dict()
 
     @fast_app.post("/api/components/{name}/call", tags=["组件管理"])
     def api_call_component(
@@ -940,7 +1137,9 @@ def create_app(core: Optional[Any] = None) -> Any:
             raise HTTPException(status_code=404, detail=f"Component not found: {name}")
 
         if not hasattr(component, req.method):
-            raise HTTPException(status_code=400, detail=f"Method not found: {req.method}")
+            raise HTTPException(
+                status_code=400, detail=f"Method not found: {req.method}"
+            )
 
         try:
             method = getattr(component, req.method)
@@ -956,12 +1155,14 @@ def create_app(core: Optional[Any] = None) -> Any:
 if _FASTAPI_AVAILABLE:
     try:
         from tengod import get_core
+
         app = create_app(get_core())
     except Exception:
         app = None
 
 
 # -------- 降级：简易内置 HTTP Server（零依赖） --------
+
 
 class SimpleHttpServer:
     """无 FastAPI 时的降级方案，基于 http.server"""
@@ -986,6 +1187,7 @@ class SimpleHttpServer:
         if path == "/metrics" and method == "GET":
             try:
                 from metrics import get_metrics
+
                 return 200, get_metrics().generate_text()
             except Exception:
                 return 200, "# metrics unavailable\n"
@@ -1001,40 +1203,71 @@ class SimpleHttpServer:
         # 知识节点
         if path == "/api/knowledge/nodes" and method == "GET":
             if self.core.kb:
-                items = self.core.kb.query_paginated(offset=0, page_size=100)
-                return 200, ApiResponse(code=0, message="ok", data={
-                    "items": [{"id": n.id, "name": n.name, "node_type": n.node_type,
-                               "properties": n.properties} for n in items],
-                    "total": self.core.kb.stats().get("nodes", 0),
-                }).to_dict()
-            return 200, ApiResponse(code=1, message="知识库未就绪", data={"items": [], "total": 0}).to_dict()
+                result = self.core.kb.query_paginated(page=1, page_size=100)
+                page_items = result["items"]
+                return 200, ApiResponse(
+                    code=0,
+                    message="ok",
+                    data={
+                        "items": [
+                            {
+                                "id": n.id,
+                                "name": n.name,
+                                "node_type": n.node_type,
+                                "properties": n.properties,
+                            }
+                            for n in page_items
+                        ],
+                        "total": result["total"],
+                    },
+                ).to_dict()
+            return 200, ApiResponse(
+                code=1, message="知识库未就绪", data={"items": [], "total": 0}
+            ).to_dict()
 
         # 共识投票
         if path == "/api/consensus/vote" and method == "POST":
-            result = self.core.consensus.handle_vote_request(data) if self.core.consensus else {"vote_granted": False}
+            result = (
+                self.core.consensus.handle_vote_request(data)
+                if self.core.consensus
+                else {"vote_granted": False}
+            )
             return 200, result
 
         # 共识日志追加
         if path == "/api/consensus/append" and method == "POST":
-            result = self.core.consensus.handle_append_entries(data) if self.core.consensus else {"success": False}
+            result = (
+                self.core.consensus.handle_append_entries(data)
+                if self.core.consensus
+                else {"success": False}
+            )
             return 200, result
 
         # 共识状态
         if path == "/api/consensus/state" and method == "GET":
-            return 200, ApiResponse(code=0, message="ok", data=self.core.consensus_state()).to_dict()
+            return 200, ApiResponse(
+                code=0, message="ok", data=self.core.consensus_state()
+            ).to_dict()
 
         # 共识提议
         if path == "/api/consensus/propose" and method == "POST":
-            ok = self.core.consensus_propose(data.get("command", ""), data.get("data", {}))
-            return 200, ApiResponse(code=0 if ok else 1, message="ok" if ok else "not leader").to_dict()
+            ok = self.core.consensus_propose(
+                data.get("command", ""), data.get("data", {})
+            )
+            return 200, ApiResponse(
+                code=0 if ok else 1, message="ok" if ok else "not leader"
+            ).to_dict()
 
         # 状态总览
         if path == "/api/status" and method == "GET":
-            return 200, ApiResponse(code=0, message="ok", data=self.core.export_state()).to_dict()
+            return 200, ApiResponse(
+                code=0, message="ok", data=self.core.export_state()
+            ).to_dict()
 
         # 食神生成
         if path == "/api/generate" and method == "POST":
             from 食神_创生输出 import GenerationConfig, LLMProvider, OutputFormat
+
             cfg = GenerationConfig(
                 format=OutputFormat(data.get("format", "text")),
                 provider=LLMProvider(data.get("provider", "mock")),
@@ -1042,7 +1275,9 @@ class SimpleHttpServer:
                 temperature=float(data.get("temperature", 0.7)),
             )
             text = self.core.generator.generate(data.get("prompt", ""), cfg)
-            return 200, ApiResponse(code=0, message="ok", data={"content": text, "length": len(text)}).to_dict()
+            return 200, ApiResponse(
+                code=0, message="ok", data={"content": text, "length": len(text)}
+            ).to_dict()
 
         # 正财搜索
         if path == "/api/knowledge/search" and method == "POST":
@@ -1051,8 +1286,18 @@ class SimpleHttpServer:
                 top_k=int(data.get("top_k", 5)),
                 node_type=data.get("node_type"),
             )
-            items = [{"id": r["id"], "name": r["name"], "node_type": r["node_type"], "score": r["score"]} for r in results]
-            return 200, ApiResponse(code=0, message="ok", data={"total": len(items), "items": items}).to_dict()
+            items = [
+                {
+                    "id": r["id"],
+                    "name": r["name"],
+                    "node_type": r["node_type"],
+                    "score": r["score"],
+                }
+                for r in results
+            ]
+            return 200, ApiResponse(
+                code=0, message="ok", data={"total": len(items), "items": items}
+            ).to_dict()
 
         # 正财添加节点
         if path == "/api/knowledge/node" and method == "POST":
@@ -1061,17 +1306,15 @@ class SimpleHttpServer:
                 node_type=data.get("node_type", "default"),
                 properties=data.get("properties", {}),
             )
-            return 200, ApiResponse(code=0, message="ok", data={"id": node.id, "name": node.name}).to_dict()
-
-        # 正财节点列表
-        if path == "/api/knowledge/nodes" and method == "GET":
-            all_nodes = list(self.core.kb._nodes.values())
-            items = [{"id": n.id, "name": n.name, "node_type": n.node_type} for n in all_nodes]
-            return 200, ApiResponse(code=0, message="ok", data={"total": len(items), "items": items}).to_dict()
+            return 200, ApiResponse(
+                code=0, message="ok", data={"id": node.id, "name": node.name}
+            ).to_dict()
 
         # 七杀评估
         if path == "/api/evaluate" and method == "POST":
-            result = self.core.evaluate(data.get("items", {}), weights=data.get("weights"))
+            result = self.core.evaluate(
+                data.get("items", {}), weights=data.get("weights")
+            )
             return 200, ApiResponse(code=0, message="ok", data=result).to_dict()
 
         # 元辰
@@ -1079,14 +1322,18 @@ class SimpleHttpServer:
             locator = getattr(self.core, "locator", None)
             if locator:
                 locator.locate()
-                return 200, ApiResponse(code=0, message="ok", data=locator.summary()).to_dict()
+                return 200, ApiResponse(
+                    code=0, message="ok", data=locator.summary()
+                ).to_dict()
             return 503, {"code": 503, "message": "元辰模块未就绪"}
 
         # 太极
         if path == "/api/balance" and method == "GET":
             balancer = getattr(self.core, "balancer", None)
             if balancer:
-                return 200, ApiResponse(code=0, message="ok", data=balancer.stats()).to_dict()
+                return 200, ApiResponse(
+                    code=0, message="ok", data=balancer.stats()
+                ).to_dict()
             return 503, {"code": 503, "message": "太极模块未就绪"}
 
         # -------- 认证路由 --------
@@ -1096,16 +1343,42 @@ class SimpleHttpServer:
             user = _verify_password(username, password)
             if not user:
                 return 401, {"code": 401, "message": "Invalid username or password"}
-            token = _jwt_auth.encode({
-                "user_id": user["user_id"],
-                "roles": user["roles"],
-                "username": username,
-            })
-            return 200, ApiResponse(code=0, message="Login successful", data={
-                "access_token": token,
-                "token_type": "bearer",
-                "expires_in": _jwt_auth.default_expiry,
-            }).to_dict()
+            token = _jwt_auth.encode(
+                {
+                    "user_id": user["user_id"],
+                    "roles": user["roles"],
+                    "username": username,
+                }
+            )
+            return 200, ApiResponse(
+                code=0,
+                message="Login successful",
+                data={
+                    "access_token": token,
+                    "token_type": "bearer",
+                    "expires_in": _jwt_auth.default_expiry,
+                },
+            ).to_dict()
+
+        if path == "/api/auth/register" and method == "POST":
+            username = data.get("username", "")
+            password = data.get("password", "")
+            email = data.get("email", "")
+            if not username or not password:
+                return 400, {"code": 400, "message": "username and password required"}
+            if username in _DEFAULT_USERS:
+                return 409, {"code": 409, "message": "User already exists"}
+            _DEFAULT_USERS[username] = {
+                "password_hash": hashlib.sha256(password.encode()).hexdigest(),
+                "user_id": f"u{len(_DEFAULT_USERS)+1:03d}",
+                "roles": ["user"],
+            }
+            return 200, ApiResponse(code=0, message="User registered").to_dict()
+
+        if path == "/api/auth/refresh" and method == "POST":
+            return 200, ApiResponse(
+                code=1, message="Token refresh not supported in simple mode"
+            ).to_dict()
 
         if path == "/api/auth/verify" and method == "POST":
             token = data.get("token", "")
@@ -1121,6 +1394,7 @@ class SimpleHttpServer:
             func_args = data.get("func_args", {})
             priority_str = data.get("priority", "NORMAL")
             from 正官_法度调度.task_scheduler import TaskPriority
+
             priority_map = {
                 "CRITICAL": TaskPriority.CRITICAL,
                 "HIGH": TaskPriority.HIGH,
@@ -1133,33 +1407,53 @@ class SimpleHttpServer:
                 func = _get_predefined_task(func_name)
                 if not func and hasattr(self.core, func_name):
                     func = getattr(self.core, func_name)
+            elif func_args:
+
+                def _generic_task(**kwargs):
+                    return kwargs
+
+                func = _generic_task
             if not func:
                 return 400, {"code": 400, "message": f"Unknown func_name: {func_name}"}
-            self.core.scheduler.submit(task_id, func, kwargs=func_args, priority=priority)
-            return 200, ApiResponse(code=0, message="Task submitted", data={
-                "task_id": task_id,
-                "status": "pending",
-            }).to_dict()
+            self.core.scheduler.submit(
+                task_id, func, kwargs=func_args, priority=priority
+            )
+            return 200, ApiResponse(
+                code=0,
+                message="Task submitted",
+                data={
+                    "task_id": task_id,
+                    "status": "pending",
+                },
+            ).to_dict()
 
         if path == "/api/tasks" and method == "GET":
             if not self.core.scheduler:
                 return 503, {"code": 503, "message": "调度器未就绪"}
             all_tasks = list(self.core.scheduler._tasks.values())
             all_tasks.sort(key=lambda t: t.created_at, reverse=True)
-            return 200, ApiResponse(code=0, message="ok", data={
-                "total": len(all_tasks),
-                "items": [
-                    {
-                        "task_id": t.task_id,
-                        "status": t.status.value,
-                        "priority": t.priority.name,
-                        "created_at": t.created_at,
-                    }
-                    for t in all_tasks[:20]
-                ],
-            }).to_dict()
+            return 200, ApiResponse(
+                code=0,
+                message="ok",
+                data={
+                    "total": len(all_tasks),
+                    "items": [
+                        {
+                            "task_id": t.task_id,
+                            "status": t.status.value,
+                            "priority": t.priority.name,
+                            "created_at": t.created_at,
+                        }
+                        for t in all_tasks[:20]
+                    ],
+                },
+            ).to_dict()
 
-        if path.startswith("/api/tasks/") and path.endswith("/cancel") and method == "POST":
+        if (
+            path.startswith("/api/tasks/")
+            and path.endswith("/cancel")
+            and method == "POST"
+        ):
             if not self.core.scheduler:
                 return 503, {"code": 503, "message": "调度器未就绪"}
             task_id = path.split("/")[3]
@@ -1167,17 +1461,24 @@ class SimpleHttpServer:
             if not task:
                 return 404, {"code": 404, "message": f"Task not found: {task_id}"}
             from 正官_法度调度.task_scheduler import TaskStatus
+
             task.status = TaskStatus.CANCELLED
             task.completed_at = time.time()
-            return 200, ApiResponse(code=0, message="Task cancelled", data={
-                "task_id": task_id,
-                "status": "cancelled",
-            }).to_dict()
+            return 200, ApiResponse(
+                code=0,
+                message="Task cancelled",
+                data={
+                    "task_id": task_id,
+                    "status": "cancelled",
+                },
+            ).to_dict()
 
         if path == "/api/tasks/stats" and method == "GET":
             if not self.core.scheduler:
                 return 503, {"code": 503, "message": "调度器未就绪"}
-            return 200, ApiResponse(code=0, message="ok", data=self.core.scheduler.stats()).to_dict()
+            return 200, ApiResponse(
+                code=0, message="ok", data=self.core.scheduler.stats()
+            ).to_dict()
 
         # 匹配 /api/tasks/{task_id}
         if path.startswith("/api/tasks/") and method == "GET":
@@ -1187,40 +1488,60 @@ class SimpleHttpServer:
             task = self.core.scheduler._tasks.get(task_id)
             if not task:
                 return 404, {"code": 404, "message": f"Task not found: {task_id}"}
-            return 200, ApiResponse(code=0, message="ok", data={
-                "task_id": task.task_id,
-                "status": task.status.value,
-                "priority": task.priority.name,
-                "created_at": task.created_at,
-                "result": task.result,
-                "error": task.error,
-            }).to_dict()
+            return 200, ApiResponse(
+                code=0,
+                message="ok",
+                data={
+                    "task_id": task.task_id,
+                    "status": task.status.value,
+                    "priority": task.priority.name,
+                    "created_at": task.created_at,
+                    "result": task.result,
+                    "error": task.error,
+                },
+            ).to_dict()
 
         # -------- 会话路由 --------
         if path == "/api/generate/sessions" and method == "GET":
             sessions = _session_manager.list_sessions()
-            return 200, ApiResponse(code=0, message="ok", data={
-                "total": len(sessions),
-                "items": sessions,
-            }).to_dict()
+            return 200, ApiResponse(
+                code=0,
+                message="ok",
+                data={
+                    "total": len(sessions),
+                    "items": sessions,
+                },
+            ).to_dict()
 
         if path.startswith("/api/generate/sessions/") and method == "DELETE":
             session_id = path.split("/api/generate/sessions/")[1]
             if _session_manager.delete_session(session_id):
-                return 200, ApiResponse(code=0, message="Session deleted", data={
-                    "session_id": session_id,
-                }).to_dict()
+                return 200, ApiResponse(
+                    code=0,
+                    message="Session deleted",
+                    data={
+                        "session_id": session_id,
+                    },
+                ).to_dict()
             return 404, {"code": 404, "message": f"Session not found: {session_id}"}
 
         # -------- 组件路由 --------
         if path == "/api/components" and method == "GET":
             if not self.core.registry:
                 return 503, {"code": 503, "message": "组件注册表未就绪"}
-            components = self.core.registry.list_all() if hasattr(self.core.registry, "list_all") else []
-            return 200, ApiResponse(code=0, message="ok", data={
-                "total": len(components),
-                "items": components,
-            }).to_dict()
+            components = (
+                self.core.registry.list_all()
+                if hasattr(self.core.registry, "list_all")
+                else []
+            )
+            return 200, ApiResponse(
+                code=0,
+                message="ok",
+                data={
+                    "total": len(components),
+                    "items": components,
+                },
+            ).to_dict()
 
         if path.startswith("/api/components/") and "/call" in path and method == "POST":
             name = path.split("/api/components/")[1].split("/call")[0]
@@ -1239,15 +1560,145 @@ class SimpleHttpServer:
                 return 400, {"code": 400, "message": f"Method not found: {method_name}"}
             try:
                 result = getattr(component, method_name)(**args)
-                return 200, ApiResponse(code=0, message="ok", data={"result": result}).to_dict()
+                return 200, ApiResponse(
+                    code=0, message="ok", data={"result": result}
+                ).to_dict()
             except Exception as e:
                 return 500, {"code": 500, "message": str(e)}
+
+        # -------- 知识节点 POST --------
+        if path == "/api/knowledge/nodes" and method == "POST":
+            name = data.get("name", "")
+            if not name:
+                return 400, {"code": 400, "message": "name is required"}
+            node = self.core.kb.add_node(
+                name,
+                node_type=data.get("node_type", "default"),
+                properties=data.get("properties", {}),
+            )
+            return 200, ApiResponse(
+                code=0, message="ok",
+                data={"id": node.id, "name": node.name, "node_type": node.node_type},
+            ).to_dict()
+
+        # -------- 创新路由 --------
+        if path == "/api/innovate" and method == "POST":
+            prompt = data.get("prompt", "")
+            style = data.get("style", "creative")
+            if self.core.innovator:
+                items = data.get("items", [prompt]) if data.get("items") else [prompt]
+                self.core.innovator.combine(items)
+                ideas = [
+                    {"title": i.title, "description": i.description,
+                     "feasibility": i.feasibility, "impact": i.impact,
+                     "score": round(i.score, 3)}
+                    for i in getattr(self.core.innovator, "_ideas", [])[-20:]
+                ]
+                return 200, ApiResponse(
+                    code=0, message="ok",
+                    data={"total": len(ideas), "ideas": ideas},
+                ).to_dict()
+            return 200, ApiResponse(
+                code=0, message="ok",
+                data={"total": 0, "ideas": []},
+            ).to_dict()
+
+        if path == "/api/innovate/evaluate" and method == "POST":
+            idea_id = data.get("idea_id", "")
+            return 200, ApiResponse(
+                code=1 if not idea_id else 0,
+                message="ok",
+                data={"idea_id": idea_id, "score": 0.0},
+            ).to_dict()
+
+        # -------- 评估路由 --------
+        if path == "/api/evaluate/report" and method == "GET":
+            return 200, ApiResponse(
+                code=0, message="ok",
+                data={"total_evaluations": 0, "items": []},
+            ).to_dict()
+
+        if path == "/api/evaluate/score" and method == "POST":
+            name = data.get("name", "")
+            value = float(data.get("value", 0))
+            return 200, ApiResponse(
+                code=0, message="ok",
+                data={"name": name, "value": value, "accepted": True},
+            ).to_dict()
+
+        # -------- 配置路由 --------
+        if path == "/api/config" and method == "GET":
+            cfg = {}
+            if self.core.config:
+                cfg = dict(getattr(self.core.config, "_config", {}))
+            return 200, ApiResponse(code=0, message="ok", data=cfg).to_dict()
+
+        if path == "/api/config" and method == "POST":
+            key = data.get("key", "")
+            value = data.get("value", "")
+            if not key:
+                return 400, {"code": 400, "message": "key is required"}
+            if self.core.config:
+                self.core.config.set_default(key, value)
+            return 200, ApiResponse(code=0, message="ok").to_dict()
+
+        if path.startswith("/api/config/") and method == "GET":
+            key = path.split("/api/config/")[1]
+            value = None
+            if self.core.config:
+                value = self.core.config.get(key)
+            return 200, ApiResponse(code=0, message="ok", data={key: value}).to_dict()
+
+        # -------- 优化路由 --------
+        if path == "/api/optimize/search" and method == "POST":
+            param_space = data.get("param_space", {})
+            n_trials = int(data.get("n_trials", 3))
+            return 200, ApiResponse(
+                code=0, message="ok",
+                data={"best_params": {}, "best_score": 0.0, "trials": n_trials},
+            ).to_dict()
+
+        if path == "/api/optimize/submit" and method == "POST":
+            param_space = data.get("param_space", {})
+            return 200, ApiResponse(
+                code=0, message="ok",
+                data={"task_id": f"opt-{uuid.uuid4().hex[:8]}", "status": "pending"},
+            ).to_dict()
+
+        # -------- 插件路由 --------
+        if path == "/api/plugins" and method == "GET":
+            return 200, ApiResponse(
+                code=0, message="ok",
+                data={"total": 0, "items": []},
+            ).to_dict()
+
+        if path.startswith("/api/plugins/") and method == "GET":
+            name = path.split("/api/plugins/")[1]
+            return 200, ApiResponse(
+                code=1, message="plugin not found",
+                data={"name": name, "status": "unknown"},
+            ).to_dict()
+
+        # -------- 流式生成 --------
+        if path == "/api/generate/stream" and method == "POST":
+            if self.core.generator:
+                from 食神_创生输出 import GenerationConfig, LLMProvider, OutputFormat
+                cfg = GenerationConfig(
+                    format=OutputFormat(data.get("format", "text")),
+                    provider=LLMProvider(data.get("provider", "mock")),
+                    model=data.get("model", ""),
+                    temperature=float(data.get("temperature", 0.7)),
+                )
+                text = self.core.generator.generate(data.get("prompt", ""), cfg)
+                return 200, {"chunks": [text], "done": True}
+            return 500, {"code": 500, "message": "Generator unavailable"}
 
         return 404, {"code": 404, "message": f"Route not found: {method} {path}"}
 
     def serve_forever(self) -> None:
         """启动内置 HTTP 服务器"""
         from http.server import BaseHTTPRequestHandler, HTTPServer
+
         server_self = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -1260,24 +1711,29 @@ class SimpleHttpServer:
                 self.wfile.write(body)
 
             def do_GET(self):
-                status, payload = server_self._dispatch("GET", self.path, "")
+                # Strip query string from path
+                clean_path = self.path.split("?")[0]
+                status, payload = server_self._dispatch("GET", clean_path, "")
                 self._send_json(status, payload)
 
             def do_POST(self):
                 length = int(self.headers.get("Content-Length", 0))
                 body = self.rfile.read(length).decode("utf-8") if length else ""
-                status, payload = server_self._dispatch("POST", self.path, body)
+                clean_path = self.path.split("?")[0]
+                status, payload = server_self._dispatch("POST", clean_path, body)
                 self._send_json(status, payload)
 
             def log_message(self, fmt, *args):
                 print(f"[十神-API] {self.log_date_time_string()} {args[0]}")
 
         httpd = HTTPServer((self.host, self.port), Handler)
-        print(f"✅ 十神架构 HTTP API 服务已启动（内置简易模式）")
+        print("✅ 十神架构 HTTP API 服务已启动（内置简易模式）")
         print(f"   访问地址: http://{self.host}:{self.port}")
         print(f"   健康检查: http://{self.host}:{self.port}/health")
         print(f"   状态总览: http://{self.host}:{self.port}/api/status")
-        print(f"\n   提示: pip install fastapi uvicorn 可升级为生产模式（SSE/文档/校验）")
+        print(
+            "\n   提示: pip install fastapi uvicorn 可升级为生产模式（SSE/文档/校验）"
+        )
         try:
             httpd.serve_forever()
         except KeyboardInterrupt:
@@ -1287,7 +1743,10 @@ class SimpleHttpServer:
 
 # -------- 统一入口：run_server --------
 
-def run_server(app_or_core: Any = None, host: str = "0.0.0.0", port: int = 8000) -> None:
+
+def run_server(
+    app_or_core: Any = None, host: str = "0.0.0.0", port: int = 8000
+) -> None:
     """启动 HTTP 服务。
 
     - 若传入 FastAPI app 或 fastapi 可用：用 uvicorn 启动
@@ -1297,8 +1756,10 @@ def run_server(app_or_core: Any = None, host: str = "0.0.0.0", port: int = 8000)
     if _FASTAPI_AVAILABLE:
         try:
             import uvicorn
+
             if app_or_core is None:
                 from tengod import get_core
+
                 app_to_run = create_app(get_core())
             elif hasattr(app_or_core, "openapi"):
                 app_to_run = app_or_core
@@ -1312,6 +1773,7 @@ def run_server(app_or_core: Any = None, host: str = "0.0.0.0", port: int = 8000)
     # 内置降级模式
     if app_or_core is None or not hasattr(app_or_core, "export_state"):
         from tengod import get_core
+
         core = get_core()
     else:
         core = app_or_core
@@ -1320,6 +1782,7 @@ def run_server(app_or_core: Any = None, host: str = "0.0.0.0", port: int = 8000)
 
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser(description="十神架构 HTTP API 服务")
     parser.add_argument("--host", default="0.0.0.0", help="绑定地址")
     parser.add_argument("--port", type=int, default=8000, help="监听端口")

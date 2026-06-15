@@ -4,11 +4,8 @@ adapter.py — 协议适配器
 偏印主理桥接，提供统一的协议转换与外部系统对接。
 """
 
-import time
-import uuid
-from typing import Any, Callable, Dict, List, Optional
-from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
+from typing import Any, Dict, List, Optional
 
 
 class ProtocolConverter(ABC):
@@ -67,10 +64,12 @@ class DictToJsonConverter(ProtocolConverter):
 
     def from_source(self, data: str) -> Dict[str, Any]:
         import json
+
         return json.loads(data) if isinstance(data, str) else dict(data)
 
     def to_source(self, data: Dict[str, Any]) -> str:
         import json
+
         return json.dumps(data, ensure_ascii=False, indent=2)
 
 
@@ -86,6 +85,7 @@ class CamelToSnakeConverter(ProtocolConverter):
     @staticmethod
     def _to_snake(name: str) -> str:
         import re
+
         s1 = re.sub(r"(.)([A-Z][a-z]+)", r"\1_\2", name)
         return re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
 

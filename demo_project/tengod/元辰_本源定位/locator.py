@@ -4,16 +4,17 @@
 元辰主理本源，承担项目的根目录定位与核心入口职责。
 """
 
-from typing import Any, Dict, List, Optional
-from dataclasses import dataclass, field
 import os
 import sys
 import time
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
 class ProjectRoot:
     """项目根目录定位"""
+
     path: str
     name: str
     description: str = ""
@@ -44,7 +45,7 @@ class YuanChenLocator:
         submodules = []
         for item in os.listdir(self._root):
             full = os.path.join(self._root, item)
-            if os.path.isdir(full) and not item.startswith(('.', '_')):
+            if os.path.isdir(full) and not item.startswith((".", "_")):
                 submodules.append(item)
 
         self._project = ProjectRoot(
@@ -88,9 +89,11 @@ class YuanChenLocator:
             "submodules": self._project.submodules[:10],
         }
 
-    def scan_files(self, max_depth: int = 3, include_hidden: bool = False) -> List[Dict[str, Any]]:
+    def scan_files(
+        self, max_depth: int = 3, include_hidden: bool = False
+    ) -> List[Dict[str, Any]]:
         """深度扫描项目文件树，返回结构化文件信息列表。
-        
+
         每项包含：{path, name, ext, size, is_dir, depth}
         """
         if not self._project:
@@ -114,14 +117,16 @@ class YuanChenLocator:
                             size = os.path.getsize(full)
                     except OSError:
                         pass
-                    result.append({
-                        "path": full,
-                        "name": entry,
-                        "ext": ext.lower(),
-                        "size": size,
-                        "is_dir": is_dir,
-                        "depth": depth,
-                    })
+                    result.append(
+                        {
+                            "path": full,
+                            "name": entry,
+                            "ext": ext.lower(),
+                            "size": size,
+                            "is_dir": is_dir,
+                            "depth": depth,
+                        }
+                    )
                     if is_dir:
                         _walk(full, depth + 1)
             except PermissionError:
@@ -132,12 +137,12 @@ class YuanChenLocator:
 
     def scan_to_knowledge(self, kb) -> Dict[str, int]:
         """扫描项目目录并自动生成知识图谱节点。
-        
+
         将项目结构（目录、Python模块、配置文件）写入知识库：
         - 目录 → node_type="directory"
-        - .py文件 → node_type="module"  
+        - .py文件 → node_type="module"
         - 配置文件 → node_type="config_file"
-        
+
         返回 {"directories": N, "modules": N, "config_files": N, "edges": N}
         """
         files = self.scan_files(max_depth=4)
@@ -165,7 +170,16 @@ class YuanChenLocator:
                 )
                 node_id = node.id
                 stats["modules"] += 1
-            elif f["ext"] in (".json", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".env", ".txt"):
+            elif f["ext"] in (
+                ".json",
+                ".yaml",
+                ".yml",
+                ".toml",
+                ".ini",
+                ".cfg",
+                ".env",
+                ".txt",
+            ):
                 node = kb.add_node(
                     name=f"[配置]{f['name']}",
                     node_type="config_file",

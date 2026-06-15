@@ -4,15 +4,16 @@
 太极主理调和，承担系统的阴阳平衡与状态切换职责。
 """
 
+import time
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional
-from dataclasses import dataclass, field
-import time
 
 
 class YinYang(Enum):
     """阴阳状态"""
-    YIN = "yin"    # 阴态：静止、收敛、保守
+
+    YIN = "yin"  # 阴态：静止、收敛、保守
     YANG = "yang"  # 阳态：活跃、扩张、进取
     BALANCED = "balanced"  # 平衡态
 
@@ -20,6 +21,7 @@ class YinYang(Enum):
 @dataclass
 class StateTransition:
     """状态转换记录"""
+
     from_state: YinYang
     to_state: YinYang
     reason: str
@@ -52,11 +54,13 @@ class TaiChiBalancer:
         """设置状态"""
         old_state = self._state
         self._state = new_state
-        self._history.append(StateTransition(
-            from_state=old_state,
-            to_state=new_state,
-            reason=reason,
-        ))
+        self._history.append(
+            StateTransition(
+                from_state=old_state,
+                to_state=new_state,
+                reason=reason,
+            )
+        )
         # 触发回调
         for callback in self._balance_callbacks[new_state]:
             callback(old_state, new_state)
@@ -160,9 +164,11 @@ class TaiChiBalancer:
 
         return result
 
-    def set_degradation_handler(self, handler: Callable[[Dict[str, Any]], None]) -> None:
+    def set_degradation_handler(
+        self, handler: Callable[[Dict[str, Any]], None]
+    ) -> None:
         """设置降级处理器。当 auto_balance 检测到异常指标时调用。
-        
+
         handler 接收 auto_balance 的结果字典，可用于：
         - 降低 API 限流阈值
         - 关闭非核心服务
@@ -172,11 +178,15 @@ class TaiChiBalancer:
 
     def enter_degraded_mode(self, reason: str = "") -> None:
         """进入降级模式（阴态）：减少计算资源占用"""
-        self.set_state(YinYang.YIN, reason=f"[降级]{reason}" if reason else "[降级]系统负载过高")
+        self.set_state(
+            YinYang.YIN, reason=f"[降级]{reason}" if reason else "[降级]系统负载过高"
+        )
 
     def exit_degraded_mode(self, reason: str = "") -> None:
         """退出降级模式：恢复正常（阳态）"""
-        self.set_state(YinYang.YANG, reason=f"[恢复]{reason}" if reason else "[恢复]系统已稳定")
+        self.set_state(
+            YinYang.YANG, reason=f"[恢复]{reason}" if reason else "[恢复]系统已稳定"
+        )
 
 
 __all__ = ["TaiChiBalancer", "YinYang", "StateTransition"]

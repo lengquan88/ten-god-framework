@@ -6,11 +6,10 @@ v1.1 — 性能优化版（预编译正则 + 缓存）
 用法: python tengod_scan.py [--html] [--json] [--stats]
 """
 
+import argparse
 import json
 import os
 import re
-import sys
-import argparse
 from collections import defaultdict
 from datetime import datetime
 
@@ -23,71 +22,168 @@ GODS_RAW = {
     "比肩": {
         "element": "木",
         "keywords": [
-            "main", "app", "core", "orchestrat", "run", "server",
-            "init", "startup", "bootstrap", "entry", "config", "settings",
+            "main",
+            "app",
+            "core",
+            "orchestrat",
+            "run",
+            "server",
+            "init",
+            "startup",
+            "bootstrap",
+            "entry",
+            "config",
+            "settings",
         ],
     },
     "劫财": {
         "element": "木",
         "keywords": [
-            "auth", "security", "guard", "defend", "protect", "firewall",
-            "validate", "sanitize", "rate_limit", "permission", "access",
+            "auth",
+            "security",
+            "guard",
+            "defend",
+            "protect",
+            "firewall",
+            "validate",
+            "sanitize",
+            "rate_limit",
+            "permission",
+            "access",
         ],
     },
     "食神": {
         "element": "火",
         "keywords": [
-            "generate", "output", "export", "render", "report", "template",
-            "llm", "ai", "nlp", "chat", "message", "notify", "email",
+            "generate",
+            "output",
+            "export",
+            "render",
+            "report",
+            "template",
+            "llm",
+            "ai",
+            "nlp",
+            "chat",
+            "message",
+            "notify",
+            "email",
         ],
     },
     "伤官": {
         "element": "火",
         "keywords": [
-            "analyze", "causal", "reason", "infer", "predict", "model",
-            "train", "learn", "innovate", "experiment", "research",
+            "analyze",
+            "causal",
+            "reason",
+            "infer",
+            "predict",
+            "model",
+            "train",
+            "learn",
+            "innovate",
+            "experiment",
+            "research",
         ],
     },
     "正财": {
         "element": "土",
         "keywords": [
-            "store", "database", "db", "repository", "model", "entity",
-            "schema", "migration", "cache", "knowledge", "graph", "data",
+            "store",
+            "database",
+            "db",
+            "repository",
+            "model",
+            "entity",
+            "schema",
+            "migration",
+            "cache",
+            "knowledge",
+            "graph",
+            "data",
         ],
     },
     "偏财": {
         "element": "土",
         "keywords": [
-            "search", "optimize", "tune", "algorithm", "recommend",
-            "rank", "sort", "filter", "query", "find", "explore",
+            "search",
+            "optimize",
+            "tune",
+            "algorithm",
+            "recommend",
+            "rank",
+            "sort",
+            "filter",
+            "query",
+            "find",
+            "explore",
         ],
     },
     "正官": {
         "element": "金",
         "keywords": [
-            "api", "router", "handler", "controller", "endpoint",
-            "service", "pipeline", "queue", "schedule", "task", "job", "workflow",
+            "api",
+            "router",
+            "handler",
+            "controller",
+            "endpoint",
+            "service",
+            "pipeline",
+            "queue",
+            "schedule",
+            "task",
+            "job",
+            "workflow",
         ],
     },
     "七杀": {
         "element": "金",
         "keywords": [
-            "test", "eval", "quality", "benchmark", "monitor", "metric",
-            "check", "audit", "review", "inspect", "assert", "score",
+            "test",
+            "eval",
+            "quality",
+            "benchmark",
+            "monitor",
+            "metric",
+            "check",
+            "audit",
+            "review",
+            "inspect",
+            "assert",
+            "score",
         ],
     },
     "正印": {
         "element": "水",
         "keywords": [
-            "config", "env", "setup", "install", "init", "bootstrap",
-            "console", "cli", "admin", "dashboard", "provision",
+            "config",
+            "env",
+            "setup",
+            "install",
+            "init",
+            "bootstrap",
+            "console",
+            "cli",
+            "admin",
+            "dashboard",
+            "provision",
         ],
     },
     "偏印": {
         "element": "水",
         "keywords": [
-            "bridge", "adapter", "connector", "integrate", "proxy",
-            "gateway", "transform", "convert", "mapper", "translate", "sync", "client",
+            "bridge",
+            "adapter",
+            "connector",
+            "integrate",
+            "proxy",
+            "gateway",
+            "transform",
+            "convert",
+            "mapper",
+            "translate",
+            "sync",
+            "client",
         ],
     },
     "未归类": {
@@ -121,16 +217,16 @@ def _scan_tengod_subdirs():
         return stats
     for sub in os.listdir(tengod_root):
         full = os.path.join(tengod_root, sub)
-        if not os.path.isdir(full) or sub.startswith(('.', '_')):
+        if not os.path.isdir(full) or sub.startswith((".", "_")):
             continue
         file_count = 0
         line_count = 0
         for r, _, files in os.walk(full):
             for f in files:
-                if f.endswith('.py') and not f.startswith('_'):
+                if f.endswith(".py") and not f.startswith("_"):
                     file_count += 1
                     try:
-                        with open(os.path.join(r, f), 'r', encoding='utf-8') as fp:
+                        with open(os.path.join(r, f), "r", encoding="utf-8") as fp:
                             line_count += sum(1 for _ in fp)
                     except IOError:
                         pass
@@ -148,17 +244,18 @@ def scan():
     for root, dirs, files in os.walk(PROJECT_ROOT):
         # 优化：原地修改 dirs 列表，os.walk 不会下钻排除的目录
         dirs[:] = [
-            d for d in dirs
-            if not d.startswith('.')
-            and d not in ('__pycache__', 'node_modules', '.git', 'venv', 'tengod')
+            d
+            for d in dirs
+            if not d.startswith(".")
+            and d not in ("__pycache__", "node_modules", ".git", "venv", "tengod")
         ]
         for fname in files:
-            if not fname.endswith('.py') or fname.startswith('_'):
+            if not fname.endswith(".py") or fname.startswith("_"):
                 continue
             file_count += 1
             full_path = os.path.join(root, fname)
             try:
-                with open(full_path, 'r', encoding='utf-8') as fp:
+                with open(full_path, "r", encoding="utf-8") as fp:
                     line_count += sum(1 for _ in fp)
             except IOError:
                 pass
@@ -194,7 +291,7 @@ def print_report():
     classified = total - len(classification.get("未归类", []))
     pct = round(classified / max(total, 1) * 100, 1)
 
-    print(f"\n=== 十神全域扫描报告 ===")
+    print("\n=== 十神全域扫描报告 ===")
     print(f"扫描时间: {data['scanned_at']}")
     print(f"项目文件: {data['file_count']} 个 .py 文件, {data['line_count']} 行代码")
     print(f"十神归类: {classified}/{total} 已归类 ({pct}%)")
@@ -206,7 +303,7 @@ def print_report():
     # tengod 子模块统计
     submodules = data.get("tengod_submodules", {})
     if submodules:
-        print(f"\n=== tengod 子模块统计 ===")
+        print("\n=== tengod 子模块统计 ===")
         for name, info in sorted(submodules.items()):
             print(f"  {name}: {info['files']} 文件 / {info['lines']} 行")
 
@@ -219,8 +316,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.json:
-        json.dump(scan(), open("tengod_scan_report.json", "w"),
-                  ensure_ascii=False, indent=2)
+        json.dump(
+            scan(), open("tengod_scan_report.json", "w"), ensure_ascii=False, indent=2
+        )
         print("报告已写入 tengod_scan_report.json")
     else:
         print_report()

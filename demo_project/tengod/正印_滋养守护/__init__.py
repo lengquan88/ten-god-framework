@@ -4,7 +4,7 @@
 正印主理滋养，承担系统的配置管理与环境初始化职责。
 """
 
-from .config_manager import ConfigManager, Config, ConfigSource
+from .config_manager import Config, ConfigManager, ConfigSource
 
 __all__ = ["ConfigManager", "Config", "ConfigSource"]
 __version__ = "1.0.0"

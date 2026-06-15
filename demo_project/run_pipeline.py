@@ -10,10 +10,9 @@ run_pipeline.py — 十神架构端到端协同工作流演示 v1.5.0
     python run_pipeline.py --oracle       # 测试推背图 Oracle
 """
 
+import json
 import os
 import sys
-import json
-import time
 from typing import Any, Dict, List
 
 # 确保可导入十神模块
@@ -27,9 +26,9 @@ if _SCRIPT_DIR not in sys.path:
 
 
 def print_section(title: str) -> None:
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  {title}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
 
 def print_result(label: str, result: Any, indent: int = 2) -> None:
@@ -112,13 +111,16 @@ def demo_2_2_async_search(core) -> Dict[str, Any]:
     print_section("2.2 偏财+正官 — 异步超参搜索")
 
     from 偏财_奇招演化.search_optimizer import (
-        SearchOptimizer, SearchSpace, AsyncOptimizer, submit_async,
+        SearchOptimizer,
+        SearchSpace,
     )
 
-    space = SearchSpace(param_ranges={
-        "learning_rate": (0.0, 1.0),
-        "layers": (1, 10),
-    })
+    space = SearchSpace(
+        param_ranges={
+            "learning_rate": (0.0, 1.0),
+            "layers": (1, 10),
+        }
+    )
     optimizer = SearchOptimizer(space, mode="random")
 
     def dummy_objective(params: Dict[str, Any]) -> float:
@@ -139,19 +141,34 @@ def demo_2_2_async_search(core) -> Dict[str, Any]:
 def demo_2_3_batch_import(core) -> Dict[str, Any]:
     """2.3 正财+偏印：批量导入知识节点"""
     print_section("2.3 正财+偏印 — 批量导入（JSON/CSV/YAML）")
-    import tempfile, os
+    import os
+    import tempfile
 
     # JSON导入
     print("  [1] JSON批量导入")
-    json_data = json.dumps([
-        {"name": "屈原", "node_type": "poet",
-         "properties": {"作品": "离骚/九歌", "年代": "战国"}},
-        {"name": "华佗", "node_type": "medicine",
-         "properties": {"贡献": "麻沸散/五禽戏", "年代": "东汉"}},
-        {"name": "张衡", "node_type": "scientist",
-         "properties": {"发明": "地动仪/浑天仪", "年代": "东汉"}},
-    ], ensure_ascii=False)
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8') as f:
+    json_data = json.dumps(
+        [
+            {
+                "name": "屈原",
+                "node_type": "poet",
+                "properties": {"作品": "离骚/九歌", "年代": "战国"},
+            },
+            {
+                "name": "华佗",
+                "node_type": "medicine",
+                "properties": {"贡献": "麻沸散/五禽戏", "年代": "东汉"},
+            },
+            {
+                "name": "张衡",
+                "node_type": "scientist",
+                "properties": {"发明": "地动仪/浑天仪", "年代": "东汉"},
+            },
+        ],
+        ensure_ascii=False,
+    )
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".json", delete=False, encoding="utf-8"
+    ) as f:
         f.write(json_data)
         json_file = f.name
     try:
@@ -163,7 +180,9 @@ def demo_2_3_batch_import(core) -> Dict[str, Any]:
     # CSV导入
     print("  [2] CSV批量导入")
     csv_data = "name,node_type,key1,key2\n祖冲之,math,圆周率,大明历\n张仲景,medicine,伤寒论,辨证论治"
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False, encoding='utf-8') as f:
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".csv", delete=False, encoding="utf-8"
+    ) as f:
         f.write(csv_data)
         csv_file = f.name
     try:
@@ -174,7 +193,9 @@ def demo_2_3_batch_import(core) -> Dict[str, Any]:
 
     # 统计
     stats = core.kb.stats()
-    print(f"      知识库总计: {stats.get('nodes', 0)} 个节点, {stats.get('edges', 0)} 条边")
+    print(
+        f"      知识库总计: {stats.get('nodes', 0)} 个节点, {stats.get('edges', 0)} 条边"
+    )
 
     return {"json": json_result, "csv": csv_result}
 
@@ -196,7 +217,9 @@ def demo_2_4_config_quality(core) -> Dict[str, Any]:
     print("  [2] 质量评估（基于配置触发）")
     core.judge.reset()
     threshold = int(core.config.get("quality_threshold") or 80)
-    core.judge.add_score("config_compliance", threshold, weight=0.4, comment="配置合规性")
+    core.judge.add_score(
+        "config_compliance", threshold, weight=0.4, comment="配置合规性"
+    )
     core.judge.add_score("code_quality", 90, weight=0.6, comment="代码质量")
     report = core.judge.report()
     print_result("评估报告", report, 4)
@@ -221,14 +244,18 @@ def demo_2_5_balance_degradation(core) -> Dict[str, Any]:
 
     # 正常负载
     print("  [1] 正常负载")
-    result_normal = core.balancer.auto_balance({"cpu": 0.3, "memory": 0.4, "error_rate": 0.01})
+    result_normal = core.balancer.auto_balance(
+        {"cpu": 0.3, "memory": 0.4, "error_rate": 0.01}
+    )
     print_result("正常", result_normal, 4)
     print(f"      降级触发: {degradation_flags['degraded']}")
 
     # 高负载
     print("  [2] 高负载（CPU 95%）")
     degradation_flags["degraded"] = False
-    result_high = core.balancer.auto_balance({"cpu": 0.95, "memory": 0.85, "error_rate": 0.15})
+    result_high = core.balancer.auto_balance(
+        {"cpu": 0.95, "memory": 0.85, "error_rate": 0.15}
+    )
     print_result("高负载", result_high, 4)
     print(f"      降级触发: {degradation_flags['degraded']}")
 
@@ -257,7 +284,9 @@ def demo_2_6_project_scan(core) -> Dict[str, Any]:
 
     # 验证知识库已更新
     kb_stats = core.kb.stats()
-    print(f"      知识库总计: {kb_stats.get('nodes', 0)} 个节点, {kb_stats.get('edges', 0)} 条边")
+    print(
+        f"      知识库总计: {kb_stats.get('nodes', 0)} 个节点, {kb_stats.get('edges', 0)} 条边"
+    )
 
     return stats
 
@@ -268,10 +297,12 @@ def demo_3_1_bayesian_optimization() -> Dict[str, Any]:
 
     from 偏财_奇招演化.search_optimizer import SearchOptimizer, SearchSpace
 
-    space = SearchSpace(param_ranges={
-        "x": (-5.0, 5.0),
-        "y": (-5.0, 5.0),
-    })
+    space = SearchSpace(
+        param_ranges={
+            "x": (-5.0, 5.0),
+            "y": (-5.0, 5.0),
+        }
+    )
     optimizer = SearchOptimizer(space, mode="bayes")
 
     # 目标函数：寻找最小值 (x-1)^2 + (y+2)^2 + 3
@@ -284,7 +315,9 @@ def demo_3_1_bayesian_optimization() -> Dict[str, Any]:
     print("      理论最小值: f(1.0, -2.0) = 3.0")
 
     result = optimizer.optimize_bayes(objective, n_trials=10, maximize=True)
-    print(f"      最优参数: x={result.best_params.get('x', 'N/A'):.4f}, y={result.best_params.get('y', 'N/A'):.4f}")
+    print(
+        f"      最优参数: x={result.best_params.get('x', 'N/A'):.4f}, y={result.best_params.get('y', 'N/A'):.4f}"
+    )
     print(f"      最优值: {-result.best_score:.4f}")
     print(f"      迭代次数: {result.iterations}")
 
@@ -305,7 +338,9 @@ def demo_3_2_vector_search(core) -> Dict[str, Any]:
     results = core.kb.query_nearest("道家哲学思想", top_k=3)
     print(f"      返回 {len(results)} 条")
     for r in results:
-        print(f"      [{r.get('score', 0):.4f}] {r.get('name', 'N/A')} ({r.get('node_type', 'N/A')})")
+        print(
+            f"      [{r.get('score', 0):.4f}] {r.get('name', 'N/A')} ({r.get('node_type', 'N/A')})"
+        )
 
     print("  [2] 向量搜索: '中国古代医学成就'")
     vec_results = core.kb.vector_search("中国古代医学成就", top_k=3)
@@ -335,36 +370,52 @@ def demo_3_4_code_scanner() -> Dict[str, Any]:
 
     print("  [2] 运行质量扫描 (内置分析)")
     # 使用内置扫描（不依赖外部工具）
-    from 七杀_品质裁决.code_scanner import ScanReport, ScanIssue, ScanLevel
+    from 七杀_品质裁决.code_scanner import ScanIssue, ScanLevel, ScanReport
+
     report = ScanReport(tool="tengod_builtin", total_issues=0)
 
     # 内置静态分析: 检查文件大小、行数、命名等
     for fpath in py_files[:20]:  # 限制数量
         fname = os.path.basename(fpath)
         try:
-            with open(fpath, 'r') as f:
+            with open(fpath, "r") as f:
                 lines = f.readlines()
             size = os.path.getsize(fpath)
             # 检查大文件
             if size > 50000:
-                report.issues.append(ScanIssue(
-                    file_path=fpath, line=0, level=ScanLevel.WARNING,
-                    code="SIZE001", message=f"文件过大 ({size} bytes)"
-                ))
+                report.issues.append(
+                    ScanIssue(
+                        file_path=fpath,
+                        line=0,
+                        level=ScanLevel.WARNING,
+                        code="SIZE001",
+                        message=f"文件过大 ({size} bytes)",
+                    )
+                )
             # 检查长行
             for i, line in enumerate(lines, 1):
-                if len(line.rstrip('\n')) > 120:
-                    report.issues.append(ScanIssue(
-                        file_path=fpath, line=i, level=ScanLevel.CONVENTION,
-                        code="LINE001", message=f"行过长 ({len(line.rstrip())} cols)"
-                    ))
+                if len(line.rstrip("\n")) > 120:
+                    report.issues.append(
+                        ScanIssue(
+                            file_path=fpath,
+                            line=i,
+                            level=ScanLevel.CONVENTION,
+                            code="LINE001",
+                            message=f"行过长 ({len(line.rstrip())} cols)",
+                        )
+                    )
             # 检查TODO
             for i, line in enumerate(lines, 1):
                 if "TODO" in line and not line.strip().startswith("#"):
-                    report.issues.append(ScanIssue(
-                        file_path=fpath, line=i, level=ScanLevel.INFO,
-                        code="TODO001", message="未处理的TODO"
-                    ))
+                    report.issues.append(
+                        ScanIssue(
+                            file_path=fpath,
+                            line=i,
+                            level=ScanLevel.INFO,
+                            code="TODO001",
+                            message="未处理的TODO",
+                        )
+                    )
         except Exception:
             pass
 
@@ -376,8 +427,12 @@ def demo_3_4_code_scanner() -> Dict[str, Any]:
     # 写入QualityJudge
     print("  [3] 写入QualityJudge")
     judge.reset()
-    judge.add_score("tengod_scan", report.score, weight=1.0,
-                    comment=f"内置扫描发现{report.total_issues}个问题")
+    judge.add_score(
+        "tengod_scan",
+        report.score,
+        weight=1.0,
+        comment=f"内置扫描发现{report.total_issues}个问题",
+    )
     judge_report = judge.report()
     print_result("评估", judge_report, 4)
 
@@ -396,7 +451,7 @@ def demo_5_4_oracle(core) -> Dict[str, Any]:
     result = core.consult_oracle("中华文明传承之道")
     print(f"      卦象: {result.get('hexagram', 'N/A')}")
     print(f"      干支: {result.get('gan_zhi', 'N/A')}")
-    interpretation = result.get('interpretation', '')
+    interpretation = result.get("interpretation", "")
     print(f"      解释: {interpretation[:80]}...")
 
     print("  [2] Oracle 统计")
@@ -417,8 +472,8 @@ def run_full_pipeline(args: List[str]) -> None:
 
     print("=" * 60)
     print("  十神架构 · 端到端协同工作流演示")
-    print(f"  版本: 1.5.0")
-    print(f"  模块数: 12")
+    print("  版本: 1.5.0")
+    print("  模块数: 12")
     print("=" * 60)
 
     # Phase 2: 协同层
@@ -467,7 +522,7 @@ def run_full_pipeline(args: List[str]) -> None:
                     pass
         print_section("启动 HTTP 服务")
         print(f"  地址: http://localhost:{port}")
-        print(f"  端点: /health /metrics /api/status /api/oracle 等")
+        print("  端点: /health /metrics /api/status /api/oracle 等")
         core.run(serve=True, host="0.0.0.0", port=port, init_seed=False)
     else:
         print_section("演示完成")

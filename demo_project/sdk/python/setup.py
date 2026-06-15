@@ -1,12 +1,14 @@
 """TenGod Python SDK - 十神架构 HTTP API 客户端"""
 
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
 
 setup(
     name="tengod-client",
-    version="2.0.0",
+    version="2.1.0",
     description="十神架构 Python SDK — 中华文明数字永生体 HTTP API 客户端",
-    long_description=open("tengod_client/__init__.py", encoding="utf-8").read().split('"""')[1],
+    long_description=open("tengod_client/__init__.py", encoding="utf-8")
+    .read()
+    .split('"""')[1],
     author="TenGod Team",
     packages=find_packages(),
     python_requires=">=3.8",

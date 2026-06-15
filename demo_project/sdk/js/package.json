@@ -1,6 +1,6 @@
 {
   "name": "tengod-client",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "十神架构 JavaScript SDK — 中华文明数字永生体 HTTP API 客户端",
   "main": "tengod-client.js",
   "types": "tengod-client.d.ts",

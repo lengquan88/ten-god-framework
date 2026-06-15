@@ -28,20 +28,18 @@ import os
 import random
 import threading
 import time
-import uuid
-from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Tuple
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
-from urllib.error import URLError, HTTPError
-
 
 # ── 数据模型 ────────────────────────────────────────────
 
 
 class NodeRole(Enum):
     """节点角色"""
+
     FOLLOWER = "follower"
     CANDIDATE = "candidate"
     LEADER = "leader"
@@ -50,6 +48,7 @@ class NodeRole(Enum):
 @dataclass
 class PeerConfig:
     """对等节点配置"""
+
     node_id: str
     address: str  # http://host:port
     healthy: bool = True
@@ -59,6 +58,7 @@ class PeerConfig:
 @dataclass
 class LogEntry:
     """共识日志条目"""
+
     index: int
     term: int
     command: str
@@ -70,6 +70,7 @@ class LogEntry:
 @dataclass
 class ConsensusState:
     """共识状态快照"""
+
     node_id: str
     role: str
     current_term: int
@@ -164,10 +165,17 @@ class ConsensusEngine:
             data = {
                 "current_term": self._current_term,
                 "voted_for": self._voted_for,
-                "logs": [{
-                    "index": e.index, "term": e.term, "command": e.command,
-                    "data": e.data, "timestamp": e.timestamp, "committed": e.committed,
-                } for e in self._logs[-100:]],  # 保留最近 100 条
+                "logs": [
+                    {
+                        "index": e.index,
+                        "term": e.term,
+                        "command": e.command,
+                        "data": e.data,
+                        "timestamp": e.timestamp,
+                        "committed": e.committed,
+                    }
+                    for e in self._logs[-100:]
+                ],  # 保留最近 100 条
             }
         with open(path, "w") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
@@ -183,7 +191,9 @@ class ConsensusEngine:
             self._start_time = time.time()
 
         self._reset_election_timer()
-        self._heartbeat_thread = threading.Thread(target=self._heartbeat_loop, daemon=True)
+        self._heartbeat_thread = threading.Thread(
+            target=self._heartbeat_loop, daemon=True
+        )
         self._heartbeat_thread.start()
 
     def stop(self) -> None:
@@ -262,7 +272,9 @@ class ConsensusEngine:
         # 请求投票
         votes = 1  # 自己一票
         for peer in list(self.peers.values()):
-            granted = self._request_vote(peer, current_term, last_log_index, last_log_term)
+            granted = self._request_vote(
+                peer, current_term, last_log_index, last_log_term
+            )
             if granted:
                 votes += 1
 
@@ -272,15 +284,19 @@ class ConsensusEngine:
         else:
             self._reset_election_timer()
 
-    def _request_vote(self, peer: PeerConfig, term: int, last_log_index: int, last_log_term: int) -> bool:
+    def _request_vote(
+        self, peer: PeerConfig, term: int, last_log_index: int, last_log_term: int
+    ) -> bool:
         """向对等节点请求投票"""
         try:
-            data = json.dumps({
-                "term": term,
-                "candidate_id": self.node_id,
-                "last_log_index": last_log_index,
-                "last_log_term": last_log_term,
-            }).encode("utf-8")
+            data = json.dumps(
+                {
+                    "term": term,
+                    "candidate_id": self.node_id,
+                    "last_log_index": last_log_index,
+                    "last_log_term": last_log_term,
+                }
+            ).encode("utf-8")
             req = Request(
                 f"{peer.address}/api/consensus/vote",
                 data=data,
@@ -339,12 +355,18 @@ class ConsensusEngine:
         # 检查是否达到多数派提交
         self._check_commit()
 
-    def _send_append_entries(self, peer: PeerConfig, term: int, commit_index: int) -> None:
+    def _send_append_entries(
+        self, peer: PeerConfig, term: int, commit_index: int
+    ) -> None:
         """发送 AppendEntries RPC"""
         with self._lock:
             prev_log_index = self._next_index.get(peer.node_id, 0) - 1
-            prev_log_term = self._logs[prev_log_index].term if prev_log_index >= 0 and self._logs else 0
-            entries = self._logs[prev_log_index + 1:prev_log_index + 1 + 10]
+            prev_log_term = (
+                self._logs[prev_log_index].term
+                if prev_log_index >= 0 and self._logs
+                else 0
+            )
+            entries = self._logs[prev_log_index + 1 : prev_log_index + 1 + 10]
 
         try:
             payload = {
@@ -352,10 +374,16 @@ class ConsensusEngine:
                 "leader_id": self.node_id,
                 "prev_log_index": prev_log_index,
                 "prev_log_term": prev_log_term,
-                "entries": [{
-                    "index": e.index, "term": e.term, "command": e.command,
-                    "data": e.data, "timestamp": e.timestamp,
-                } for e in entries],
+                "entries": [
+                    {
+                        "index": e.index,
+                        "term": e.term,
+                        "command": e.command,
+                        "data": e.data,
+                        "timestamp": e.timestamp,
+                    }
+                    for e in entries
+                ],
                 "leader_commit": commit_index,
             }
             data = json.dumps(payload).encode("utf-8")
@@ -452,7 +480,10 @@ class ConsensusEngine:
             if prev_log_index >= 0:
                 if prev_log_index >= len(self._logs):
                     return {"term": self._current_term, "success": False}
-                if prev_log_index >= 0 and self._logs[prev_log_index].term != prev_log_term:
+                if (
+                    prev_log_index >= 0
+                    and self._logs[prev_log_index].term != prev_log_term
+                ):
                     return {"term": self._current_term, "success": False}
 
             # 追加日志
@@ -465,9 +496,13 @@ class ConsensusEngine:
                 else:
                     # 补齐间隙
                     while len(self._logs) <= idx:
-                        self._logs.append(LogEntry(
-                            index=len(self._logs), term=0, command="__gap__",
-                        ))
+                        self._logs.append(
+                            LogEntry(
+                                index=len(self._logs),
+                                term=0,
+                                command="__gap__",
+                            )
+                        )
                     self._logs[idx] = LogEntry(**entry_data)
 
             # 更新提交索引

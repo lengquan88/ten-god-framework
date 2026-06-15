@@ -1,0 +1,10 @@
+{
+  "id": "tengod-panel",
+  "name": "十神面板",
+  "version": "2.3.0",
+  "minAppVersion": "1.0.0",
+  "description": "在 Obsidian 中内嵌十神面板，笔记直接查询知识图谱和 Oracle",
+  "author": "TenGod Team",
+  "authorUrl": "https://github.com/tengod",
+  "isDesktopOnly": false
+}

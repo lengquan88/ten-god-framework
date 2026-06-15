@@ -3,8 +3,8 @@
 test_core.py — 十神核心调度器集成测试
 """
 
-import sys
 import os
+import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 def test_core_init():
     """核心初始化测试"""
     from tengod import get_core
+
     core = get_core()
     assert core.name is not None
     assert core.judge is not None
@@ -23,6 +24,7 @@ def test_core_init():
 def test_core_evaluate():
     """质量裁决测试"""
     from tengod import get_core
+
     core = get_core()
 
     result = core.evaluate(
@@ -36,6 +38,7 @@ def test_core_evaluate():
 def test_core_generate():
     """内容生成测试"""
     from tengod import get_core
+
     core = get_core()
     md = core.generate("测试", format="markdown")
     assert "测试" in md
@@ -44,6 +47,7 @@ def test_core_generate():
 def test_core_innovate():
     """创新器测试"""
     from tengod import get_core
+
     core = get_core()
     report = core.innovate("combine", "AI", "区块链")
     assert report["total"] >= 1
@@ -52,6 +56,7 @@ def test_core_innovate():
 def test_core_search():
     """搜索器测试"""
     from tengod import get_core
+
     core = get_core()
     result = core.search(
         {"x": [1, 2, 3]},
@@ -64,6 +69,7 @@ def test_core_search():
 def test_core_export_state():
     """状态导出测试"""
     from tengod import get_core
+
     core = get_core()
     state = core.export_state()
     assert "name" in state

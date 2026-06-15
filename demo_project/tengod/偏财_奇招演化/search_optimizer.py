@@ -9,14 +9,15 @@ import random
 import threading
 import time
 import uuid
-from typing import Any, Callable, Dict, List, Optional
 from dataclasses import dataclass, field
 from itertools import product
+from typing import Any, Callable, Dict, List, Optional
 
 
 @dataclass
 class SearchSpace:
     """搜索空间"""
+
     param_ranges: Dict[str, Any] = field(default_factory=dict)
 
     def sample(self) -> Dict[str, Any]:
@@ -56,6 +57,7 @@ class SearchSpace:
 @dataclass
 class SearchResult:
     """搜索结果"""
+
     best_params: Dict[str, Any]
     best_score: float
     iterations: int
@@ -122,9 +124,16 @@ class SearchOptimizer:
         """获取历史记录"""
         return self._history.copy()
 
-    def optimize_async(self, objective: Callable, n_trials: int = 20, maximize: bool = True, callback=None) -> str:
+    def optimize_async(
+        self,
+        objective: Callable,
+        n_trials: int = 20,
+        maximize: bool = True,
+        callback=None,
+    ) -> str:
         """提交到全局 AsyncOptimizer，返回 task_id"""
         from 偏财_奇招演化.search_optimizer import submit_async
+
         return submit_async(self._space, objective, n_trials, maximize, self._mode)
 
     def search(self, n_trials: int, objective: Callable, maximize: bool = True) -> str:
@@ -139,21 +148,22 @@ class SearchOptimizer:
         random_state: Optional[int] = None,
     ) -> SearchResult:
         """贝叶斯优化（纯 Python 实现，不依赖外部库）。
-        
+
         使用高斯过程代理模型 + 期望改进量（EI）采集函数。
         对于离散参数空间，使用网格枚举近似。
         """
-        import random, math
+        import random
+
         if random_state is not None:
             random.seed(random_state)
-        
+
         # 高斯均值和方差（简化版：使用历史数据的均值和标准差）
         history_mu: List[float] = []
         history_sigma: List[float] = []
         best_score = float("-inf") if maximize else float("inf")
         best_params: Optional[Dict[str, Any]] = None
         start = time.time()
-        
+
         # 初始化：先用3个随机点
         init_trials = min(3, n_trials)
         for _ in range(init_trials):
@@ -164,10 +174,12 @@ class SearchOptimizer:
                 score = float("-inf") if maximize else float("inf")
             history_mu.append(score)
             history_sigma.append(1.0)
-            if (maximize and score > best_score) or (not maximize and score < best_score):
+            if (maximize and score > best_score) or (
+                not maximize and score < best_score
+            ):
                 best_score = score
                 best_params = params.copy()
-        
+
         # 采集函数：期望改进量（EI）
         def ei(mean: float, sigma: float, best: float, maximize: bool) -> float:
             if sigma < 1e-6:
@@ -175,42 +187,56 @@ class SearchOptimizer:
             diff = mean - best if maximize else best - mean
             z = diff / sigma
             from math import erf, sqrt
+
             phi = 0.5 * (1 + erf(z / sqrt(2)))
             Phi = 0.5 * (1 + erf(-z / sqrt(2)))
             return diff * phi + sigma * phi + sigma * Phi
-        
+
         for trial in range(init_trials, n_trials):
             # 计算各维度的均值和方差
             all_mu = sum(history_mu) / len(history_mu)
-            all_std = (sum((x - all_mu) ** 2 for x in history_mu) / len(history_mu)) ** 0.5
+            all_std = (
+                sum((x - all_mu) ** 2 for x in history_mu) / len(history_mu)
+            ) ** 0.5
             if all_std < 1e-6:
                 all_std = 1.0
-            
+
             # 生成候选并选择 EI 最高的
             best_ei = -1e9
             best_candidate = self._space.sample()
             for _ in range(10):  # 每次 trial 尝试10个候选
                 candidate = self._space.sample()
                 # 简化：用参数向量的均值扰动模拟高斯过程预测
-                perturbed = {k: v + random.gauss(0, all_std * 0.1) for k, v in best_params.items()} if best_params else candidate
+                perturbed = (
+                    {
+                        k: v + random.gauss(0, all_std * 0.1)
+                        for k, v in best_params.items()
+                    }
+                    if best_params
+                    else candidate
+                )
                 # 简化的 expected improvement
-                ei_val = ei(all_mu, all_std, best_score, maximize) + random.uniform(0, 0.1)
+                ei_val = ei(all_mu, all_std, best_score, maximize) + random.uniform(
+                    0, 0.1
+                )
                 if ei_val > best_ei:
                     best_ei = ei_val
                     best_candidate = perturbed
-            
+
             try:
                 score = objective(best_candidate)
             except:
                 score = float("-inf") if maximize else float("inf")
-            
+
             history_mu.append(all_mu * 0.9 + score * 0.1)  # EMA 更新
             history_sigma.append(all_std * 0.95)
-            
-            if (maximize and score > best_score) or (not maximize and score < best_score):
+
+            if (maximize and score > best_score) or (
+                not maximize and score < best_score
+            ):
                 best_score = score
                 best_params = best_candidate.copy()
-        
+
         return SearchResult(
             best_params=best_params or {},
             best_score=best_score,
@@ -229,6 +255,7 @@ class SearchOptimizer:
 @dataclass
 class AsyncSearchTask:
     """异步搜索任务"""
+
     task_id: str
     status: str  # "pending" | "running" | "done" | "cancelled" | "failed"
     optimizer: SearchOptimizer
@@ -259,7 +286,11 @@ class AsyncOptimizer:
     ) -> str:
         """提交搜索任务，返回 task_id（立即返回，不阻塞）"""
         task_id = str(uuid.uuid4())[:8]
-        optimizer = SearchOptimizer(space, mode) if space else SearchOptimizer(SearchSpace(), mode)
+        optimizer = (
+            SearchOptimizer(space, mode)
+            if space
+            else SearchOptimizer(SearchSpace(), mode)
+        )
         task = AsyncSearchTask(
             task_id=task_id,
             status="pending",

@@ -4,37 +4,39 @@ innovator.py — 破界创新器
 伤官主理破界，辅助系统在传统范式之外产生新解。
 """
 
+import time
+import uuid
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional
-from dataclasses import dataclass, field
-import uuid
-import time
 
 
 class InnovationType(Enum):
     """创新类型"""
-    COMBINATION = "combination"   # 组合创新
-    TRANSFER = "transfer"         # 迁移创新
-    REVERSE = "reverse"           # 逆向创新
-    BREAKTHROUGH = "breakthrough" # 突破创新
+
+    COMBINATION = "combination"  # 组合创新
+    TRANSFER = "transfer"  # 迁移创新
+    REVERSE = "reverse"  # 逆向创新
+    BREAKTHROUGH = "breakthrough"  # 突破创新
 
 
 @dataclass
 class Idea:
     """创意"""
+
     id: str
     title: str
     description: str
     innovation_type: InnovationType
     feasibility: float  # 0-1
-    impact: float       # 0-1
+    impact: float  # 0-1
     created_at: float = field(default_factory=time.time)
     tags: List[str] = field(default_factory=list)
 
     @property
     def score(self) -> float:
         """综合得分"""
-        return (self.feasibility * 0.4 + self.impact * 0.6)
+        return self.feasibility * 0.4 + self.impact * 0.6
 
 
 class Innovator:
@@ -110,8 +112,7 @@ class Innovator:
         return {
             "total": len(self._ideas),
             "by_type": {
-                itype.value: len(self.list_by_type(itype))
-                for itype in InnovationType
+                itype.value: len(self.list_by_type(itype)) for itype in InnovationType
             },
             "top_ideas": [
                 {
@@ -133,6 +134,7 @@ class Innovator:
         """用 LLM 实际生成创意"""
         if not hasattr(self, "_generator") or self._generator is None:
             import warnings
+
             warnings.warn("generator 未注入，LLM 方法不可用")
             return None
         template = """你是一位破界创新专家。请针对「{prompt}」提出一个原创性解决方案，要求：
@@ -145,7 +147,9 @@ class Innovator:
         full_prompt = template.format(prompt=prompt)
         try:
             result = self._generator.generate(full_prompt, style=style)
-            import json, re
+            import json
+            import re
+
             json_match = re.search(r'\{[^{}]*"title"[^{}]*\}', result, re.DOTALL)
             if json_match:
                 data = json.loads(json_match.group())
@@ -157,7 +161,9 @@ class Innovator:
                 "逆向": InnovationType.REVERSE,
                 "突破": InnovationType.BREAKTHROUGH,
             }
-            innovation_type = type_map.get(data.get("innovation_type", ""), InnovationType.COMBINATION)
+            innovation_type = type_map.get(
+                data.get("innovation_type", ""), InnovationType.COMBINATION
+            )
             idea = Idea(
                 id=str(uuid.uuid4())[:8],
                 title=data.get("title", "未命名"),
@@ -186,6 +192,7 @@ class Innovator:
         """用 LLM 将创意扩展为详细方案"""
         if not hasattr(self, "_generator") or self._generator is None:
             import warnings
+
             warnings.warn("generator 未注入，LLM 方法不可用")
             return None
         idea = next((i for i in self._ideas if i.id == idea_id), None)
@@ -205,6 +212,7 @@ class Innovator:
         )
         try:
             from 食神_创生输出 import GenerationConfig
+
             cfg = GenerationConfig(style=style)
             return self._generator.generate(prompt, cfg)
         except Exception as e:
@@ -214,6 +222,7 @@ class Innovator:
         """用 LLM 对创意做可行性评估"""
         if not hasattr(self, "_generator") or self._generator is None:
             import warnings
+
             warnings.warn("generator 未注入，LLM 方法不可用")
             return None
         idea = next((i for i in self._ideas if i.id == idea_id), None)
@@ -239,9 +248,12 @@ class Innovator:
         )
         try:
             from 食神_创生输出 import GenerationConfig
+
             cfg = GenerationConfig(style="evaluation")
             result = self._generator.generate(prompt, cfg)
-            import json, re
+            import json
+            import re
+
             json_match = re.search(r'\{[^{}]*"innovation"[^{}]*\}', result, re.DOTALL)
             if json_match:
                 data = json.loads(json_match.group())
@@ -249,7 +261,13 @@ class Innovator:
                 data = json.loads(result)
             return data
         except Exception:
-            return {"innovation": idea.score, "feasibility": idea.feasibility, "risk": 0.5, "impact": idea.impact, "suggestions": "评估失败"}
+            return {
+                "innovation": idea.score,
+                "feasibility": idea.feasibility,
+                "risk": 0.5,
+                "impact": idea.impact,
+                "suggestions": "评估失败",
+            }
 
     def idea_to_knowledge(self, idea_id: str, kb) -> Optional[Dict[str, Any]]:
         """将创意存入正财知识库"""
@@ -272,7 +290,9 @@ class Innovator:
         )
         return {"id": node.id, "name": node.name, "node_type": node.node_type}
 
-    def pipeline(self, items: List[str], *, use_llm: bool = True, save_to_kb=None) -> Dict[str, Any]:
+    def pipeline(
+        self, items: List[str], *, use_llm: bool = True, save_to_kb=None
+    ) -> Dict[str, Any]:
         """完整闭环流程"""
         if use_llm and hasattr(self, "_generator") and self._generator is not None:
             combined = " + ".join(items)

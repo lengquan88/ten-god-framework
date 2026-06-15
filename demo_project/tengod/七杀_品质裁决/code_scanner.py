@@ -7,13 +7,14 @@ code_scanner.py — 代码质量自动扫描器 v1.5.0
 import os
 import subprocess
 import sys
-from typing import Any, Dict, List, Optional
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import Any, Dict, List, Optional
 
 
 class ScanLevel(Enum):
     """扫描严重级别"""
+
     ERROR = "error"
     WARNING = "warning"
     CONVENTION = "convention"
@@ -24,6 +25,7 @@ class ScanLevel(Enum):
 @dataclass
 class ScanIssue:
     """扫描发现的问题"""
+
     file_path: str
     line: int
     column: int = 0
@@ -35,6 +37,7 @@ class ScanIssue:
 @dataclass
 class ScanReport:
     """扫描报告"""
+
     tool: str
     total_issues: int
     by_level: Dict[str, int] = field(default_factory=dict)
@@ -60,12 +63,18 @@ class CodeScanner:
     def __init__(self, project_root: Optional[str] = None):
         self._project_root = project_root or os.getcwd()
 
-    def _find_python_files(self, root: str, exclude_dirs: Optional[List[str]] = None) -> List[str]:
+    def _find_python_files(
+        self, root: str, exclude_dirs: Optional[List[str]] = None
+    ) -> List[str]:
         """递归查找所有 .py 文件"""
-        exclude = set(exclude_dirs or [".git", "__pycache__", ".venv", "venv", "node_modules"])
+        exclude = set(
+            exclude_dirs or [".git", "__pycache__", ".venv", "venv", "node_modules"]
+        )
         py_files: List[str] = []
         for dirpath, dirnames, filenames in os.walk(root):
-            dirnames[:] = [d for d in dirnames if d not in exclude and not d.startswith(".")]
+            dirnames[:] = [
+                d for d in dirnames if d not in exclude and not d.startswith(".")
+            ]
             for f in filenames:
                 if f.endswith(".py"):
                     py_files.append(os.path.join(dirpath, f))
@@ -74,13 +83,17 @@ class CodeScanner:
     def _run_flake8(self, paths: List[str]) -> ScanReport:
         """运行 flake8 扫描"""
         import time
+
         start = time.time()
         report = ScanReport(tool="flake8", total_issues=0)
 
         try:
             result = subprocess.run(
-                [sys.executable, "-m", "flake8", "--format=default", "--exit-zero"] + paths,
-                capture_output=True, text=True, timeout=120,
+                [sys.executable, "-m", "flake8", "--format=default", "--exit-zero"]
+                + paths,
+                capture_output=True,
+                text=True,
+                timeout=120,
                 cwd=self._project_root,
             )
             lines = result.stdout.strip().split("\n")
@@ -132,13 +145,17 @@ class CodeScanner:
     def _run_pylint(self, paths: List[str]) -> ScanReport:
         """运行 pylint 扫描"""
         import time
+
         start = time.time()
         report = ScanReport(tool="pylint", total_issues=0)
 
         try:
             result = subprocess.run(
-                [sys.executable, "-m", "pylint", "--output-format=text", "--exit-zero"] + paths,
-                capture_output=True, text=True, timeout=120,
+                [sys.executable, "-m", "pylint", "--output-format=text", "--exit-zero"]
+                + paths,
+                capture_output=True,
+                text=True,
+                timeout=120,
                 cwd=self._project_root,
             )
             lines = result.stdout.strip().split("\n")
@@ -212,7 +229,9 @@ class CodeScanner:
         report.by_file = by_file
         report.score = max(0.0, round(score, 1))
 
-    def scan(self, tool: str = "flake8", paths: Optional[List[str]] = None) -> ScanReport:
+    def scan(
+        self, tool: str = "flake8", paths: Optional[List[str]] = None
+    ) -> ScanReport:
         """执行代码扫描。
 
         Args:
@@ -246,8 +265,9 @@ class CodeScanner:
             "pylint": self.scan("pylint", paths),
         }
 
-    def scan_to_judge(self, quality_judge,
-                      paths: Optional[List[str]] = None) -> Dict[str, Any]:
+    def scan_to_judge(
+        self, quality_judge, paths: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
         """运行扫描并写入 QualityJudge，返回综合评分报告。
 
         将 flake8 和 pylint 的扫描结果分别作为评分项添加到 QualityJudge：
@@ -260,13 +280,15 @@ class CodeScanner:
         for tool, report in results.items():
             if report.error:
                 quality_judge.add_score(
-                    f"{tool}_error", 0,
+                    f"{tool}_error",
+                    0,
                     weight=0.5,
                     comment=f"{tool} 扫描失败: {report.error}",
                 )
             else:
                 quality_judge.add_score(
-                    f"{tool}_score", report.score,
+                    f"{tool}_score",
+                    report.score,
                     weight=0.5,
                     comment=f"{tool} 发现 {report.total_issues} 个问题",
                 )
