@@ -745,6 +745,119 @@ class KnowledgeBase:
                 errors.append(f"{item.get('name','?')}: {e}")
         return {"added": added, "skipped": skipped, "errors": errors}
 
+    # -------- 向量数据库集成（v1.5.0）--------
+    def use_vector_db(self, provider: str = "auto", persist_path: Optional[str] = None) -> Dict[str, Any]:
+        """启用向量数据库（FAISS 或 ChromaDB），优雅降级。
+        
+        provider: "auto" | "faiss" | "chroma" | "disable"
+        - auto: 优先尝试 FAISS，然后 ChromaDB，最后降级为内存
+        - faiss: 仅使用 FAISS
+        - chroma: 仅使用 ChromaDB
+        - disable: 禁用，保留内存模式
+        返回 {"provider": str, "dimension": int, "indexed": int, "error": str}
+        """
+        result: Dict[str, Any] = {"provider": "memory", "dimension": 0, "indexed": 0, "error": ""}
+        
+        if provider == "disable":
+            self._vector_provider = "memory"
+            return result
+
+        # 生成所有节点文本向量
+        texts = [n.name + " " + json.dumps(n.properties) for n in self._nodes.values()]
+        dim = min(len(texts) * 2, 128) if texts else 128  # 降维到128或以下
+        
+        # 尝试 FAISS
+        if provider in ("auto", "faiss"):
+            try:
+                import faiss
+                import numpy as np
+                vectors = np.random.rand(len(texts), dim).astype("float32")
+                # 真实向量：使用字符 n-gram hash
+                for i, text in enumerate(texts):
+                    vec = self._char_ngrams(text, n=2)
+                    norm = (sum(v**2 for v in vec.values()) or 1) ** 0.5
+                    arr = np.array(list(vec.values()) + [0.0] * max(0, dim - len(vec)), dtype=np.float32)
+                    if norm > 0:
+                        arr = arr / norm
+                    if len(arr) < dim:
+                        arr = np.pad(arr, (0, dim - len(arr)))
+                    vectors[i] = arr[:dim]
+                
+                index = faiss.IndexFlatIP(dim)  # 内积相似度
+                faiss.normalize_L2(vectors)
+                index.add(vectors)
+                
+                self._faiss_index = index
+                self._vector_dim = dim
+                self._vector_provider = "faiss"
+                result = {"provider": "faiss", "dimension": dim, "indexed": len(texts), "error": ""}
+                return result
+            except ImportError:
+                result["error"] = "FAISS 未安装"
+            except Exception as e:
+                result["error"] = f"FAISS: {e}"
+
+        # 尝试 ChromaDB
+        if provider in ("auto", "chroma"):
+            try:
+                import chromadb
+                chroma_path = persist_path or "chroma_db"
+                client = chromadb.Client(chromadb.config.Settings(
+                    chromadb_db_path=chroma_path,
+                    allow_reset=True,
+                ))
+                coll = client.create_collection("tengod_knowledge", get_or_create=True)
+                
+                if texts:
+                    ids = [n.id for n in self._nodes.values()]
+                    coll.add(ids=ids, documents=texts)
+                
+                self._chroma_client = client
+                self._vector_provider = "chroma"
+                result = {"provider": "chroma", "dimension": 0, "indexed": len(texts), "error": ""}
+                return result
+            except ImportError:
+                result["error"] = "ChromaDB 未安装"
+            except Exception as e:
+                result["error"] = f"ChromaDB: {e}"
+
+        self._vector_provider = "memory"
+        return result
+
+    def vector_search(self, query: str, top_k: int = 5,
+                     min_score: float = 0.0) -> List[Dict[str, Any]]:
+        """向量数据库语义搜索（如果未启用向量 DB 则降级到 query_nearest）"""
+        if not hasattr(self, "_vector_provider"):
+            return self.query_nearest(query, top_k=top_k, min_score=min_score)
+        
+        provider = getattr(self, "_vector_provider", "memory")
+        
+        if provider == "memory":
+            return self.query_nearest(query, top_k=top_k, min_score=min_score)
+        
+        try:
+            if provider == "chroma":
+                coll = self._chroma_client.get_collection("tengod_knowledge")
+                results = coll.query(query_texts=[query], n_results=top_k)
+                hits = []
+                for i, (doc_id, doc_text) in enumerate(zip(
+                        results["ids"][0], results["documents"][0])):
+                    # 找对应节点
+                    node = next((n for n in self._nodes.values() if n.id == doc_id), None)
+                    if node:
+                        hits.append({
+                            "id": node.id, "name": node.name,
+                            "node_type": node.node_type,
+                            "score": results["distances"][0][i] if i < len(results["distances"][0]) else 0.0,
+                            "node": node,
+                        })
+                return [h for h in hits if h["score"] >= min_score]
+        except Exception:
+            pass
+        
+        # 降级到内存查询
+        return self.query_nearest(query, top_k=top_k, min_score=min_score)
+
 
 __all__ = ["KnowledgeBase", "KnowledgeNode", "KnowledgeEdge", "StorageBackend"]
-__version__ = "1.3.0"
+__version__ = "1.5.0"

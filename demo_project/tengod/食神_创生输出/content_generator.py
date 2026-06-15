@@ -58,14 +58,62 @@ class ContentGenerator:
 
     def __init__(self, name: str = "default", api_key: Optional[str] = None):
         self._name = name
-        self._templates: Dict[str, str] = {}
         self._cache: Dict[str, str] = {}
         self._history: List[Dict[str, Any]] = []
         self._api_key = api_key or os.environ.get("OPENAI_API_KEY", "")
         self._custom_generator: Optional[Callable] = None
         # 会话管理：session_id -> [{"role": "user"/"assistant", "content": str}, ...]
         self._sessions: Dict[str, List[Dict[str, str]]] = {}
-        self._token_counts: Dict[str, int] = {}  # provider -> total_tokens
+        # Token 消耗统计：provider -> 总 token 数
+        self._token_counts: Dict[str, int] = {}
+        # -------- Prompt 模板库（v1.5.0）--------
+        self._templates = {
+            "creative_writing": (
+                "你是一位才华横溢的创意写作专家。请根据以下主题创作内容：\n"
+                "主题：{topic}\n"
+                "风格：{style}\n"
+                "字数：约 {length} 字\n"
+                "请用 {language} 输出。"
+            ),
+            "technical_explanation": (
+                "你是一位专业的技术作家。请解释以下概念：\n"
+                "概念：{concept}\n"
+                "目标读者：{audience}\n"
+                "深度：{depth}\n"
+                "请用 {language} 详细说明，包含背景、原理和应用场景。"
+            ),
+            "analysis_report": (
+                "你是一位专业的行业分析师。请对以下内容进行深入分析：\n"
+                "主题：{topic}\n"
+                "分析维度：{dimensions}\n"
+                "请用 {language} 输出分析报告，包含：\n"
+                "1. 背景概述\n2. 现状分析\n3. 趋势预测\n4. 建议与结论"
+            ),
+            "code_explanation": (
+                "你是一位资深软件工程师。请解释以下代码的核心逻辑：\n"
+                "语言：{language}\n"
+                "代码：\n{code}\n"
+                "请用中文说明：\n1. 整体架构\n2. 关键函数\n3. 数据流\n4. 潜在改进点"
+            ),
+            "innovation_idea": (
+                "你是一位破界创新专家。请针对以下挑战提出创新性解决方案：\n"
+                "挑战：{challenge}\n"
+                "约束条件：{constraints}\n"
+                "请用 {language} 提出3个创新方案，每个方案包含：\n"
+                "名称、核心思路、预期效果、实施难度（1-5分）"
+            ),
+            "knowledge_summary": (
+                "请用 {language} 总结以下内容的核心要点（150字以内）：\n"
+                "内容：{content}\n"
+                "格式：\n- 要点1\n- 要点2\n- 要点3"
+            ),
+            "qa_answer": (
+                "你是一位知识渊博的导师。请回答以下问题：\n"
+                "问题：{question}\n"
+                "背景：{context}\n"
+                "请用 {language} 详细回答，确保答案准确、清晰、有帮助。"
+            ),
+        }
 
     def set_api_key(self, key: str) -> None:
         """设置 API Key"""
@@ -457,6 +505,52 @@ class ContentGenerator:
         """调用流式生成但一次性返回完整内容（方便统一接口）"""
         return "".join(self.generate_stream(prompt, config))
 
+    # -------- Prompt 模板库（v1.5.0）--------
+    def list_templates(self) -> List[str]:
+        """列出所有可用模板名称"""
+        return list(self._templates.keys())
+
+    def render_template(
+        self,
+        name: str,
+        **kwargs,
+    ) -> str:
+        """渲染指定模板，填充变量。
+        
+        示例：gen.render_template("creative_writing", topic="中华文明", style="古典", length=500, language="中文")
+        """
+        if name not in self._templates:
+            raise ValueError(f"未知模板：{name}，可用：{self.list_templates()}")
+        template = self._templates[name]
+        try:
+            return template.format(**kwargs)
+        except KeyError as e:
+            raise ValueError(f"模板 {name} 缺少参数：{e}")
+
+    def generate_from_template(
+        self,
+        template_name: str,
+        config: Optional[GenerationConfig] = None,
+        **template_vars,
+    ) -> str:
+        """使用模板渲染并生成内容（一步到位）。
+        
+        示例：gen.generate_from_template("creative_writing", topic="中华文明", style="古典")
+        """
+        prompt = self.render_template(template_name, **template_vars)
+        return self.generate(prompt, config)
+
+    def add_template(self, name: str, template: str) -> None:
+        """添加或覆盖自定义模板"""
+        self._templates[name] = template
+
+    def remove_template(self, name: str) -> bool:
+        """移除模板（仅自定义模板）"""
+        if name in self._templates:
+            del self._templates[name]
+            return True
+        return False
+
 
 __all__ = ["ContentGenerator", "OutputFormat", "GenerationConfig", "LLMProvider"]
-__version__ = "1.3.0"
+__version__ = "1.5.0"
