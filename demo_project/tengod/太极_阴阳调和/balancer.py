@@ -107,12 +107,57 @@ class TaiChiBalancer:
         balanced_count = sum(1 for t in self._history if t.to_state == YinYang.BALANCED)
         return {
             "current_state": self._state.value,
+            "state": self._state,
             "transitions": len(self._history),
             "yin_count": yin_count,
             "yang_count": yang_count,
             "balanced_count": balanced_count,
         }
 
+    def auto_balance(self, metrics: Dict[str, float]) -> Dict[str, Any]:
+        """根据系统指标自动评估阴阳状态并决定是否降级。
+        metrics 形如：{"cpu": 0.9, "memory": 0.8, "error_rate": 0.3, "throughput": 50}
+        返回 {"state": YinYang, "degraded": bool, "reason": str, "recommendations": List[str]}
+        """
+        score = self.evaluate(metrics)
+        stats = self.stats()
+        degraded = False
+        reasons = []
+        recommendations = []
+
+        if stats.get("state") == YinYang.YIN:
+            reasons.append("当前为阴态（低负载）")
+        elif stats.get("state") == YinYang.YANG:
+            reasons.append("当前为阳态（高负载）")
+
+        # 异常指标检测
+        for key, threshold in [("cpu", 0.85), ("memory", 0.9), ("error_rate", 0.1)]:
+            if key in metrics and metrics[key] > threshold:
+                degraded = True
+                reasons.append(f"{key}过高({metrics[key]:.0%})")
+                recommendations.append(f"建议降级 {key} 相关服务")
+
+        if not reasons:
+            reasons.append("系统运行平稳")
+        if not recommendations:
+            recommendations.append("保持当前状态")
+
+        return {
+            "state": stats.get("state"),
+            "score": score,
+            "degraded": degraded,
+            "reason": "; ".join(reasons),
+            "recommendations": recommendations,
+        }
+
+    def enter_degraded_mode(self, reason: str = "") -> None:
+        """进入降级模式（阴态）：减少计算资源占用"""
+        self.set_state(YinYang.YIN, reason=f"[降级]{reason}" if reason else "[降级]系统负载过高")
+
+    def exit_degraded_mode(self, reason: str = "") -> None:
+        """退出降级模式：恢复正常（阳态）"""
+        self.set_state(YinYang.YANG, reason=f"[恢复]{reason}" if reason else "[恢复]系统已稳定")
+
 
 __all__ = ["TaiChiBalancer", "YinYang", "StateTransition"]
-__version__ = "1.0.0"
+__version__ = "1.4.0"

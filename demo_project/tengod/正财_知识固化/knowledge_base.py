@@ -628,6 +628,123 @@ class KnowledgeBase:
             "type_distribution": type_count,
         }
 
+    def import_from_json(self, file_path: str) -> Dict[str, int]:
+        """从 JSON 文件批量导入节点。
+        JSON 格式：[{"name": "...", "node_type": "...", "properties": {...}}, ...]
+        返回 {"added": N, "skipped": M, "errors": [...]}
+        """
+        import json
+        added, skipped, errors = 0, 0, []
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception as e:
+            return {"added": 0, "skipped": 0, "errors": [str(e)]}
+        if not isinstance(data, list):
+            data = [data]
+        for item in data:
+            try:
+                if not item.get("name"):
+                    skipped += 1
+                    continue
+                node, created = self.upsert_node(
+                    item["name"],
+                    node_type=item.get("node_type", "default"),
+                    properties=item.get("properties", {}),
+                )
+                added += 1
+            except Exception as e:
+                errors.append(f"{item.get('name','?')}: {e}")
+        return {"added": added, "skipped": skipped, "errors": errors}
+
+    def import_from_csv(self, file_path: str, name_col: str = "name",
+                        type_col: str = "node_type",
+                        props_cols: Optional[List[str]] = None) -> Dict[str, int]:
+        """从 CSV 文件批量导入节点（无需 pandas）。
+        props_cols 为 None 时，其余列全部作为 properties。
+        """
+        import csv
+        added, skipped, errors = 0, 0, []
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                rows = list(reader)
+        except Exception as e:
+            return {"added": 0, "skipped": 0, "errors": [str(e)]}
+        for row in rows:
+            try:
+                name = row.get(name_col, "").strip()
+                if not name:
+                    skipped += 1
+                    continue
+                ntype = row.get(type_col, "default").strip()
+                if props_cols:
+                    props = {k: v for k, v in row.items() if k not in (name_col, type_col) and k in props_cols and v.strip()}
+                else:
+                    props = {k: v for k, v in row.items() if k not in (name_col, type_col) and v.strip()}
+                node, created = self.upsert_node(name, node_type=ntype, properties=props)
+                added += 1
+            except Exception as e:
+                errors.append(f"{name or '?'}：{e}")
+        return {"added": added, "skipped": skipped, "errors": errors}
+
+    def import_from_yaml(self, file_path: str) -> Dict[str, int]:
+        """从 YAML 文件批量导入节点。
+        YAML 格式（list）：
+        - name: 儒家
+          node_type: school
+          properties:
+            代表: 孔子
+        支持两种格式：list 或 根键映射。
+        """
+        try:
+            import yaml  # PyYAML
+        except ImportError:
+            # 纯 Python 兜底：正则解析（仅支持简单格式）
+            added, skipped, errors = 0, 0, []
+            try:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+                import re
+                # 简单正则：匹配 - name: xxx 和 node_type: xxx
+                entries = re.findall(r'-\s+name:\s*"?([^"\n]+)"?\s*\n\s+node_type:\s*"?([^"\n]+)"?', content)
+                for name, ntype in entries:
+                    node, created = self.upsert_node(name.strip(), node_type=ntype.strip(), properties={})
+                    added += 1
+            except Exception as e:
+                errors.append(str(e))
+            return {"added": added, "skipped": skipped, "errors": errors}
+        
+        added, skipped, errors = 0, 0, []
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                data = yaml.safe_load(f)
+        except Exception as e:
+            return {"added": 0, "skipped": 0, "errors": [str(e)]}
+        
+        items = data if isinstance(data, list) else []
+        if isinstance(data, dict):
+            # 尝试找顶级 list
+            for v in data.values():
+                if isinstance(v, list):
+                    items = v
+                    break
+        
+        for item in items:
+            try:
+                if not item.get("name"):
+                    skipped += 1
+                    continue
+                node, created = self.upsert_node(
+                    item["name"],
+                    node_type=item.get("node_type", "default"),
+                    properties=item.get("properties", {}),
+                )
+                added += 1
+            except Exception as e:
+                errors.append(f"{item.get('name','?')}: {e}")
+        return {"added": added, "skipped": skipped, "errors": errors}
+
 
 __all__ = ["KnowledgeBase", "KnowledgeNode", "KnowledgeEdge", "StorageBackend"]
 __version__ = "1.3.0"

@@ -2,10 +2,13 @@
 """
 search_optimizer.py — 搜索优化器
 偏财主理演化，提供超参数搜索与算法调参能力。
+版本: 1.4.0
 """
 
 import random
+import threading
 import time
+import uuid
 from typing import Any, Callable, Dict, List, Optional
 from dataclasses import dataclass, field
 from itertools import product
@@ -116,3 +119,180 @@ class SearchOptimizer:
     def get_history(self) -> List[Dict[str, Any]]:
         """获取历史记录"""
         return self._history.copy()
+
+    def optimize_async(self, objective: Callable, n_trials: int = 20, maximize: bool = True, callback=None) -> str:
+        """提交到全局 AsyncOptimizer，返回 task_id"""
+        from 偏财_奇招演化.search_optimizer import submit_async
+        return submit_async(self._space, objective, n_trials, maximize, self._mode)
+
+    def search(self, n_trials: int, objective: Callable, maximize: bool = True) -> str:
+        """submit_async 的别名（向后兼容）"""
+        return self.optimize_async(objective, n_trials, maximize)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Async Search Task & Optimizer
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@dataclass
+class AsyncSearchTask:
+    """异步搜索任务"""
+    task_id: str
+    status: str  # "pending" | "running" | "done" | "cancelled" | "failed"
+    optimizer: SearchOptimizer
+    objective: Any  # Callable（pickle不可用，所以存引用）
+    n_trials: int
+    maximize: bool
+    result: Optional[SearchResult] = None
+    error: Optional[str] = None
+    created_at: float = field(default_factory=time.time)
+    started_at: Optional[float] = None
+    finished_at: Optional[float] = None
+
+
+class AsyncOptimizer:
+    """异步优化器 — 支持任务提交/查询/取消/保存"""
+
+    def __init__(self):
+        self._tasks: Dict[str, AsyncSearchTask] = {}
+        self._lock = threading.Lock()
+
+    def submit(
+        self,
+        space: SearchSpace,
+        objective: Callable,
+        n_trials: int = 20,
+        maximize: bool = True,
+        mode: str = "random",
+    ) -> str:
+        """提交搜索任务，返回 task_id（立即返回，不阻塞）"""
+        task_id = str(uuid.uuid4())[:8]
+        optimizer = SearchOptimizer(space, mode) if space else SearchOptimizer(SearchSpace(), mode)
+        task = AsyncSearchTask(
+            task_id=task_id,
+            status="pending",
+            optimizer=optimizer,
+            objective=objective,
+            n_trials=n_trials,
+            maximize=maximize,
+        )
+        with self._lock:
+            self._tasks[task_id] = task
+        threading.Thread(target=self._worker, args=(task_id,), daemon=True).start()
+        return task_id
+
+    def get_status(self, task_id: str) -> Dict:
+        """返回任务状态"""
+        with self._lock:
+            task = self._tasks.get(task_id)
+        if task is None:
+            return {"status": "not_found"}
+        return {
+            "task_id": task.task_id,
+            "status": task.status,
+            "created_at": task.created_at,
+            "started_at": task.started_at,
+            "finished_at": task.finished_at,
+            "error": task.error,
+        }
+
+    def cancel(self, task_id: str) -> bool:
+        """设置状态为 cancelled（如果正在运行，下一轮循环检测到后停止）"""
+        with self._lock:
+            task = self._tasks.get(task_id)
+            if task is None:
+                return False
+            if task.status in ("done", "cancelled", "failed"):
+                return False
+            task.status = "cancelled"
+            return True
+
+    def get_result(self, task_id: str) -> Optional[SearchResult]:
+        """获取任务结果"""
+        with self._lock:
+            task = self._tasks.get(task_id)
+        if task is None:
+            return None
+        return task.result
+
+    def list_tasks(self) -> List[Dict]:
+        """列出所有任务"""
+        with self._lock:
+            return [
+                {
+                    "task_id": t.task_id,
+                    "status": t.status,
+                    "created_at": t.created_at,
+                    "started_at": t.started_at,
+                    "finished_at": t.finished_at,
+                }
+                for t in self._tasks.values()
+            ]
+
+    def _worker(self, task_id: str):
+        """内部线程函数，执行搜索"""
+        with self._lock:
+            task = self._tasks.get(task_id)
+            if task is None:
+                return
+            task.status = "running"
+            task.started_at = time.time()
+
+        try:
+            if task.status == "cancelled":
+                return
+            result = task.optimizer.optimize(
+                objective=task.objective,
+                n_trials=task.n_trials,
+                maximize=task.maximize,
+            )
+
+            with self._lock:
+                task = self._tasks.get(task_id)
+                if task is None:
+                    return
+                if task.status == "cancelled":
+                    return
+                task.result = result
+                task.status = "done"
+                task.finished_at = time.time()
+        except Exception as e:
+            with self._lock:
+                task = self._tasks.get(task_id)
+                if task is None:
+                    return
+                task.error = str(e)
+                task.status = "failed"
+                task.finished_at = time.time()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 全局异步优化器
+# ─────────────────────────────────────────────────────────────────────────────
+
+_global_optimizer: Optional[AsyncOptimizer] = None
+
+
+def get_async_optimizer() -> AsyncOptimizer:
+    """获取全局异步优化器实例"""
+    global _global_optimizer
+    if _global_optimizer is None:
+        _global_optimizer = AsyncOptimizer()
+    return _global_optimizer
+
+
+def submit_async(space, objective, n_trials=20, maximize=True, mode="random") -> str:
+    """全局异步优化器提交任务"""
+    return get_async_optimizer().submit(space, objective, n_trials, maximize, mode)
+
+
+__all__ = [
+    "SearchSpace",
+    "SearchResult",
+    "SearchOptimizer",
+    "AsyncSearchTask",
+    "AsyncOptimizer",
+    "submit_async",
+    "get_async_optimizer",
+]

@@ -4,7 +4,7 @@
 比肩主理协同，承担系统的核心编排与组件注册职责。
 """
 
-from .registry import ComponentRegistry, component, get_registry
+from .registry import ComponentRegistry, ComponentState, LifecycleManager, component, get_registry
 
-__all__ = ["ComponentRegistry", "component", "get_registry"]
-__version__ = "1.0.0"
+__all__ = ["ComponentRegistry", "ComponentState", "LifecycleManager", "component", "get_registry"]
+__version__ = "1.4.0"

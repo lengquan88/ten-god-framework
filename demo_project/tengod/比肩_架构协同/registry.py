@@ -5,7 +5,75 @@ registry.py — 组件注册中心
 """
 
 import inspect
+import threading
+import time
+from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Type
+
+
+class ComponentState(Enum):
+    """组件生命周期状态"""
+    UNINITIALIZED = "uninitialized"
+    INITIALIZING = "initializing"
+    READY = "ready"
+    DEGRADED = "degraded"
+    STOPPED = "stopped"
+    FAILED = "failed"
+
+
+class LifecycleManager:
+    """组件生命周期管理器"""
+
+    def __init__(self):
+        self._states: Dict[str, ComponentState] = {}
+        self._hooks: Dict[str, Dict[str, List[Callable]]] = {}  # name -> {on_start: [], on_stop: [], on_fail: []}
+        self._lock = threading.Lock()
+
+    def register(self, name: str) -> None:
+        """注册组件生命周期"""
+        with self._lock:
+            self._states[name] = ComponentState.UNINITIALIZED
+            self._hooks[name] = {"on_start": [], "on_stop": [], "on_fail": []}
+
+    def set_state(self, name: str, state: ComponentState) -> None:
+        """设置组件状态"""
+        with self._lock:
+            old = self._states.get(name, ComponentState.UNINITIALIZED)
+            self._states[name] = state
+            # 触发钩子
+            hooks = self._hooks.get(name, {})
+            if state == ComponentState.READY and old != ComponentState.READY:
+                for h in hooks.get("on_start", []):
+                    try: h(name)
+                    except: pass
+            elif state in (ComponentState.STOPPED, ComponentState.FAILED):
+                for h in hooks.get("on_stop" if state == ComponentState.STOPPED else "on_fail", []):
+                    try: h(name)
+                    except: pass
+
+    def get_state(self, name: str) -> ComponentState:
+        return self._states.get(name, ComponentState.UNINITIALIZED)
+
+    def on_start(self, name: str, hook: Callable) -> None:
+        self._hooks.setdefault(name, {"on_start": [], "on_stop": [], "on_fail": []})
+        self._hooks[name]["on_start"].append(hook)
+
+    def on_stop(self, name: str, hook: Callable) -> None:
+        self._hooks.setdefault(name, {"on_start": [], "on_stop": [], "on_fail": []})
+        self._hooks[name]["on_stop"].append(hook)
+
+    def on_fail(self, name: str, hook: Callable) -> None:
+        self._hooks.setdefault(name, {"on_start": [], "on_stop": [], "on_fail": []})
+        self._hooks[name]["on_fail"].append(hook)
+
+    def list_states(self) -> Dict[str, str]:
+        return {n: s.value for n, s in self._states.items()}
+
+    def summary(self) -> Dict[str, Any]:
+        counts = {s.value: 0 for s in ComponentState}
+        for s in self._states.values():
+            counts[s.value] += 1
+        return {"total": len(self._states), "by_state": counts}
 
 
 class ComponentRegistry:
@@ -21,6 +89,7 @@ class ComponentRegistry:
             cls._instance = super().__new__(cls)
             cls._instance._components = {}
             cls._instance._aliases = {}
+            cls._instance._lifecycle: Optional[LifecycleManager] = None
         return cls._instance
 
     def register(
@@ -80,6 +149,24 @@ class ComponentRegistry:
         self._components.clear()
         self._aliases.clear()
 
+    def get_lifecycle(self) -> LifecycleManager:
+        """获取生命周期管理器"""
+        if self._lifecycle is None:
+            self._lifecycle = LifecycleManager()
+        return self._lifecycle
+
+    def register_with_lifecycle(self, name: str, component: Any, *, on_start: Optional[Callable] = None, on_stop: Optional[Callable] = None) -> bool:
+        """注册组件并设置生命周期钩子"""
+        ok = self.register(name, component)
+        if ok and self._lifecycle:
+            self._lifecycle.register(name)
+            self._lifecycle.set_state(name, ComponentState.READY)
+            if on_start:
+                self._lifecycle.on_start(name, on_start)
+            if on_stop:
+                self._lifecycle.on_stop(name, on_stop)
+        return ok
+
 
 def get_registry() -> ComponentRegistry:
     """获取全局注册中心单例"""
@@ -89,3 +176,7 @@ def get_registry() -> ComponentRegistry:
 def component(name: str, aliases: Optional[List[str]] = None):
     """组件注册装饰器"""
     return get_registry().register(name, aliases=aliases)
+
+
+__all__ = ["ComponentRegistry", "ComponentState", "LifecycleManager", "component", "get_registry"]
+__version__ = "1.4.0"
