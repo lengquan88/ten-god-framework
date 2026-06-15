@@ -5,7 +5,7 @@ services:
   tengod-api:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: demo_project/Dockerfile
     container_name: tengod-api
     ports:
       - "8000:8000"
@@ -17,8 +17,8 @@ services:
       - DB_PATH=/data/knowledge.db
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
     volumes:
-      - ./data:/data
-      - ./logs:/logs
+      - ./data:/data          # 知识库持久化
+      - ./logs:/logs          # 日志
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 30s
@@ -28,7 +28,7 @@ services:
     networks:
       - tengod-net
 
-  # ===== PostgreSQL（可选）=====
+  # ===== PostgreSQL（可选知识库后端）=====
   postgres:
     image: postgres:16-alpine
     container_name: tengod-postgres
@@ -49,9 +49,9 @@ services:
     networks:
       - tengod-net
     profiles:
-      - with-pg
+      - with-pg    # docker-compose --profile with-pg 启用
 
-  # ===== Redis（可选缓存）=====
+  # ===== Redis（可选缓存层）=====
   redis:
     image: redis:7-alpine
     container_name: tengod-redis
