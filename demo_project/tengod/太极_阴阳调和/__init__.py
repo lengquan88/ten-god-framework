@@ -4,7 +4,7 @@
 太极主理调和，承担系统的阴阳平衡与状态切换职责。
 """
 
-from .balancer import TaiChiBalancer, YinYang, StateTransition
+from .balancer import StateTransition, TaiChiBalancer, YinYang
 
 __all__ = ["TaiChiBalancer", "YinYang", "StateTransition"]
 __version__ = "1.4.0"

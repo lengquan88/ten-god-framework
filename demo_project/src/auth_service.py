@@ -3,9 +3,11 @@
 
 VALID_USERS = {"admin", "developer", "viewer"}
 
+
 def authenticate(username: str) -> bool:
     """验证用户身份"""
     return username in VALID_USERS
+
 
 def check_permission(username: str, resource: str) -> bool:
     """检查资源访问权限"""

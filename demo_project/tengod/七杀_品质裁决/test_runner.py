@@ -6,13 +6,14 @@ test_runner.py — 简易测试运行器
 
 import time
 import traceback
+from dataclasses import dataclass
 from enum import Enum
-from typing import Callable, Dict, List, Any
-from dataclasses import dataclass, field
+from typing import Any, Callable, Dict, List
 
 
 class TestStatus(Enum):
     """测试状态"""
+
     PASS = "pass"
     FAIL = "fail"
     ERROR = "error"
@@ -22,6 +23,7 @@ class TestStatus(Enum):
 @dataclass
 class TestCase:
     """测试用例"""
+
     name: str
     func: Callable
     description: str = ""
@@ -31,6 +33,7 @@ class TestCase:
 @dataclass
 class TestResult:
     """测试结果"""
+
     case_name: str
     status: TestStatus
     duration: float

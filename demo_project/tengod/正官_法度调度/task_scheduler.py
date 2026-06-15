@@ -5,23 +5,25 @@ task_scheduler.py — 任务调度器
 """
 
 import heapq
-import time
 import threading
+import time
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional
-from dataclasses import dataclass, field
 
 
 class TaskPriority(Enum):
     """任务优先级"""
+
     CRITICAL = 0  # 紧急
-    HIGH = 1      # 高
-    NORMAL = 2    # 普通
-    LOW = 3       # 低
+    HIGH = 1  # 高
+    NORMAL = 2  # 普通
+    LOW = 3  # 低
 
 
 class TaskStatus(Enum):
     """任务状态"""
+
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -32,6 +34,7 @@ class TaskStatus(Enum):
 @dataclass
 class Task:
     """任务对象"""
+
     task_id: str
     func: Callable
     args: tuple = field(default_factory=tuple)

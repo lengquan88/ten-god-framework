@@ -4,13 +4,14 @@ quality_judge.py — 质量裁决器
 七杀主理裁决，对系统输出与代码质量进行评分定级。
 """
 
+from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, List, Any
-from dataclasses import dataclass, field
+from typing import Any, Dict, List
 
 
 class Grade(Enum):
     """品质等级"""
+
     S = "S"  # 卓越
     A = "A"  # 优秀
     B = "B"  # 良好
@@ -21,6 +22,7 @@ class Grade(Enum):
 @dataclass
 class Score:
     """评分项"""
+
     name: str
     value: float  # 0-100
     weight: float = 1.0
@@ -48,7 +50,9 @@ class QualityJudge:
     def __init__(self):
         self._scores: List[Score] = []
 
-    def add_score(self, name: str, value: float, weight: float = 1.0, comment: str = "") -> Score:
+    def add_score(
+        self, name: str, value: float, weight: float = 1.0, comment: str = ""
+    ) -> Score:
         """添加评分项"""
         score = Score(name=name, value=value, weight=weight, comment=comment)
         self._scores.append(score)

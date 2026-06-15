@@ -1,0 +1,36 @@
+{
+  "name": "十神架构控制台",
+  "short_name": "十神",
+  "description": "中华文明数字永生体 · 十神架构 Web 控制台",
+  "start_url": "/web_console/index.html",
+  "display": "standalone",
+  "background_color": "#0a0a0f",
+  "theme_color": "#c9a96e",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/web_console/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/web_console/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "categories": ["utilities", "productivity"],
+  "lang": "zh-CN",
+  "shortcuts": [
+    {
+      "name": "知识库",
+      "url": "/web_console/index.html#knowledge",
+      "description": "查看知识图谱"
+    },
+    {
+      "name": "Oracle",
+      "url": "/web_console/index.html#oracle",
+      "description": "咨询 Oracle"
+    }
+  ]
+}

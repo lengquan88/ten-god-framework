@@ -4,8 +4,9 @@
 七杀主理裁决，承担系统的测试评估与质量监控职责。
 """
 
-from .quality_judge import QualityJudge, Score, Grade
-from .test_runner import TestRunner, TestCase, TestResult, TestStatus
+from .code_scanner import CodeScanner, ScanIssue, ScanLevel, ScanReport
+from .quality_judge import Grade, QualityJudge, Score
+from .test_runner import TestCase, TestResult, TestRunner, TestStatus
 
 __all__ = [
     "QualityJudge",
@@ -15,5 +16,9 @@ __all__ = [
     "TestCase",
     "TestResult",
     "TestStatus",
+    "CodeScanner",
+    "ScanReport",
+    "ScanIssue",
+    "ScanLevel",
 ]
-__version__ = "1.0.0"
+__version__ = "1.5.0"

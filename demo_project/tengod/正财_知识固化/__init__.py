@@ -7,8 +7,8 @@
 
 from .knowledge_base import (
     KnowledgeBase,
-    KnowledgeNode,
     KnowledgeEdge,
+    KnowledgeNode,
     StorageBackend,
 )
 

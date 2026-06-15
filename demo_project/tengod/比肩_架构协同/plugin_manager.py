@@ -4,15 +4,14 @@ plugin_manager.py — 十神插件系统 v2.0.0
 支持动态加载/卸载/生命周期管理的插件框架。
 """
 
-import os
-import sys
-import time
 import importlib
 import importlib.util
-import inspect
+import os
+import sys
 import threading
+import time
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Callable, Dict, List, Optional
 
 __all__ = ["PluginManager", "PluginSpec", "PluginState", "PluginHook"]
 __version__ = "2.0.0"
@@ -21,6 +20,7 @@ __version__ = "2.0.0"
 @dataclass
 class PluginSpec:
     """插件规格"""
+
     name: str
     version: str = "1.0.0"
     description: str = ""
@@ -32,6 +32,7 @@ class PluginSpec:
 
 class PluginState:
     """插件状态枚举"""
+
     UNLOADED = "unloaded"
     LOADING = "loading"
     LOADED = "loaded"
@@ -42,21 +43,23 @@ class PluginState:
 
 class PluginHook:
     """插件钩子定义"""
+
     ON_LOAD = "on_load"
     ON_UNLOAD = "on_unload"
     ON_ACTIVATE = "on_activate"
     ON_DEACTIVATE = "on_deactivate"
     ON_ERROR = "on_error"
-    PRE_GENERATE = "pre_generate"    # 食神生成前
+    PRE_GENERATE = "pre_generate"  # 食神生成前
     POST_GENERATE = "post_generate"  # 食神生成后
-    PRE_SEARCH = "pre_search"        # 正财搜索前
-    POST_SEARCH = "post_search"     # 正财搜索后
+    PRE_SEARCH = "pre_search"  # 正财搜索前
+    POST_SEARCH = "post_search"  # 正财搜索后
     PRE_EVALUATE = "pre_evaluate"  # 七杀评估前
     POST_EVALUATE = "post_evaluate"  # 七杀评估后
 
 
 class Plugin:
     """插件实例"""
+
     def __init__(self, spec: PluginSpec):
         self.spec = spec
         self.state = PluginState.UNLOADED
@@ -185,8 +188,14 @@ class PluginManager:
                         if hook_name.startswith("hook_"):
                             handler = getattr(plugin.module, hook_name)
                             if callable(handler):
-                                plugin._hooks[hook_name.replace("hook_", "")] = plugin._hooks.get(hook_name.replace("hook_", ""), [])
-                                plugin._hooks[hook_name.replace("hook_", "")].append(handler)
+                                plugin._hooks[hook_name.replace("hook_", "")] = (
+                                    plugin._hooks.get(
+                                        hook_name.replace("hook_", ""), []
+                                    )
+                                )
+                                plugin._hooks[hook_name.replace("hook_", "")].append(
+                                    handler
+                                )
 
                 plugin.state = PluginState.LOADED
                 plugin.loaded_at = time.time()

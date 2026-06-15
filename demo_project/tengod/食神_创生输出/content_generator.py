@@ -5,17 +5,18 @@ content_generator.py — 内容生成器
 支持真实 LLM API 接入（OpenAI、Claude、本地模型）。
 """
 
-from enum import Enum
-from typing import Any, Dict, Iterator, List, Optional, Callable
-from dataclasses import dataclass, field
-import time
-import uuid
 import json
 import os
+import time
+import uuid
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any, Callable, Dict, Iterator, List, Optional
 
 
 class OutputFormat(Enum):
     """输出格式"""
+
     TEXT = "text"
     MARKDOWN = "markdown"
     JSON = "json"
@@ -25,16 +26,18 @@ class OutputFormat(Enum):
 
 class LLMProvider(Enum):
     """LLM 提供商"""
-    MOCK = "mock"       # 模拟（默认）
-    OPENAI = "openai"   # OpenAI API
-    CLAUDE = "claude"   # Anthropic Claude
-    LOCAL = "local"     # 本地模型（如 Ollama）
-    CUSTOM = "custom"   # 自定义回调
+
+    MOCK = "mock"  # 模拟（默认）
+    OPENAI = "openai"  # OpenAI API
+    CLAUDE = "claude"  # Anthropic Claude
+    LOCAL = "local"  # 本地模型（如 Ollama）
+    CUSTOM = "custom"  # 自定义回调
 
 
 @dataclass
 class GenerationConfig:
     """生成配置"""
+
     format: OutputFormat = OutputFormat.TEXT
     max_length: int = 2000
     temperature: float = 0.7
@@ -119,7 +122,9 @@ class ContentGenerator:
         """设置 API Key"""
         self._api_key = key
 
-    def set_custom_generator(self, func: Callable[[str, GenerationConfig], str]) -> None:
+    def set_custom_generator(
+        self, func: Callable[[str, GenerationConfig], str]
+    ) -> None:
         """设置自定义生成函数"""
         self._custom_generator = func
 
@@ -146,7 +151,9 @@ class ContentGenerator:
         else:
             messages = [{"role": "user", "content": prompt}]
 
-        cache_key = f"{prompt}:{config.format.value}:{config.style}:{config.provider.value}"
+        cache_key = (
+            f"{prompt}:{config.format.value}:{config.style}:{config.provider.value}"
+        )
         if use_cache and cache_key in self._cache:
             content = self._cache[cache_key]
         else:
@@ -165,16 +172,18 @@ class ContentGenerator:
         prov = config.provider.value
         self._token_counts[prov] = self._token_counts.get(prov, 0) + est_tokens
 
-        self._history.append({
-            "id": str(uuid.uuid4())[:8],
-            "prompt": prompt,
-            "format": config.format.value,
-            "provider": config.provider.value,
-            "session_id": session_id,
-            "timestamp": time.time(),
-            "length": len(content),
-            "est_tokens": est_tokens,
-        })
+        self._history.append(
+            {
+                "id": str(uuid.uuid4())[:8],
+                "prompt": prompt,
+                "format": config.format.value,
+                "provider": config.provider.value,
+                "session_id": session_id,
+                "timestamp": time.time(),
+                "length": len(content),
+                "est_tokens": est_tokens,
+            }
+        )
         return content
 
     def _generate_with_provider(
@@ -205,6 +214,7 @@ class ContentGenerator:
     ) -> str:
         """通用重试包装（指数退避）"""
         import random
+
         last_error = ""
         for attempt in range(max_retries + 1):
             try:
@@ -212,21 +222,24 @@ class ContentGenerator:
             except Exception as e:
                 last_error = str(e)
                 if attempt < max_retries:
-                    wait = (2 ** attempt) + random.uniform(0, 1)
+                    wait = (2**attempt) + random.uniform(0, 1)
                     time.sleep(wait)
-        return f"[Error({provider_name}): 重试{max_retries+1}次后仍失败] {last_error}"
+        return f"[Error({provider_name}): 重试{max_retries + 1}次后仍失败] {last_error}"
 
     def _render_mock(self, prompt: str, config: GenerationConfig) -> str:
         """模拟渲染"""
         if config.format == OutputFormat.MARKDOWN:
             return f"## {prompt}\n\n*由 {self._name} 生成（模拟）*\n"
         elif config.format == OutputFormat.JSON:
-            return json.dumps({
-                "prompt": prompt,
-                "generator": self._name,
-                "provider": "mock",
-                "generated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-            }, ensure_ascii=False)
+            return json.dumps(
+                {
+                    "prompt": prompt,
+                    "generator": self._name,
+                    "provider": "mock",
+                    "generated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+                },
+                ensure_ascii=False,
+            )
         elif config.format == OutputFormat.HTML:
             return f"<h1>{prompt}</h1><p>由 {self._name} 生成</p>"
         elif config.format == OutputFormat.CODE:
@@ -234,11 +247,17 @@ class ContentGenerator:
         else:
             return f"{prompt} [by {self._name} (mock)]"
 
-    def _call_openai(self, prompt: str, config: GenerationConfig,
-                     messages: Optional[List[Dict[str, str]]] = None) -> str:
+    def _call_openai(
+        self,
+        prompt: str,
+        config: GenerationConfig,
+        messages: Optional[List[Dict[str, str]]] = None,
+    ) -> str:
         """调用 OpenAI API（超时控制 + 重试 + 会话消息）"""
+
         def _do():
             import openai
+
             client = openai.OpenAI(
                 api_key=self._api_key or config.api_key,
                 base_url=config.base_url if config.base_url else None,
@@ -256,14 +275,23 @@ class ContentGenerator:
                 temperature=config.temperature,
             )
             return response.choices[0].message.content or ""
+
         return self._call_with_retry(_do, config.max_retries, "OpenAI")
 
-    def _call_claude(self, prompt: str, config: GenerationConfig,
-                     messages: Optional[List[Dict[str, str]]] = None) -> str:
+    def _call_claude(
+        self,
+        prompt: str,
+        config: GenerationConfig,
+        messages: Optional[List[Dict[str, str]]] = None,
+    ) -> str:
         """调用 Claude API（超时控制 + 重试 + 会话消息）"""
+
         def _do():
             import anthropic
-            client = anthropic.Anthropic(api_key=self._api_key or config.api_key, timeout=config.timeout)
+
+            client = anthropic.Anthropic(
+                api_key=self._api_key or config.api_key, timeout=config.timeout
+            )
             if messages and len(messages) > 1:
                 msgs = messages
             else:
@@ -274,12 +302,15 @@ class ContentGenerator:
                 messages=msgs,
             )
             return response.content[0].text
+
         return self._call_with_retry(_do, config.max_retries, "Claude")
 
     def _call_local(self, prompt: str, config: GenerationConfig) -> str:
         """调用本地模型（Ollama 等）+ 超时 + 重试"""
+
         def _do():
             import requests
+
             base_url = config.base_url or "http://localhost:11434"
             response = requests.post(
                 f"{base_url}/api/generate",
@@ -291,6 +322,7 @@ class ContentGenerator:
                 timeout=config.timeout,
             )
             return response.json().get("response", "")
+
         return self._call_with_retry(_do, config.max_retries, "Local/Ollama")
 
     def get_history(self, limit: int = 10) -> List[Dict[str, Any]]:
@@ -385,18 +417,22 @@ class ContentGenerator:
             yield chunk
 
         full_content = "".join(full_content_parts)
-        self._history.append({
-            "id": str(uuid.uuid4())[:8],
-            "prompt": prompt,
-            "format": config.format.value,
-            "provider": config.provider.value,
-            "stream": True,
-            "timestamp": start_time,
-            "duration": round(time.time() - start_time, 3),
-            "length": len(full_content),
-        })
+        self._history.append(
+            {
+                "id": str(uuid.uuid4())[:8],
+                "prompt": prompt,
+                "format": config.format.value,
+                "provider": config.provider.value,
+                "stream": True,
+                "timestamp": start_time,
+                "duration": round(time.time() - start_time, 3),
+                "length": len(full_content),
+            }
+        )
 
-    def _stream_mock(self, prompt: str, config: GenerationConfig, token_delay: float) -> Iterator[str]:
+    def _stream_mock(
+        self, prompt: str, config: GenerationConfig, token_delay: float
+    ) -> Iterator[str]:
         """MOCK 模式：逐字输出模拟内容"""
         text = self._render_mock(prompt, config)
         # 按字符或词切分
@@ -423,6 +459,7 @@ class ContentGenerator:
         """OpenAI 流式调用"""
         try:
             import openai
+
             client = openai.OpenAI(
                 api_key=self._api_key or config.api_key,
                 base_url=config.base_url if config.base_url else None,
@@ -439,7 +476,7 @@ class ContentGenerator:
                 if delta:
                     yield delta
         except ImportError:
-            yield f"[Error: openai 未安装，回退 MOCK]\n"
+            yield "[Error: openai 未安装，回退 MOCK]\n"
             for tok in self._stream_mock(prompt, config, 0):
                 yield tok
         except Exception as e:
@@ -451,6 +488,7 @@ class ContentGenerator:
         """Claude 流式调用"""
         try:
             import anthropic
+
             client = anthropic.Anthropic(api_key=self._api_key or config.api_key)
             with client.messages.stream(
                 model=config.model or "claude-3-haiku-20240307",
@@ -460,7 +498,7 @@ class ContentGenerator:
                 for text in stream.text_stream:
                     yield text
         except ImportError:
-            yield f"[Error: anthropic 未安装，回退 MOCK]\n"
+            yield "[Error: anthropic 未安装，回退 MOCK]\n"
             for tok in self._stream_mock(prompt, config, 0):
                 yield tok
         except Exception as e:
@@ -472,6 +510,7 @@ class ContentGenerator:
         """本地 Ollama 流式调用"""
         try:
             import requests
+
             base_url = config.base_url or "http://localhost:11434"
             resp = requests.post(
                 f"{base_url}/api/generate",
@@ -493,7 +532,7 @@ class ContentGenerator:
                     except json.JSONDecodeError:
                         continue
         except ImportError:
-            yield f"[Error: requests 未安装，回退 MOCK]\n"
+            yield "[Error: requests 未安装，回退 MOCK]\n"
             for tok in self._stream_mock(prompt, config, 0):
                 yield tok
         except Exception as e:
@@ -501,7 +540,9 @@ class ContentGenerator:
             for tok in self._stream_mock(prompt, config, 0):
                 yield tok
 
-    def generate_collect(self, prompt: str, config: Optional[GenerationConfig] = None) -> str:
+    def generate_collect(
+        self, prompt: str, config: Optional[GenerationConfig] = None
+    ) -> str:
         """调用流式生成但一次性返回完整内容（方便统一接口）"""
         return "".join(self.generate_stream(prompt, config))
 
@@ -516,7 +557,7 @@ class ContentGenerator:
         **kwargs,
     ) -> str:
         """渲染指定模板，填充变量。
-        
+
         示例：gen.render_template("creative_writing", topic="中华文明", style="古典", length=500, language="中文")
         """
         if name not in self._templates:
@@ -534,7 +575,7 @@ class ContentGenerator:
         **template_vars,
     ) -> str:
         """使用模板渲染并生成内容（一步到位）。
-        
+
         示例：gen.generate_from_template("creative_writing", topic="中华文明", style="古典")
         """
         prompt = self.render_template(template_name, **template_vars)

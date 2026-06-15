@@ -7,8 +7,8 @@ tengod/__init__.py — 十神包体系 (由 init_tengod.py 自动生成)
 模块总数: 10
 """
 
-import sys
 import os
+import sys
 
 # 先注入子模块路径到 sys.path
 _TENGOD_ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -17,7 +17,11 @@ if _TENGOD_ROOT not in sys.path:
     sys.path.insert(0, _TENGOD_ROOT)
 for _subdir in os.listdir(_TENGOD_ROOT):
     _full = os.path.join(_TENGOD_ROOT, _subdir)
-    if os.path.isdir(_full) and not _subdir.startswith('.') and not _subdir.startswith('_'):
+    if (
+        os.path.isdir(_full)
+        and not _subdir.startswith(".")
+        and not _subdir.startswith("_")
+    ):
         if _full not in sys.path:
             sys.path.insert(0, _full)
 
@@ -37,7 +41,7 @@ GOD_NAMES = {
     "正印": "滋养守护 — 十神子包",
     "偏印": "桥接通变 — 十神子包",
     "元辰": "本源定位 — 扩展子包",
-    "太极": "阴阳调和 — 扩展子包"
+    "太极": "阴阳调和 — 扩展子包",
 }
 
 __version__ = "1.2.0"
@@ -47,6 +51,7 @@ def __getattr__(name):
     """懒加载子模块和 core"""
     if name == "TenGodCore" or name == "get_core":
         from . import core
+
         return getattr(core, name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 

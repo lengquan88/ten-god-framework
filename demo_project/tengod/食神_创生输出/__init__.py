@@ -7,9 +7,9 @@
 
 from .content_generator import (
     ContentGenerator,
-    OutputFormat,
     GenerationConfig,
     LLMProvider,
+    OutputFormat,
 )
 
 __all__ = [

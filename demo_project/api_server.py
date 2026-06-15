@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """api_server.py — API服务 (正官·法度调度)"""
 
-from http.server import HTTPServer, BaseHTTPRequestHandler
-from src.data_store import query_records, count_records
 import json
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
+from src.data_store import count_records, query_records
+
 
 class APIHandler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -19,6 +21,7 @@ class APIHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json")
         self.end_headers()
         self.wfile.write(json.dumps(data, ensure_ascii=False).encode())
+
 
 if __name__ == "__main__":
     server = HTTPServer(("0.0.0.0", 8080), APIHandler)

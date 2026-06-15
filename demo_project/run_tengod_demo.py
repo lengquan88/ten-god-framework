@@ -13,10 +13,10 @@ run_tengod_demo.py — 十神架构 · 一键串联演示
     python demo_project/run_tengod_demo.py
 """
 
+import json
 import os
 import sys
 import time
-import json
 
 # -------- 路径准备（让脚本可在任意目录下运行）--------
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -111,6 +111,7 @@ def main() -> int:
     step(0, 12, "初始化核心调度器 (TenGodCore)", "核心")
     try:
         from tengod.core import get_core
+
         core = get_core()
         ok("TenGodCore 实例化成功")
         kv("核心名称", core.name)
@@ -218,38 +219,118 @@ def main() -> int:
     try:
         kb = core.knowledge_base()
         seeds = [
-            {"name": "儒家", "node_type": "school",
-                "properties": {"代表": "孔子/孟子", "典籍": "论语/孟子", "时代": "春秋"}},
-            {"name": "道家", "node_type": "school",
-                "properties": {"代表": "老子/庄子", "典籍": "道德经/庄子", "时代": "春秋"}},
-            {"name": "墨家", "node_type": "school",
-                "properties": {"代表": "墨子", "典籍": "墨子", "时代": "战国"}},
-            {"name": "法家", "node_type": "school",
-                "properties": {"代表": "韩非/商鞅", "典籍": "韩非子", "时代": "战国"}},
-            {"name": "兵家", "node_type": "school",
-                "properties": {"代表": "孙武/吴起", "典籍": "孙子兵法", "时代": "春秋"}},
-            {"name": "易经", "node_type": "classic",
-                "properties": {"分类": "六经之首", "内容": "六十四卦", "地位": "群经之首"}},
-            {"name": "诗经", "node_type": "classic",
-                "properties": {"分类": "六经", "内容": "305 篇", "朝代": "西周至春秋"}},
-            {"name": "尚书", "node_type": "classic",
-                "properties": {"分类": "六经", "内容": "上古政令", "朝代": "上古"}},
-            {"name": "礼记", "node_type": "classic",
-                "properties": {"分类": "六经", "内容": "礼仪制度", "朝代": "先秦"}},
-            {"name": "春秋", "node_type": "classic",
-                "properties": {"分类": "六经", "作者": "孔子", "时代": "春秋"}},
-            {"name": "河图", "node_type": "cosmic",
-                "properties": {"传说": "龙马负图", "结构": "1-10 黑白点", "对应": "八卦"}},
-            {"name": "洛书", "node_type": "cosmic",
-                "properties": {"传说": "神龟负书", "结构": "3x3 九宫幻方", "对应": "九畴"}},
-            {"name": "阴阳", "node_type": "concept",
-                "properties": {"核心": "对立统一", "起源": "上古", "应用": "中医/风水/哲学"}},
-            {"name": "五行", "node_type": "concept",
-                "properties": {"构成": "金木水火土", "关系": "相生相克", "应用": "中医/命理"}},
-            {"name": "太极", "node_type": "concept",
-                "properties": {"图像": "阴阳鱼", "出处": "周易·系辞", "含义": "万物本源"}},
-            {"name": "中庸", "node_type": "concept",
-                "properties": {"出处": "礼记", "作者": "子思", "核心": "不偏不易"}},
+            {
+                "name": "儒家",
+                "node_type": "school",
+                "properties": {
+                    "代表": "孔子/孟子",
+                    "典籍": "论语/孟子",
+                    "时代": "春秋",
+                },
+            },
+            {
+                "name": "道家",
+                "node_type": "school",
+                "properties": {
+                    "代表": "老子/庄子",
+                    "典籍": "道德经/庄子",
+                    "时代": "春秋",
+                },
+            },
+            {
+                "name": "墨家",
+                "node_type": "school",
+                "properties": {"代表": "墨子", "典籍": "墨子", "时代": "战国"},
+            },
+            {
+                "name": "法家",
+                "node_type": "school",
+                "properties": {"代表": "韩非/商鞅", "典籍": "韩非子", "时代": "战国"},
+            },
+            {
+                "name": "兵家",
+                "node_type": "school",
+                "properties": {"代表": "孙武/吴起", "典籍": "孙子兵法", "时代": "春秋"},
+            },
+            {
+                "name": "易经",
+                "node_type": "classic",
+                "properties": {
+                    "分类": "六经之首",
+                    "内容": "六十四卦",
+                    "地位": "群经之首",
+                },
+            },
+            {
+                "name": "诗经",
+                "node_type": "classic",
+                "properties": {"分类": "六经", "内容": "305 篇", "朝代": "西周至春秋"},
+            },
+            {
+                "name": "尚书",
+                "node_type": "classic",
+                "properties": {"分类": "六经", "内容": "上古政令", "朝代": "上古"},
+            },
+            {
+                "name": "礼记",
+                "node_type": "classic",
+                "properties": {"分类": "六经", "内容": "礼仪制度", "朝代": "先秦"},
+            },
+            {
+                "name": "春秋",
+                "node_type": "classic",
+                "properties": {"分类": "六经", "作者": "孔子", "时代": "春秋"},
+            },
+            {
+                "name": "河图",
+                "node_type": "cosmic",
+                "properties": {
+                    "传说": "龙马负图",
+                    "结构": "1-10 黑白点",
+                    "对应": "八卦",
+                },
+            },
+            {
+                "name": "洛书",
+                "node_type": "cosmic",
+                "properties": {
+                    "传说": "神龟负书",
+                    "结构": "3x3 九宫幻方",
+                    "对应": "九畴",
+                },
+            },
+            {
+                "name": "阴阳",
+                "node_type": "concept",
+                "properties": {
+                    "核心": "对立统一",
+                    "起源": "上古",
+                    "应用": "中医/风水/哲学",
+                },
+            },
+            {
+                "name": "五行",
+                "node_type": "concept",
+                "properties": {
+                    "构成": "金木水火土",
+                    "关系": "相生相克",
+                    "应用": "中医/命理",
+                },
+            },
+            {
+                "name": "太极",
+                "node_type": "concept",
+                "properties": {
+                    "图像": "阴阳鱼",
+                    "出处": "周易·系辞",
+                    "含义": "万物本源",
+                },
+            },
+            {
+                "name": "中庸",
+                "node_type": "concept",
+                "properties": {"出处": "礼记", "作者": "子思", "核心": "不偏不易"},
+            },
         ]
         for s in seeds:
             kb.add_node(s["name"], node_type=s["node_type"], properties=s["properties"])
@@ -293,9 +374,20 @@ def main() -> int:
     step(8, TOTAL, "七杀 · 对『食神/伤官/正财』三模块表现打分", "七杀")
     try:
         report = core.evaluate(
-            {"生成质量": 88, "创新度": 76, "知识完整度": 92, "检索相关性": 84, "响应速度": 95},
-            weights={"生成质量": 1.2, "创新度": 1.0, "知识完整度": 1.1,
-                     "检索相关性": 1.0, "响应速度": 0.8},
+            {
+                "生成质量": 88,
+                "创新度": 76,
+                "知识完整度": 92,
+                "检索相关性": 84,
+                "响应速度": 95,
+            },
+            weights={
+                "生成质量": 1.2,
+                "创新度": 1.0,
+                "知识完整度": 1.1,
+                "检索相关性": 1.0,
+                "响应速度": 0.8,
+            },
         )
         ok("综合评估完成")
         for k, v in report.items():
@@ -311,6 +403,7 @@ def main() -> int:
     # ========================================================
     step(9, TOTAL, "偏财 · 在一组演示超参数上做网格搜索", "偏财")
     try:
+
         def demo_objective(params: dict) -> float:
             """一个示意目标函数：越接近『学习率 0.01 / batch 32 / 层数 4』越高分"""
             score = 0.0
@@ -321,13 +414,17 @@ def main() -> int:
             return score
 
         result = core.search(
-            {"lr": [0.001, 0.01, 0.1],
-             "batch": [16, 32, 64],
-             "layers": [2, 4, 8],
-             "dropout": [0.1, 0.2, 0.3]},
+            {
+                "lr": [0.001, 0.01, 0.1],
+                "batch": [16, 32, 64],
+                "layers": [2, 4, 8],
+                "dropout": [0.1, 0.2, 0.3],
+            },
             demo_objective,
         )
-        ok(f"参数寻优完成：迭代 {result['iterations']} 次，耗时 {result['duration']} ms")
+        ok(
+            f"参数寻优完成：迭代 {result['iterations']} 次，耗时 {result['duration']} ms"
+        )
         kv("best_params", result["best_params"])
         kv("best_score", f"{result['best_score']:.4f}")
     except Exception as e:
@@ -340,8 +437,11 @@ def main() -> int:
     try:
         bridge = core.bridge
         state = core.export_state()
-        lite = {k: v for k, v in state.items()
-                if k in ("name", "version", "features", "knowledge")}
+        lite = {
+            k: v
+            for k, v in state.items()
+            if k in ("name", "version", "features", "knowledge")
+        }
 
         # 构造一个自定义 JSON 桥接器，并注册到 bridge
         class JsonConverter:
@@ -349,10 +449,12 @@ def main() -> int:
 
             def encode(self, value):
                 import json as _json
+
                 return _json.dumps(value, ensure_ascii=False, default=str)
 
             def decode(self, payload):
                 import json as _json
+
                 return _json.loads(payload) if isinstance(payload, str) else payload
 
         if bridge is not None:
@@ -362,8 +464,14 @@ def main() -> int:
             decoded = conv.decode(encoded) if conv is not None else None
             ok("JSON 桥接完成（注册 → 编码 → 解码）")
             kv("encoder", JsonConverter.__name__)
-            kv("encoded_len", len(encoded) if isinstance(encoded, str) else len(str(encoded)))
-            kv("decoded_name", decoded.get("name") if isinstance(decoded, dict) else "N/A")
+            kv(
+                "encoded_len",
+                len(encoded) if isinstance(encoded, str) else len(str(encoded)),
+            )
+            kv(
+                "decoded_name",
+                decoded.get("name") if isinstance(decoded, dict) else "N/A",
+            )
             kv("adapters_registered", bridge.list_adapters())
             kv("converters_registered", bridge.list_converters())
         else:
@@ -383,7 +491,12 @@ def main() -> int:
         else:
             # 注册角色权限
             role_perms = {
-                "admin": [Permission.READ, Permission.WRITE, Permission.EXECUTE, Permission.ADMIN],
+                "admin": [
+                    Permission.READ,
+                    Permission.WRITE,
+                    Permission.EXECUTE,
+                    Permission.ADMIN,
+                ],
                 "user": [Permission.READ, Permission.EXECUTE],
                 "guest": [Permission.READ],
             }
@@ -420,12 +533,14 @@ def main() -> int:
     # ========================================================
     step(12, TOTAL, "太极 · 根据当前模块表现做阴阳状态评估", "太极")
     try:
-        stats = core.balance_state(metrics={
-            "创新度": 76,
-            "生成质量": 88,
-            "检索相关性": 84,
-            "响应速度": 95,
-        })
+        stats = core.balance_state(
+            metrics={
+                "创新度": 76,
+                "生成质量": 88,
+                "检索相关性": 84,
+                "响应速度": 95,
+            }
+        )
         ok("太极阴阳调和评估完成")
         for k, v in stats.items():
             if isinstance(v, float):
@@ -471,7 +586,9 @@ def main() -> int:
                     port = int(a.split("=", 1)[1])
                 except ValueError:
                     pass
-        print(f"  启动正官 HTTP API 于 {C.CYAN}http://127.0.0.1:{port}{C.RESET} ... (Ctrl+C 退出)")
+        print(
+            f"  启动正官 HTTP API 于 {C.CYAN}http://127.0.0.1:{port}{C.RESET} ... (Ctrl+C 退出)"
+        )
         core.run_api_server(host="127.0.0.1", port=port)
 
     return 0

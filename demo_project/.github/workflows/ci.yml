@@ -1,0 +1,119 @@
+name: TenGod CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  PYTHON_VERSION: "3.11"
+  MODULE_DIR: demo_project/tengod
+
+jobs:
+  # -------- 单元测试 --------
+  test:
+    name: Python ${{ matrix.python-version }} · ${{ matrix.os }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+        os: [ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install pytest pytest-cov
+          # 安装可选依赖（graceful fallback，不阻断测试）
+          pip install openai anthropic sqlalchemy || true
+
+      - name: Run smoke test
+        run: |
+          python -c "import sys; sys.path.insert(0, '${{ env.MODULE_DIR }}'); from core import get_core; c = get_core(); print('Core OK')"
+
+      - name: Run module tests
+        run: |
+          # 逐模块导入验证
+          for mod in 比肩_架构协同 劫财_攻防边界 食神_创生输出 正印_滋养守护 伤官_破界创新 正财_知识固化 偏财_奇招演化 正官_法度调度 七杀_品质裁决 偏印_桥接通变 元辰_本源定位 太极_阴阳调和; do
+            python -c "import sys; sys.path.insert(0, '${{ env.MODULE_DIR }}'); import ${mod}" || { echo "FAILED: ${mod}"; exit 1; }
+            echo "OK: ${mod}"
+          done
+
+      - name: Run Phase 1 smoke test
+        run: |
+          python -c "
+import sys, os, time
+sys.path.insert(0, 'demo_project/tengod')
+for d in os.listdir('demo_project/tengod'):
+    full = os.path.join('demo_project/tengod', d)
+    if os.path.isdir(full) and not d.startswith('.'):
+        sys.path.insert(0, full)
+
+from core import get_core, generate_request_id
+core = get_core()
+r = core.run()
+assert r['version'] == '1.5.0', f'Wrong version: {r[\"version\"]}'
+assert len(r['init_steps']) > 0
+print('Core v1.5.0 smoke test PASSED')
+"
+
+      - name: Upload coverage
+        if: matrix.python-version == '3.11'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: htmlcov/
+
+  # -------- Docker 构建测试 --------
+  docker:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build Docker image
+        run: |
+          docker build -t tengod:test ./demo_project --progress=plain
+      - name: Run container health check
+        run: |
+          docker run --rm --name tengod-test tengod:test &
+          sleep 5
+          docker logs tengod-test
+          docker stop tengod-test
+
+  # -------- 代码质量检查 --------
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install ruff
+        run: pip install ruff
+      - name: Run ruff
+        run: |
+          ruff check demo_project/tengod/ --select=E,F,W --ignore=E501,F401,W503 || true
+
+  # -------- 安全扫描 --------
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run pip-audit
+        run: |
+          pip install pip-audit || true
+          pip-audit -r demo_project/requirements.txt || true

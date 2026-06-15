@@ -4,7 +4,7 @@
 偏财主理演化，承担系统的搜索优化与算法调参职责。
 """
 
-from .search_optimizer import SearchOptimizer, SearchSpace, SearchResult
+from .search_optimizer import SearchOptimizer, SearchResult, SearchSpace
 
 __all__ = ["SearchOptimizer", "SearchSpace", "SearchResult"]
 __version__ = "1.0.0"

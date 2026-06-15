@@ -4,35 +4,42 @@ core.py — 十神核心调度器 v1.3.0
 整合十神子包，提供统一的高级 API：编排、生成、评估、调度一气呵成。
 """
 
+import json
 import os
 import sys
-import time
-import uuid
-import json
-import traceback
 import threading
-from contextvars import ContextVar, copy_context
+import time
+import traceback
+import uuid
+from contextvars import ContextVar
 from typing import Any, Callable, Dict, List, Optional
 
 # 请求ID追踪（线程安全）
 _request_id_var: ContextVar[str] = ContextVar("request_id", default="")
 
+
 def get_request_id() -> str:
     """获取当前请求 ID（线程安全）"""
     return _request_id_var.get()
 
+
 def generate_request_id() -> str:
     """生成新的请求 ID"""
     return f"req-{uuid.uuid4().hex[:12]}"
+
 
 # -------- 全局异常处理 --------
 _exception_handlers: Dict[str, Callable] = {}
 _exception_log: List[Dict[str, Any]] = []
 _exception_log_lock = threading.Lock()
 
-def register_exception_handler(name: str, handler: Callable[[Exception, Dict], Any]) -> None:
+
+def register_exception_handler(
+    name: str, handler: Callable[[Exception, Dict], Any]
+) -> None:
     """注册异常处理器"""
     _exception_handlers[name] = handler
+
 
 def handle_exception(exc: Exception, context: Optional[Dict[str, Any]] = None) -> Any:
     """统一异常处理（分发到已注册的 handler）"""
@@ -61,10 +68,12 @@ def handle_exception(exc: Exception, context: Optional[Dict[str, Any]] = None) -
             print(f"[ExceptionHandler {name}] 处理异常时出错：{inner}")
     return result
 
+
 def get_exception_log(limit: int = 50) -> List[Dict[str, Any]]:
     """获取最近的异常日志"""
     with _exception_log_lock:
         return list(_exception_log[-limit:])
+
 
 # 确保 tengod 子模块可被发现
 _TENGOD_ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -73,7 +82,7 @@ if _TENGOD_ROOT not in sys.path:
     sys.path.insert(0, _TENGOD_ROOT)
 for _subdir in os.listdir(_TENGOD_ROOT):
     _full = os.path.join(_TENGOD_ROOT, _subdir)
-    if os.path.isdir(_full) and not _subdir.startswith(('.', '_')):
+    if os.path.isdir(_full) and not _subdir.startswith((".", "_")):
         if _full not in sys.path:
             sys.path.insert(0, _full)
 
@@ -110,9 +119,26 @@ class TenGodCore:
         _yuanchen = _safe_import("元辰_本源定位")
         _taichi = _safe_import("太极_阴阳调和")
 
+        # Oracle 引擎（推背图认知）
+        _oracle_mod = _safe_import("伤官_破界创新")
+        self.oracle = _oracle_mod.OracleEngine() if _oracle_mod else None
+
+        # 共识引擎
+        _consensus_mod = _safe_import("consensus")
+        self.consensus = (
+            _consensus_mod.ConsensusEngine(
+                node_id=self.name,
+                peers=[],
+            )
+            if _consensus_mod
+            else None
+        )
+
         self.registry = _bijian.get_registry() if _bijian else None
         self.guard = _jiecai.Guard() if _jiecai else None
-        self.generator = _shishen.ContentGenerator(name=f"{name}_generator") if _shishen else None
+        self.generator = (
+            _shishen.ContentGenerator(name=f"{name}_generator") if _shishen else None
+        )
         self.innovator = _shangguan.Innovator() if _shangguan else None
         self.kb = _zhengcai.KnowledgeBase() if _zhengcai else None
         self.scheduler = _zhengguan.TaskScheduler(max_workers=4) if _zhengguan else None
@@ -132,6 +158,9 @@ class TenGodCore:
 
         if self.bridge and _pianyin:
             self.bridge.register_converter("json", _pianyin.DictToJsonConverter())
+
+        self._stopped = False
+        self._http_server = None
 
         self._setup_default_roles()
         self._setup_default_config()
@@ -246,7 +275,9 @@ class TenGodCore:
         self.locator.locate()
         return self.locator.summary()
 
-    def balance_state(self, metrics: Optional[Dict[str, float]] = None) -> Dict[str, Any]:
+    def balance_state(
+        self, metrics: Optional[Dict[str, float]] = None
+    ) -> Dict[str, Any]:
         """太极：阴阳调和状态"""
         if not self.balancer:
             return {"error": "balancer unavailable"}
@@ -273,8 +304,9 @@ class TenGodCore:
 
     # ============ 新功能集成：食神流式 / 正财搜索 / 正官 API ============
 
-    def generate_stream(self, prompt: str, format: str = "text",
-                        style: str = "default") -> Any:
+    def generate_stream(
+        self, prompt: str, format: str = "text", style: str = "default"
+    ) -> Any:
         """调用食神流式生成内容。
 
         返回一个可迭代对象，每次 yield 一小块文本（字符串）。
@@ -295,19 +327,25 @@ class TenGodCore:
         )
         return self.generator.generate_stream(prompt, config)
 
-    def generate_collect(self, prompt: str, format: str = "text",
-                         style: str = "default") -> str:
+    def generate_collect(
+        self, prompt: str, format: str = "text", style: str = "default"
+    ) -> str:
         """调用食神生成内容，一次性返回完整内容（内部走流式）。"""
         return "".join(self.generate_stream(prompt, format=format, style=style))
 
-    def search_knowledge(self, query: str, top_k: int = 5,
-                         node_type: Optional[str] = None,
-                         min_score: float = 0.0) -> List[Dict[str, Any]]:
+    def search_knowledge(
+        self,
+        query: str,
+        top_k: int = 5,
+        node_type: Optional[str] = None,
+        min_score: float = 0.0,
+    ) -> List[Dict[str, Any]]:
         """正财模块：向量相似度查询知识库节点。"""
         if not self.kb:
             return []
-        return self.kb.query_nearest(query, top_k=top_k,
-                                      node_type=node_type, min_score=min_score)
+        return self.kb.query_nearest(
+            query, top_k=top_k, node_type=node_type, min_score=min_score
+        )
 
     def knowledge_base(self) -> Any:
         """返回正财知识库对象（用于批量导入等高级场景）。"""
@@ -317,6 +355,7 @@ class TenGodCore:
         """正官模块：启动 HTTP API 服务（阻塞式）。"""
         try:
             from 正官_法度调度.api_server import run_server
+
             run_server(self, host=host, port=port)
         except Exception as e:
             print(f"[Error] 启动 API 服务失败：{e}")
@@ -325,13 +364,20 @@ class TenGodCore:
         """返回 FastAPI 应用（如可用），否则返回 None。"""
         try:
             from 正官_法度调度.api_server import create_app
+
             return create_app(self)
         except Exception as e:
             print(f"[Error] 创建 API 应用失败：{e}")
             return None
 
-    def run(self, *, serve: bool = False, host: str = "127.0.0.1",
-            port: int = 8000, init_seed: bool = False) -> Dict[str, Any]:
+    def run(
+        self,
+        *,
+        serve: bool = False,
+        host: str = "127.0.0.1",
+        port: int = 8000,
+        init_seed: bool = False,
+    ) -> Dict[str, Any]:
         """统一启动入口（v1.3.0）。
 
         参数：
@@ -347,16 +393,17 @@ class TenGodCore:
         start = time.time()
 
         print(f"[TenGodCore] 启动 v1.3.0 (request_id={req_id})")
-        print(f"[TenGodCore] 初始化模块...")
+        print("[TenGodCore] 初始化模块...")
 
         steps = []
+
         def record(name: str, ok: bool, detail: str = ""):
             steps.append({"module": name, "ok": ok, "detail": detail})
 
         # 元辰定位
         try:
             s = self.locator.summary() if self.locator else {}
-            record("元辰", True, f"path={s.get('path','N/A')}")
+            record("元辰", True, f"path={s.get('path', 'N/A')}")
         except Exception as e:
             handle_exception(e, {"module": "元辰"})
             record("元辰", False, str(e))
@@ -365,26 +412,254 @@ class TenGodCore:
         if init_seed and self.kb:
             try:
                 seeds = [
-                    {"name": "儒家", "node_type": "school",
-                     "properties": {"代表": "孔子/孟子", "典籍": "论语/孟子"}},
-                    {"name": "道家", "node_type": "school",
-                     "properties": {"代表": "老子/庄子", "典籍": "道德经/庄子"}},
-                    {"name": "易经", "node_type": "classic",
-                     "properties": {"地位": "群经之首", "内容": "六十四卦"}},
-                    {"name": "河图", "node_type": "cosmic",
-                     "properties": {"结构": "1-10黑白点", "对应": "八卦"}},
-                    {"name": "洛书", "node_type": "cosmic",
-                     "properties": {"结构": "3x3九宫幻方", "对应": "九畴"}},
-                    {"name": "阴阳", "node_type": "concept",
-                     "properties": {"核心": "对立统一", "应用": "中医/风水"}},
-                    {"name": "五行", "node_type": "concept",
-                     "properties": {"构成": "金木水火土", "关系": "相生相克"}},
-                    {"name": "太极", "node_type": "concept",
-                     "properties": {"图像": "阴阳鱼", "出处": "周易·系辞"}},
+                    # 先秦诸子
+                    {
+                        "name": "儒家",
+                        "node_type": "school",
+                        "properties": {
+                            "代表": "孔子/孟子/荀子",
+                            "典籍": "论语/孟子/大学/中庸",
+                            "核心": "仁义礼智信",
+                            "年代": "春秋战国",
+                        },
+                    },
+                    {
+                        "name": "道家",
+                        "node_type": "school",
+                        "properties": {
+                            "代表": "老子/庄子/列子",
+                            "典籍": "道德经/庄子/列子",
+                            "核心": "道法自然/无为",
+                            "年代": "春秋战国",
+                        },
+                    },
+                    {
+                        "name": "法家",
+                        "node_type": "school",
+                        "properties": {
+                            "代表": "韩非子/商鞅/李斯",
+                            "典籍": "韩非子/商君书",
+                            "核心": "以法治国",
+                            "年代": "战国",
+                        },
+                    },
+                    {
+                        "name": "墨家",
+                        "node_type": "school",
+                        "properties": {
+                            "代表": "墨子",
+                            "典籍": "墨子",
+                            "核心": "兼爱非攻/尚贤",
+                            "年代": "春秋战国",
+                        },
+                    },
+                    {
+                        "name": "兵家",
+                        "node_type": "school",
+                        "properties": {
+                            "代表": "孙子/孙膑",
+                            "典籍": "孙子兵法/孙膑兵法",
+                            "核心": "知己知彼/不战而屈人之兵",
+                            "年代": "春秋战国",
+                        },
+                    },
+                    {
+                        "name": "医家",
+                        "node_type": "school",
+                        "properties": {
+                            "代表": "扁鹊/华佗/张仲景",
+                            "典籍": "黄帝内经/伤寒杂病论/本草纲目",
+                            "核心": "阴阳五行/辨证论治",
+                            "年代": "先秦至东汉",
+                        },
+                    },
+                    # 经典典籍
+                    {
+                        "name": "易经",
+                        "node_type": "classic",
+                        "properties": {
+                            "地位": "群经之首",
+                            "内容": "六十四卦/系辞/十翼",
+                            "三易": "连山/归藏/周易",
+                        },
+                    },
+                    {
+                        "name": "诗经",
+                        "node_type": "classic",
+                        "properties": {
+                            "篇数": 305,
+                            "类别": "风雅颂",
+                            "年代": "西周至春秋",
+                        },
+                    },
+                    {
+                        "name": "尚书",
+                        "node_type": "classic",
+                        "properties": {
+                            "别称": "书经",
+                            "内容": "上古政事文献",
+                            "年代": "虞夏商周",
+                        },
+                    },
+                    {
+                        "name": "礼记",
+                        "node_type": "classic",
+                        "properties": {
+                            "核心篇": "大学/中庸/礼运",
+                            "内容": "礼乐制度/大同理想",
+                        },
+                    },
+                    {
+                        "name": "春秋",
+                        "node_type": "classic",
+                        "properties": {
+                            "作者": "孔子",
+                            "体例": "编年史",
+                            "三传": "左传/公羊/谷梁",
+                        },
+                    },
+                    {
+                        "name": "史记",
+                        "node_type": "classic",
+                        "properties": {
+                            "作者": "司马迁",
+                            "体例": "纪传体通史",
+                            "起止": "黄帝—汉武帝",
+                            "地位": "史家之绝唱",
+                        },
+                    },
+                    # 宇宙哲学
+                    {
+                        "name": "河图",
+                        "node_type": "cosmic",
+                        "properties": {
+                            "结构": "1-10黑白点",
+                            "对应": "先天八卦",
+                            "方位": "坐北朝南/天一生水",
+                        },
+                    },
+                    {
+                        "name": "洛书",
+                        "node_type": "cosmic",
+                        "properties": {
+                            "结构": "3x3九宫幻方",
+                            "对应": "九畴/后天八卦",
+                            "数": "戴九履一",
+                        },
+                    },
+                    {
+                        "name": "阴阳",
+                        "node_type": "concept",
+                        "properties": {
+                            "核心": "对立统一",
+                            "应用": "中医/风水/哲学/兵法",
+                            "出处": "周易·系辞",
+                        },
+                    },
+                    {
+                        "name": "五行",
+                        "node_type": "concept",
+                        "properties": {
+                            "构成": "金木水火土",
+                            "关系": "相生：木→火→土→金→水；相克：木克土/火克金/土克水/金克木/水克火",
+                            "应用": "中医/命理/风水",
+                        },
+                    },
+                    {
+                        "name": "太极",
+                        "node_type": "concept",
+                        "properties": {
+                            "图像": "阴阳鱼太极图",
+                            "出处": "周易·系辞上",
+                            "含义": "无极而太极/一生二",
+                        },
+                    },
+                    {
+                        "name": "八卦",
+                        "node_type": "concept",
+                        "properties": {
+                            "构成": "乾坤震巽坎离艮兑",
+                            "代表": "天地雷风水火山泽",
+                            "演变": "伏羲先天/文王后天",
+                        },
+                    },
+                    # 历史人物
+                    {
+                        "name": "孔子",
+                        "node_type": "historical_figure",
+                        "properties": {
+                            "生卒": "前551-前479",
+                            "思想": "仁/礼/中庸",
+                            "贡献": "删述六经/有教无类",
+                            "学派": "儒家",
+                        },
+                    },
+                    {
+                        "name": "老子",
+                        "node_type": "historical_figure",
+                        "properties": {
+                            "生卒": "约前571-前471",
+                            "思想": "道法自然/无为",
+                            "著作": "道德经",
+                            "学派": "道家",
+                        },
+                    },
+                    {
+                        "name": "诸葛亮",
+                        "node_type": "historical_figure",
+                        "properties": {
+                            "生卒": "181-234",
+                            "称号": "卧龙/武侯",
+                            "代表": "出师表/八阵图",
+                            "领域": "政治/军事/发明",
+                        },
+                    },
+                    {
+                        "name": "李白",
+                        "node_type": "historical_figure",
+                        "properties": {
+                            "生卒": "701-762",
+                            "称号": "诗仙",
+                            "风格": "浪漫豪放",
+                            "代表作": "将进酒/蜀道难",
+                        },
+                    },
+                    {
+                        "name": "苏轼",
+                        "node_type": "historical_figure",
+                        "properties": {
+                            "生卒": "1037-1101",
+                            "称号": "东坡居士",
+                            "领域": "诗词/书法/绘画/美食",
+                            "代表作": "赤壁赋/水调歌头",
+                        },
+                    },
+                    # 科技发明
+                    {
+                        "name": "四大发明",
+                        "node_type": "technology",
+                        "properties": {
+                            "造纸": "蔡伦-东汉",
+                            "印刷": "毕昇活字-北宋",
+                            "火药": "唐",
+                            "指南针": "战国司南—宋",
+                        },
+                    },
+                    {
+                        "name": "都江堰",
+                        "node_type": "technology",
+                        "properties": {
+                            "建造者": "李冰父子",
+                            "年代": "公元前256年",
+                            "原理": "无坝引水/鱼嘴分水",
+                            "地位": "世界水利工程鼻祖",
+                        },
+                    },
                 ]
                 for s in seeds:
-                    self.kb.upsert_node(s["name"], node_type=s["node_type"],
-                                        properties=s["properties"])
+                    self.kb.upsert_node(
+                        s["name"], node_type=s["node_type"], properties=s["properties"]
+                    )
                 record("正财(种子)", True, f"写入{len(seeds)}个节点")
             except Exception as e:
                 handle_exception(e, {"module": "正财"})
@@ -405,8 +680,15 @@ class TenGodCore:
         try:
             if self.guard:
                 Permission = self.Permission
-                self.guard.register_role("admin", {Permission.READ, Permission.WRITE,
-                                                    Permission.EXECUTE, Permission.ADMIN})
+                self.guard.register_role(
+                    "admin",
+                    {
+                        Permission.READ,
+                        Permission.WRITE,
+                        Permission.EXECUTE,
+                        Permission.ADMIN,
+                    },
+                )
                 self.guard.register_role("user", {Permission.READ, Permission.EXECUTE})
                 self.guard.register_role("guest", {Permission.READ})
                 record("劫财", True, "3个角色已注册")
@@ -430,20 +712,102 @@ class TenGodCore:
             try:
                 self.run_api_server(host=host, port=port)
             except KeyboardInterrupt:
-                print(f"[TenGodCore] API 服务被中断")
+                print("[TenGodCore] API 服务被中断")
             summary["api_server"] = "stopped"
         else:
-            print(f"[TenGodCore] 完成（不使用 --serve 可直接返回）")
-            print(f"[TenGodCore] 启动摘要：{json.dumps(summary, ensure_ascii=False, indent=2)}")
+            print("[TenGodCore] 完成（不使用 --serve 可直接返回）")
+            print(
+                f"[TenGodCore] 启动摘要：{json.dumps(summary, ensure_ascii=False, indent=2)}"
+            )
 
         _request_id_var.reset(token)
         return summary
+
+    def stop(self) -> None:
+        """停止核心服务，清理资源"""
+        self._stopped = True
+        if self._http_server is not None:
+            try:
+                self._http_server.server_close()
+            except Exception:
+                pass
+            self._http_server = None
+
+    def consult_oracle(self, question: str, mode: str = "auto") -> Dict[str, Any]:
+        """推背图 Oracle 咨询。
+
+        Args:
+            question: 咨询问题
+            mode: 推演模式 (tuibeitu/zhouyi/zigua/hetu/luoshu/auto)
+
+        Returns:
+            卦象、干支、解释等结果字典
+        """
+        if not self.oracle:
+            return {"error": "Oracle 引擎未就绪"}
+        result = self.oracle.cast(question)
+        return {
+            "question": question,
+            "mode": mode,
+            "hexagram": result.hexagram,
+            "hexagram_index": result.hexagram_index,
+            "upper_trigram": result.upper_trigram,
+            "lower_trigram": result.lower_trigram,
+            "gan_zhi": result.gan_zhi,
+            "wuxing": result.wuxing,
+            "judgment": result.judgment,
+            "prediction": result.prediction,
+            "wisdom": result.wisdom,
+            "interpretation": self.oracle.interpret(result),
+            "stats": self.oracle.stats(),
+        }
+
+    def add_consensus_peer(self, node_id: str, address: str) -> bool:
+        """添加共识集群对等节点"""
+        if not self.consensus:
+            return False
+        from consensus import PeerConfig
+
+        self.consensus.peers[node_id] = PeerConfig(node_id=node_id, address=address)
+        return True
+
+    def remove_consensus_peer(self, node_id: str) -> bool:
+        """移除共识集群对等节点"""
+        if not self.consensus or node_id not in self.consensus.peers:
+            return False
+        del self.consensus.peers[node_id]
+        return True
+
+    def consensus_propose(
+        self, command: str, data: Optional[Dict[str, Any]] = None
+    ) -> bool:
+        """通过共识提交操作"""
+        if not self.consensus:
+            return False
+        return self.consensus.propose(command, data)
+
+    def consensus_state(self) -> Optional[Dict[str, Any]]:
+        """查询共识状态"""
+        if not self.consensus:
+            return None
+        return self.consensus.query().__dict__
+
+    def _safe_balancer_stats(self) -> Dict[str, Any]:
+        """安全获取 balancer 统计（确保 JSON 可序列化）"""
+        raw = self.balancer.stats()
+        converted = {}
+        for k, v in raw.items():
+            if hasattr(v, "value"):
+                converted[k] = v.value
+            else:
+                converted[k] = v
+        return converted
 
     def export_state(self) -> Dict[str, Any]:
         """导出核心状态"""
         return {
             "name": self.name,
-            "version": "1.3.0",
+            "version": "1.5.0",
             "request_id": get_request_id(),
             "features": {
                 "streaming_generate": self.generator is not None,
@@ -454,6 +818,9 @@ class TenGodCore:
                 "session_management": self.generator is not None,
                 "orm_persistence": self.kb is not None,
                 "exception_tracking": True,
+                "oracle_engine": self.oracle is not None,
+                "code_scanner": True,
+                "metrics": True,
             },
             "scheduler": self.scheduler.stats() if self.scheduler else None,
             "judge": self.judge.report() if self.judge else None,
@@ -461,9 +828,13 @@ class TenGodCore:
             "knowledge": self.kb.stats() if self.kb else None,
             "registered_components": self.registry.list_all() if self.registry else [],
             "registered_adapters": self.bridge.list_adapters() if self.bridge else [],
-            "registered_converters": self.bridge.list_converters() if self.bridge else [],
+            "registered_converters": self.bridge.list_converters()
+            if self.bridge
+            else [],
             "locator": self.locator.summary() if self.locator else None,
-            "balancer": self.balancer.stats() if self.balancer else None,
+            "balancer": self._safe_balancer_stats() if self.balancer else None,
+            "oracle": self.oracle.stats() if self.oracle else None,
+            "consensus": self.consensus.query().__dict__ if self.consensus else None,
         }
 
 
@@ -479,7 +850,13 @@ def get_core() -> TenGodCore:
     return _default_core
 
 
-__all__ = ["TenGodCore", "get_core",
-           "get_request_id", "generate_request_id",
-           "register_exception_handler", "handle_exception", "get_exception_log"]
-__version__ = "1.3.0"
+__all__ = [
+    "TenGodCore",
+    "get_core",
+    "get_request_id",
+    "generate_request_id",
+    "register_exception_handler",
+    "handle_exception",
+    "get_exception_log",
+]
+__version__ = "1.5.0"

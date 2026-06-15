@@ -5,15 +5,16 @@ config_manager.py — 配置管理器
 版本：1.5.0
 """
 
-import os
 import json
+import os
+from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
-from dataclasses import dataclass, field
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 
 class ConfigSource(Enum):
     """配置来源"""
+
     ENV = "env"
     FILE = "file"
     DEFAULT = "default"
@@ -23,6 +24,7 @@ class ConfigSource(Enum):
 @dataclass
 class Config:
     """配置项"""
+
     key: str
     value: Any
     source: ConfigSource = ConfigSource.DEFAULT
@@ -69,6 +71,7 @@ class ConfigManager:
     def load_from_file(self, file_path: str) -> Dict[str, Any]:
         """从文件加载配置，支持 JSON/YAML/TOML"""
         import os
+
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"配置文件不存在：{file_path}")
         ext = os.path.splitext(file_path)[1].lower()
@@ -76,6 +79,7 @@ class ConfigManager:
             if ext in (".yaml", ".yml"):
                 try:
                     import yaml
+
                     data = yaml.safe_load(f)
                 except ImportError:
                     # 纯 Python YAML 解析（简化版：仅支持 key: value）
@@ -84,6 +88,7 @@ class ConfigManager:
                 data = self._parse_toml(f.read())
             elif ext == ".json":
                 import json
+
                 data = json.load(f)
             elif ext == ".ini":
                 data = self._parse_ini(f)
@@ -130,6 +135,7 @@ class ConfigManager:
     def _parse_ini(self, f) -> Dict[str, Any]:
         """纯 Python INI 解析"""
         import configparser
+
         cp = configparser.ConfigParser()
         cp.read_file(f)
         return {s: dict(cp.items(s)) for s in cp.sections()}
@@ -138,8 +144,9 @@ class ConfigManager:
         """监听配置文件变化，自动热加载（返回 watcher，需手动启动线程）"""
         return ConfigWatcher(self, file_path, interval)
 
-    def validate_schema(self, data: Dict[str, Any],
-                       schema: Dict[str, Dict[str, Any]]) -> Tuple[bool, List[str]]:
+    def validate_schema(
+        self, data: Dict[str, Any], schema: Dict[str, Dict[str, Any]]
+    ) -> Tuple[bool, List[str]]:
         """Schema 验证。
         schema 形如：{"key": {"type": str, "required": True, "default": None}}
         返回 (passed, errors)
@@ -227,16 +234,23 @@ class ConfigWatcher:
     """配置文件热加载监视器"""
 
     def __init__(self, config: "ConfigManager", file_path: str, interval: float = 2.0):
-        import threading, time
+        import threading
+
         self._config = config
         self._file_path = file_path
         self._interval = interval
         self._running = False
         self._thread: Optional[threading.Thread] = None
         self._mtime = os.path.getmtime(file_path) if os.path.exists(file_path) else 0
+        self._on_change_callbacks: List[Callable[[Dict[str, Any]], None]] = []
+
+    def on_change(self, callback: Callable[[Dict[str, Any]], None]) -> None:
+        """注册配置变更回调。回调接收新旧配置字典 {old: ..., new: ...}"""
+        self._on_change_callbacks.append(callback)
 
     def start(self) -> None:
         import threading
+
         self._running = True
         self._thread = threading.Thread(target=self._loop, daemon=True)
         self._thread.start()
@@ -247,16 +261,32 @@ class ConfigWatcher:
             self._thread.join(timeout=5)
 
     def _loop(self) -> None:
-        import time, os
+        import os
+        import time
+
         while self._running:
             time.sleep(self._interval)
             if not os.path.exists(self._file_path):
                 continue
             mtime = os.path.getmtime(self._file_path)
             if mtime != self._mtime:
+                old_config = dict(self._config.list_all())
                 self._mtime = mtime
                 try:
                     self._config.load_from_file(self._file_path)
+                    new_config = dict(self._config.list_all())
                     print(f"[ConfigWatcher] 配置已热加载：{self._file_path}")
+                    # 触发变更回调
+                    for cb in self._on_change_callbacks:
+                        try:
+                            cb(
+                                {
+                                    "old": old_config,
+                                    "new": new_config,
+                                    "file": self._file_path,
+                                }
+                            )
+                        except Exception as cb_err:
+                            print(f"[ConfigWatcher] 回调错误：{cb_err}")
                 except Exception as e:
                     print(f"[ConfigWatcher] 热加载失败：{e}")
