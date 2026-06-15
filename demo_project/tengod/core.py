@@ -1,12 +1,70 @@
 #!/usr/bin/env python3
 """
-core.py — 十神核心调度器
+core.py — 十神核心调度器 v1.3.0
 整合十神子包，提供统一的高级 API：编排、生成、评估、调度一气呵成。
 """
 
 import os
 import sys
+import time
+import uuid
+import json
+import traceback
+import threading
+from contextvars import ContextVar, copy_context
 from typing import Any, Callable, Dict, List, Optional
+
+# 请求ID追踪（线程安全）
+_request_id_var: ContextVar[str] = ContextVar("request_id", default="")
+
+def get_request_id() -> str:
+    """获取当前请求 ID（线程安全）"""
+    return _request_id_var.get()
+
+def generate_request_id() -> str:
+    """生成新的请求 ID"""
+    return f"req-{uuid.uuid4().hex[:12]}"
+
+# -------- 全局异常处理 --------
+_exception_handlers: Dict[str, Callable] = {}
+_exception_log: List[Dict[str, Any]] = []
+_exception_log_lock = threading.Lock()
+
+def register_exception_handler(name: str, handler: Callable[[Exception, Dict], Any]) -> None:
+    """注册异常处理器"""
+    _exception_handlers[name] = handler
+
+def handle_exception(exc: Exception, context: Optional[Dict[str, Any]] = None) -> Any:
+    """统一异常处理（分发到已注册的 handler）"""
+    req_id = get_request_id()
+    ctx = context or {}
+    entry = {
+        "id": generate_request_id(),
+        "request_id": req_id,
+        "type": type(exc).__name__,
+        "message": str(exc),
+        "traceback": traceback.format_exc(),
+        "context": ctx,
+        "timestamp": time.time(),
+    }
+    with _exception_log_lock:
+        _exception_log.append(entry)
+        if len(_exception_log) > 1000:
+            del _exception_log[:500]  # 保留最近 1000 条
+    result = None
+    for name, handler in _exception_handlers.items():
+        try:
+            r = handler(exc, ctx)
+            if r is not None:
+                result = r
+        except Exception as inner:
+            print(f"[ExceptionHandler {name}] 处理异常时出错：{inner}")
+    return result
+
+def get_exception_log(limit: int = 50) -> List[Dict[str, Any]]:
+    """获取最近的异常日志"""
+    with _exception_log_lock:
+        return list(_exception_log[-limit:])
 
 # 确保 tengod 子模块可被发现
 _TENGOD_ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -272,15 +330,130 @@ class TenGodCore:
             print(f"[Error] 创建 API 应用失败：{e}")
             return None
 
+    def run(self, *, serve: bool = False, host: str = "127.0.0.1",
+            port: int = 8000, init_seed: bool = False) -> Dict[str, Any]:
+        """统一启动入口（v1.3.0）。
+
+        参数：
+            serve: 是否启动 HTTP API 服务（阻塞）
+            host: HTTP 服务监听地址
+            port: HTTP 服务监听端口
+            init_seed: 是否写入中华文明种子知识节点
+
+        返回启动摘要（即使 serve=True 也会在退出时返回）。
+        """
+        req_id = generate_request_id()
+        token = _request_id_var.set(req_id)
+        start = time.time()
+
+        print(f"[TenGodCore] 启动 v1.3.0 (request_id={req_id})")
+        print(f"[TenGodCore] 初始化模块...")
+
+        steps = []
+        def record(name: str, ok: bool, detail: str = ""):
+            steps.append({"module": name, "ok": ok, "detail": detail})
+
+        # 元辰定位
+        try:
+            s = self.locator.summary() if self.locator else {}
+            record("元辰", True, f"path={s.get('path','N/A')}")
+        except Exception as e:
+            handle_exception(e, {"module": "元辰"})
+            record("元辰", False, str(e))
+
+        # 种子数据（中华文明）
+        if init_seed and self.kb:
+            try:
+                seeds = [
+                    {"name": "儒家", "node_type": "school",
+                     "properties": {"代表": "孔子/孟子", "典籍": "论语/孟子"}},
+                    {"name": "道家", "node_type": "school",
+                     "properties": {"代表": "老子/庄子", "典籍": "道德经/庄子"}},
+                    {"name": "易经", "node_type": "classic",
+                     "properties": {"地位": "群经之首", "内容": "六十四卦"}},
+                    {"name": "河图", "node_type": "cosmic",
+                     "properties": {"结构": "1-10黑白点", "对应": "八卦"}},
+                    {"name": "洛书", "node_type": "cosmic",
+                     "properties": {"结构": "3x3九宫幻方", "对应": "九畴"}},
+                    {"name": "阴阳", "node_type": "concept",
+                     "properties": {"核心": "对立统一", "应用": "中医/风水"}},
+                    {"name": "五行", "node_type": "concept",
+                     "properties": {"构成": "金木水火土", "关系": "相生相克"}},
+                    {"name": "太极", "node_type": "concept",
+                     "properties": {"图像": "阴阳鱼", "出处": "周易·系辞"}},
+                ]
+                for s in seeds:
+                    self.kb.upsert_node(s["name"], node_type=s["node_type"],
+                                        properties=s["properties"])
+                record("正财(种子)", True, f"写入{len(seeds)}个节点")
+            except Exception as e:
+                handle_exception(e, {"module": "正财"})
+                record("正财(种子)", False, str(e))
+        else:
+            record("正财(种子)", True, "跳过(init_seed=False)")
+
+        # 太极调和
+        try:
+            if self.balancer:
+                self.balance_state({"系统": 80})
+                record("太极", True, "已评估")
+        except Exception as e:
+            handle_exception(e, {"module": "太极"})
+            record("太极", False, str(e))
+
+        # 劫财初始化（默认角色）
+        try:
+            if self.guard:
+                Permission = self.Permission
+                self.guard.register_role("admin", {Permission.READ, Permission.WRITE,
+                                                    Permission.EXECUTE, Permission.ADMIN})
+                self.guard.register_role("user", {Permission.READ, Permission.EXECUTE})
+                self.guard.register_role("guest", {Permission.READ})
+                record("劫财", True, "3个角色已注册")
+        except Exception as e:
+            handle_exception(e, {"module": "劫财"})
+            record("劫财", False, str(e))
+
+        elapsed = (time.time() - start) * 1000
+        print(f"[TenGodCore] 初始化完成，耗时 {elapsed:.1f}ms")
+
+        summary = {
+            "request_id": req_id,
+            "version": "1.3.0",
+            "elapsed_ms": round(elapsed, 1),
+            "init_steps": steps,
+            "api_server": None,
+        }
+
+        if serve:
+            print(f"[TenGodCore] 启动 HTTP API 服务 → http://{host}:{port}")
+            try:
+                self.run_api_server(host=host, port=port)
+            except KeyboardInterrupt:
+                print(f"[TenGodCore] API 服务被中断")
+            summary["api_server"] = "stopped"
+        else:
+            print(f"[TenGodCore] 完成（不使用 --serve 可直接返回）")
+            print(f"[TenGodCore] 启动摘要：{json.dumps(summary, ensure_ascii=False, indent=2)}")
+
+        _request_id_var.reset(token)
+        return summary
+
     def export_state(self) -> Dict[str, Any]:
         """导出核心状态"""
         return {
             "name": self.name,
-            "version": "1.2.0",
+            "version": "1.3.0",
+            "request_id": get_request_id(),
             "features": {
                 "streaming_generate": self.generator is not None,
                 "vector_search": self.kb is not None,
                 "http_api": True,
+                "jwt_auth": True,
+                "rate_limiting": True,
+                "session_management": self.generator is not None,
+                "orm_persistence": self.kb is not None,
+                "exception_tracking": True,
             },
             "scheduler": self.scheduler.stats() if self.scheduler else None,
             "judge": self.judge.report() if self.judge else None,
@@ -306,4 +479,7 @@ def get_core() -> TenGodCore:
     return _default_core
 
 
-__all__ = ["TenGodCore", "get_core"]
+__all__ = ["TenGodCore", "get_core",
+           "get_request_id", "generate_request_id",
+           "register_exception_handler", "handle_exception", "get_exception_log"]
+__version__ = "1.3.0"

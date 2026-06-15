@@ -23,7 +23,14 @@ api_server.py — 十神架构 HTTP API 服务
 import json
 import sys
 import os
-from typing import Any, Dict, List, Optional
+import time
+import hmac
+import hashlib
+import base64
+import uuid
+import threading
+import collections
+from typing import Any, Dict, List, Optional, Callable
 from dataclasses import dataclass, asdict
 
 # 处理路径，确保可在各种情况下导入兄弟模块
@@ -35,7 +42,220 @@ if os.path.dirname(_TENGOD_ROOT) not in sys.path:
     sys.path.insert(0, os.path.dirname(_TENGOD_ROOT))
 
 
-# -------- 数据结构 --------
+# ============ JWT 纯 Python 实现 ============
+
+class JWTAuth:
+    """纯 Python 实现的 JWT 认证（HS256）"""
+
+    def __init__(self, secret_key: str = "tengod-default-secret-key-change-in-production"):
+        self.secret_key = secret_key.encode("utf-8")
+        self.algorithm = "HS256"
+        self.default_expiry = 24 * 3600  # 24小时
+
+    def _base64url_encode(self, data: bytes) -> str:
+        return base64.urlsafe_b64encode(data).rstrip(b"=").decode("utf-8")
+
+    def _base64url_decode(self, data: str) -> bytes:
+        padding = 4 - len(data) % 4
+        if padding != 4:
+            data += "=" * padding
+        return base64.urlsafe_b64decode(data)
+
+    def _create_signature(self, header_b64: str, payload_b64: str) -> str:
+        message = f"{header_b64}.{payload_b64}".encode("utf-8")
+        signature = hmac.new(self.secret_key, message, hashlib.sha256).digest()
+        return self._base64url_encode(signature)
+
+    def encode(self, payload: Dict[str, Any], expiry: Optional[int] = None) -> str:
+        """生成 JWT token"""
+        if expiry is None:
+            expiry = self.default_expiry
+
+        header = {"alg": self.algorithm, "typ": "JWT"}
+        payload["exp"] = int(time.time()) + expiry
+
+        header_b64 = self._base64url_encode(json.dumps(header, separators=(",", ":")).encode("utf-8"))
+        payload_b64 = self._base64url_encode(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
+        signature = self._create_signature(header_b64, payload_b64)
+
+        return f"{header_b64}.{payload_b64}.{signature}"
+
+    def decode(self, token: str) -> Optional[Dict[str, Any]]:
+        """验证并解析 JWT token，返回 payload 或 None"""
+        try:
+            parts = token.split(".")
+            if len(parts) != 3:
+                return None
+
+            header_b64, payload_b64, signature = parts
+            expected_sig = self._create_signature(header_b64, payload_b64)
+
+            if not hmac.compare_digest(signature, expected_sig):
+                return None
+
+            payload = json.loads(self._base64url_decode(payload_b64))
+
+            # 检查过期
+            if "exp" in payload and payload["exp"] < int(time.time()):
+                return None
+
+            return payload
+        except Exception:
+            return None
+
+    def verify(self, token: str) -> Dict[str, Any]:
+        """验证 token，返回详细信息"""
+        payload = self.decode(token)
+        if payload:
+            return {"valid": True, "payload": payload}
+        return {"valid": False, "error": "invalid or expired token"}
+
+
+# 默认用户存储（生产环境应替换为数据库）
+_DEFAULT_USERS = {
+    "admin": {
+        "password_hash": hashlib.sha256("admin123".encode()).hexdigest(),
+        "user_id": "u001",
+        "roles": ["admin", "user"],
+    },
+    "user": {
+        "password_hash": hashlib.sha256("user123".encode()).hexdigest(),
+        "user_id": "u002",
+        "roles": ["user"],
+    },
+}
+
+
+def _verify_password(username: str, password: str) -> Optional[Dict[str, Any]]:
+    """验证用户名密码，返回用户信息或 None"""
+    user = _DEFAULT_USERS.get(username)
+    if not user:
+        return None
+    if user["password_hash"] != hashlib.sha256(password.encode()).hexdigest():
+        return None
+    return {"user_id": user["user_id"], "roles": user["roles"]}
+
+
+# 全局 JWT 实例
+_jwt_auth = JWTAuth()
+
+
+# ============ 限流中间件 ============
+
+class RateLimiter:
+    """基于滑动窗口的限流器"""
+
+    def __init__(self, max_requests: int = 60, window_seconds: int = 60):
+        self.max_requests = max_requests
+        self.window_seconds = window_seconds
+        self._buckets: Dict[str, collections.deque] = {}
+        self._lock = threading.RLock()
+
+    def _get_key(self, identifier: str) -> str:
+        return identifier
+
+    def is_allowed(self, identifier: str) -> bool:
+        """检查请求是否允许，返回 True 表示通过，False 表示被限流"""
+        key = self._get_key(identifier)
+        now = time.time()
+
+        with self._lock:
+            if key not in self._buckets:
+                self._buckets[key] = collections.deque()
+
+            bucket = self._buckets[key]
+
+            # 清理过期时间戳
+            while bucket and bucket[0] <= now - self.window_seconds:
+                bucket.popleft()
+
+            if len(bucket) < self.max_requests:
+                bucket.append(now)
+                return True
+
+            return False
+
+    def get_retry_after(self, identifier: str) -> int:
+        """返回需要等待的秒数"""
+        key = self._get_key(identifier)
+        with self._lock:
+            bucket = self._buckets.get(key, collections.deque())
+            if not bucket:
+                return 0
+            oldest = bucket[0]
+            return max(0, int(oldest + self.window_seconds - time.time()))
+
+
+# 全局限流器
+_rate_limiter = RateLimiter(max_requests=60, window_seconds=60)
+
+
+def _check_rate_limit(identifier: str) -> Optional[int]:
+    """检查限流，返回 None 表示通过，返回 retry_after 秒数表示被限流"""
+    if _rate_limiter.is_allowed(identifier):
+        return None
+    return _rate_limiter.get_retry_after(identifier)
+
+
+# ============ 会话管理（生成路由用） ============
+
+class SessionManager:
+    """生成会话管理器"""
+
+    def __init__(self):
+        self._sessions: Dict[str, Dict[str, Any]] = {}
+        self._lock = threading.RLock()
+
+    def create_session(self, prompt: str = "", **kwargs) -> str:
+        """创建新会话，返回 session_id"""
+        session_id = str(uuid.uuid4())[:8]
+        with self._lock:
+            self._sessions[session_id] = {
+                "id": session_id,
+                "prompt": prompt,
+                "history": [],
+                "created_at": time.time(),
+                "last_active": time.time(),
+                **kwargs,
+            }
+        return session_id
+
+    def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
+        return self._sessions.get(session_id)
+
+    def list_sessions(self) -> List[Dict[str, Any]]:
+        with self._lock:
+            return [
+                {
+                    "id": s["id"],
+                    "prompt": s.get("prompt", ""),
+                    "created_at": s["created_at"],
+                    "last_active": s["last_active"],
+                    "message_count": len(s.get("history", [])),
+                }
+                for s in self._sessions.values()
+            ]
+
+    def delete_session(self, session_id: str) -> bool:
+        with self._lock:
+            if session_id in self._sessions:
+                del self._sessions[session_id]
+                return True
+            return False
+
+    def add_message(self, session_id: str, role: str, content: str) -> None:
+        with self._lock:
+            if session_id in self._sessions:
+                s = self._sessions[session_id]
+                s["history"].append({"role": role, "content": content, "timestamp": time.time()})
+                s["last_active"] = time.time()
+
+
+# 全局会话管理器
+_session_manager = SessionManager()
+
+
+# ============ 数据结构 =====
 
 @dataclass
 class ApiResponse:
@@ -55,7 +275,7 @@ _FASTAPI_ERROR = ""
 app = None  # 供 uvicorn: APP_MODULE 使用
 
 try:
-    from fastapi import FastAPI, Body, HTTPException
+    from fastapi import FastAPI, Body, HTTPException, Request, Depends
     from fastapi.responses import JSONResponse, StreamingResponse
     from pydantic import BaseModel, Field
     _FASTAPI_AVAILABLE = True
@@ -68,6 +288,7 @@ try:
         model: str = Field("", description="模型名，如 gpt-3.5-turbo")
         temperature: float = 0.7
         stream: bool = False
+        session_id: Optional[str] = Field(None, description="会话 ID，不提供则创建新会话")
 
     class _KnowledgeNodeRequest(BaseModel):
         name: str
@@ -82,6 +303,24 @@ try:
     class _TaskRequest(BaseModel):
         items: Dict[str, float]
         weights: Optional[Dict[str, float]] = None
+
+    class _LoginRequest(BaseModel):
+        username: str
+        password: str
+
+    class _TokenVerifyRequest(BaseModel):
+        token: str
+
+    class _TaskSubmitRequest(BaseModel):
+        func_name: Optional[str] = Field(None, description="预定义任务名称")
+        task_id: Optional[str] = Field(None, description="任务 ID，不提供则自动生成")
+        func_args: Optional[Dict[str, Any]] = Field(None, description="任务参数（JSON）")
+        priority: str = Field("NORMAL", description="优先级：CRITICAL/HIGH/NORMAL/LOW")
+        max_retries: int = Field(0, description="最大重试次数")
+
+    class _ComponentCallRequest(BaseModel):
+        method: str = Field(..., description="组件方法名")
+        args: Dict[str, Any] = Field(default_factory=dict, description="方法参数")
 
 except Exception as _e:
     _FASTAPI_AVAILABLE = False
@@ -105,6 +344,52 @@ def _build_generation_config(data: Dict[str, Any]):
     )
 
 
+# ============ 认证依赖 =====
+
+async def _get_current_user(request: Request) -> Dict[str, Any]:
+    """FastAPI 依赖：提取并验证当前用户"""
+    # 公开路由白名单
+    if request.url.path in ("/", "/health", "/api/status", "/api/auth/token", "/api/auth/verify"):
+        return {"user_id": "anonymous", "roles": []}
+
+    # 限流检查
+    client_ip = request.client.host if request.client else "unknown"
+    user_id = "anonymous"
+    retry_after = _check_rate_limit(client_ip)
+    if retry_after is not None:
+        raise HTTPException(status_code=429, detail=f"Rate limit exceeded. Retry after {retry_after} seconds")
+
+    # 检查 Authorization header
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header[7:]
+        payload = _jwt_auth.decode(token)
+        if payload:
+            user_id = payload.get("user_id", "unknown")
+            # 对已认证用户也限流
+            retry_after = _check_rate_limit(user_id)
+            if retry_after is not None:
+                raise HTTPException(status_code=429, detail=f"Rate limit exceeded. Retry after {retry_after} seconds")
+            return payload
+
+    if request.url.path.startswith("/api/"):
+        raise HTTPException(status_code=401, detail="Missing or invalid authorization token")
+
+    return {"user_id": "anonymous", "roles": []}
+
+
+# 预定义任务注册表
+_PREDEFINED_TASKS: Dict[str, Callable] = {}
+
+
+def _register_predefined_task(name: str, func: Callable) -> None:
+    _PREDEFINED_TASKS[name] = func
+
+
+def _get_predefined_task(name: str) -> Optional[Callable]:
+    return _PREDEFINED_TASKS.get(name)
+
+
 def create_app(core: Optional[Any] = None) -> Any:
     """创建 HTTP 应用。FastAPI 可用时返回 FastAPI 实例，否则返回 None。
 
@@ -120,15 +405,21 @@ def create_app(core: Optional[Any] = None) -> Any:
     fast_app = FastAPI(
         title="十神架构 API",
         description="中华文明数字永生体 - 十神协同架构的 RESTful 接口",
-        version="1.2.0",
+        version="1.3.0",
     )
+
+    # 注册预定义任务
+    if core and core.scheduler:
+        def _sample_task(x: int = 1, y: int = 2) -> int:
+            return x + y
+        _register_predefined_task("sample_add", _sample_task)
 
     # -------- 健康检查 --------
 
     @fast_app.get("/", tags=["系统"])
     def root():
         return ApiResponse(code=0, message="十神架构服务运行中", data={
-            "version": "1.2.0",
+            "version": "1.3.0",
             "modules": {
                 "比肩": "已就绪" if core.registry else "未启用",
                 "劫财": "已就绪" if core.guard else "未启用",
@@ -147,42 +438,256 @@ def create_app(core: Optional[Any] = None) -> Any:
 
     @fast_app.get("/health", tags=["系统"])
     def health():
-        return {"status": "ok", "timestamp": __import__("time").time()}
+        return {"status": "ok", "timestamp": time.time()}
 
     @fast_app.get("/api/status", tags=["系统"])
     def api_status():
         state = core.export_state()
         return ApiResponse(code=0, message="ok", data=state).to_dict()
 
+    # -------- 认证路由 --------
+
+    @fast_app.post("/api/auth/token", tags=["认证"])
+    def api_login(req: _LoginRequest):
+        """登录获取 JWT token"""
+        user = _verify_password(req.username, req.password)
+        if not user:
+            raise HTTPException(status_code=401, detail="Invalid username or password")
+
+        token = _jwt_auth.encode({
+            "user_id": user["user_id"],
+            "roles": user["roles"],
+            "username": req.username,
+        })
+        return ApiResponse(code=0, message="Login successful", data={
+            "access_token": token,
+            "token_type": "bearer",
+            "expires_in": _jwt_auth.default_expiry,
+        }).to_dict()
+
+    @fast_app.post("/api/auth/verify", tags=["认证"])
+    def api_verify(req: _TokenVerifyRequest):
+        """验证 JWT token"""
+        result = _jwt_auth.verify(req.token)
+        return ApiResponse(code=0, message="ok", data=result).to_dict()
+
+    # -------- 任务管理路由 --------
+
+    @fast_app.post("/api/tasks/submit", tags=["任务管理"])
+    def api_submit_task(req: _TaskSubmitRequest, current_user: Dict = Depends(_get_current_user)):
+        """提交任务到调度器"""
+        if not core.scheduler:
+            raise HTTPException(status_code=503, detail="调度器未就绪")
+
+        from 正官_法度调度.task_scheduler import TaskPriority, TaskStatus
+
+        task_id = req.task_id or f"task-{uuid.uuid4().hex[:8]}"
+
+        priority_map = {
+            "CRITICAL": TaskPriority.CRITICAL,
+            "HIGH": TaskPriority.HIGH,
+            "NORMAL": TaskPriority.NORMAL,
+            "LOW": TaskPriority.LOW,
+        }
+        priority = priority_map.get(req.priority, TaskPriority.NORMAL)
+
+        func = None
+        if req.func_name:
+            func = _get_predefined_task(req.func_name)
+            if not func and hasattr(core, req.func_name):
+                func = getattr(core, req.func_name)
+            if not func:
+                raise HTTPException(status_code=400, detail=f"Unknown func_name: {req.func_name}")
+        elif req.func_args:
+            def _generic_task(**kwargs):
+                return kwargs
+            func = _generic_task
+        else:
+            raise HTTPException(status_code=400, detail="Either func_name or func_args must be provided")
+
+        core.scheduler.submit(
+            task_id,
+            func,
+            kwargs=req.func_args or {},
+            priority=priority,
+            max_retries=req.max_retries,
+        )
+
+        return ApiResponse(code=0, message="Task submitted", data={
+            "task_id": task_id,
+            "status": "pending",
+        }).to_dict()
+
+    @fast_app.get("/api/tasks", tags=["任务管理"])
+    def api_list_tasks(
+        page: int = 1,
+        page_size: int = 20,
+        status_filter: Optional[str] = None,
+        current_user: Dict = Depends(_get_current_user),
+    ):
+        """列出所有任务（分页）"""
+        if not core.scheduler:
+            raise HTTPException(status_code=503, detail="调度器未就绪")
+
+        from 正官_法度调度.task_scheduler import TaskStatus
+
+        all_tasks = list(core.scheduler._tasks.values())
+
+        if status_filter:
+            try:
+                filter_status = TaskStatus(status_filter)
+                all_tasks = [t for t in all_tasks if t.status == filter_status]
+            except ValueError:
+                pass
+
+        all_tasks.sort(key=lambda t: t.created_at, reverse=True)
+
+        total = len(all_tasks)
+        start = (page - 1) * page_size
+        end = start + page_size
+        page_tasks = all_tasks[start:end]
+
+        return ApiResponse(code=0, message="ok", data={
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "items": [
+                {
+                    "task_id": t.task_id,
+                    "status": t.status.value,
+                    "priority": t.priority.name,
+                    "created_at": t.created_at,
+                    "started_at": t.started_at,
+                    "completed_at": t.completed_at,
+                    "result": str(t.result) if t.result else None,
+                    "error": t.error,
+                    "retry_count": t.retry_count,
+                    "max_retries": t.max_retries,
+                }
+                for t in page_tasks
+            ],
+        }).to_dict()
+
+    @fast_app.get("/api/tasks/{task_id}", tags=["任务管理"])
+    def api_get_task(task_id: str, current_user: Dict = Depends(_get_current_user)):
+        """查询单个任务状态"""
+        if not core.scheduler:
+            raise HTTPException(status_code=503, detail="调度器未就绪")
+
+        task = core.scheduler._tasks.get(task_id)
+        if not task:
+            raise HTTPException(status_code=404, detail=f"Task not found: {task_id}")
+
+        return ApiResponse(code=0, message="ok", data={
+            "task_id": task.task_id,
+            "status": task.status.value,
+            "priority": task.priority.name,
+            "created_at": task.created_at,
+            "started_at": task.started_at,
+            "completed_at": task.completed_at,
+            "result": task.result,
+            "error": task.error,
+            "retry_count": task.retry_count,
+            "max_retries": task.max_retries,
+        }).to_dict()
+
+    @fast_app.post("/api/tasks/{task_id}/cancel", tags=["任务管理"])
+    def api_cancel_task(task_id: str, current_user: Dict = Depends(_get_current_user)):
+        """取消任务"""
+        if not core.scheduler:
+            raise HTTPException(status_code=503, detail="调度器未就绪")
+
+        task = core.scheduler._tasks.get(task_id)
+        if not task:
+            raise HTTPException(status_code=404, detail=f"Task not found: {task_id}")
+
+        from 正官_法度调度.task_scheduler import TaskStatus
+
+        if task.status in (TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED):
+            return ApiResponse(code=1, message=f"Task already {task.status.value}", data={
+                "task_id": task_id,
+                "status": task.status.value,
+            }).to_dict()
+
+        task.status = TaskStatus.CANCELLED
+        task.completed_at = time.time()
+
+        return ApiResponse(code=0, message="Task cancelled", data={
+            "task_id": task_id,
+            "status": "cancelled",
+        }).to_dict()
+
+    @fast_app.get("/api/tasks/stats", tags=["任务管理"])
+    def api_task_stats(current_user: Dict = Depends(_get_current_user)):
+        """获取调度器统计"""
+        if not core.scheduler:
+            raise HTTPException(status_code=503, detail="调度器未就绪")
+
+        return ApiResponse(code=0, message="ok", data=core.scheduler.stats()).to_dict()
+
     # -------- 食神 · 内容生成 --------
 
     @fast_app.post("/api/generate", tags=["食神 · 创生输出"])
-    def api_generate(req: _GenerateRequest):
+    def api_generate(req: _GenerateRequest, current_user: Dict = Depends(_get_current_user)):
         """调用食神生成内容（非流式）"""
         if not core.generator:
             raise HTTPException(status_code=503, detail="食神模块未就绪")
+
+        session_id = req.session_id
+        if not session_id:
+            session_id = _session_manager.create_session(prompt=req.prompt)
+
         cfg = _build_generation_config(req.dict())
         text = core.generator.generate(req.prompt, cfg)
+
+        _session_manager.add_message(session_id, "user", req.prompt)
+        _session_manager.add_message(session_id, "assistant", text)
+
         return ApiResponse(code=0, message="ok", data={
             "content": text,
             "length": len(text),
             "format": cfg.format.value,
             "provider": cfg.provider.value,
+            "session_id": session_id,
         }).to_dict()
 
     @fast_app.post("/api/generate/stream", tags=["食神 · 创生输出"])
-    def api_generate_stream(req: _GenerateRequest):
+    def api_generate_stream(req: _GenerateRequest, current_user: Dict = Depends(_get_current_user)):
         """流式生成内容（SSE）"""
         if not core.generator:
             raise HTTPException(status_code=503, detail="食神模块未就绪")
+
+        session_id = req.session_id or _session_manager.create_session(prompt=req.prompt)
         cfg = _build_generation_config(req.dict())
 
         def _gen():
+            full_content = ""
             for chunk in core.generator.generate_stream(req.prompt, cfg):
+                full_content += chunk
                 yield f"data: {json.dumps({'chunk': chunk}, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
+            _session_manager.add_message(session_id, "user", req.prompt)
+            _session_manager.add_message(session_id, "assistant", full_content)
 
         return StreamingResponse(_gen(), media_type="text/event-stream")
+
+    @fast_app.get("/api/generate/sessions", tags=["食神 · 创生输出"])
+    def api_list_sessions(current_user: Dict = Depends(_get_current_user)):
+        """列出所有生成会话"""
+        sessions = _session_manager.list_sessions()
+        return ApiResponse(code=0, message="ok", data={
+            "total": len(sessions),
+            "items": sessions,
+        }).to_dict()
+
+    @fast_app.delete("/api/generate/sessions/{session_id}", tags=["食神 · 创生输出"])
+    def api_delete_session(session_id: str, current_user: Dict = Depends(_get_current_user)):
+        """清空指定会话"""
+        if _session_manager.delete_session(session_id):
+            return ApiResponse(code=0, message="Session deleted", data={
+                "session_id": session_id,
+            }).to_dict()
+        raise HTTPException(status_code=404, detail=f"Session not found: {session_id}")
 
     # -------- 正财 · 知识库 --------
 
@@ -314,6 +819,48 @@ def create_app(core: Optional[Any] = None) -> Any:
         balancer.set_state(state_map[state], reason="api request")
         return ApiResponse(code=0, message="ok", data=balancer.stats()).to_dict()
 
+    # -------- 组件路由 --------
+
+    @fast_app.get("/api/components", tags=["组件管理"])
+    def api_list_components(current_user: Dict = Depends(_get_current_user)):
+        """列出所有已注册组件"""
+        if not core.registry:
+            raise HTTPException(status_code=503, detail="组件注册表未就绪")
+        components = core.registry.list_all() if hasattr(core.registry, "list_all") else []
+        return ApiResponse(code=0, message="ok", data={
+            "total": len(components),
+            "items": components,
+        }).to_dict()
+
+    @fast_app.post("/api/components/{name}/call", tags=["组件管理"])
+    def api_call_component(
+        name: str,
+        req: _ComponentCallRequest,
+        current_user: Dict = Depends(_get_current_user),
+    ):
+        """调用指定组件的方法"""
+        if not core.registry:
+            raise HTTPException(status_code=503, detail="组件注册表未就绪")
+
+        component = None
+        if hasattr(core.registry, "get"):
+            component = core.registry.get(name)
+        elif hasattr(core.registry, name):
+            component = getattr(core.registry, name)
+
+        if not component:
+            raise HTTPException(status_code=404, detail=f"Component not found: {name}")
+
+        if not hasattr(component, req.method):
+            raise HTTPException(status_code=400, detail=f"Method not found: {req.method}")
+
+        try:
+            method = getattr(component, req.method)
+            result = method(**req.args)
+            return ApiResponse(code=0, message="ok", data={"result": result}).to_dict()
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
     return fast_app
 
 
@@ -345,7 +892,7 @@ class SimpleHttpServer:
 
         # 健康检查
         if path in ("/", "/health") and method == "GET":
-            return 200, {"status": "ok", "version": "1.2.0", "mode": "simple-http"}
+            return 200, {"status": "ok", "version": "1.3.0", "mode": "simple-http"}
 
         # 状态总览
         if path == "/api/status" and method == "GET":
@@ -407,6 +954,160 @@ class SimpleHttpServer:
             if balancer:
                 return 200, ApiResponse(code=0, message="ok", data=balancer.stats()).to_dict()
             return 503, {"code": 503, "message": "太极模块未就绪"}
+
+        # -------- 认证路由 --------
+        if path == "/api/auth/token" and method == "POST":
+            username = data.get("username", "")
+            password = data.get("password", "")
+            user = _verify_password(username, password)
+            if not user:
+                return 401, {"code": 401, "message": "Invalid username or password"}
+            token = _jwt_auth.encode({
+                "user_id": user["user_id"],
+                "roles": user["roles"],
+                "username": username,
+            })
+            return 200, ApiResponse(code=0, message="Login successful", data={
+                "access_token": token,
+                "token_type": "bearer",
+                "expires_in": _jwt_auth.default_expiry,
+            }).to_dict()
+
+        if path == "/api/auth/verify" and method == "POST":
+            token = data.get("token", "")
+            result = _jwt_auth.verify(token)
+            return 200, ApiResponse(code=0, message="ok", data=result).to_dict()
+
+        # -------- 任务管理路由 --------
+        if path == "/api/tasks/submit" and method == "POST":
+            if not self.core.scheduler:
+                return 503, {"code": 503, "message": "调度器未就绪"}
+            task_id = data.get("task_id") or f"task-{uuid.uuid4().hex[:8]}"
+            func_name = data.get("func_name")
+            func_args = data.get("func_args", {})
+            priority_str = data.get("priority", "NORMAL")
+            from 正官_法度调度.task_scheduler import TaskPriority
+            priority_map = {
+                "CRITICAL": TaskPriority.CRITICAL,
+                "HIGH": TaskPriority.HIGH,
+                "NORMAL": TaskPriority.NORMAL,
+                "LOW": TaskPriority.LOW,
+            }
+            priority = priority_map.get(priority_str, TaskPriority.NORMAL)
+            func = None
+            if func_name:
+                func = _get_predefined_task(func_name)
+                if not func and hasattr(self.core, func_name):
+                    func = getattr(self.core, func_name)
+            if not func:
+                return 400, {"code": 400, "message": f"Unknown func_name: {func_name}"}
+            self.core.scheduler.submit(task_id, func, kwargs=func_args, priority=priority)
+            return 200, ApiResponse(code=0, message="Task submitted", data={
+                "task_id": task_id,
+                "status": "pending",
+            }).to_dict()
+
+        if path == "/api/tasks" and method == "GET":
+            if not self.core.scheduler:
+                return 503, {"code": 503, "message": "调度器未就绪"}
+            all_tasks = list(self.core.scheduler._tasks.values())
+            all_tasks.sort(key=lambda t: t.created_at, reverse=True)
+            return 200, ApiResponse(code=0, message="ok", data={
+                "total": len(all_tasks),
+                "items": [
+                    {
+                        "task_id": t.task_id,
+                        "status": t.status.value,
+                        "priority": t.priority.name,
+                        "created_at": t.created_at,
+                    }
+                    for t in all_tasks[:20]
+                ],
+            }).to_dict()
+
+        if path.startswith("/api/tasks/") and path.endswith("/cancel") and method == "POST":
+            if not self.core.scheduler:
+                return 503, {"code": 503, "message": "调度器未就绪"}
+            task_id = path.split("/")[3]
+            task = self.core.scheduler._tasks.get(task_id)
+            if not task:
+                return 404, {"code": 404, "message": f"Task not found: {task_id}"}
+            from 正官_法度调度.task_scheduler import TaskStatus
+            task.status = TaskStatus.CANCELLED
+            task.completed_at = time.time()
+            return 200, ApiResponse(code=0, message="Task cancelled", data={
+                "task_id": task_id,
+                "status": "cancelled",
+            }).to_dict()
+
+        if path == "/api/tasks/stats" and method == "GET":
+            if not self.core.scheduler:
+                return 503, {"code": 503, "message": "调度器未就绪"}
+            return 200, ApiResponse(code=0, message="ok", data=self.core.scheduler.stats()).to_dict()
+
+        # 匹配 /api/tasks/{task_id}
+        if path.startswith("/api/tasks/") and method == "GET":
+            task_id = path.split("/api/tasks/")[1]
+            if not self.core.scheduler:
+                return 503, {"code": 503, "message": "调度器未就绪"}
+            task = self.core.scheduler._tasks.get(task_id)
+            if not task:
+                return 404, {"code": 404, "message": f"Task not found: {task_id}"}
+            return 200, ApiResponse(code=0, message="ok", data={
+                "task_id": task.task_id,
+                "status": task.status.value,
+                "priority": task.priority.name,
+                "created_at": task.created_at,
+                "result": task.result,
+                "error": task.error,
+            }).to_dict()
+
+        # -------- 会话路由 --------
+        if path == "/api/generate/sessions" and method == "GET":
+            sessions = _session_manager.list_sessions()
+            return 200, ApiResponse(code=0, message="ok", data={
+                "total": len(sessions),
+                "items": sessions,
+            }).to_dict()
+
+        if path.startswith("/api/generate/sessions/") and method == "DELETE":
+            session_id = path.split("/api/generate/sessions/")[1]
+            if _session_manager.delete_session(session_id):
+                return 200, ApiResponse(code=0, message="Session deleted", data={
+                    "session_id": session_id,
+                }).to_dict()
+            return 404, {"code": 404, "message": f"Session not found: {session_id}"}
+
+        # -------- 组件路由 --------
+        if path == "/api/components" and method == "GET":
+            if not self.core.registry:
+                return 503, {"code": 503, "message": "组件注册表未就绪"}
+            components = self.core.registry.list_all() if hasattr(self.core.registry, "list_all") else []
+            return 200, ApiResponse(code=0, message="ok", data={
+                "total": len(components),
+                "items": components,
+            }).to_dict()
+
+        if path.startswith("/api/components/") and "/call" in path and method == "POST":
+            name = path.split("/api/components/")[1].split("/call")[0]
+            if not self.core.registry:
+                return 503, {"code": 503, "message": "组件注册表未就绪"}
+            component = None
+            if hasattr(self.core.registry, "get"):
+                component = self.core.registry.get(name)
+            elif hasattr(self.core.registry, name):
+                component = getattr(self.core.registry, name)
+            if not component:
+                return 404, {"code": 404, "message": f"Component not found: {name}"}
+            method_name = data.get("method", "")
+            args = data.get("args", {})
+            if not hasattr(component, method_name):
+                return 400, {"code": 400, "message": f"Method not found: {method_name}"}
+            try:
+                result = getattr(component, method_name)(**args)
+                return 200, ApiResponse(code=0, message="ok", data={"result": result}).to_dict()
+            except Exception as e:
+                return 500, {"code": 500, "message": str(e)}
 
         return 404, {"code": 404, "message": f"Route not found: {method} {path}"}
 
@@ -494,4 +1195,4 @@ if __name__ == "__main__":
 
 
 __all__ = ["create_app", "run_server", "SimpleHttpServer", "ApiResponse", "app"]
-__version__ = "1.2.0"
+__version__ = "1.3.0"

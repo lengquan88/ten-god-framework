@@ -44,6 +44,9 @@ class GenerationConfig:
     model: str = ""  # 如 gpt-4, claude-3-opus
     api_key: str = ""  # 可从环境变量读取
     base_url: str = ""  # 自定义 API 地址
+    session_id: str = ""  # 会话 ID（空字符串=不使用会话）
+    timeout: float = 60.0  # 请求超时（秒）
+    max_retries: int = 3  # 最大重试次数
     extra: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -60,6 +63,9 @@ class ContentGenerator:
         self._history: List[Dict[str, Any]] = []
         self._api_key = api_key or os.environ.get("OPENAI_API_KEY", "")
         self._custom_generator: Optional[Callable] = None
+        # 会话管理：session_id -> [{"role": "user"/"assistant", "content": str}, ...]
+        self._sessions: Dict[str, List[Dict[str, str]]] = {}
+        self._token_counts: Dict[str, int] = {}  # provider -> total_tokens
 
     def set_api_key(self, key: str) -> None:
         """设置 API Key"""
@@ -79,42 +85,88 @@ class ContentGenerator:
         config: Optional[GenerationConfig] = None,
         use_cache: bool = True,
     ) -> str:
-        """生成内容"""
+        """生成内容（生产级：会话管理 + 重试 + 超时）"""
         if config is None:
             config = GenerationConfig()
+
+        # ---------- 会话管理 ----------
+        session_id = config.session_id
+        messages: List[Dict[str, str]] = []
+        if session_id:
+            messages = self._sessions.get(session_id, [])
+            messages.append({"role": "user", "content": prompt})
+        else:
+            messages = [{"role": "user", "content": prompt}]
 
         cache_key = f"{prompt}:{config.format.value}:{config.style}:{config.provider.value}"
         if use_cache and cache_key in self._cache:
             content = self._cache[cache_key]
         else:
-            content = self._generate_with_provider(prompt, config)
+            # 根据会话模式传入消息列表
+            content = self._generate_with_provider(prompt, config, messages=messages)
             if use_cache:
                 self._cache[cache_key] = content
+
+        # 更新会话历史
+        if session_id:
+            messages.append({"role": "assistant", "content": content})
+            self._sessions[session_id] = messages[-50:]  # 保留最近50轮
+
+        # 粗估 Token 消耗（按字符数 ÷ 2 估算中文）
+        est_tokens = len(content) // 2 + len(prompt) // 2
+        prov = config.provider.value
+        self._token_counts[prov] = self._token_counts.get(prov, 0) + est_tokens
 
         self._history.append({
             "id": str(uuid.uuid4())[:8],
             "prompt": prompt,
             "format": config.format.value,
             "provider": config.provider.value,
+            "session_id": session_id,
             "timestamp": time.time(),
             "length": len(content),
+            "est_tokens": est_tokens,
         })
         return content
 
-    def _generate_with_provider(self, prompt: str, config: GenerationConfig) -> str:
+    def _generate_with_provider(
+        self,
+        prompt: str,
+        config: GenerationConfig,
+        messages: Optional[List[Dict[str, str]]] = None,
+    ) -> str:
         """根据提供商生成内容"""
         if config.provider == LLMProvider.MOCK:
             return self._render_mock(prompt, config)
         elif config.provider == LLMProvider.OPENAI:
-            return self._call_openai(prompt, config)
+            return self._call_openai(prompt, config, messages=messages)
         elif config.provider == LLMProvider.CLAUDE:
-            return self._call_claude(prompt, config)
+            return self._call_claude(prompt, config, messages=messages)
         elif config.provider == LLMProvider.LOCAL:
             return self._call_local(prompt, config)
         elif config.provider == LLMProvider.CUSTOM and self._custom_generator:
             return self._custom_generator(prompt, config)
         else:
             return self._render_mock(prompt, config)
+
+    def _call_with_retry(
+        self,
+        func: Callable[[], str],
+        max_retries: int,
+        provider_name: str,
+    ) -> str:
+        """通用重试包装（指数退避）"""
+        import random
+        last_error = ""
+        for attempt in range(max_retries + 1):
+            try:
+                return func()
+            except Exception as e:
+                last_error = str(e)
+                if attempt < max_retries:
+                    wait = (2 ** attempt) + random.uniform(0, 1)
+                    time.sleep(wait)
+        return f"[Error({provider_name}): 重试{max_retries+1}次后仍失败] {last_error}"
 
     def _render_mock(self, prompt: str, config: GenerationConfig) -> str:
         """模拟渲染"""
@@ -134,45 +186,51 @@ class ContentGenerator:
         else:
             return f"{prompt} [by {self._name} (mock)]"
 
-    def _call_openai(self, prompt: str, config: GenerationConfig) -> str:
-        """调用 OpenAI API"""
-        try:
+    def _call_openai(self, prompt: str, config: GenerationConfig,
+                     messages: Optional[List[Dict[str, str]]] = None) -> str:
+        """调用 OpenAI API（超时控制 + 重试 + 会话消息）"""
+        def _do():
             import openai
             client = openai.OpenAI(
                 api_key=self._api_key or config.api_key,
                 base_url=config.base_url if config.base_url else None,
+                timeout=config.timeout,
             )
+            # 有会话历史时用 messages 格式，否则降级为单条 prompt
+            if messages and len(messages) > 1:
+                msgs = messages
+            else:
+                msgs = [{"role": "user", "content": prompt}]
             response = client.chat.completions.create(
                 model=config.model or "gpt-3.5-turbo",
-                messages=[{"role": "user", "content": prompt}],
+                messages=msgs,
                 max_tokens=config.max_length,
                 temperature=config.temperature,
             )
-            return response.choices[0].message.content
-        except ImportError:
-            return f"[Error: openai 未安装] {prompt}"
-        except Exception as e:
-            return f"[Error: {str(e)}] {prompt}"
+            return response.choices[0].message.content or ""
+        return self._call_with_retry(_do, config.max_retries, "OpenAI")
 
-    def _call_claude(self, prompt: str, config: GenerationConfig) -> str:
-        """调用 Claude API"""
-        try:
+    def _call_claude(self, prompt: str, config: GenerationConfig,
+                     messages: Optional[List[Dict[str, str]]] = None) -> str:
+        """调用 Claude API（超时控制 + 重试 + 会话消息）"""
+        def _do():
             import anthropic
-            client = anthropic.Anthropic(api_key=self._api_key or config.api_key)
+            client = anthropic.Anthropic(api_key=self._api_key or config.api_key, timeout=config.timeout)
+            if messages and len(messages) > 1:
+                msgs = messages
+            else:
+                msgs = [{"role": "user", "content": prompt}]
             response = client.messages.create(
                 model=config.model or "claude-3-haiku-20240307",
                 max_tokens=config.max_length,
-                messages=[{"role": "user", "content": prompt}],
+                messages=msgs,
             )
             return response.content[0].text
-        except ImportError:
-            return f"[Error: anthropic 未安装] {prompt}"
-        except Exception as e:
-            return f"[Error: {str(e)}] {prompt}"
+        return self._call_with_retry(_do, config.max_retries, "Claude")
 
     def _call_local(self, prompt: str, config: GenerationConfig) -> str:
-        """调用本地模型（Ollama 等）"""
-        try:
+        """调用本地模型（Ollama 等）+ 超时 + 重试"""
+        def _do():
             import requests
             base_url = config.base_url or "http://localhost:11434"
             response = requests.post(
@@ -182,13 +240,10 @@ class ContentGenerator:
                     "prompt": prompt,
                     "stream": False,
                 },
-                timeout=60,
+                timeout=config.timeout,
             )
             return response.json().get("response", "")
-        except ImportError:
-            return f"[Error: requests 未安装] {prompt}"
-        except Exception as e:
-            return f"[Error: {str(e)}] {prompt}"
+        return self._call_with_retry(_do, config.max_retries, "Local/Ollama")
 
     def get_history(self, limit: int = 10) -> List[Dict[str, Any]]:
         """获取生成历史"""
@@ -199,7 +254,7 @@ class ContentGenerator:
         self._cache.clear()
 
     def stats(self) -> Dict[str, Any]:
-        """统计信息"""
+        """统计信息（含 Token 消耗估算）"""
         provider_count: Dict[str, int] = {}
         for h in self._history:
             p = h.get("provider", "mock")
@@ -208,8 +263,34 @@ class ContentGenerator:
             "name": self._name,
             "total_generations": len(self._history),
             "cache_size": len(self._cache),
+            "sessions": len(self._sessions),
             "by_provider": provider_count,
+            "est_tokens_by_provider": self._token_counts,
+            "total_est_tokens": sum(self._token_counts.values()),
         }
+
+    # -------- 会话管理 --------
+
+    def get_session(self, session_id: str) -> List[Dict[str, str]]:
+        """获取指定会话的历史消息"""
+        return self._sessions.get(session_id, [])
+
+    def list_sessions(self) -> List[str]:
+        """列出所有活跃会话 ID"""
+        return list(self._sessions.keys())
+
+    def clear_session(self, session_id: str) -> bool:
+        """清空指定会话"""
+        if session_id in self._sessions:
+            del self._sessions[session_id]
+            return True
+        return False
+
+    def clear_all_sessions(self) -> int:
+        """清空所有会话"""
+        count = len(self._sessions)
+        self._sessions.clear()
+        return count
 
     # -------- 流式生成 --------
 
@@ -378,4 +459,4 @@ class ContentGenerator:
 
 
 __all__ = ["ContentGenerator", "OutputFormat", "GenerationConfig", "LLMProvider"]
-__version__ = "1.2.0"
+__version__ = "1.3.0"

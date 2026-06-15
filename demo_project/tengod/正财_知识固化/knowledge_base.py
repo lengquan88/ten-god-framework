@@ -43,6 +43,62 @@ class KnowledgeEdge:
     weight: float = 1.0
 
 
+# ============================================================
+# SQLAlchemy ORM 层（可选依赖，有则用，无则回退到 sqlite3）
+# ============================================================
+_SQLALCHEMY_AVAILABLE = False
+_SA_Base = None
+_SA_engine = None
+_SA_session_factory = None
+
+try:
+    from sqlalchemy import (
+        Column, String, Float, Text, create_engine,
+        Index, asc, desc, func as sa_func,
+    )
+    from sqlalchemy.orm import declarative_base, Session, sessionmaker
+    from sqlalchemy.ext.automap import automap_base
+    _SQLALCHEMY_AVAILABLE = True
+    _SA_Base = declarative_base()
+except ImportError:
+    pass
+
+
+def _init_sa_tables(engine, db_path: str) -> None:
+    """用 SQLAlchemy 建表（仅首次）"""
+    import sqlite3
+    # 直接用 sqlite3 建表（SQLAlchemy 已安装）
+    conn = sqlite3.connect(db_path)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS sa_nodes (
+            id VARCHAR(32) PRIMARY KEY,
+            name VARCHAR(255) NOT NULL,
+            node_type VARCHAR(64),
+            properties TEXT,
+            created_at REAL
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS sa_edges (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source VARCHAR(32),
+            target VARCHAR(32),
+            relation VARCHAR(64),
+            weight REAL
+        )
+    """)
+    # 全文搜索索引
+    try:
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_node_name ON sa_nodes(name)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_node_type ON sa_nodes(node_type)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_edge_source ON sa_edges(source)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_edge_target ON sa_edges(target)")
+    except Exception:
+        pass
+    conn.commit()
+    conn.close()
+
+
 class KnowledgeBase:
     """知识库 — 固化之库
 
@@ -435,10 +491,10 @@ class KnowledgeBase:
         ]
 
     # -------- 便捷批量导入 --------
-
+    # -------- 批量操作增强（v1.3.0）--------
     def bulk_add(self, records: List[Dict[str, Any]]) -> List[KnowledgeNode]:
         """批量添加节点。records 每项形如：
-        {"name": "..., "node_type": "..., "properties": {...}, "id": "..."}
+        {"name": "...", "node_type": "...", "properties": {...}, "id": "..."}
         """
         nodes: List[KnowledgeNode] = []
         for rec in records:
@@ -451,6 +507,127 @@ class KnowledgeBase:
             nodes.append(node)
         return nodes
 
+    def update_node(
+        self,
+        node_id: str,
+        name: Optional[str] = None,
+        node_type: Optional[str] = None,
+        properties: Optional[Dict[str, Any]] = None,
+    ) -> Optional[KnowledgeNode]:
+        """更新节点字段（部分更新）"""
+        node = self._nodes.get(node_id)
+        if not node:
+            return None
+        if name is not None:
+            node.name = name
+        if node_type is not None:
+            node.node_type = node_type
+        if properties is not None:
+            node.properties = properties
+        if self._backend == StorageBackend.SQLITE and self._db_conn:
+            self._db_conn.execute(
+                "UPDATE nodes SET name=?, node_type=?, properties=? WHERE id=?",
+                (node.name, node.node_type, json.dumps(node.properties), node.id),
+            )
+            self._db_conn.commit()
+        elif self._backend == StorageBackend.JSON:
+            self._save_to_json()
+        return node
+
+    def delete_nodes(self, node_ids: List[str]) -> int:
+        """批量删除节点，返回实际删除数量"""
+        deleted = 0
+        for nid in node_ids:
+            if self.delete_node(nid):
+                deleted += 1
+        return deleted
+
+    def upsert_node(
+        self,
+        name: str,
+        node_type: str = "default",
+        properties: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[KnowledgeNode, bool]:
+        """原子 upsert：存在则更新，不存在则创建。返回 (node, created)"""
+        for n in self.find_by_name(name):
+            if n.node_type == node_type:
+                return self.update_node(n.id, properties=properties), False
+        return self.add_node(name, node_type=node_type, properties=properties), True
+
+    def query_by_prefix(self, prefix: str, limit: int = 20) -> List[KnowledgeNode]:
+        """前缀模糊搜索"""
+        return [n for n in self._nodes.values() if n.name.startswith(prefix)][:limit]
+
+    def query_paginated(
+        self,
+        page: int = 1,
+        page_size: int = 20,
+        node_type: Optional[str] = None,
+        sort_by: str = "created_at",
+        descending: bool = False,
+    ) -> Dict[str, Any]:
+        """分页查询"""
+        nodes = list(self._nodes.values())
+        if node_type:
+            nodes = [n for n in nodes if n.node_type == node_type]
+        if sort_by == "name":
+            nodes.sort(key=lambda n: n.name, reverse=descending)
+        elif sort_by == "created_at":
+            nodes.sort(key=lambda n: n.created_at, reverse=descending)
+        total = len(nodes)
+        start = (page - 1) * page_size
+        page_nodes = nodes[start:start + page_size]
+        return {
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "pages": (total + page_size - 1) // page_size,
+            "items": page_nodes,
+        }
+
+    def use_sqlalchemy(self, db_path: Optional[str] = None) -> bool:
+        """启用 SQLAlchemy ORM（需 sqlalchemy 已安装）"""
+        if not _SQLALCHEMY_AVAILABLE:
+            print("[Warning] SQLAlchemy 未安装，无法启用 ORM")
+            return False
+        sa_path = db_path or (self._db_path or "knowledge_sa.db")
+        try:
+            from sqlalchemy import create_engine
+            from sqlalchemy.orm import sessionmaker
+            engine = create_engine(f"sqlite:///{sa_path}", echo=False)
+            _init_sa_tables(engine, sa_path)
+            global _SA_engine, _SA_session_factory
+            _SA_engine = engine
+            _SA_session_factory = sessionmaker(bind=engine)
+            import sqlite3
+            conn = sqlite3.connect(sa_path)
+            for node in self._nodes.values():
+                conn.execute(
+                    "INSERT OR REPLACE INTO sa_nodes VALUES (?, ?, ?, ?, ?)",
+                    (node.id, node.name, node.node_type,
+                     json.dumps(node.properties, ensure_ascii=False), node.created_at),
+                )
+            conn.commit()
+            conn.close()
+            return True
+        except Exception as e:
+            print(f"[Warning] SQLAlchemy 初始化失败：{e}")
+            return False
+
+    def stats(self) -> Dict[str, Any]:
+        """统计信息（增强版）"""
+        type_count: Dict[str, int] = {}
+        for n in self._nodes.values():
+            type_count[n.node_type] = type_count.get(n.node_type, 0) + 1
+        return {
+            "nodes": len(self._nodes),
+            "edges": len(self._edges),
+            "node_types": len(type_count),
+            "backend": self._backend.value,
+            "sqlalchemy_available": _SQLALCHEMY_AVAILABLE,
+            "type_distribution": type_count,
+        }
+
 
 __all__ = ["KnowledgeBase", "KnowledgeNode", "KnowledgeEdge", "StorageBackend"]
-__version__ = "1.2.0"
+__version__ = "1.3.0"
