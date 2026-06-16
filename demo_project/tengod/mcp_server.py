@@ -18,6 +18,11 @@ Model Context Protocol 服务端实现，让 Claude 等 AI 可直接调用十神
 - tengod_dizhi_analyze: 地支分析（藏干/六合/三合/六冲/六害/六破/相刑）
 - tengod_bazi_calc: 八字排盘（年月日时→四柱+大运+流年+分析）
 
+[玄学扩展工具 · 阶段四新增]
+- tengod_shensha_calc: 神煞推算（40+神煞，含天德/月德/桃花/华盖/魁罡等）
+- tengod_geju_judge: 格局判断（从旺格/官杀格/财格/食伤格/印绶格/比劫格）
+- tengod_yongshen: 喜用神分析（旺衰/调候/忌神/五行平衡）
+
 用法:
     python -m tengod.mcp_server
     python -m tengod.mcp_server --transport stdio
@@ -333,6 +338,87 @@ class MCPServer:
                 },
             },
             # ============ 阶段二工具结束 ============
+            # ============ 阶段四工具：神煞 + 格局 + 喜用神 ============
+            "tengod_shensha_calc": {
+                "name": "tengod_shensha_calc",
+                "description": "神煞推算 — 给定四柱，输出全部神煞（吉神/凶神/中性），包括天德、月德、桃花、驿马、华盖、劫煞等40+神煞",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "pillars": {
+                            "type": "object",
+                            "description": "四柱字典，格式 {\"year\": \"庚午\", \"month\": \"壬午\", \"day\": \"辛亥\", \"hour\": \"癸巳\"}",
+                            "properties": {
+                                "year": {"type": "string", "description": "年柱，如'庚午'"},
+                                "month": {"type": "string", "description": "月柱，如'壬午'"},
+                                "day": {"type": "string", "description": "日柱，如'辛亥'"},
+                                "hour": {"type": "string", "description": "时柱，如'癸巳'"},
+                            },
+                            "required": ["year", "month", "day", "hour"],
+                        },
+                        "detail_level": {
+                            "type": "string",
+                            "description": "输出级别：basic（摘要）/ full（完整报告）",
+                            "enum": ["basic", "full"],
+                            "default": "basic",
+                        },
+                    },
+                    "required": ["pillars"],
+                },
+            },
+            "tengod_geju_judge": {
+                "name": "tengod_geju_judge",
+                "description": "格局判断 — 推算八字格局（从旺格、官杀格、财格、食伤格、印绶格、比劫格等）及忌神分析",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "pillars": {
+                            "type": "object",
+                            "description": "四柱字典",
+                            "properties": {
+                                "year": {"type": "string"},
+                                "month": {"type": "string"},
+                                "day": {"type": "string"},
+                                "hour": {"type": "string"},
+                            },
+                            "required": ["year", "month", "day", "hour"],
+                        },
+                        "detail_level": {
+                            "type": "string",
+                            "enum": ["basic", "full"],
+                            "default": "basic",
+                        },
+                    },
+                    "required": ["pillars"],
+                },
+            },
+            "tengod_yongshen": {
+                "name": "tengod_yongshen",
+                "description": "喜用神分析 — 综合旺衰判断、调候分析、格局喜忌，推算喜神、忌神，并生成五行平衡报告",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "pillars": {
+                            "type": "object",
+                            "description": "四柱字典",
+                            "properties": {
+                                "year": {"type": "string"},
+                                "month": {"type": "string"},
+                                "day": {"type": "string"},
+                                "hour": {"type": "string"},
+                            },
+                            "required": ["year", "month", "day", "hour"],
+                        },
+                        "detail_level": {
+                            "type": "string",
+                            "enum": ["basic", "full"],
+                            "default": "basic",
+                        },
+                    },
+                    "required": ["pillars"],
+                },
+            },
+            # ============ 阶段四工具结束 ============
         }
 
     def _handle_initialize(self, params: Dict) -> Dict:
@@ -467,6 +553,14 @@ class MCPServer:
             return self._tool_dizhi_analyze(arguments)
         elif tool_name == "tengod_bazi_calc":
             return self._tool_bazi_calc(arguments)
+
+        # ============ 阶段四：神煞 + 格局 + 喜用神 ============
+        elif tool_name == "tengod_shensha_calc":
+            return self._tool_shensha_calc(arguments)
+        elif tool_name == "tengod_geju_judge":
+            return self._tool_geju_judge(arguments)
+        elif tool_name == "tengod_yongshen":
+            return self._tool_yongshen(arguments)
 
         return {"error": f"Unknown tool: {tool_name}"}
 
@@ -977,6 +1071,89 @@ class MCPServer:
 
     # ============ 阶段二工具方法结束 ============
 
+    # ============ 阶段四：神煞 + 格局 + 喜用神 ============
+
+    def _tool_shensha_calc(self, arguments: Dict) -> Any:
+        """神煞推算工具"""
+        try:
+            from tengod.shensha_engine import calc_all_shensha
+        except Exception as e:
+            return {"error": f"shensha_engine unavailable: {e}"}
+
+        pillars = arguments.get("pillars", {})
+        detail_level = arguments.get("detail_level", "basic")
+
+        # 验证四柱
+        required_keys = ["year", "month", "day", "hour"]
+        for k in required_keys:
+            if k not in pillars or not pillars[k]:
+                return {"error": f"缺少必要字段: {k}"}
+        if len(pillars.get("year", "")) < 2:
+            return {"error": f"年柱格式错误: {pillars.get('year', '')}"}
+
+        try:
+            result = calc_all_shensha(pillars)
+            if detail_level == "full":
+                return result.json_report()
+            return {
+                "pillars": pillars,
+                "day_master": pillars["day"][0],
+                "total_shensha": len(result.all_shensha),
+                "summary": result.summary,
+                "year_shens": {k: v["name"] for k, v in result.year_shens.items()},
+                "month_shens": {k: v["name"] for k, v in result.month_shens.items()},
+                "day_shens": {k: v["name"] for k, v in result.day_shens.items()},
+                "hour_shens": {k: v["name"] for k, v in result.hour_shens.items()},
+                "top_jixiong": result.summary.get("top_jixiong", []),
+            }
+        except Exception as e:
+            return {"error": f"神煞计算异常: {e}"}
+
+    def _tool_geju_judge(self, arguments: Dict) -> Any:
+        """格局判断工具"""
+        try:
+            from tengod.geju_engine import GejuEngine
+        except Exception as e:
+            return {"error": f"geju_engine unavailable: {e}"}
+
+        pillars = arguments.get("pillars", {})
+        detail_level = arguments.get("detail_level", "basic")
+
+        for k in ["year", "month", "day", "hour"]:
+            if k not in pillars:
+                return {"error": f"缺少必要字段: {k}"}
+
+        try:
+            engine = GejuEngine()
+            result = engine.judge(pillars, detail=detail_level)
+            return result
+        except Exception as e:
+            return {"error": f"格局判断异常: {e}"}
+
+    def _tool_yongshen(self, arguments: Dict) -> Any:
+        """喜用神分析工具"""
+        try:
+            from tengod.geju_engine import YongshenEngine
+            from tengod.geju_engine import analyze_bazi_comprehensive
+        except Exception as e:
+            return {"error": f"geju_engine unavailable: {e}"}
+
+        pillars = arguments.get("pillars", {})
+        detail_level = arguments.get("detail_level", "basic")
+
+        for k in ["year", "month", "day", "hour"]:
+            if k not in pillars:
+                return {"error": f"缺少必要字段: {k}"}
+
+        try:
+            engine = YongshenEngine()
+            result = engine.analyze(pillars, detail=detail_level)
+            return result
+        except Exception as e:
+            return {"error": f"喜用神分析异常: {e}"}
+
+    # ============ 阶段四工具方法结束 ============
+
     def _handle_request(self, request: Dict) -> Optional[Dict]:
         """处理 JSON-RPC 请求"""
         method = request.get("method", "")
@@ -1090,6 +1267,55 @@ def main():
 
         print(f"\n测试结果: {passed} 通过, {failed} 问题/警告")
         print("注: 部分 warning 级 (⚠️) 可能是正常的边界情况")
+
+        # 阶段四工具测试
+        stage4_cases = [
+            ("tengod_shensha_calc", {
+                "pillars": {"year": "庚午", "month": "壬午", "day": "辛亥", "hour": "癸巳"},
+                "detail_level": "basic",
+            }),
+            ("tengod_geju_judge", {
+                "pillars": {"year": "庚午", "month": "壬午", "day": "辛亥", "hour": "癸巳"},
+                "detail_level": "basic",
+            }),
+            ("tengod_yongshen", {
+                "pillars": {"year": "庚午", "month": "壬午", "day": "辛亥", "hour": "癸巳"},
+                "detail_level": "basic",
+            }),
+            ("tengod_shensha_calc", {
+                "pillars": {"year": "甲辰", "month": "丁卯", "day": "庚子", "hour": "丙子"},
+                "detail_level": "full",
+            }),
+        ]
+        print("\n[阶段四扩展工具测试]")
+        passed4 = failed4 = 0
+        for tool_name, args in stage4_cases:
+            try:
+                r = server._execute_tool(tool_name, args)
+                has_error = isinstance(r, dict) and "error" in r
+                status = "✅" if not has_error else "⚠️"
+                print(f"  {status} {tool_name}")
+                if isinstance(r, dict):
+                    keys = list(r.keys())[:6]
+                    print(f"       -> keys: {keys}")
+                    if not has_error:
+                        if tool_name == "tengod_shensha_calc":
+                            print(f"       -> 神煞数: {r.get('total_shensha', 'N/A')}, 汇总: {r.get('summary', {})}")
+                        elif tool_name == "tengod_geju_judge":
+                            print(f"       -> 格局: {r.get('geju_name', 'N/A')}, 月干十神: {r.get('month_shishen', 'N/A')}")
+                        elif tool_name == "tengod_yongshen":
+                            print(f"       -> 旺衰: {r.get('wang_shuai', 'N/A')}, 喜神: {r.get('yong_shen', [])[:2]}")
+                else:
+                    print(f"       -> {str(r)[:80]}")
+                if has_error:
+                    failed4 += 1
+                else:
+                    passed4 += 1
+            except Exception as e:
+                print(f"  ❌ {tool_name}: {e}")
+                failed4 += 1
+
+        print(f"\n阶段四测试结果: {passed4} 通过, {failed4} 问题")
 
         # 尝试完整的 JSON-RPC 测试
         print("\n[JSON-RPC 协议测试]")

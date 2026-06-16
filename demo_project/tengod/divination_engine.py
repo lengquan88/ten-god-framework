@@ -17,8 +17,44 @@ __all__ = [
     "ShiganResult",
     "analyze_relations",
     "find_interactions",
+    # 阶段四新增
+    "GejuEngine",
+    "YongshenEngine",
+    "TiaohouEngine",
+    "ShenshaEngine",
+    "ComprehensiveEngine",
+    "calc_geju",
+    "calc_yongshen",
+    "calc_tiaohou",
+    "calc_all_shensha",
+    "analyze_bazi_comprehensive",
 ]
 __version__ = "1.0.0"
+
+# 阶段四新增引擎（延迟导入，避免循环依赖）
+def __getattr__(name):
+    if name == "GejuEngine":
+        from .geju_engine import GejuEngine
+        return GejuEngine
+    if name == "YongshenEngine":
+        from .geju_engine import YongshenEngine
+        return YongshenEngine
+    if name == "TiaohouEngine":
+        from .geju_engine import TiaohouEngine
+        return TiaohouEngine
+    if name == "ShenshaEngine":
+        from .shensha_engine import ShenshaEngine
+        return ShenshaEngine
+    if name == "ComprehensiveEngine":
+        # 综合分析包装类
+        from .geju_engine import analyze_bazi_comprehensive
+        return analyze_bazi_comprehensive
+    if name in ("calc_geju", "calc_yongshen", "calc_tiaohou",
+                 "calc_all_shensha", "analyze_bazi_comprehensive"):
+        from . import geju_engine
+        from . import shensha_engine
+        return getattr(geju_engine if "geju" in name or "yong" in name or "tiaohou" in name else shensha_engine, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 # ============================================================================
