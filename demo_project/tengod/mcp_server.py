@@ -23,6 +23,10 @@ Model Context Protocol 服务端实现，让 Claude 等 AI 可直接调用十神
 - tengod_geju_judge: 格局判断（从旺格/官杀格/财格/食伤格/印绶格/比劫格）
 - tengod_yongshen: 喜用神分析（旺衰/调候/忌神/五行平衡）
 
+[玄学扩展工具 · 阶段五新增]
+- tengod_semantic_search: 语义搜索（自然语言查询知识图谱，支持类型过滤）
+- tengod_knowledge_recommend: 知识关联推荐（节点关系推荐 + 生克推断）
+
 用法:
     python -m tengod.mcp_server
     python -m tengod.mcp_server --transport stdio
@@ -419,6 +423,50 @@ class MCPServer:
                 },
             },
             # ============ 阶段四工具结束 ============
+            # ============ 阶段五工具：向量检索 ============
+            "tengod_semantic_search": {
+                "name": "tengod_semantic_search",
+                "description": "语义搜索 — 自然语言查询知识图谱，支持中文语义理解和类型过滤。示例：\"找所有属木的概念\"、\"与火相关的知识\"、\"东方方位\"",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "自然语言查询语句",
+                        },
+                        "top_k": {
+                            "type": "integer",
+                            "description": "返回结果数（默认10）",
+                            "default": 10,
+                        },
+                        "type_filter": {
+                            "type": "string",
+                            "description": "类型过滤（可选），如 \"五行\"、\"八卦\"、\"天干\"、\"地支\"、\"十神\"、\"河图洛书\"、\"六十四卦\"",
+                        },
+                    },
+                    "required": ["query"],
+                },
+            },
+            "tengod_knowledge_recommend": {
+                "name": "tengod_knowledge_recommend",
+                "description": "知识关联推荐 — 给定一个知识节点名称，推荐语义相关的其他节点，并推断生克关系",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "node_name": {
+                            "type": "string",
+                            "description": "知识节点名称，如 \"木\"、\"乾\"、\"甲\"、\"子\"、\"正官\"、\"河图\"",
+                        },
+                        "top_k": {
+                            "type": "integer",
+                            "description": "返回结果数（默认5）",
+                            "default": 5,
+                        },
+                    },
+                    "required": ["node_name"],
+                },
+            },
+            # ============ 阶段五工具结束 ============
         }
 
     def _handle_initialize(self, params: Dict) -> Dict:
@@ -561,6 +609,12 @@ class MCPServer:
             return self._tool_geju_judge(arguments)
         elif tool_name == "tengod_yongshen":
             return self._tool_yongshen(arguments)
+
+        # ============ 阶段五：向量检索 ============
+        elif tool_name == "tengod_semantic_search":
+            return self._tool_semantic_search(arguments)
+        elif tool_name == "tengod_knowledge_recommend":
+            return self._tool_knowledge_recommend(arguments)
 
         return {"error": f"Unknown tool: {tool_name}"}
 
@@ -1154,6 +1208,55 @@ class MCPServer:
 
     # ============ 阶段四工具方法结束 ============
 
+    # ============ 阶段五：向量检索工具方法 ============
+
+    def _tool_semantic_search(self, arguments: Dict) -> Any:
+        """语义搜索工具"""
+        try:
+            from tengod.vector_store import get_vector_store
+        except Exception as e:
+            return {"error": f"vector_store unavailable: {e}"}
+
+        query = arguments.get("query", "").strip()
+        if not query:
+            return {"error": "query 参数不能为空"}
+
+        top_k = int(arguments.get("top_k", 10))
+        type_filter = arguments.get("type_filter", None)
+
+        try:
+            store = get_vector_store()
+            result = store.search_json(query, top_k=top_k, type_filter=type_filter)
+            return result
+        except Exception as e:
+            return {"error": f"语义搜索异常: {e}"}
+
+    def _tool_knowledge_recommend(self, arguments: Dict) -> Any:
+        """知识关联推荐工具"""
+        try:
+            from tengod.vector_store import get_vector_store
+        except Exception as e:
+            return {"error": f"vector_store unavailable: {e}"}
+
+        node_name = arguments.get("node_name", "").strip()
+        if not node_name:
+            return {"error": "node_name 参数不能为空"}
+
+        top_k = int(arguments.get("top_k", 5))
+
+        try:
+            store = get_vector_store()
+            recs = store.recommend_related(node_name, top_k=top_k)
+            return {
+                "node_name": node_name,
+                "total_indexed": store._stats["total_nodes"],
+                "recommendations": recs,
+            }
+        except Exception as e:
+            return {"error": f"知识关联推荐异常: {e}"}
+
+    # ============ 阶段五工具方法结束 ============
+
     def _handle_request(self, request: Dict) -> Optional[Dict]:
         """处理 JSON-RPC 请求"""
         method = request.get("method", "")
@@ -1316,6 +1419,41 @@ def main():
                 failed4 += 1
 
         print(f"\n阶段四测试结果: {passed4} 通过, {failed4} 问题")
+
+        # 阶段五工具测试
+        stage5_cases = [
+            ("tengod_semantic_search", {"query": "找所有属木的概念", "top_k": 3}),
+            ("tengod_semantic_search", {"query": "方位东方", "type_filter": "天干", "top_k": 3}),
+            ("tengod_knowledge_recommend", {"node_name": "木", "top_k": 5}),
+            ("tengod_knowledge_recommend", {"node_name": "乾", "top_k": 3}),
+        ]
+        print("\n[阶段五扩展工具测试]")
+        passed5 = failed5 = 0
+        for tool_name, args in stage5_cases:
+            try:
+                r = server._execute_tool(tool_name, args)
+                has_error = isinstance(r, dict) and "error" in r
+                status = "✅" if not has_error else "⚠️"
+                print(f"  {status} {tool_name}({args})")
+                if isinstance(r, dict) and not has_error:
+                    if tool_name == "tengod_semantic_search":
+                        print(f"       -> 结果数: {r.get('result_count', 'N/A')}, 耗时: {r.get('search_time_ms', 'N/A')}ms")
+                        for res in r.get("results", [])[:2]:
+                            print(f"          [{res['type']}] {res['name']} (相似度:{res['similarity']})")
+                    elif tool_name == "tengod_knowledge_recommend":
+                        recs = r.get("recommendations", [])
+                        print(f"       -> 推荐数: {len(recs)}")
+                        for rec in recs[:2]:
+                            print(f"          [{rec['type']}] {rec['name']} → {rec['relation']}")
+                if has_error:
+                    failed5 += 1
+                else:
+                    passed5 += 1
+            except Exception as e:
+                print(f"  ❌ {tool_name}: {e}")
+                failed5 += 1
+
+        print(f"\n阶段五测试结果: {passed5} 通过, {failed5} 问题")
 
         # 尝试完整的 JSON-RPC 测试
         print("\n[JSON-RPC 协议测试]")

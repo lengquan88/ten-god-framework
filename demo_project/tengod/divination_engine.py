@@ -28,6 +28,13 @@ __all__ = [
     "calc_tiaohou",
     "calc_all_shensha",
     "analyze_bazi_comprehensive",
+    # 阶段五新增
+    "VectorStore",
+    "ChineseEmbedder",
+    "SemanticSearchResult",
+    "get_vector_store",
+    "search_similar",
+    "recommend_related",
 ]
 __version__ = "1.0.0"
 
@@ -54,6 +61,11 @@ def __getattr__(name):
         from . import geju_engine
         from . import shensha_engine
         return getattr(geju_engine if "geju" in name or "yong" in name or "tiaohou" in name else shensha_engine, name)
+    # 阶段五：向量检索
+    if name in ("VectorStore", "ChineseEmbedder", "SemanticSearchResult",
+                 "get_vector_store", "search_similar", "recommend_related"):
+        from . import vector_store
+        return getattr(vector_store, name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
