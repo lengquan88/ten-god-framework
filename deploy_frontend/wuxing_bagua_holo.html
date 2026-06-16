@@ -68,6 +68,7 @@ body::before{content:'';position:fixed;top:-50%;left:-50%;width:200%;height:200%
       <button class="tab-btn" onclick="switchTab(3)">⚝ 十神图谱</button>
       <button class="tab-btn" onclick="switchTab(4)">⌂ 河图洛书</button>
       <button class="tab-btn" onclick="switchTab(5)">◎ 综合罗盘</button>
+      <button class="tab-btn" onclick="switchTab(6)">☷ 八字排盘</button>
     </div>
   </div>
   <div class="main">
@@ -120,6 +121,36 @@ body::before{content:'';position:fixed;top:-50%;left:-50%;width:200%;height:200%
     <!-- Tab 5: 综合罗盘 -->
     <div class="tab-content" id="tab5">
       <div class="canvas-area"><canvas id="cvsCompass"></canvas><div class="tab-hint">拖拽旋转 | 悬停获取完整信息</div></div>
+    </div>
+
+    <!-- Tab 6: 八字排盘 -->
+    <div class="tab-content" id="tab6" style="flex-direction:column;gap:16px;padding:20px;align-items:center">
+      <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,215,110,0.2);border-radius:10px;padding:14px 20px;width:100%;max-width:780px">
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+          <label style="color:var(--muted);font-size:0.75rem">年月日:</label>
+          <input type="number" id="bzYear" value="1990" style="width:70px;background:rgba(0,0,0,0.3);border:1px solid var(--dim);color:var(--text);padding:6px 8px;border-radius:4px;font-family:inherit">
+          <input type="number" id="bzMonth" value="6" min="1" max="12" style="width:50px;background:rgba(0,0,0,0.3);border:1px solid var(--dim);color:var(--text);padding:6px 8px;border-radius:4px;font-family:inherit">
+          <input type="number" id="bzDay" value="15" min="1" max="31" style="width:50px;background:rgba(0,0,0,0.3);border:1px solid var(--dim);color:var(--text);padding:6px 8px;border-radius:4px;font-family:inherit">
+          <label style="color:var(--muted);font-size:0.75rem;margin-left:8px">时辰:</label>
+          <select id="bzHour" style="background:rgba(0,0,0,0.3);border:1px solid var(--dim);color:var(--text);padding:6px 8px;border-radius:4px;font-family:inherit">
+            <option value="0">子时(23-1)</option><option value="2">丑时(1-3)</option>
+            <option value="4">寅时(3-5)</option><option value="6">卯时(5-7)</option>
+            <option value="8">辰时(7-9)</option><option value="10" selected>巳时(9-11)</option>
+            <option value="12">午时(11-13)</option><option value="14">未时(13-15)</option>
+            <option value="16">申时(15-17)</option><option value="18">酉时(17-19)</option>
+            <option value="20">戌时(19-21)</option><option value="22">亥时(21-23)</option>
+          </select>
+          <select id="bzGender" style="background:rgba(0,0,0,0.3);border:1px solid var(--dim);color:var(--text);padding:6px 8px;border-radius:4px;font-family:inherit">
+            <option value="1" selected>男命</option><option value="0">女命</option>
+          </select>
+          <input type="number" id="bzLon" value="116.4" step="0.1" style="width:70px;background:rgba(0,0,0,0.3);border:1px solid var(--dim);color:var(--text);padding:6px 8px;border-radius:4px;font-family:inherit">
+          <span style="color:var(--muted);font-size:0.7rem">°E</span>
+          <button onclick="renderTab6()" style="margin-left:auto;padding:6px 14px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;font-family:inherit;font-size:0.8rem">▎排盘</button>
+        </div>
+      </div>
+
+      <div id="bzResult" style="width:100%;max-width:780px"></div>
+    </div>
       <div class="sidebar" id="sidebar5"><div class="sidebar-title">罗盘详情</div><div style="color:var(--muted);font-size:0.7rem" id="compassInfo">悬停罗盘查看详情</div></div>
     </div>
   </div>
@@ -1050,6 +1081,7 @@ function renderTab(i){
     case 3:renderTab3();break;
     case 4:renderTab4();break;
     case 5:renderTab5();break;
+    case 6:renderTab6();break;
   }
 }
 
@@ -1061,6 +1093,219 @@ window.addEventListener('resize',()=>{
 
 // Init
 renderTab0();
+
+/* ── renderTab6: 八字排盘 ── */
+const BZ_GAN=['甲','乙','丙','丁','戊','己','庚','辛','壬','癸'];
+const BZ_ZHI=['子','丑','寅','卯','辰','巳','午','未','申','酉','戌','亥'];
+const BZ_WX={'甲':'木','乙':'木','丙':'火','丁':'火','戊':'土','己':'土','庚':'金','辛':'金','壬':'水','癸':'水'};
+const BZ_YY={'甲':'阳','乙':'阴','丙':'阳','丁':'阴','戊':'阳','己':'阴','庚':'阳','辛':'阴','壬':'阳','癸':'阴'};
+const BZ_ZHIGAN={'子':['癸'],'丑':['己','癸','辛'],'寅':['甲','丙','戊'],'卯':['乙'],'辰':['戊','乙','癸'],'巳':['丙','戊','庚'],'午':['丁','己'],'未':['己','丁','乙'],'申':['庚','壬','戊'],'酉':['辛'],'戌':['戊','辛','丁'],'亥':['壬','甲']};
+const BZ_SHENG={'木':'火','火':'土','土':'金','金':'水','水':'木'};
+const BZ_KE={'木':'土','土':'水','水':'火','火':'金','金':'木'};
+
+function bzGanZhiIndex(y,m,d){
+  const base=new Date(1900,0,1);
+  const target=new Date(y,m-1,d);
+  const diff=Math.floor((target-base)/(1000*60*60*24));
+  return ((11+diff)%60+60)%60;
+}
+
+function bzYearPillar(y,m,d){
+  const isBeforeLC=(m<2)||(m===2&&d<4);
+  const effY=isBeforeLC?y-1:y;
+  const idx=((effY-4)%60+60)%60;
+  return BZ_GAN[idx%10]+BZ_ZHI[idx%12];
+}
+
+function bzMonthPillar(y,m,d,yearGan){
+  // 节气近似: 立春(2/4),惊蛰(3/6),清明(4/5),立夏(5/6),芒种(6/6),小暑(7/7),立秋(8/8),白露(9/8),寒露(10/8),立冬(11/7),大雪(12/7),小寒(1/6)
+  const boundaries=[[1,6,11],[2,4,0],[3,6,1],[4,5,2],[5,6,3],[6,6,4],[7,7,5],[8,8,6],[9,8,7],[10,8,8],[11,7,9],[12,7,10]];
+  // 每个区间是[节气月,节气日,月支索引],索引0=寅,1=卯,...11=丑
+  let zhiIdx=11;
+  for(let i=0;i<12;i++){
+    const [bm,bd,bi]=boundaries[i];
+    const next=boundaries[(i+1)%12];
+    let inRange=false;
+    const cur=bm*100+bd, nx=next[0]*100+next[1];
+    const today=m*100+d;
+    if(cur<=nx) inRange=today>=cur && today<nx;
+    else inRange=today>=cur || today<nx;
+    if(inRange){zhiIdx=bi;break;}
+  }
+  // 五虎遁: 甲己起丙寅,乙庚起戊寅,丙辛起庚寅,丁壬起壬寅,戊癸起甲寅
+  const firstGan={'甲':'丙','己':'丙','乙':'戊','庚':'戊','丙':'庚','辛':'庚','丁':'壬','壬':'壬','戊':'甲','癸':'甲'}[yearGan];
+  const firstGanIdx=BZ_GAN.indexOf(firstGan);
+  const monthGan=BZ_GAN[(firstGanIdx+zhiIdx)%10];
+  const monthZhi=BZ_ZHI[(zhiIdx+2)%12]; // zhiIdx 0=寅即 BZ_ZHI[2]
+  return monthGan+monthZhi;
+}
+
+function bzHourPillar(dayGan,hourInt){
+  // 确定时支: 23-1 子,1-3 丑,3-5 寅...
+  let zhiIdx;
+  if(hourInt===23||hourInt===0) zhiIdx=0;
+  else zhiIdx=Math.floor((hourInt+1)/2);
+  // 五鼠遁: 甲己还加甲,乙庚丙作初,丙辛从戊起,丁壬庚子居,戊癸何方发,壬子是真途
+  const firstGan={'甲':'甲','己':'甲','乙':'丙','庚':'丙','丙':'戊','辛':'戊','丁':'庚','壬':'庚','戊':'壬','癸':'壬'}[dayGan];
+  const firstGanIdx=BZ_GAN.indexOf(firstGan);
+  return BZ_GAN[(firstGanIdx+zhiIdx)%10]+BZ_ZHI[zhiIdx];
+}
+
+function bzShigan(dayGan,targetGan){
+  const dm=BZ_WX[dayGan],tg=BZ_WX[targetGan];
+  const dy=BZ_YY[dayGan],ty=BZ_YY[targetGan];
+  const sameY=dy===ty;
+  if(dm===tg) return sameY?'比肩':'劫财';
+  if(BZ_SHENG[dm]===tg) return sameY?'食神':'伤官';
+  if(BZ_KE[dm]===tg) return sameY?'偏财':'正财';
+  if(BZ_KE[tg]===dm) return sameY?'七杀':'正官';
+  if(BZ_SHENG[tg]===dm) return sameY?'偏印':'正印';
+  return '';
+}
+
+function renderTab6(){
+  const y=parseInt(document.getElementById('bzYear').value);
+  const m=parseInt(document.getElementById('bzMonth').value);
+  const d=parseInt(document.getElementById('bzDay').value);
+  const h=parseInt(document.getElementById('bzHour').value);
+  const isMale=parseInt(document.getElementById('bzGender').value)===1;
+  const lon=parseFloat(document.getElementById('bzLon').value);
+
+  // 真太阳时
+  let trueH=h+Math.round((lon-120)*4/60);
+  trueH=((trueH%24)+24)%24;
+
+  const yearP=bzYearPillar(y,m,d);
+  const monthP=bzMonthPillar(y,m,d,yearP[0]);
+  const dayP=BZ_GAN[bzGanZhiIndex(y,m,d)%10]+BZ_ZHI[bzGanZhiIndex(y,m,d)%12];
+  const hourP=bzHourPillar(dayP[0],trueH);
+
+  const pillars=[{label:'年柱',name:yearP},{label:'月柱',name:monthP},{label:'日柱',name:dayP},{label:'时柱',name:hourP}];
+  const dayMaster=dayP[0];
+
+  // 五行统计 (天干 + 地支本气)
+  const zhiMain={'子':'癸','丑':'己','寅':'甲','卯':'乙','辰':'戊','巳':'丙','午':'丁','未':'己','申':'庚','酉':'辛','戌':'戊','亥':'壬'};
+  const wxCnt={'木':0,'火':0,'土':0,'金':0,'水':0};
+  pillars.forEach(p=>{wxCnt[BZ_WX[p.name[0]]]++;wxCnt[BZ_WX[zhiMain[p.name[1]]]]++;});
+  const total=Object.values(wxCnt).reduce((a,b)=>a+b,0);
+
+  // 十神 (天干)
+  const shigans=pillars.map(p=>({label:p.label,name:p.name,shigan:(p.label==='日柱')?`日主 ${dayMaster}`:bzShigan(dayMaster,p.name[0])}));
+
+  // 地支关系
+  const branches=pillars.map(p=>p.name[1]);
+  const liuHe=[['子','丑'],['寅','亥'],['卯','戌'],['辰','酉'],['巳','申'],['午','未']];
+  const liuChong=[['子','午'],['丑','未'],['寅','申'],['卯','酉'],['辰','戌'],['巳','亥']];
+  const sanHe=[['申','子','辰'],['亥','卯','未'],['寅','午','戌'],['巳','酉','丑']];
+  function hasPair(rel){
+    for(const pair of rel){
+      if(branches.includes(pair[0])&&branches.includes(pair[1])) return pair.join('+');
+    }return '';
+  }
+  const he=hasPair(liuHe), chong=hasPair(liuChong);
+  const sanheResult=[];
+  for(const tri of sanHe){
+    if(tri.every(z=>branches.includes(z))) sanheResult.push(tri.join('+'));
+  }
+
+  // 大运 (简化: 阳男阴女顺,阴男阳女逆,起运0岁)
+  const forward=(isMale&&BZ_YY[yearP[0]]==='阳')||(!isMale&&BZ_YY[yearP[0]]==='阴');
+  const dayuns=[];
+  const mGan=BZ_GAN.indexOf(monthP[0]);
+  const mZhi=BZ_ZHI.indexOf(monthP[1]);
+  for(let i=1;i<=10;i++){
+    const gi=forward?(mGan+i)%10:((mGan-i)%10+10)%10;
+    const zi=forward?(mZhi+i)%12:((mZhi-i)%12+12)%12;
+    dayuns.push({age:(i-1)*10,year:y+(i-1)*10,pillar:BZ_GAN[gi]+BZ_ZHI[zi]});
+  }
+
+  // 流年 (近期 14 年)
+  const liunians=[];
+  for(let i=-3;i<=10;i++){
+    const ty=y+i;
+    const tp=bzYearPillar(ty,6,15);
+    liunians.push({year:ty,pillar:tp,shigan:bzShigan(dayMaster,tp[0])});
+  }
+
+  // 渲染
+  const wxColors={'木':'#52b788','火':'#ff6b6b','土':'#e0a060','金':'#d4d4d4','水':'#7bb6de'};
+  let html=`<div style="width:100%;background:rgba(255,255,255,0.03);border:1px solid rgba(255,215,110,0.15);border-radius:10px;padding:16px">
+    <div style="color:var(--accent);font-size:0.8rem;font-weight:600;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border)">▎四柱 · 日主 ${dayMaster}(${BZ_YY[dayMaster]}${BZ_WX[dayMaster]}) · 真太阳时 ${trueH}:00 · 经度 ${lon}°E · ${isMale?'男命':'女命'}</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">`;
+  shigans.forEach(s=>{
+    html+=`<div style="background:linear-gradient(180deg,rgba(245,215,110,0.08),transparent);border:1px solid rgba(245,215,110,0.2);border-radius:8px;padding:14px 8px;text-align:center">
+      <div style="color:var(--muted);font-size:0.7rem">${s.label}</div>
+      <div style="font-size:2.2rem;letter-spacing:8px;color:#fff5d6;margin:8px 0;font-weight:bold">${s.name}</div>
+      <div style="color:var(--gold);font-size:0.75rem;padding-top:6px;border-top:1px dashed rgba(255,215,110,0.2)">${s.shigan}</div>
+    </div>`;
+  });
+  html+=`</div></div>`;
+
+  // 五行
+  html+=`<div style="width:100%;background:rgba(255,255,255,0.03);border:1px solid rgba(255,215,110,0.15);border-radius:10px;padding:16px;margin-top:12px">
+    <div style="color:var(--accent);font-size:0.8rem;font-weight:600;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border)">▎五行分布</div>
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px">`;
+  ['木','火','土','金','水'].forEach(wx=>{
+    const cnt=wxCnt[wx];
+    const pct=total>0?Math.round(cnt/total*100):0;
+    html+=`<div style="text-align:center;padding:14px 8px;border-radius:8px;border:1px solid ${wxColors[wx]}55;background:${wxColors[wx]}15;${cnt===0?'opacity:0.4':''}">
+      <div style="color:${wxColors[wx]};font-size:1.3rem;font-weight:bold">${wx}</div>
+      <div style="color:var(--muted);font-size:0.7rem;margin-top:4px">${cnt}个 · ${pct}%${pct>=30?' · 旺':(pct===0?' · 缺':pct>=15?' · 中和':'')}</div>
+    </div>`;
+  });
+  html+=`</div></div>`;
+
+  // 地支关系
+  const relations=[];
+  if(he) relations.push(`六合(${he})`);
+  if(sanheResult.length) relations.push(`三合(${sanheResult.join('、')})`);
+  if(chong) relations.push(`六冲(${chong})`);
+  html+=`<div style="width:100%;background:rgba(255,255,255,0.03);border:1px solid rgba(255,215,110,0.15);border-radius:10px;padding:16px;margin-top:12px">
+    <div style="color:var(--accent);font-size:0.8rem;font-weight:600;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border)">▎地支关系</div>
+    <div style="color:${relations.length?'var(--text)':'var(--muted)'};font-size:0.8rem;line-height:1.8">${relations.length?relations.join('；')+'。':'(无显著合冲关系)'}</div>
+  </div>`;
+
+  // 大运
+  html+=`<div style="width:100%;background:rgba(255,255,255,0.03);border:1px solid rgba(255,215,110,0.15);border-radius:10px;padding:16px;margin-top:12px">
+    <div style="color:var(--accent);font-size:0.8rem;font-weight:600;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border)">▎大运 · ${forward?'顺排':'逆排'}（每步10年）</div>
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px">`;
+  dayuns.forEach(d=>{
+    const s=bzShigan(dayMaster,d.pillar[0]);
+    html+=`<div style="padding:10px 6px;border-radius:6px;border:1px solid var(--dim);background:rgba(0,0,0,0.2);text-align:center">
+      <div style="color:var(--muted);font-size:0.65rem">${d.age}-${d.age+9}岁</div>
+      <div style="color:var(--muted);font-size:0.6rem">${d.year}-${d.year+9}</div>
+      <div style="font-size:1.3rem;font-weight:bold;letter-spacing:4px;color:#fff5d6;margin:4px 0">${d.pillar}</div>
+      <div style="color:var(--gold);font-size:0.7rem">${s}</div>
+    </div>`;
+  });
+  html+=`</div></div>`;
+
+  // 流年
+  html+=`<div style="width:100%;background:rgba(255,255,255,0.03);border:1px solid rgba(255,215,110,0.15);border-radius:10px;padding:16px;margin-top:12px">
+    <div style="color:var(--accent);font-size:0.8rem;font-weight:600;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border)">▎近期流年</div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px">`;
+  liunians.forEach(l=>{
+    html+=`<div style="padding:8px 4px;border-radius:6px;border:1px solid var(--dim);background:rgba(0,0,0,0.2);text-align:center">
+      <div style="color:var(--muted);font-size:0.65rem">${l.year}年</div>
+      <div style="font-size:0.95rem;font-weight:bold;letter-spacing:2px;color:#fff5d6;margin:3px 0">${l.pillar}</div>
+      <div style="color:var(--gold);font-size:0.65rem">${l.shigan}</div>
+    </div>`;
+  });
+  html+=`</div></div>`;
+
+  // 结论
+  const topWx=Object.entries(wxCnt).sort((a,b)=>b[1]-a[1])[0][0];
+  const missingWx=Object.keys(wxCnt).filter(k=>wxCnt[k]===0);
+  let conclusion=`日主为【${dayMaster}】，属${BZ_YY[dayMaster]}${BZ_WX[dayMaster]}。八字中五行【${topWx}】最旺。`;
+  if(missingWx.length) conclusion+=`五行缺少：${missingWx.join('、')}，可考虑通过喜用神调和。`;
+  html+=`<div style="width:100%;background:rgba(255,255,255,0.03);border:1px solid rgba(255,215,110,0.15);border-radius:10px;padding:16px;margin-top:12px">
+    <div style="color:var(--accent);font-size:0.8rem;font-weight:600;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border)">▎分析结论</div>
+    <div style="color:var(--text);font-size:0.82rem;line-height:2">${conclusion}</div>
+    <div style="color:var(--muted);font-size:0.68rem;margin-top:10px;padding-top:8px;border-top:1px dashed var(--border)">※ 本排盘基于简化节气规则和真太阳时修正，仅供文化研究参考。</div>
+  </div>`;
+
+  document.getElementById('bzResult').innerHTML=html;
+}
 </script>
 </body>
 </html>

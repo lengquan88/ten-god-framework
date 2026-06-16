@@ -1,0 +1,266 @@
+{
+  "pillars": {
+    "year": "庚午",
+    "month": "壬午",
+    "day": "辛亥",
+    "hour": "癸巳"
+  },
+  "day_master": "辛",
+  "stems": [
+    "庚",
+    "壬",
+    "辛",
+    "癸"
+  ],
+  "branches": [
+    "午",
+    "午",
+    "亥",
+    "巳"
+  ],
+  "wuxing": {
+    "金": 2,
+    "水": 3,
+    "火": 3
+  },
+  "wuxing_score": {
+    "木": "0个 (0%) - 缺",
+    "火": "3个 (38%) - 旺",
+    "土": "0个 (0%) - 缺",
+    "金": "2个 (25%) - 中和",
+    "水": "3个 (38%) - 旺"
+  },
+  "shigan_map": {
+    "year_gan": "劫财",
+    "month_gan": "伤官",
+    "day_gan": "比肩",
+    "hour_gan": "食神"
+  },
+  "shigan_count": {
+    "劫财": 1,
+    "伤官": 1,
+    "比肩": 1,
+    "食神": 1
+  },
+  "branch_relations": {
+    "六合": [],
+    "三合": [],
+    "六冲": [
+      "巳+亥"
+    ],
+    "六害": [],
+    "六破": [
+      "午+亥"
+    ],
+    "相刑": [
+      "午(自刑)",
+      "午(自刑)",
+      "亥(自刑)"
+    ]
+  },
+  "dayuns": [
+    {
+      "step": 1,
+      "age": 0,
+      "pillar": "癸未",
+      "start_year": 1990,
+      "direction": "顺排"
+    },
+    {
+      "step": 2,
+      "age": 10,
+      "pillar": "甲申",
+      "start_year": 2000,
+      "direction": "顺排"
+    },
+    {
+      "step": 3,
+      "age": 20,
+      "pillar": "乙酉",
+      "start_year": 2010,
+      "direction": "顺排"
+    },
+    {
+      "step": 4,
+      "age": 30,
+      "pillar": "丙戌",
+      "start_year": 2020,
+      "direction": "顺排"
+    },
+    {
+      "step": 5,
+      "age": 40,
+      "pillar": "丁亥",
+      "start_year": 2030,
+      "direction": "顺排"
+    },
+    {
+      "step": 6,
+      "age": 50,
+      "pillar": "戊子",
+      "start_year": 2040,
+      "direction": "顺排"
+    },
+    {
+      "step": 7,
+      "age": 60,
+      "pillar": "己丑",
+      "start_year": 2050,
+      "direction": "顺排"
+    },
+    {
+      "step": 8,
+      "age": 70,
+      "pillar": "庚寅",
+      "start_year": 2060,
+      "direction": "顺排"
+    },
+    {
+      "step": 9,
+      "age": 80,
+      "pillar": "辛卯",
+      "start_year": 2070,
+      "direction": "顺排"
+    },
+    {
+      "step": 10,
+      "age": 90,
+      "pillar": "壬辰",
+      "start_year": 2080,
+      "direction": "顺排"
+    }
+  ],
+  "liunians": [
+    {
+      "year": 1987,
+      "pillar": "丁卯",
+      "gan_shigan": "七杀",
+      "zhi_shigan_detail": {
+        "乙": "偏财"
+      }
+    },
+    {
+      "year": 1988,
+      "pillar": "戊辰",
+      "gan_shigan": "正印",
+      "zhi_shigan_detail": {
+        "戊": "正印",
+        "乙": "偏财",
+        "癸": "食神"
+      }
+    },
+    {
+      "year": 1989,
+      "pillar": "己巳",
+      "gan_shigan": "偏印",
+      "zhi_shigan_detail": {
+        "丙": "正官",
+        "戊": "正印",
+        "庚": "劫财"
+      }
+    },
+    {
+      "year": 1990,
+      "pillar": "庚午",
+      "gan_shigan": "劫财",
+      "zhi_shigan_detail": {
+        "丁": "七杀",
+        "己": "偏印"
+      }
+    },
+    {
+      "year": 1991,
+      "pillar": "辛未",
+      "gan_shigan": "比肩",
+      "zhi_shigan_detail": {
+        "己": "偏印",
+        "丁": "七杀",
+        "乙": "偏财"
+      }
+    },
+    {
+      "year": 1992,
+      "pillar": "壬申",
+      "gan_shigan": "伤官",
+      "zhi_shigan_detail": {
+        "庚": "劫财",
+        "壬": "伤官",
+        "戊": "正印"
+      }
+    },
+    {
+      "year": 1993,
+      "pillar": "癸酉",
+      "gan_shigan": "食神",
+      "zhi_shigan_detail": {
+        "辛": "比肩"
+      }
+    },
+    {
+      "year": 1994,
+      "pillar": "甲戌",
+      "gan_shigan": "正财",
+      "zhi_shigan_detail": {
+        "戊": "正印",
+        "辛": "比肩",
+        "丁": "七杀"
+      }
+    },
+    {
+      "year": 1995,
+      "pillar": "乙亥",
+      "gan_shigan": "偏财",
+      "zhi_shigan_detail": {
+        "壬": "伤官",
+        "甲": "正财"
+      }
+    },
+    {
+      "year": 1996,
+      "pillar": "丙子",
+      "gan_shigan": "正官",
+      "zhi_shigan_detail": {
+        "癸": "食神"
+      }
+    },
+    {
+      "year": 1997,
+      "pillar": "丁丑",
+      "gan_shigan": "七杀",
+      "zhi_shigan_detail": {
+        "己": "偏印",
+        "癸": "食神",
+        "辛": "比肩"
+      }
+    },
+    {
+      "year": 1998,
+      "pillar": "戊寅",
+      "gan_shigan": "正印",
+      "zhi_shigan_detail": {
+        "甲": "正财",
+        "丙": "正官",
+        "戊": "正印"
+      }
+    },
+    {
+      "year": 1999,
+      "pillar": "己卯",
+      "gan_shigan": "偏印",
+      "zhi_shigan_detail": {
+        "乙": "偏财"
+      }
+    },
+    {
+      "year": 2000,
+      "pillar": "庚辰",
+      "gan_shigan": "劫财",
+      "zhi_shigan_detail": {
+        "戊": "正印",
+        "乙": "偏财",
+        "癸": "食神"
+      }
+    }
+  ],
+  "conclusion": "日主为【辛】，属阴金。 八字中五行【水】最旺。 五行缺少：木、土，可考虑通过喜用神调和。 地支关系：六冲(巳+亥)；六破(午+亥)；相刑(午(自刑)、午(自刑)、亥(自刑))。"
+}
