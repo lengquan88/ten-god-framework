@@ -53,6 +53,17 @@ def __getattr__(name):
         from . import core
 
         return getattr(core, name)
+    if name == "get_knowledge_graph" or name == "KnowledgeGraph":
+        from . import core
+        from . import knowledge_graph
+
+        if name == "KnowledgeGraph":
+            return knowledge_graph.KnowledgeGraph
+        return core.get_knowledge_graph
+    if name == "divination_engine":
+        import importlib
+        mod = importlib.import_module(".divination_engine", __name__)
+        return mod
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
@@ -61,5 +72,8 @@ def __getattr__(name):
 __all__ = [
     "TenGodCore",
     "get_core",
+    "get_knowledge_graph",
+    "KnowledgeGraph",
+    "divination_engine",
     "GOD_NAMES",
 ]

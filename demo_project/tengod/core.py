@@ -792,6 +792,18 @@ class TenGodCore:
             return None
         return self.consensus.query().__dict__
 
+    def query_knowledge(self, keyword: str) -> List[Dict[str, Any]]:
+        """知识图谱查询 — 模糊搜索所有传统文化实体
+
+        Args:
+            keyword: 搜索关键词
+
+        Returns:
+            匹配的实体列表
+        """
+        kg = get_knowledge_graph()
+        return kg.search(keyword)
+
     def _safe_balancer_stats(self) -> Dict[str, Any]:
         """安全获取 balancer 统计（确保 JSON 可序列化）"""
         raw = self.balancer.stats()
@@ -850,9 +862,27 @@ def get_core() -> TenGodCore:
     return _default_core
 
 
+# 知识图谱懒加载
+_knowledge_graph = None
+
+
+def get_knowledge_graph():
+    """获取知识图谱全局单例（懒加载）"""
+    global _knowledge_graph
+    if _knowledge_graph is None:
+        try:
+            from .knowledge_graph import KnowledgeGraph
+        except ImportError:
+            from knowledge_graph import KnowledgeGraph
+
+        _knowledge_graph = KnowledgeGraph()
+    return _knowledge_graph
+
+
 __all__ = [
     "TenGodCore",
     "get_core",
+    "get_knowledge_graph",
     "get_request_id",
     "generate_request_id",
     "register_exception_handler",

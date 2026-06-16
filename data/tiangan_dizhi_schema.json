@@ -1,0 +1,453 @@
+{
+  "description": "天干地支完整定义 — 中华传统干支历法体系",
+  "heavenly_stems": {
+    "description": "十天干，分阴阳五行",
+    "list": [
+      {
+        "name": "甲",
+        "pinyin": "jiǎ",
+        "yin_yang": "阳",
+        "element": "木",
+        "direction": "东",
+        "number_hetu": 9
+      },
+      {
+        "name": "乙",
+        "pinyin": "yǐ",
+        "yin_yang": "阴",
+        "element": "木",
+        "direction": "东",
+        "number_hetu": 8
+      },
+      {
+        "name": "丙",
+        "pinyin": "bǐng",
+        "yin_yang": "阳",
+        "element": "火",
+        "direction": "南",
+        "number_hetu": 7
+      },
+      {
+        "name": "丁",
+        "pinyin": "dīng",
+        "yin_yang": "阴",
+        "element": "火",
+        "direction": "南",
+        "number_hetu": 6
+      },
+      {
+        "name": "戊",
+        "pinyin": "wù",
+        "yin_yang": "阳",
+        "element": "土",
+        "direction": "中",
+        "number_hetu": 5
+      },
+      {
+        "name": "己",
+        "pinyin": "jǐ",
+        "yin_yang": "阴",
+        "element": "土",
+        "direction": "中",
+        "number_hetu": 10
+      },
+      {
+        "name": "庚",
+        "pinyin": "gēng",
+        "yin_yang": "阳",
+        "element": "金",
+        "direction": "西",
+        "number_hetu": 1
+      },
+      {
+        "name": "辛",
+        "pinyin": "xīn",
+        "yin_yang": "阴",
+        "element": "金",
+        "direction": "西",
+        "number_hetu": 2
+      },
+      {
+        "name": "壬",
+        "pinyin": "rén",
+        "yin_yang": "阳",
+        "element": "水",
+        "direction": "北",
+        "number_hetu": 3
+      },
+      {
+        "name": "癸",
+        "pinyin": "guǐ",
+        "yin_yang": "阴",
+        "element": "水",
+        "direction": "北",
+        "number_hetu": 4
+      }
+    ]
+  },
+  "earthly_branches": {
+    "description": "十二地支，分阴阳五行，对应生肖、时辰、月份",
+    "list": [
+      {
+        "name": "子",
+        "pinyin": "zǐ",
+        "yin_yang": "阳",
+        "element": "水",
+        "zodiac": "鼠",
+        "month": "十一月",
+        "solar_term": "大雪、冬至",
+        "hour": "23:00-01:00",
+        "direction": "正北",
+        "hidden_stems": [
+          { "stem": "癸", "qi_type": "本气", "proportion": "70%" }
+        ],
+        "season": "冬"
+      },
+      {
+        "name": "丑",
+        "pinyin": "chǒu",
+        "yin_yang": "阴",
+        "element": "土",
+        "zodiac": "牛",
+        "month": "十二月",
+        "solar_term": "小寒、大寒",
+        "hour": "01:00-03:00",
+        "direction": "东北",
+        "hidden_stems": [
+          { "stem": "己", "qi_type": "本气", "proportion": "60%" },
+          { "stem": "癸", "qi_type": "中气", "proportion": "25%" },
+          { "stem": "辛", "qi_type": "余气", "proportion": "15%" }
+        ],
+        "season": "冬"
+      },
+      {
+        "name": "寅",
+        "pinyin": "yín",
+        "yin_yang": "阳",
+        "element": "木",
+        "zodiac": "虎",
+        "month": "正月",
+        "solar_term": "立春、雨水",
+        "hour": "03:00-05:00",
+        "direction": "东北",
+        "hidden_stems": [
+          { "stem": "甲", "qi_type": "本气", "proportion": "60%" },
+          { "stem": "丙", "qi_type": "中气", "proportion": "25%" },
+          { "stem": "戊", "qi_type": "余气", "proportion": "15%" }
+        ],
+        "season": "春"
+      },
+      {
+        "name": "卯",
+        "pinyin": "mǎo",
+        "yin_yang": "阴",
+        "element": "木",
+        "zodiac": "兔",
+        "month": "二月",
+        "solar_term": "惊蛰、春分",
+        "hour": "05:00-07:00",
+        "direction": "正东",
+        "hidden_stems": [
+          { "stem": "乙", "qi_type": "本气", "proportion": "100%" }
+        ],
+        "season": "春"
+      },
+      {
+        "name": "辰",
+        "pinyin": "chén",
+        "yin_yang": "阳",
+        "element": "土",
+        "zodiac": "龙",
+        "month": "三月",
+        "solar_term": "清明、谷雨",
+        "hour": "07:00-09:00",
+        "direction": "东南",
+        "hidden_stems": [
+          { "stem": "戊", "qi_type": "本气", "proportion": "60%" },
+          { "stem": "乙", "qi_type": "中气", "proportion": "25%" },
+          { "stem": "癸", "qi_type": "余气", "proportion": "15%" }
+        ],
+        "season": "春",
+        "note": "水库"
+      },
+      {
+        "name": "巳",
+        "pinyin": "sì",
+        "yin_yang": "阴",
+        "element": "火",
+        "zodiac": "蛇",
+        "month": "四月",
+        "solar_term": "立夏、小满",
+        "hour": "09:00-11:00",
+        "direction": "东南",
+        "hidden_stems": [
+          { "stem": "丙", "qi_type": "本气", "proportion": "60%" },
+          { "stem": "戊", "qi_type": "中气", "proportion": "25%" },
+          { "stem": "庚", "qi_type": "余气", "proportion": "15%" }
+        ],
+        "season": "夏"
+      },
+      {
+        "name": "午",
+        "pinyin": "wǔ",
+        "yin_yang": "阴",
+        "element": "火",
+        "zodiac": "马",
+        "month": "五月",
+        "solar_term": "芒种、夏至",
+        "hour": "11:00-13:00",
+        "direction": "正南",
+        "hidden_stems": [
+          { "stem": "丁", "qi_type": "本气", "proportion": "70%" },
+          { "stem": "己", "qi_type": "中气", "proportion": "30%" }
+        ],
+        "season": "夏"
+      },
+      {
+        "name": "未",
+        "pinyin": "wèi",
+        "yin_yang": "阴",
+        "element": "土",
+        "zodiac": "羊",
+        "month": "六月",
+        "solar_term": "小暑、大暑",
+        "hour": "13:00-15:00",
+        "direction": "西南",
+        "hidden_stems": [
+          { "stem": "己", "qi_type": "本气", "proportion": "60%" },
+          { "stem": "丁", "qi_type": "中气", "proportion": "25%" },
+          { "stem": "乙", "qi_type": "余气", "proportion": "15%" }
+        ],
+        "season": "夏",
+        "note": "木库"
+      },
+      {
+        "name": "申",
+        "pinyin": "shēn",
+        "yin_yang": "阳",
+        "element": "金",
+        "zodiac": "猴",
+        "month": "七月",
+        "solar_term": "立秋、处暑",
+        "hour": "15:00-17:00",
+        "direction": "西南",
+        "hidden_stems": [
+          { "stem": "庚", "qi_type": "本气", "proportion": "60%" },
+          { "stem": "壬", "qi_type": "中气", "proportion": "25%" },
+          { "stem": "戊", "qi_type": "余气", "proportion": "15%" }
+        ],
+        "season": "秋"
+      },
+      {
+        "name": "酉",
+        "pinyin": "yǒu",
+        "yin_yang": "阴",
+        "element": "金",
+        "zodiac": "鸡",
+        "month": "八月",
+        "solar_term": "白露、秋分",
+        "hour": "17:00-19:00",
+        "direction": "正西",
+        "hidden_stems": [
+          { "stem": "辛", "qi_type": "本气", "proportion": "100%" }
+        ],
+        "season": "秋"
+      },
+      {
+        "name": "戌",
+        "pinyin": "xū",
+        "yin_yang": "阳",
+        "element": "土",
+        "zodiac": "狗",
+        "month": "九月",
+        "solar_term": "寒露、霜降",
+        "hour": "19:00-21:00",
+        "direction": "西北",
+        "hidden_stems": [
+          { "stem": "戊", "qi_type": "本气", "proportion": "60%" },
+          { "stem": "辛", "qi_type": "中气", "proportion": "25%" },
+          { "stem": "丁", "qi_type": "余气", "proportion": "15%" }
+        ],
+        "season": "秋",
+        "note": "火库"
+      },
+      {
+        "name": "亥",
+        "pinyin": "hài",
+        "yin_yang": "阴",
+        "element": "水",
+        "zodiac": "猪",
+        "month": "十月",
+        "solar_term": "立冬、小雪",
+        "hour": "21:00-23:00",
+        "direction": "西北",
+        "hidden_stems": [
+          { "stem": "壬", "qi_type": "本气", "proportion": "70%" },
+          { "stem": "甲", "qi_type": "中气", "proportion": "30%" }
+        ],
+        "season": "冬"
+      }
+    ]
+  },
+  "heavenly_stem_combinations": {
+    "description": "天干五合——阴阳相合化气",
+    "combinations": [
+      { "stems": ["甲", "己"], "result": "土", "name": "甲己合土", "description": "中正之合" },
+      { "stems": ["乙", "庚"], "result": "金", "name": "乙庚合金", "description": "仁义之合" },
+      { "stems": ["丙", "辛"], "result": "水", "name": "丙辛合水", "description": "威制之合" },
+      { "stems": ["丁", "壬"], "result": "木", "name": "丁壬合木", "description": "淫匿之合" },
+      { "stems": ["戊", "癸"], "result": "火", "name": "戊癸合火", "description": "无情之合" }
+    ]
+  },
+  "heavenly_stem_restrictions": {
+    "description": "天干相克",
+    "pairs": [
+      { "source": "甲", "target": "戊", "relation": "甲克戊", "element_relation": "木克土" },
+      { "source": "乙", "target": "己", "relation": "乙克己", "element_relation": "木克土" },
+      { "source": "丙", "target": "庚", "relation": "丙克庚", "element_relation": "火克金" },
+      { "source": "丁", "target": "辛", "relation": "丁克辛", "element_relation": "火克金" },
+      { "source": "戊", "target": "壬", "relation": "戊克壬", "element_relation": "土克水" },
+      { "source": "己", "target": "癸", "relation": "己克癸", "element_relation": "土克水" },
+      { "source": "庚", "target": "甲", "relation": "庚克甲", "element_relation": "金克木" },
+      { "source": "辛", "target": "乙", "relation": "辛克乙", "element_relation": "金克木" },
+      { "source": "壬", "target": "丙", "relation": "壬克丙", "element_relation": "水克火" },
+      { "source": "癸", "target": "丁", "relation": "癸克丁", "element_relation": "水克火" }
+    ]
+  },
+  "earthly_branch_six_combinations": {
+    "description": "地支六合——日月合朔之象",
+    "combinations": [
+      { "branches": ["子", "丑"], "result": "土", "name": "子丑合土" },
+      { "branches": ["寅", "亥"], "result": "木", "name": "寅亥合木" },
+      { "branches": ["卯", "戌"], "result": "火", "name": "卯戌合火" },
+      { "branches": ["辰", "酉"], "result": "金", "name": "辰酉合金" },
+      { "branches": ["巳", "申"], "result": "水", "name": "巳申合水" },
+      { "branches": ["午", "未"], "result": "火", "name": "午未合土（火）" }
+    ]
+  },
+  "earthly_branch_triple_combinations": {
+    "description": "地支三合局——长生、帝旺、墓库三者联合",
+    "combinations": [
+      {
+        "name": "申子辰合水局",
+        "branches": ["申", "子", "辰"],
+        "result": "水",
+        "roles": { "申": "长生", "子": "帝旺", "辰": "墓库" }
+      },
+      {
+        "name": "亥卯未合木局",
+        "branches": ["亥", "卯", "未"],
+        "result": "木",
+        "roles": { "亥": "长生", "卯": "帝旺", "未": "墓库" }
+      },
+      {
+        "name": "寅午戌合火局",
+        "branches": ["寅", "午", "戌"],
+        "result": "火",
+        "roles": { "寅": "长生", "午": "帝旺", "戌": "墓库" }
+      },
+      {
+        "name": "巳酉丑合金局",
+        "branches": ["巳", "酉", "丑"],
+        "result": "金",
+        "roles": { "巳": "长生", "酉": "帝旺", "丑": "墓库" }
+      }
+    ]
+  },
+  "earthly_branch_triple_union": {
+    "description": "地支三会局——按方位三方会合",
+    "combinations": [
+      { "name": "寅卯辰会木局", "branches": ["寅", "卯", "辰"], "result": "木", "direction": "东方" },
+      { "name": "巳午未会火局", "branches": ["巳", "午", "未"], "result": "火", "direction": "南方" },
+      { "name": "申酉戌会金局", "branches": ["申", "酉", "戌"], "result": "金", "direction": "西方" },
+      { "name": "亥子丑会水局", "branches": ["亥", "子", "丑"], "result": "水", "direction": "北方" }
+    ]
+  },
+  "earthly_branch_six_clashes": {
+    "description": "地支六冲——相对方位对冲",
+    "pairs": [
+      { "branches": ["子", "午"], "name": "子午冲", "element_clash": "水火之冲" },
+      { "branches": ["丑", "未"], "name": "丑未冲", "element_clash": "土土之冲（朋冲）" },
+      { "branches": ["寅", "申"], "name": "寅申冲", "element_clash": "金木之冲" },
+      { "branches": ["卯", "酉"], "name": "卯酉冲", "element_clash": "金木之冲" },
+      { "branches": ["辰", "戌"], "name": "辰戌冲", "element_clash": "土土之冲（朋冲）" },
+      { "branches": ["巳", "亥"], "name": "巳亥冲", "element_clash": "水火之冲" }
+    ]
+  },
+  "earthly_branch_six_harm": {
+    "description": "地支六害（相穿）——暗中损害",
+    "pairs": [
+      { "branches": ["子", "未"], "name": "子未相害" },
+      { "branches": ["丑", "午"], "name": "丑午相害" },
+      { "branches": ["寅", "巳"], "name": "寅巳相害" },
+      { "branches": ["卯", "辰"], "name": "卯辰相害" },
+      { "branches": ["申", "亥"], "name": "申亥相害" },
+      { "branches": ["酉", "戌"], "name": "酉戌相害" }
+    ]
+  },
+  "earthly_branch_six_damage": {
+    "description": "地支六破——暗中破坏、破损",
+    "pairs": [
+      { "branches": ["子", "酉"], "name": "子酉相破" },
+      { "branches": ["寅", "亥"], "name": "寅亥相破" },
+      { "branches": ["辰", "丑"], "name": "辰丑相破" },
+      { "branches": ["午", "卯"], "name": "午卯相破" },
+      { "branches": ["申", "巳"], "name": "申巳相破" },
+      { "branches": ["戌", "未"], "name": "戌未相破" }
+    ]
+  },
+  "earthly_branch_punishments": {
+    "description": "地支相刑——相互刑伤",
+    "categories": [
+      {
+        "name": "无礼之刑",
+        "pairs": [{"branches": ["子", "卯"], "name": "子卯相刑"}],
+        "description": "子卯为无礼之刑，母子相刑，主无礼无义"
+      },
+      {
+        "name": "恃势之刑",
+        "pairs": [
+          {"branches": ["寅", "巳"], "name": "寅巳相刑"},
+          {"branches": ["巳", "申"], "name": "巳申相刑"},
+          {"branches": ["申", "寅"], "name": "申寅相刑"}
+        ],
+        "description": "寅巳申为恃势之刑，三者互刑，主仗势欺人"
+      },
+      {
+        "name": "无恩之刑",
+        "pairs": [
+          {"branches": ["丑", "戌"], "name": "丑戌相刑"},
+          {"branches": ["戌", "未"], "name": "戌未相刑"},
+          {"branches": ["未", "丑"], "name": "未丑相刑"}
+        ],
+        "description": "丑戌未为无恩之刑，三者互刑，主恩将仇报"
+      },
+      {
+        "name": "自刑",
+        "pairs": [
+          {"branches": ["辰", "辰"], "name": "辰辰自刑"},
+          {"branches": ["午", "午"], "name": "午午自刑"},
+          {"branches": ["酉", "酉"], "name": "酉酉自刑"},
+          {"branches": ["亥", "亥"], "name": "亥亥自刑"}
+        ],
+        "description": "自刑为自身相刑，主自我伤害、自寻烦恼"
+      }
+    ]
+  },
+  "trunk_and_branch": {
+    "description": "天干地支六十甲子纳音五行（节选示意）",
+    "sexagenary_cycle_start": ["甲子", "乙丑"],
+    "nayin_examples": {
+      "甲子_乙丑": "海中金",
+      "丙寅_丁卯": "炉中火",
+      "戊辰_己巳": "大林木",
+      "庚午_辛未": "路旁土",
+      "壬申_癸酉": "剑锋金",
+      "甲戌_乙亥": "山头火",
+      "丙子_丁丑": "涧下水",
+      "戊寅_己卯": "城头土",
+      "庚辰_辛巳": "白蜡金",
+      "壬午_癸未": "杨柳木"
+    }
+  }
+}

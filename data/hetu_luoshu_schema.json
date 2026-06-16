@@ -1,0 +1,80 @@
+{
+  "description": "河图洛书 — 中华文明源头之数理模型",
+  "hetu": {
+    "description": "河图——天一生水，地六成之；地二生火，天七成之……",
+    "principle": "河图以十数合五方、五行、阴阳、天地之象。图式以白圈为阳（天）、黑点为阴（地），并以天地合五方，以阴阳合五行。",
+    "position_layout": {
+      "north": { "position": "下（北）", "generation_number": 1, "completion_number": 6, "element": "水", "yin_yang": "天一生水，地六成之" },
+      "south": { "position": "上（南）", "generation_number": 2, "completion_number": 7, "element": "火", "yin_yang": "地二生火，天七成之" },
+      "east": { "position": "左（东）", "generation_number": 3, "completion_number": 8, "element": "木", "yin_yang": "天三生木，地八成之" },
+      "west": { "position": "右（西）", "generation_number": 4, "completion_number": 9, "element": "金", "yin_yang": "地四生金，天九成之" },
+      "center": { "position": "中", "generation_number": 5, "completion_number": 10, "element": "土", "yin_yang": "天五生土，地十成之" }
+    },
+    "numbers_mapping": {
+      "1": {"element": "水", "yin_yang": "阳（天）", "phase": "生数"},
+      "2": {"element": "火", "yin_yang": "阴（地）", "phase": "生数"},
+      "3": {"element": "木", "yin_yang": "阳（天）", "phase": "生数"},
+      "4": {"element": "金", "yin_yang": "阴（地）", "phase": "生数"},
+      "5": {"element": "土", "yin_yang": "阳（天）", "phase": "生数"},
+      "6": {"element": "水", "yin_yang": "阴（地）", "phase": "成数"},
+      "7": {"element": "火", "yin_yang": "阳（天）", "phase": "成数"},
+      "8": {"element": "木", "yin_yang": "阴（地）", "phase": "成数"},
+      "9": {"element": "金", "yin_yang": "阳（天）", "phase": "成数"},
+      "10": {"element": "土", "yin_yang": "阴（地）", "phase": "成数"}
+    },
+    "direction_element_cycle": "顺时针旋转：北(水) → 东(木) → 南(火) → 中(土) → 西(金) → 北(水)，体现五行相生"
+  },
+  "luoshu": {
+    "description": "洛书——戴九履一，左三右七，二四为肩，六八为足，五居中央",
+    "principle": "洛书为后天八卦之源，纵横斜三数之和皆为十五，体现天地平衡之道。",
+    "grid_3x3": {
+      "row_1": [4, 9, 2],
+      "row_2": [3, 5, 7],
+      "row_3": [8, 1, 6]
+    },
+    "position_mapping": {
+      "9": { "position": "戴（正南/上）", "element": "金（火）", "trigram_houtian": "离", "description": "戴九——南方离位" },
+      "1": { "position": "履（正北/下）", "element": "水", "trigram_houtian": "坎", "description": "履一——北方坎位" },
+      "3": { "position": "左（正东）", "element": "木", "trigram_houtian": "震", "description": "左三——东方震位" },
+      "7": { "position": "右（正西）", "element": "金", "trigram_houtian": "兑", "description": "右七——西方兑位" },
+      "2": { "position": "右肩（西南）", "element": "土", "trigram_houtian": "坤", "description": "二为肩——西南坤位" },
+      "4": { "position": "左肩（东南）", "element": "木", "trigram_houtian": "巽", "description": "四为肩——东南巽位" },
+      "6": { "position": "右足（西北）", "element": "金", "trigram_houtian": "乾", "description": "六为足——西北乾位" },
+      "8": { "position": "左足（东北）", "element": "土", "trigram_houtian": "艮", "description": "八为足——东北艮位" },
+      "5": { "position": "中央", "element": "土", "trigram_houtian": "中宫", "description": "五居中央——土居中宫" }
+    },
+    "magic_square_properties": {
+      "row_sums": "4+9+2=15, 3+5+7=15, 8+1+6=15",
+      "column_sums": "4+3+8=15, 9+5+1=15, 2+7+6=15",
+      "diagonal_sums": "4+5+6=15, 2+5+8=15",
+      "sum_constant": 15
+    },
+    "houtian_bagua_correspondence": {
+      "正南_离_9": "离卦，属火，洛书数9",
+      "正北_坎_1": "坎卦，属水，洛书数1",
+      "正东_震_3": "震卦，属木，洛书数3",
+      "正西_兑_7": "兑卦，属金，洛书数7",
+      "东南_巽_4": "巽卦，属木，洛书数4",
+      "西南_坤_2": "坤卦，属土，洛书数2",
+      "西北_乾_6": "乾卦，属金，洛书数6",
+      "东北_艮_8": "艮卦，属土，洛书数8",
+      "中央_中宫_5": "中宫属土，洛书数5"
+    }
+  },
+  "hetu_luoshu_relationship": {
+    "description": "河图为体为先天，洛书为用为后天。河图主五行相生，洛书主五行相克与平衡。",
+    "key_differences": {
+      "河图": "十数，体现五行相生之序，为先天之体",
+      "洛书": "九数，体现阴阳平衡之道，为后天之用"
+    },
+    "combined_significance": "河图形圆，阴阳合一，五行顺生，自然无为之道。洛书形方，阴阳错综，五行逆克，变化有为之道。河图与洛书合而为太极之道，是先民对宇宙数理的最深刻认知。"
+  },
+  "five_elements_number_relation": {
+    "description": "五行与河图洛书之数对应关系",
+    "水": { "hetu_number": "1、6", "luoshu_number": "1（坎）" },
+    "火": { "hetu_number": "2、7", "luoshu_number": "9（离）" },
+    "木": { "hetu_number": "3、8", "luoshu_number": "3（震）、4（巽）" },
+    "金": { "hetu_number": "4、9", "luoshu_number": "6（乾）、7（兑）" },
+    "土": { "hetu_number": "5、10", "luoshu_number": "5（中宫）、2（坤）、8（艮）" }
+  }
+}
