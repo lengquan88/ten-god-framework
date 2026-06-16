@@ -982,30 +982,67 @@ class ShiganEngine:
         return [cls.compute(day_gan, tg) for tg in all_gans]
 
     @classmethod
-    def classify(cls, shigan: ShiganType) -> str:
-        """分类为善神/凶神/中性
+    def _to_shigan_type(cls, name: str) -> Optional[ShiganType]:
+        """将十神中文名转换为 ShiganType 枚举。
 
         Args:
-            shigan: 十神类型
+            name: 十神中文名（如"正官"）或 ShiganType 枚举本身
 
         Returns:
-            分类标签
+            ShiganType 枚举值，无法识别时返回 None
         """
-        return cls._CLASSIFICATION.get(shigan, "未知")
+        if isinstance(name, ShiganType):
+            return name
+        if not isinstance(name, str):
+            return None
+        _name_to_type = {
+            "比肩": ShiganType.BIJIAN,
+            "劫财": ShiganType.JIECAI,
+            "食神": ShiganType.SHISHEN,
+            "伤官": ShiganType.SHANGGUAN,
+            "正财": ShiganType.ZHENGCAI,
+            "偏财": ShiganType.PIANCAI,
+            "正官": ShiganType.ZHENGGUAN,
+            "七杀": ShiganType.QISHA,
+            "正印": ShiganType.ZHENGYIN,
+            "偏印": ShiganType.PIANYIN,
+        }
+        return _name_to_type.get(name.strip())
 
     @classmethod
-    def interaction(cls, shigan_a: ShiganType, shigan_b: ShiganType) -> Optional[str]:
-        """十神之间的生克关系
+    def classify(cls, shigan) -> str:
+        """分类为善神/凶神/中性（支持字符串与枚举两种调用方式）。
 
         Args:
-            shigan_a: 十神A
+            shigan: 十神中文名（如"正官"）或 ShiganType 枚举
+
+        Returns:
+            "善神" / "凶神" / "中性" / "未知"
+        """
+        st = cls._to_shigan_type(shigan) if not isinstance(shigan, ShiganType) else shigan
+        if st is None:
+            # 作为回退，按字符串搜索 _CLASSIFICATION 的 value
+            for k, v in cls._CLASSIFICATION.items():
+                if k.value == shigan:
+                    return v
+            return "未知"
+        return cls._CLASSIFICATION.get(st, "未知")
+
+    @classmethod
+    def interaction(cls, shigan_a, shigan_b) -> Optional[str]:
+        """十神之间的生克关系（支持字符串与枚举两种调用方式）。
+
+        Args:
+            shigan_a: 十神A（如"正官"字符串或 ShiganType 枚举）
             shigan_b: 十神B
 
         Returns:
             关系描述：'生' / '克' / '被生' / '被克' / None（无直接关系）
         """
-        name_a = shigan_a.value
-        name_b = shigan_b.value
+        def _to_str(s):
+            return s.value if isinstance(s, ShiganType) else str(s).strip()
+        name_a = _to_str(shigan_a)
+        name_b = _to_str(shigan_b)
         table = cls._INTERACTION_TABLE.get(name_a, {})
         return table.get(name_b)
 
