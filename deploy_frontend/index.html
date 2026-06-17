@@ -274,6 +274,7 @@
     background: none; border: none;
   }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
 </head>
 <body>
 
@@ -312,6 +313,12 @@
   </a>
   <a href="#marriage" data-page="marriage">
     <span class="icon">💑</span> 合婚配对
+  </a>
+  <a href="#graph" data-page="graph">
+    <span class="icon">🕸️</span> 知识图谱
+  </a>
+  <a href="#viz" data-page="viz">
+    <span class="icon">📊</span> 高级图表
   </a>
   <!-- 阶段十三：用户状态区域 -->
   <div class="user-box" id="userBox">
@@ -610,6 +617,125 @@
       </div>
     </div>
     <div id="marriageResult"></div>
+  </div>
+
+  <!-- ====== 阶段十四：知识图谱页 ====== -->
+  <div class="page" id="page-graph">
+    <h1>命理知识图谱</h1>
+    <p class="subtitle">五行·天干·地支·八卦·十神·神煞·格局·64卦 关系网络可视化</p>
+
+    <div class="card">
+      <div class="card-header">图谱查询</div>
+      <div class="form-row">
+        <div class="form-group" style="flex:1;">
+          <label>搜索关键词</label>
+          <input type="text" id="graphSearch" placeholder="如：甲、木、财、乾" onkeydown="if(event.key==='Enter')graphSearchNode()">
+        </div>
+        <div class="form-group">
+          <label>&nbsp;</label>
+          <button class="btn" onclick="graphSearchNode()">🔍 搜索</button>
+        </div>
+        <div class="form-group">
+          <label>标签过滤</label>
+          <select id="graphLabelFilter" onchange="loadGraphByLabel()">
+            <option value="">全部</option>
+            <option value="五行">五行</option>
+            <option value="天干">天干</option>
+            <option value="地支">地支</option>
+            <option value="八卦">八卦</option>
+            <option value="十神">十神</option>
+            <option value="神煞">神煞</option>
+            <option value="格局">格局</option>
+            <option value="六十四卦">六十四卦</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>&nbsp;</label>
+          <button class="btn" onclick="loadGraphStats()">📊 统计</button>
+        </div>
+      </div>
+      <div id="graphSearchResult" style="margin-top:8px;"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">力导向图可视化 <span style="float:right;font-size:12px;color:var(--text3);font-weight:normal;" id="graphNodeCount"></span></div>
+      <div style="position:relative;background:var(--bg);border-radius:8px;overflow:hidden;">
+        <canvas id="graphCanvas" width="900" height="500" style="display:block;cursor:grab;"></canvas>
+        <div id="graphTooltip" style="position:absolute;display:none;background:var(--bg2);border:1px solid var(--gold);padding:8px 12px;border-radius:6px;font-size:12px;pointer-events:none;max-width:240px;z-index:10;"></div>
+        <div style="position:absolute;top:8px;left:8px;display:flex;gap:6px;">
+          <button class="btn" style="padding:4px 10px;font-size:12px;" onclick="graphZoom(1.2)">+</button>
+          <button class="btn" style="padding:4px 10px;font-size:12px;" onclick="graphZoom(0.8)">−</button>
+          <button class="btn" style="padding:4px 10px;font-size:12px;" onclick="graphReset()">⟳ 重置</button>
+        </div>
+      </div>
+      <div style="margin-top:8px;font-size:12px;color:var(--text3);">
+        拖拽节点 · 滚轮缩放 · 点击节点查看详情 · 不同颜色代表不同标签
+      </div>
+    </div>
+
+    <div class="card" id="graphDetailCard" style="display:none;">
+      <div class="card-header">节点详情 <span id="graphDetailTitle" style="color:var(--gold2);"></span></div>
+      <div id="graphDetailBody"></div>
+      <div style="margin-top:12px;">
+        <strong style="color:var(--gold);font-size:13px;">邻居关系：</strong>
+        <div id="graphNeighbors" style="margin-top:8px;"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">最短路径查询</div>
+      <div class="form-row">
+        <div class="form-group" style="flex:1;">
+          <label>起点</label>
+          <input type="text" id="pathSource" placeholder="如：甲" value="甲">
+        </div>
+        <div class="form-group" style="flex:1;">
+          <label>终点</label>
+          <input type="text" id="pathTarget" placeholder="如：火" value="火">
+        </div>
+        <div class="form-group">
+          <label>&nbsp;</label>
+          <button class="btn" onclick="findPath()">🔍 查找路径</button>
+        </div>
+      </div>
+      <div id="pathResult" style="margin-top:8px;"></div>
+    </div>
+  </div>
+
+  <!-- ====== 阶段十五：高级图表页 ====== -->
+  <div class="page" id="page-viz">
+    <h1>高级图表分析</h1>
+    <p class="subtitle">D3.js 驱动：五行能量雷达 · 十神分布 · 大运流年时间轴</p>
+
+    <div class="card">
+      <div class="card-header">排盘输入</div>
+      <div class="form-row">
+        <div class="form-group"><label>年</label><input type="number" id="vizYear" value="1990" min="1900" max="2100"></div>
+        <div class="form-group"><label>月</label><input type="number" id="vizMonth" value="6" min="1" max="12"></div>
+        <div class="form-group"><label>日</label><input type="number" id="vizDay" value="15" min="1" max="31"></div>
+        <div class="form-group"><label>时</label><input type="number" id="vizHour" value="10" min="0" max="23"></div>
+        <div class="form-group"><label>分</label><input type="number" id="vizMinute" value="30" min="0" max="59"></div>
+        <div class="form-group"><label>性别</label><select id="vizGender"><option value="male">男</option><option value="female">女</option></select></div>
+        <div class="form-group"><label>&nbsp;</label><button class="btn" onclick="loadVizData()">📊 生成图表</button></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">五行能量雷达图 <span style="float:right;font-size:12px;color:var(--text3);font-weight:normal;">D3.js · 五行旺衰分布</span></div>
+      <div id="radarChart" style="text-align:center;min-height:400px;"></div>
+      <div id="radarLegend" style="display:flex;justify-content:center;gap:16px;margin-top:8px;flex-wrap:wrap;"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">十神力量分布 <span style="float:right;font-size:12px;color:var(--text3);font-weight:normal;">D3.js · 十神数量柱状图</span></div>
+      <div id="shiganChart" style="text-align:center;min-height:300px;"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">大运流年时间轴 <span style="float:right;font-size:12px;color:var(--text3);font-weight:normal;">D3.js · 人生运势轨迹</span></div>
+      <div id="timelineChart" style="overflow-x:auto;min-height:280px;"></div>
+      <div id="timelineTooltip" style="position:fixed;display:none;background:var(--bg2);border:1px solid var(--gold);padding:10px 14px;border-radius:6px;font-size:12px;pointer-events:none;max-width:280px;z-index:1000;box-shadow:0 4px 12px rgba(0,0,0,0.5);"></div>
+    </div>
   </div>
 
 </main>
@@ -1399,6 +1525,834 @@ async function calcMarriage() {
 document.getElementById('kbSearch').addEventListener('input', function() {
   if (this.value.length >= 2) searchKnowledge();
 });
+
+// ====================================================================
+// 阶段十四：知识图谱可视化（力导向图 + Canvas）
+// ====================================================================
+
+// 标签颜色映射
+const GRAPH_LABEL_COLORS = {
+  '五行':     '#d4a843',
+  '天干':     '#45a7ff',
+  '地支':     '#00d68f',
+  '八卦':     '#a78bfa',
+  '十神':     '#f5d76e',
+  '神煞':     '#ff6b6b',
+  '格局':     '#6c5ce7',
+  '六十四卦': '#7dd3fc',
+};
+
+let graphData = { nodes: [], edges: [] };
+let graphNodes = [];  // 带物理属性的节点
+let graphEdges = [];
+let graphCanvas, graphCtx;
+let graphScale = 1;
+let graphOffsetX = 0, graphOffsetY = 0;
+let graphDragging = null;
+let graphDragOffset = { x: 0, y: 0 };
+let graphHoverNode = null;
+let graphAnimationId = null;
+
+/** 初始化图谱画布 */
+function initGraphCanvas() {
+  graphCanvas = document.getElementById('graphCanvas');
+  if (!graphCanvas) return;
+  graphCtx = graphCanvas.getContext('2d');
+
+  // 拖拽
+  graphCanvas.addEventListener('mousedown', e => {
+    const pos = getCanvasPos(e);
+    const node = findNodeAt(pos.x, pos.y);
+    if (node) {
+      graphDragging = node;
+      graphDragOffset = { x: pos.x - node.x, y: pos.y - node.y };
+      graphCanvas.style.cursor = 'grabbing';
+    } else {
+      // 拖拽画布
+      graphDragging = 'canvas';
+      graphDragOffset = { x: pos.x - graphOffsetX, y: pos.y - graphOffsetY };
+      graphCanvas.style.cursor = 'grabbing';
+    }
+  });
+
+  graphCanvas.addEventListener('mousemove', e => {
+    const pos = getCanvasPos(e);
+    if (graphDragging) {
+      if (graphDragging === 'canvas') {
+        graphOffsetX = pos.x - graphDragOffset.x;
+        graphOffsetY = pos.y - graphDragOffset.y;
+      } else {
+        graphDragging.x = pos.x - graphDragOffset.x;
+        graphDragging.y = pos.y - graphDragOffset.y;
+        graphDragging.fx = graphDragging.x;
+        graphDragging.fy = graphDragging.y;
+      }
+    } else {
+      // hover 检测
+      const node = findNodeAt(pos.x, pos.y);
+      const tooltip = document.getElementById('graphTooltip');
+      if (node) {
+        graphHoverNode = node;
+        graphCanvas.style.cursor = 'pointer';
+        tooltip.style.display = 'block';
+        tooltip.style.left = (e.offsetX + 12) + 'px';
+        tooltip.style.top = (e.offsetY + 12) + 'px';
+        tooltip.innerHTML = `<strong style="color:${GRAPH_LABEL_COLORS[node.label] || '#fff'}">${node.label}·${node.name}</strong><br><span style="color:var(--text3)">${formatProps(node.properties)}</span>`;
+      } else {
+        graphHoverNode = null;
+        graphCanvas.style.cursor = 'grab';
+        tooltip.style.display = 'none';
+      }
+    }
+  });
+
+  graphCanvas.addEventListener('mouseup', () => {
+    graphDragging = null;
+    graphCanvas.style.cursor = 'grab';
+  });
+
+  graphCanvas.addEventListener('mouseleave', () => {
+    graphDragging = null;
+    document.getElementById('graphTooltip').style.display = 'none';
+  });
+
+  // 点击节点
+  graphCanvas.addEventListener('click', e => {
+    const pos = getCanvasPos(e);
+    const node = findNodeAt(pos.x, pos.y);
+    if (node) showNodeDetail(node);
+  });
+
+  // 滚轮缩放
+  graphCanvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.1 : 0.9;
+    graphScale = Math.max(0.2, Math.min(3, graphScale * factor));
+  });
+}
+
+function getCanvasPos(e) {
+  const rect = graphCanvas.getBoundingClientRect();
+  return {
+    x: (e.clientX - rect.left - graphOffsetX) / graphScale,
+    y: (e.clientY - rect.top - graphOffsetY) / graphScale,
+  };
+}
+
+function findNodeAt(x, y) {
+  for (let i = graphNodes.length - 1; i >= 0; i--) {
+    const n = graphNodes[i];
+    const dx = n.x - x, dy = n.y - y;
+    if (dx * dx + dy * dy < (n.r + 2) * (n.r + 2)) return n;
+  }
+  return null;
+}
+
+function formatProps(props) {
+  if (!props) return '';
+  const entries = Object.entries(props).slice(0, 4);
+  return entries.map(([k, v]) => `${k}: ${v}`).join('<br>');
+}
+
+/** 加载图谱数据 */
+async function loadGraphData(labels) {
+  let url = API + '/api/graph/export?limit=200';
+  if (labels && labels.length) {
+    url += '&labels=' + encodeURIComponent(labels.join(','));
+  }
+  try {
+    const r = await apiFetch(url);
+    if (!r.ok) return;
+    const d = await r.json();
+    graphData = d;
+    buildGraphPhysics();
+    document.getElementById('graphNodeCount').textContent = `${d.nodes.length} 节点 / ${d.edges.length} 边`;
+    if (!graphAnimationId) animateGraph();
+  } catch (e) {
+    console.error('加载图谱失败:', e);
+  }
+}
+
+/** 构建物理节点 */
+function buildGraphPhysics() {
+  const cx = graphCanvas.width / 2;
+  const cy = graphCanvas.height / 2;
+  graphNodes = graphData.nodes.map((n, i) => {
+    const angle = (i / graphData.nodes.length) * Math.PI * 2;
+    const r = 150 + Math.random() * 50;
+    return {
+      ...n,
+      x: cx + Math.cos(angle) * r,
+      y: cy + Math.sin(angle) * r,
+      vx: 0, vy: 0,
+      fx: null, fy: null,
+      r: n.label === '五行' ? 16 : n.label === '六十四卦' ? 6 : 10,
+    };
+  });
+  const idMap = {};
+  graphNodes.forEach((n, i) => idMap[n.id] = i);
+  graphEdges = graphData.edges.map(e => ({
+    source: idMap[e.source] !== undefined ? graphNodes[idMap[e.source]] : null,
+    target: idMap[e.target] !== undefined ? graphNodes[idMap[e.target]] : null,
+    relation: e.relation,
+  })).filter(e => e.source && e.target);
+}
+
+/** 力导向模拟 */
+function simulateGraph() {
+  if (!graphNodes.length) return;
+  const cx = graphCanvas.width / 2;
+  const cy = graphCanvas.height / 2;
+
+  // 斥力（库仑定律）
+  for (let i = 0; i < graphNodes.length; i++) {
+    for (let j = i + 1; j < graphNodes.length; j++) {
+      const a = graphNodes[i], b = graphNodes[j];
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      const force = 800 / (dist * dist);
+      const fx = (dx / dist) * force;
+      const fy = (dy / dist) * force;
+      a.vx -= fx; a.vy -= fy;
+      b.vx += fx; b.vy += fy;
+    }
+  }
+
+  // 引力（弹簧，边连接）
+  for (const e of graphEdges) {
+    const dx = e.target.x - e.source.x;
+    const dy = e.target.y - e.source.y;
+    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+    const force = (dist - 80) * 0.05;
+    const fx = (dx / dist) * force;
+    const fy = (dy / dist) * force;
+    e.source.vx += fx; e.source.vy += fy;
+    e.target.vx -= fx; e.target.vy -= fy;
+  }
+
+  // 中心引力
+  for (const n of graphNodes) {
+    n.vx += (cx - n.x) * 0.002;
+    n.vy += (cy - n.y) * 0.002;
+  }
+
+  // 更新位置（阻尼）
+  for (const n of graphNodes) {
+    if (n.fx !== null) { n.x = n.fx; n.y = n.fy; continue; }
+    n.vx *= 0.85; n.vy *= 0.85;
+    n.x += n.vx; n.y += n.vy;
+    // 边界
+    n.x = Math.max(20, Math.min(graphCanvas.width - 20, n.x));
+    n.y = Math.max(20, Math.min(graphCanvas.height - 20, n.y));
+  }
+}
+
+/** 渲染图谱 */
+function renderGraph() {
+  if (!graphCtx) return;
+  graphCtx.clearRect(0, 0, graphCanvas.width, graphCanvas.height);
+  graphCtx.save();
+  graphCtx.translate(graphOffsetX, graphOffsetY);
+  graphCtx.scale(graphScale, graphScale);
+
+  // 绘制边
+  for (const e of graphEdges) {
+    graphCtx.beginPath();
+    graphCtx.moveTo(e.source.x, e.source.y);
+    graphCtx.lineTo(e.target.x, e.target.y);
+    const isHighlight = graphHoverNode && (e.source === graphHoverNode || e.target === graphHoverNode);
+    graphCtx.strokeStyle = isHighlight ? 'rgba(245,215,110,0.6)' : 'rgba(200,200,216,0.15)';
+    graphCtx.lineWidth = isHighlight ? 1.5 : 0.5;
+    graphCtx.stroke();
+
+    // 关系标签（仅高亮时）
+    if (isHighlight) {
+      const mx = (e.source.x + e.target.x) / 2;
+      const my = (e.source.y + e.target.y) / 2;
+      graphCtx.fillStyle = 'rgba(245,215,110,0.8)';
+      graphCtx.font = '10px sans-serif';
+      graphCtx.fillText(e.relation, mx, my);
+    }
+  }
+
+  // 绘制节点
+  for (const n of graphNodes) {
+    const color = GRAPH_LABEL_COLORS[n.label] || '#888';
+    const isHover = graphHoverNode === n;
+    graphCtx.beginPath();
+    graphCtx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+    graphCtx.fillStyle = color;
+    graphCtx.globalAlpha = isHover ? 1 : 0.85;
+    graphCtx.fill();
+    graphCtx.globalAlpha = 1;
+    graphCtx.strokeStyle = isHover ? '#fff' : 'rgba(0,0,0,0.3)';
+    graphCtx.lineWidth = isHover ? 2 : 1;
+    graphCtx.stroke();
+
+    // 名称（仅大节点显示）
+    if (n.r >= 8) {
+      graphCtx.fillStyle = '#fff';
+      graphCtx.font = `${Math.max(9, n.r * 0.7)}px sans-serif`;
+      graphCtx.textAlign = 'center';
+      graphCtx.textBaseline = 'middle';
+      graphCtx.fillText(n.name, n.x, n.y);
+    }
+  }
+
+  graphCtx.restore();
+}
+
+/** 动画循环 */
+function animateGraph() {
+  simulateGraph();
+  renderGraph();
+  graphAnimationId = requestAnimationFrame(animateGraph);
+}
+
+/** 缩放 */
+function graphZoom(factor) {
+  graphScale = Math.max(0.2, Math.min(3, graphScale * factor));
+}
+
+/** 重置视图 */
+function graphReset() {
+  graphScale = 1;
+  graphOffsetX = 0;
+  graphOffsetY = 0;
+  buildGraphPhysics();
+}
+
+/** 搜索节点 */
+async function graphSearchNode() {
+  const keyword = document.getElementById('graphSearch').value.trim();
+  if (!keyword) return;
+  try {
+    const r = await apiFetch(API + '/api/graph/search?keyword=' + encodeURIComponent(keyword) + '&limit=20');
+    const d = await r.json();
+    const el = document.getElementById('graphSearchResult');
+    if (!d.total) {
+      el.innerHTML = '<p style="color:var(--text3);font-size:13px;">未找到匹配节点</p>';
+      return;
+    }
+    el.innerHTML = `<p style="font-size:13px;color:var(--text3);margin-bottom:8px;">找到 ${d.total} 个结果：</p>` +
+      d.nodes.map(n => {
+        const color = GRAPH_LABEL_COLORS[n.label] || '#888';
+        return `<span style="display:inline-block;margin:2px 4px;padding:4px 10px;background:var(--bg3);border-radius:12px;font-size:12px;cursor:pointer;border:1px solid ${color}40;" onclick="focusGraphNode('${n.id}')">
+          <span style="color:${color};">●</span> ${n.label}·${n.name}
+        </span>`;
+      }).join('');
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+/** 聚焦到指定节点 */
+function focusGraphNode(nodeId) {
+  const node = graphNodes.find(n => n.id === nodeId);
+  if (node) {
+    graphOffsetX = graphCanvas.width / 2 - node.x * graphScale;
+    graphOffsetY = graphCanvas.height / 2 - node.y * graphScale;
+    showNodeDetail(node);
+  }
+}
+
+/** 显示节点详情 */
+async function showNodeDetail(node) {
+  document.getElementById('graphDetailCard').style.display = 'block';
+  document.getElementById('graphDetailTitle').textContent = `${node.label}·${node.name}`;
+  const color = GRAPH_LABEL_COLORS[node.label] || '#888';
+  let html = `<div style="display:flex;gap:12px;align-items:flex-start;">
+    <div style="width:40px;height:40px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;font-weight:700;color:#000;flex-shrink:0;">${node.name[0]}</div>
+    <div style="flex:1;">`;
+  if (node.properties) {
+    html += '<table style="font-size:13px;width:100%;">';
+    for (const [k, v] of Object.entries(node.properties)) {
+      html += `<tr><td style="color:var(--text3);padding:2px 8px 2px 0;">${k}</td><td style="color:var(--text);">${v}</td></tr>`;
+    }
+    html += '</table>';
+  }
+  html += '</div></div>';
+  document.getElementById('graphDetailBody').innerHTML = html;
+
+  // 加载邻居
+  try {
+    const r = await apiFetch(API + '/api/graph/node/' + encodeURIComponent(node.name) + '/neighbors?limit=30');
+    const d = await r.json();
+    const neighborsEl = document.getElementById('graphNeighbors');
+    if (!d.total) {
+      neighborsEl.innerHTML = '<p style="color:var(--text3);font-size:12px;">无邻居关系</p>';
+      return;
+    }
+    neighborsEl.innerHTML = d.edges.map(e => {
+      const isOut = e.source === node.id;
+      const other = isOut ? d.neighbors.find(n => n.id === e.target) : d.neighbors.find(n => n.id === e.source);
+      if (!other) return '';
+      const color = GRAPH_LABEL_COLORS[other.label] || '#888';
+      const arrow = isOut ? '→' : '←';
+      return `<div style="display:inline-block;margin:3px 6px 3px 0;padding:3px 10px;background:var(--bg3);border-radius:12px;font-size:12px;cursor:pointer;" onclick="focusGraphNode('${other.id}')">
+        <span style="color:var(--text3);">${arrow} ${e.relation} ${arrow}</span>
+        <span style="color:${color};">●</span> ${other.label}·${other.name}
+      </div>`;
+    }).join('');
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+/** 按标签加载 */
+function loadGraphByLabel() {
+  const label = document.getElementById('graphLabelFilter').value;
+  if (label) {
+    loadGraphData([label]);
+  } else {
+    loadGraphData();
+  }
+}
+
+/** 加载统计 */
+async function loadGraphStats() {
+  try {
+    const r = await apiFetch(API + '/api/graph/stats');
+    const d = await r.json();
+    const el = document.getElementById('graphSearchResult');
+    let html = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-top:8px;">`;
+    html += `<div style="background:var(--bg3);padding:10px;border-radius:8px;text-align:center;">
+      <div style="font-size:24px;color:var(--gold2);font-weight:700;">${d.total_nodes}</div>
+      <div style="font-size:11px;color:var(--text3);">节点总数</div>
+    </div>`;
+    html += `<div style="background:var(--bg3);padding:10px;border-radius:8px;text-align:center;">
+      <div style="font-size:24px;color:var(--gold2);font-weight:700;">${d.total_edges}</div>
+      <div style="font-size:11px;color:var(--text3);">边总数</div>
+    </div>`;
+    for (const [label, count] of Object.entries(d.labels)) {
+      const color = GRAPH_LABEL_COLORS[label] || '#888';
+      html += `<div style="background:var(--bg3);padding:10px;border-radius:8px;text-align:center;cursor:pointer;border:1px solid ${color}30;" onclick="document.getElementById('graphLabelFilter').value='${label}';loadGraphByLabel();">
+        <div style="font-size:18px;color:${color};font-weight:700;">${count}</div>
+        <div style="font-size:11px;color:var(--text3);">${label}</div>
+      </div>`;
+    }
+    html += '</div>';
+    el.innerHTML = html;
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+/** 最短路径查询 */
+async function findPath() {
+  const source = document.getElementById('pathSource').value.trim();
+  const target = document.getElementById('pathTarget').value.trim();
+  if (!source || !target) return;
+  const el = document.getElementById('pathResult');
+  el.innerHTML = '<p style="color:var(--text3);font-size:13px;">查询中...</p>';
+  try {
+    const r = await apiFetch(API + '/api/graph/path?source=' + encodeURIComponent(source) + '&target=' + encodeURIComponent(target));
+    const d = await r.json();
+    if (!d.reachable) {
+      el.innerHTML = `<p style="color:var(--red);font-size:13px;">⚠ ${d.message}</p>`;
+      return;
+    }
+    let html = `<p style="color:var(--green);font-size:13px;margin-bottom:8px;">✓ 可达，路径长度 ${d.length}</p>`;
+    html += '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;">';
+    d.path.forEach((n, i) => {
+      const color = GRAPH_LABEL_COLORS[n.label] || '#888';
+      html += `<span style="padding:4px 10px;background:var(--bg3);border-radius:12px;font-size:12px;border:1px solid ${color}40;cursor:pointer;" onclick="focusGraphNode('${n.id}')">
+        <span style="color:${color};">●</span> ${n.name}
+      </span>`;
+      if (i < d.edges.length) {
+        html += `<span style="color:var(--text3);font-size:11px;">${d.edges[i].relation} →</span>`;
+      }
+    });
+    html += '</div>';
+    el.innerHTML = html;
+  } catch (e) {
+    el.innerHTML = `<p style="color:var(--red);font-size:13px;">查询失败: ${e.message}</p>`;
+  }
+}
+
+// 切换到图谱页时加载数据
+const originalSwitchPage = switchPage;
+switchPage = function(name) {
+  originalSwitchPage(name);
+  if (name === 'graph') {
+    if (!graphCtx) initGraphCanvas();
+    if (!graphNodes.length) loadGraphData();
+  }
+};
+
+// ════════════════════════════════════════════════════════════════
+// 阶段十五：D3.js 高级可视化
+// ════════════════════════════════════════════════════════════════
+
+const WUXING_COLORS = { '木': '#00d68f', '火': '#ff6b6b', '土': '#d4a843', '金': '#c8c8d8', '水': '#45a7ff' };
+const WUXING_ORDER = ['木', '火', '土', '金', '水'];
+const SHIGAN_COLORS = {
+  '比肩': '#00d68f', '劫财': '#5ac85a', '食神': '#f5d76e', '伤官': '#ffa500',
+  '偏财': '#45a7ff', '正财': '#6c5ce7', '七杀': '#ff6b6b', '正官': '#e84393',
+  '偏印': '#a29bfe', '正印': '#74b9ff'
+};
+let vizDataLoaded = false;
+
+// ── 加载八字数据并渲染所有图表 ──────────────────────────────────
+async function loadVizData() {
+  const body = {
+    year: +document.getElementById('vizYear').value,
+    month: +document.getElementById('vizMonth').value,
+    day: +document.getElementById('vizDay').value,
+    hour: +document.getElementById('vizHour').value,
+    minute: +document.getElementById('vizMinute').value,
+    gender: document.getElementById('vizGender').value,
+  };
+  try {
+    const r = await apiFetch(API + '/api/bazi/full', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) { const e = await r.json(); throw new Error(e.detail || e.error || '请求失败'); }
+    const d = await r.json();
+    renderRadarChart(d.bazi.wuxing_score);
+    renderShiganChart(d.bazi.shigan_count, d.bazi.day_master);
+    renderTimeline(d.dayun, d.liunian, d.input.solar);
+    vizDataLoaded = true;
+  } catch (e) {
+    document.getElementById('radarChart').innerHTML = `<p style="color:var(--red);padding:40px;">加载失败: ${e.message}</p>`;
+  }
+}
+
+// ── 五行能量雷达图 ──────────────────────────────────────────────
+function renderRadarChart(wuxingScore) {
+  const container = d3.select('#radarChart');
+  container.html('');
+  const size = 380;
+  const margin = 60;
+  const radius = (size - margin * 2) / 2;
+  const cx = size / 2, cy = size / 2;
+
+  // 解析五行得分
+  const data = WUXING_ORDER.map(name => {
+    const raw = wuxingScore[name] || '0个 (0%) - 未知';
+    const pctMatch = raw.match(/\((\d+)%\)/);
+    const countMatch = raw.match(/^(\d+)个/);
+    const statusMatch = raw.match(/-\s*(.+)$/);
+    return {
+      name,
+      percent: pctMatch ? +pctMatch[1] : 0,
+      count: countMatch ? +countMatch[1] : 0,
+      status: statusMatch ? statusMatch[1].trim() : '未知',
+      raw,
+    };
+  });
+
+  const svg = container.append('svg').attr('width', size).attr('height', size + 20);
+  const g = svg.append('g').attr('transform', `translate(${cx},${cy})`);
+
+  // 背景网格圆
+  const levels = 5;
+  for (let i = 1; i <= levels; i++) {
+    const r = (radius * i) / levels;
+    g.append('circle')
+      .attr('r', r)
+      .attr('fill', 'none')
+      .attr('stroke', 'rgba(255,255,255,0.08)')
+      .attr('stroke-width', 1);
+    g.append('text')
+      .attr('y', -r)
+      .attr('dy', -2)
+      .attr('text-anchor', 'middle')
+      .attr('fill', 'var(--text3)')
+      .attr('font-size', 9)
+      .text(`${i * 20}%`);
+  }
+
+  // 轴线
+  const angle = d3.scalePoint().domain(WUXING_ORDER).range([0, 2 * Math.PI]);
+  WUXING_ORDER.forEach((name, i) => {
+    const a = (i / 5) * 2 * Math.PI - Math.PI / 2;
+    g.append('line')
+      .attr('x1', 0).attr('y1', 0)
+      .attr('x2', radius * Math.cos(a))
+      .attr('y2', radius * Math.sin(a))
+      .attr('stroke', 'rgba(255,255,255,0.1)')
+      .attr('stroke-width', 1);
+    // 轴标签
+    const labelR = radius + 25;
+    g.append('text')
+      .attr('x', labelR * Math.cos(a))
+      .attr('y', labelR * Math.sin(a))
+      .attr('text-anchor', 'middle')
+      .attr('dominant-baseline', 'middle')
+      .attr('fill', WUXING_COLORS[name])
+      .attr('font-size', 16)
+      .attr('font-weight', 'bold')
+      .text(name);
+  });
+
+  // 数据多边形
+  const lineGen = d3.lineRadial()
+    .radius(d => (d.percent / 100) * radius)
+    .angle((d, i) => (i / 5) * 2 * Math.PI - Math.PI / 2)
+    .curve(d3.curveCardinalClosed);
+
+  g.append('path')
+    .datum(data)
+    .attr('d', lineGen)
+    .attr('fill', 'rgba(212,168,67,0.15)')
+    .attr('stroke', 'var(--gold)')
+    .attr('stroke-width', 2)
+    .style('filter', 'drop-shadow(0 0 6px rgba(212,168,67,0.4))');
+
+  // 数据点
+  data.forEach((d, i) => {
+    const a = (i / 5) * 2 * Math.PI - Math.PI / 2;
+    const r = (d.percent / 100) * radius;
+    g.append('circle')
+      .attr('cx', r * Math.cos(a))
+      .attr('cy', r * Math.sin(a))
+      .attr('r', 5)
+      .attr('fill', WUXING_COLORS[d.name])
+      .attr('stroke', 'var(--bg)')
+      .attr('stroke-width', 2)
+      .style('cursor', 'pointer')
+      .append('title')
+      .text(`${d.name}: ${d.raw}`);
+  });
+
+  // 图例
+  const legend = d3.select('#radarLegend');
+  legend.html('');
+  data.forEach(d => {
+    const item = legend.append('div').style('display', 'flex').style('align-items', 'center').style('gap', '6px').style('font-size', '13px');
+    item.append('span').style('width', '12px').style('height', '12px').style('border-radius', '50%').style('background', WUXING_COLORS[d.name]);
+    item.append('span').style('color', 'var(--text2)').text(`${d.name} ${d.percent}% (${d.status})`);
+  });
+}
+
+// ── 十神力量分布柱状图 ──────────────────────────────────────────
+function renderShiganChart(shiganCount, dayMaster) {
+  const container = d3.select('#shiganChart');
+  container.html('');
+  const allShigan = ['比肩', '劫财', '食神', '伤官', '偏财', '正财', '七杀', '正官', '偏印', '正印'];
+  const data = allShigan.map(name => ({
+    name,
+    count: shiganCount[name] || 0,
+  })).filter(d => d.count > 0);
+
+  if (data.length === 0) {
+    container.append('p').style('color', 'var(--text3)').style('padding', '40px').text('暂无十神数据');
+    return;
+  }
+
+  const width = Math.min(700, data.length * 70 + 60);
+  const height = 280;
+  const margin = { top: 20, right: 20, bottom: 50, left: 40 };
+
+  const svg = container.append('svg').attr('width', width).attr('height', height);
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+  const x = d3.scaleBand().domain(data.map(d => d.name)).range([0, width - margin.left - margin.right]).padding(0.3);
+  const yMax = d3.max(data, d => d.count) + 1;
+  const y = d3.scaleLinear().domain([0, yMax]).range([height - margin.top - margin.bottom, 0]);
+
+  // 坐标轴
+  g.append('g').attr('transform', `translate(0,${height - margin.top - margin.bottom})`)
+    .call(d3.axisBottom(x).tickSize(0))
+    .selectAll('text').attr('fill', 'var(--text2)').attr('font-size', 12);
+  g.append('g').call(d3.axisLeft(y).ticks(yMax).tickSize(0))
+    .selectAll('text').attr('fill', 'var(--text3)').attr('font-size', 11);
+  g.selectAll('.domain, .tick line').attr('stroke', 'rgba(255,255,255,0.1)');
+
+  // 柱子
+  g.selectAll('.bar')
+    .data(data)
+    .enter()
+    .append('rect')
+    .attr('class', 'bar')
+    .attr('x', d => x(d.name))
+    .attr('width', x.bandwidth())
+    .attr('y', height - margin.top - margin.bottom)
+    .attr('height', 0)
+    .attr('fill', d => SHIGAN_COLORS[d.name] || 'var(--gold)')
+    .attr('rx', 4)
+    .style('filter', d => `drop-shadow(0 0 4px ${SHIGAN_COLORS[d.name] || '#d4a843'}40)`)
+    .transition().duration(800).delay((d, i) => i * 80)
+    .attr('y', d => y(d.count))
+    .attr('height', d => height - margin.top - margin.bottom - y(d.count));
+
+  // 数值标签
+  g.selectAll('.label')
+    .data(data)
+    .enter()
+    .append('text')
+    .attr('class', 'label')
+    .attr('x', d => x(d.name) + x.bandwidth() / 2)
+    .attr('y', d => y(d.count) - 6)
+    .attr('text-anchor', 'middle')
+    .attr('fill', 'var(--gold2)')
+    .attr('font-size', 13)
+    .attr('font-weight', 'bold')
+    .style('opacity', 0)
+    .transition().duration(800).delay((d, i) => i * 80 + 400)
+    .style('opacity', 1)
+    .text(d => d.count);
+
+  // 日主标注
+  if (dayMaster) {
+    svg.append('text')
+      .attr('x', width / 2)
+      .attr('y', 14)
+      .attr('text-anchor', 'middle')
+      .attr('fill', 'var(--gold)')
+      .attr('font-size', 12)
+      .text(`日主: ${dayMaster}`);
+  }
+}
+
+// ── 大运流年时间轴 ──────────────────────────────────────────────
+function renderTimeline(dayun, liunian, solarStr) {
+  const container = d3.select('#timelineChart');
+  container.html('');
+
+  if (!dayun || dayun.length === 0) {
+    container.append('p').style('color', 'var(--text3)').style('padding', '40px').text('暂无大运数据');
+    return;
+  }
+
+  const birthYear = parseInt(solarStr.split('-')[0]);
+  const minYear = birthYear;
+  const maxYear = Math.max(
+    ...dayun.map(d => d.start_year + 10),
+    ...liunian.map(l => l.year + 1)
+  );
+  const yearRange = maxYear - minYear;
+
+  const width = Math.max(800, yearRange * 22);
+  const height = 260;
+  const margin = { top: 30, right: 40, bottom: 40, left: 50 };
+
+  const svg = container.append('svg').attr('width', width).attr('height', height).style('min-width', '100%');
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+  const innerW = width - margin.left - margin.right;
+  const innerH = height - margin.top - margin.bottom;
+
+  const x = d3.scaleLinear().domain([minYear, maxYear]).range([0, innerW]);
+
+  // X轴（年份）
+  const xAxis = d3.axisBottom(x).tickFormat(d3.format('d')).ticks(Math.min(yearRange, 15));
+  g.append('g').attr('transform', `translate(0,${innerH})`)
+    .call(xAxis)
+    .selectAll('text').attr('fill', 'var(--text2)').attr('font-size', 11);
+  g.selectAll('.domain, .tick line').attr('stroke', 'rgba(255,255,255,0.1)');
+
+  // 大运轨道（上半部分）
+  const dayunY = innerH * 0.35;
+  const liunianY = innerH * 0.75;
+
+  // 分隔线
+  g.append('line').attr('x1', 0).attr('y1', innerH * 0.55).attr('x2', innerW).attr('y2', innerH * 0.55)
+    .attr('stroke', 'rgba(255,255,255,0.05)').attr('stroke-dasharray', '4,4');
+
+  // 标签
+  g.append('text').attr('x', 0).attr('y', dayunY - 25).attr('fill', 'var(--gold)').attr('font-size', 12).attr('font-weight', 'bold').text('大运');
+  g.append('text').attr('x', 0).attr('y', liunianY - 15).attr('fill', 'var(--accent)').attr('font-size', 12).attr('font-weight', 'bold').text('流年');
+
+  // 大运条
+  const tooltip = d3.select('#timelineTooltip');
+  dayun.forEach((d, i) => {
+    const x1 = x(d.start_year);
+    const x2 = x(d.start_year + 10);
+    const w = Math.max(x2 - x1 - 2, 20);
+    const colors = ['#d4a843', '#6c5ce7', '#00d68f', '#45a7ff', '#ff6b6b', '#f5d76e', '#e84393'];
+    const color = colors[i % colors.length];
+
+    const bar = g.append('rect')
+      .attr('x', x1).attr('y', dayunY - 12).attr('width', w).attr('height', 24)
+      .attr('fill', color).attr('opacity', 0.25).attr('rx', 4)
+      .style('cursor', 'pointer');
+
+    g.append('rect')
+      .attr('x', x1).attr('y', dayunY - 12).attr('width', 3).attr('height', 24)
+      .attr('fill', color).attr('rx', 2);
+
+    g.append('text')
+      .attr('x', x1 + w / 2).attr('y', dayunY + 2).attr('text-anchor', 'middle')
+      .attr('fill', color).attr('font-size', 11).attr('font-weight', 'bold')
+      .text(d.pillar);
+
+    g.append('text')
+      .attr('x', x1 + w / 2).attr('y', dayunY - 18).attr('text-anchor', 'middle')
+      .attr('fill', 'var(--text3)').attr('font-size', 9)
+      .text(`${d.age}岁`);
+
+    bar.on('mouseover', function(e) {
+      d3.select(this).attr('opacity', 0.5);
+      tooltip.style('display', 'block').html(`
+        <div style="color:${color};font-weight:bold;font-size:14px;margin-bottom:4px;">大运 ${d.pillar}</div>
+        <div style="color:var(--text2);">第${d.step}步大运 · ${d.direction}</div>
+        <div style="color:var(--text2);">起运年龄: ${d.age}岁</div>
+        <div style="color:var(--text2);">起运年份: ${d.start_year}年</div>
+        <div style="color:var(--text2);">持续: ${d.start_year} - ${d.start_year + 9}年</div>
+      `);
+    }).on('mousemove', function(e) {
+      tooltip.style('left', (e.clientX + 14) + 'px').style('top', (e.clientY + 14) + 'px');
+    }).on('mouseout', function() {
+      d3.select(this).attr('opacity', 0.25);
+      tooltip.style('display', 'none');
+    });
+  });
+
+  // 流年圆点
+  liunian.forEach(l => {
+    const cx = x(l.year);
+    const hasShigan = l.gan_shigan && l.gan_shigan !== 'None';
+    const dotColor = hasShigan ? (SHIGAN_COLORS[l.gan_shigan] || '#45a7ff') : '#5a5a7a';
+
+    g.append('circle')
+      .attr('cx', cx).attr('cy', liunianY).attr('r', 5)
+      .attr('fill', dotColor).attr('stroke', 'var(--bg)').attr('stroke-width', 1.5)
+      .style('cursor', 'pointer').style('filter', `drop-shadow(0 0 3px ${dotColor}80)`)
+      .on('mouseover', function(e) {
+        d3.select(this).attr('r', 8);
+        const zhiDetail = l.zhi_shigan_detail ? Object.entries(l.zhi_shigan_detail).map(([g, s]) => `${g}(${s})`).join(' ') : '';
+        tooltip.style('display', 'block').html(`
+          <div style="color:${dotColor};font-weight:bold;font-size:14px;margin-bottom:4px;">${l.year}年 ${l.pillar}</div>
+          <div style="color:var(--text2);">天干十神: ${hasShigan ? l.gan_shigan : '—'}</div>
+          ${zhiDetail ? `<div style="color:var(--text2);">地支藏干: ${zhiDetail}</div>` : ''}
+        `);
+      }).on('mousemove', function(e) {
+        tooltip.style('left', (e.clientX + 14) + 'px').style('top', (e.clientY + 14) + 'px');
+      }).on('mouseout', function() {
+        d3.select(this).attr('r', 5);
+        tooltip.style('display', 'none');
+      });
+
+    // 年份标签（每隔几年显示）
+    if (l.year % 2 === 0 || l.year === birthYear) {
+      g.append('text')
+        .attr('x', cx).attr('y', liunianY + 20).attr('text-anchor', 'middle')
+        .attr('fill', 'var(--text3)').attr('font-size', 9)
+        .text(l.year);
+    }
+  });
+
+  // 出生线
+  g.append('line')
+    .attr('x1', x(birthYear)).attr('y1', 0).attr('x2', x(birthYear)).attr('y2', innerH)
+    .attr('stroke', 'var(--red)').attr('stroke-width', 1).attr('stroke-dasharray', '3,3').attr('opacity', 0.5);
+  g.append('text')
+    .attr('x', x(birthYear)).attr('y', -8).attr('text-anchor', 'middle')
+    .attr('fill', 'var(--red)').attr('font-size', 10).text('出生');
+}
+
+// 切换到高级图表页时自动加载
+const vizSwitchPage = switchPage;
+switchPage = function(name) {
+  vizSwitchPage(name);
+  if (name === 'viz' && !vizDataLoaded) {
+    loadVizData();
+  }
+};
 </script>
 </body>
 </html>

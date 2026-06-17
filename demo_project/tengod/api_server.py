@@ -1750,6 +1750,198 @@ async def marriage_analyze(query: MarriageQuery, request: Request):
 
 
 # ============================================================================
+# 阶段十四：命理知识图谱 API 端点
+# ============================================================================
+
+@app.get("/api/graph/stats", tags=["知识图谱"])
+async def graph_stats(request: Request):
+    """知识图谱统计信息"""
+    from tengod.auth import authorize
+    authorize(request, "knowledge:search", consume_quota=False)
+    from tengod.graph_engine import get_graph_db
+    return get_graph_db().stats()
+
+
+@app.get("/api/graph/search", tags=["知识图谱"])
+async def graph_search(request: Request,
+                       keyword: str = Query(..., description="搜索关键词"),
+                       limit: int = Query(20, ge=1, le=100)):
+    """搜索图谱节点"""
+    from tengod.auth import authorize
+    authorize(request, "knowledge:search")
+    from tengod.graph_engine import get_graph_db
+    db = get_graph_db()
+    nodes = db.search(keyword, limit=limit)
+    return {
+        "keyword": keyword,
+        "total": len(nodes),
+        "nodes": [n.to_dict() for n in nodes],
+    }
+
+
+@app.get("/api/graph/node/{node_name}", tags=["知识图谱"])
+async def graph_get_node(node_name: str, request: Request):
+    """按名称获取节点详情"""
+    from tengod.auth import authorize
+    authorize(request, "knowledge:search", consume_quota=False)
+    from tengod.graph_engine import get_graph_db
+    db = get_graph_db()
+    node = db.find_node_by_name(node_name)
+    if node is None:
+        raise HTTPException(status_code=404, detail=f"未找到节点: {node_name}")
+    return node.to_dict()
+
+
+@app.get("/api/graph/node/{node_name}/neighbors", tags=["知识图谱"])
+async def graph_neighbors(node_name: str, request: Request,
+                          direction: str = Query("both", description="out/in/both"),
+                          relation: str = Query(None, description="关系类型过滤"),
+                          limit: int = Query(50, ge=1, le=200)):
+    """获取节点邻居"""
+    from tengod.auth import authorize
+    authorize(request, "knowledge:search")
+    from tengod.graph_engine import get_graph_db
+    db = get_graph_db()
+    node = db.find_node_by_name(node_name)
+    if node is None:
+        raise HTTPException(status_code=404, detail=f"未找到节点: {node_name}")
+
+    neighbors = db.neighbors(node.id, direction=direction, relation=relation, limit=limit)
+    edges = db.neighbor_edges(node.id, direction=direction, relation=relation)
+    return {
+        "node": node.to_dict(),
+        "neighbors": [n.to_dict() for n in neighbors],
+        "edges": [e.to_dict() for e in edges],
+        "total": len(neighbors),
+    }
+
+
+@app.get("/api/graph/path", tags=["知识图谱"])
+async def graph_path(request: Request,
+                     source: str = Query(..., description="起点节点名"),
+                     target: str = Query(..., description="终点节点名"),
+                     max_depth: int = Query(10, ge=1, le=20)):
+    """最短路径查询"""
+    from tengod.auth import authorize
+    authorize(request, "knowledge:search")
+    from tengod.graph_engine import get_graph_db
+    db = get_graph_db()
+
+    src = db.find_node_by_name(source)
+    tgt = db.find_node_by_name(target)
+    if src is None:
+        raise HTTPException(status_code=404, detail=f"未找到起点: {source}")
+    if tgt is None:
+        raise HTTPException(status_code=404, detail=f"未找到终点: {target}")
+
+    result = db.shortest_path_with_edges(src.id, tgt.id, max_depth=max_depth)
+    if result is None:
+        return {
+            "source": source,
+            "target": target,
+            "reachable": False,
+            "message": f"在 {max_depth} 跳内不可达",
+        }
+    return {"source": source, "target": target, "reachable": True, **result}
+
+
+@app.get("/api/graph/subgraph", tags=["知识图谱"])
+async def graph_subgraph(request: Request,
+                         node_names: str = Query(..., description="中心节点名（逗号分隔）"),
+                         hops: int = Query(1, ge=1, le=5)):
+    """提取子图"""
+    from tengod.auth import authorize
+    authorize(request, "knowledge:search")
+    from tengod.graph_engine import get_graph_db
+    db = get_graph_db()
+
+    names = [n.strip() for n in node_names.split(",") if n.strip()]
+    node_ids = []
+    missing = []
+    for name in names:
+        node = db.find_node_by_name(name)
+        if node:
+            node_ids.append(node.id)
+        else:
+            missing.append(name)
+
+    if not node_ids:
+        raise HTTPException(status_code=404, detail=f"未找到任何节点: {names}")
+
+    sub = db.subgraph(node_ids, hops=hops)
+    return {"centers": names, "missing": missing, **sub}
+
+
+@app.get("/api/graph/label/{label}", tags=["知识图谱"])
+async def graph_by_label(label: str, request: Request,
+                         limit: int = Query(100, ge=1, le=500)):
+    """按标签获取所有节点"""
+    from tengod.auth import authorize
+    authorize(request, "knowledge:search", consume_quota=False)
+    from tengod.graph_engine import get_graph_db
+    db = get_graph_db()
+    nodes = db.get_nodes_by_label(label)[:limit]
+    return {
+        "label": label,
+        "total": len(nodes),
+        "nodes": [n.to_dict() for n in nodes],
+    }
+
+
+@app.get("/api/graph/match", tags=["知识图谱"])
+async def graph_match(request: Request,
+                      label: str = Query(None, description="节点标签"),
+                      relation: str = Query(None, description="关系类型"),
+                      target_label: str = Query(None, description="目标节点标签"),
+                      limit: int = Query(50, ge=1, le=200)):
+    """模式匹配查询"""
+    from tengod.auth import authorize
+    authorize(request, "knowledge:search")
+    from tengod.graph_engine import get_graph_db
+    db = get_graph_db()
+
+    if relation:
+        # 关系匹配
+        edges = db.match_relation(source_label=label, relation=relation,
+                                  target_label=target_label, limit=limit)
+        return {
+            "query": {"label": label, "relation": relation, "target_label": target_label},
+            "total": len(edges),
+            "edges": [e.to_dict() for e in edges],
+            "nodes": [
+                {"source": db.get_node(e.source).to_dict() if db.get_node(e.source) else None,
+                 "target": db.get_node(e.target).to_dict() if db.get_node(e.target) else None}
+                for e in edges
+            ],
+        }
+    else:
+        # 节点匹配
+        nodes = db.match_pattern(label=label, limit=limit)
+        return {
+            "query": {"label": label},
+            "total": len(nodes),
+            "nodes": [n.to_dict() for n in nodes],
+        }
+
+
+@app.get("/api/graph/export", tags=["知识图谱"])
+async def graph_export(request: Request,
+                       labels: str = Query(None, description="标签过滤（逗号分隔）"),
+                       limit: int = Query(300, ge=1, le=1000)):
+    """导出图谱数据（前端可视化用）"""
+    from tengod.auth import authorize
+    authorize(request, "knowledge:search", consume_quota=False)
+    from tengod.graph_engine import get_graph_db
+    db = get_graph_db()
+
+    if labels:
+        label_list = [l.strip() for l in labels.split(",") if l.strip()]
+        return db.export_subgraph_by_label(label_list, max_nodes=limit)
+    else:
+        return db.export_graph(limit=limit)
+
+
+# ============================================================================
 # 全局异常处理
 # ============================================================================
 
