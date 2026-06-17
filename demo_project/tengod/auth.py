@@ -54,13 +54,14 @@ ROLE_PERMISSIONS = {
             "knowledge:search", "knowledge:wuxing",
             "chat:send", "chat:report",
             "ai:interpret", "ai:interpret:stream",
+            "case:read", "case:write", "case:delete",
             "records:read", "records:write", "records:delete",
         ],
         "quota_daily": 100,
     },
     "guest": {
         "name": "访客",
-        "permissions": ["bazi:calc", "knowledge:search"],
+        "permissions": ["bazi:calc", "knowledge:search", "case:read"],
         "quota_daily": 10,
     },
 }

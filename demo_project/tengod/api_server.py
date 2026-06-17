@@ -1587,6 +1587,322 @@ async def ai_interpret_oracle(request: Request,
 
 
 # ============================================================================
+# 阶段十八：命例案例库 API 端点
+# ============================================================================
+
+class CaseCreateRequest(BaseModel):
+    """创建案例请求"""
+    record_id: int = Field(..., description="关联的八字记录ID")
+    title: str = Field(..., min_length=1, max_length=256, description="案例标题")
+    category: Optional[str] = Field(default=None, description="案例分类")
+    source: Optional[str] = Field(default=None, description="案例来源")
+    credibility: float = Field(default=0.8, ge=0, le=1, description="可信度")
+    is_public: bool = Field(default=True, description="是否公开")
+    is_featured: bool = Field(default=False, description="是否精选")
+    summary: Optional[str] = Field(default=None, description="案例摘要")
+    analysis_text: Optional[str] = Field(default=None, description="详细分析")
+    conclusion: Optional[str] = Field(default=None, description="结论")
+    tags: Optional[List[str]] = Field(default=None, description="标签列表")
+
+
+class CaseUpdateRequest(BaseModel):
+    """更新案例请求"""
+    title: Optional[str] = Field(default=None, max_length=256)
+    category: Optional[str] = None
+    source: Optional[str] = None
+    credibility: Optional[float] = Field(default=None, ge=0, le=1)
+    is_public: Optional[bool] = None
+    is_featured: Optional[bool] = None
+    summary: Optional[str] = None
+    analysis_text: Optional[str] = None
+    conclusion: Optional[str] = None
+    tags: Optional[List[str]] = None
+
+
+class CaseSearchRequest(BaseModel):
+    """案例搜索请求"""
+    keyword: Optional[str] = None
+    category: Optional[str] = None
+    tag: Optional[str] = None
+    day_master: Optional[str] = None
+    geju: Optional[str] = None
+    gender: Optional[str] = None
+    source: Optional[str] = None
+    is_public: Optional[bool] = None
+    limit: int = Field(default=50, ge=1, le=200)
+    offset: int = Field(default=0, ge=0)
+
+
+class CaseLinkRequest(BaseModel):
+    """案例关联请求"""
+    case_b_id: int = Field(..., description="目标案例ID")
+    relation_type: str = Field(default="similar", description="关联类型")
+    similarity_score: float = Field(default=0.0, ge=0, le=1)
+    note: Optional[str] = None
+
+
+@app.post("/api/cases", tags=["命例案例库"])
+async def create_case(req: CaseCreateRequest, request: Request):
+    """创建命例案例"""
+    from tengod.auth import authorize
+    authorize(request, "case:write")
+    from tengod.case_library import get_case_library
+    try:
+        lib = get_case_library()
+        case_id = lib.create_case(
+            record_id=req.record_id,
+            title=req.title,
+            category=req.category,
+            source=req.source,
+            credibility=req.credibility,
+            is_public=req.is_public,
+            is_featured=req.is_featured,
+            summary=req.summary,
+            analysis_text=req.analysis_text,
+            conclusion=req.conclusion,
+            tags=req.tags,
+        )
+        return {"id": case_id, "created": True}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"创建案例失败: {e}")
+
+
+@app.get("/api/cases", tags=["命例案例库"])
+async def list_cases(
+    request: Request,
+    category: Optional[str] = Query(None),
+    is_public: Optional[bool] = Query(None),
+    is_featured: Optional[bool] = Query(None),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    order_by: str = Query("created_desc", description="created_desc/created_asc/views/favorites"),
+):
+    """列出命例案例"""
+    from tengod.auth import authorize
+    authorize(request, "case:read", consume_quota=False)
+    from tengod.case_library import get_case_library
+    lib = get_case_library()
+    return lib.list_cases(
+        category=category, is_public=is_public, is_featured=is_featured,
+        limit=limit, offset=offset, order_by=order_by,
+    )
+
+
+@app.get("/api/cases/{case_id}", tags=["命例案例库"])
+async def get_case(case_id: int, request: Request):
+    """获取案例详情（自动增加浏览数）"""
+    from tengod.auth import authorize
+    authorize(request, "case:read", consume_quota=False)
+    from tengod.case_library import get_case_library
+    lib = get_case_library()
+    case = lib.get_case(case_id, increment_view=True)
+    if case is None:
+        raise HTTPException(status_code=404, detail="案例不存在")
+    return case
+
+
+@app.put("/api/cases/{case_id}", tags=["命例案例库"])
+async def update_case(case_id: int, req: CaseUpdateRequest, request: Request):
+    """更新案例"""
+    from tengod.auth import authorize
+    authorize(request, "case:write")
+    from tengod.case_library import get_case_library
+    lib = get_case_library()
+    kwargs = {k: v for k, v in req.model_dump().items() if v is not None}
+    if not kwargs:
+        raise HTTPException(status_code=400, detail="未提供更新字段")
+    success = lib.update_case(case_id, **kwargs)
+    if not success:
+        raise HTTPException(status_code=404, detail="案例不存在")
+    return {"id": case_id, "updated": True}
+
+
+@app.delete("/api/cases/{case_id}", tags=["命例案例库"])
+async def delete_case(case_id: int, request: Request):
+    """删除案例"""
+    from tengod.auth import authorize
+    authorize(request, "case:delete")
+    from tengod.case_library import get_case_library
+    lib = get_case_library()
+    success = lib.delete_case(case_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="案例不存在")
+    return {"id": case_id, "deleted": True}
+
+
+@app.post("/api/cases/search", tags=["命例案例库"])
+async def search_cases(req: CaseSearchRequest, request: Request):
+    """多维度搜索案例"""
+    from tengod.auth import authorize
+    authorize(request, "case:read", consume_quota=False)
+    from tengod.case_library import get_case_library
+    lib = get_case_library()
+    return lib.search_cases(
+        keyword=req.keyword, category=req.category, tag=req.tag,
+        day_master=req.day_master, geju=req.geju, gender=req.gender,
+        source=req.source, is_public=req.is_public,
+        limit=req.limit, offset=req.offset,
+    )
+
+
+@app.get("/api/cases/categories/list", tags=["命例案例库"])
+async def list_case_categories(request: Request):
+    """列出所有案例分类"""
+    from tengod.auth import authorize
+    authorize(request, "case:read", consume_quota=False)
+    from tengod.case_library import get_case_library, DEFAULT_CATEGORIES
+    lib = get_case_library()
+    used = lib.list_categories()
+    # 合并预定义分类和已使用分类
+    all_cats = []
+    for name in DEFAULT_CATEGORIES:
+        count = next((c["count"] for c in used if c["name"] == name), 0)
+        all_cats.append({"name": name, "count": count})
+    # 添加非预定义的分类
+    for c in used:
+        if c["name"] not in {cat["name"] for cat in all_cats}:
+            all_cats.append(c)
+    return {"categories": all_cats}
+
+
+@app.get("/api/cases/tags/list", tags=["命例案例库"])
+async def list_case_tags(request: Request):
+    """列出所有案例标签"""
+    from tengod.auth import authorize
+    authorize(request, "case:read", consume_quota=False)
+    from tengod.case_library import get_case_library
+    lib = get_case_library()
+    return {"tags": lib.list_tags()}
+
+
+@app.get("/api/cases/stats/summary", tags=["命例案例库"])
+async def case_stats(request: Request):
+    """案例库统计"""
+    from tengod.auth import authorize
+    authorize(request, "case:read", consume_quota=False)
+    from tengod.case_library import get_case_library
+    lib = get_case_library()
+    return lib.stats()
+
+
+@app.get("/api/cases/export/all", tags=["命例案例库"])
+async def export_cases(
+    request: Request,
+    format: str = Query("json", description="导出格式: json/csv"),
+):
+    """导出案例"""
+    from tengod.auth import authorize
+    authorize(request, "case:read", consume_quota=False)
+    from tengod.case_library import get_case_library
+    lib = get_case_library()
+    content = lib.export_cases(format=format)
+    if format == "csv":
+        from fastapi.responses import PlainTextResponse
+        return PlainTextResponse(
+            content,
+            media_type="text/csv",
+            headers={"Content-Disposition": "attachment; filename=cases.csv"},
+        )
+    from fastapi.responses import PlainTextResponse
+    return PlainTextResponse(
+        content,
+        media_type="application/json",
+        headers={"Content-Disposition": "attachment; filename=cases.json"},
+    )
+
+
+@app.post("/api/cases/import/batch", tags=["命例案例库"])
+async def import_cases(
+    request: Request,
+    format: str = Query("json", description="导入格式: json"),
+):
+    """导入案例（请求体为导入内容）"""
+    from tengod.auth import authorize
+    authorize(request, "case:write")
+    from tengod.case_library import get_case_library
+    body = await request.body()
+    data = body.decode("utf-8")
+    lib = get_case_library()
+    result = lib.import_cases(data, format=format)
+    return result
+
+
+@app.get("/api/cases/{case_id}/similar", tags=["命例案例库"])
+async def get_similar_cases(
+    case_id: int, request: Request,
+    limit: int = Query(5, ge=1, le=20),
+):
+    """获取相似案例推荐"""
+    from tengod.auth import authorize
+    authorize(request, "case:read", consume_quota=False)
+    from tengod.case_library import get_case_library
+    lib = get_case_library()
+    similar = lib.find_similar_cases(case_id, limit=limit)
+    return {"case_id": case_id, "similar_cases": similar}
+
+
+@app.post("/api/cases/{case_id}/links", tags=["命例案例库"])
+async def link_cases(case_id: int, req: CaseLinkRequest, request: Request):
+    """建立案例关联"""
+    from tengod.auth import authorize
+    authorize(request, "case:write")
+    from tengod.case_library import get_case_library
+    lib = get_case_library()
+    try:
+        rel_id = lib.link_cases(
+            case_a_id=case_id,
+            case_b_id=req.case_b_id,
+            relation_type=req.relation_type,
+            similarity_score=req.similarity_score,
+            note=req.note,
+        )
+        return {"id": rel_id, "linked": True}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/api/cases/{case_id}/links", tags=["命例案例库"])
+async def get_case_links(
+    case_id: int, request: Request,
+    relation_type: Optional[str] = Query(None),
+):
+    """获取案例关联"""
+    from tengod.auth import authorize
+    authorize(request, "case:read", consume_quota=False)
+    from tengod.case_library import get_case_library
+    lib = get_case_library()
+    return {"case_id": case_id, "relations": lib.get_relations(case_id, relation_type)}
+
+
+@app.post("/api/cases/{case_id}/favorite", tags=["命例案例库"])
+async def favorite_case(case_id: int, request: Request):
+    """收藏案例"""
+    from tengod.auth import authorize
+    authorize(request, "case:read")
+    from tengod.case_library import get_case_library
+    lib = get_case_library()
+    count = lib.toggle_favorite(case_id)
+    if count is None:
+        raise HTTPException(status_code=404, detail="案例不存在")
+    return {"id": case_id, "favorite_count": count}
+
+
+@app.post("/api/cases/{case_id}/like", tags=["命例案例库"])
+async def like_case(case_id: int, request: Request):
+    """点赞案例"""
+    from tengod.auth import authorize
+    authorize(request, "case:read")
+    from tengod.case_library import get_case_library
+    lib = get_case_library()
+    count = lib.toggle_like(case_id)
+    if count is None:
+        raise HTTPException(status_code=404, detail="案例不存在")
+    return {"id": case_id, "like_count": count}
+
+
+# ============================================================================
 # 阶段十三：用户认证 API 端点
 # ============================================================================
 

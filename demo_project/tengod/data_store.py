@@ -480,8 +480,15 @@ class DataStore:
                     {"id": r.id, "user_id": r.user_id, "label": r.label,
                      "year": r.year, "month": r.month, "day": r.day,
                      "hour": r.hour, "minute": r.minute, "gender": r.gender,
-                     "calendar": r.calendar, "day_master": r.day_master,
-                     "bazi_json": r.bazi_json, "created_at": str(r.created_at)}
+                     "day_master": r.day_master,
+                     "pillars_json": r.pillars_json,
+                     "analysis_json": r.analysis_json,
+                     "shensha_json": r.shensha_json,
+                     "geju_json": r.geju_json,
+                     "yongshen_json": r.yongshen_json,
+                     "tiaohou_json": r.tiaohou_json,
+                     "tags": r.tags, "notes": r.notes,
+                     "created_at": str(r.created_at)}
                     for r in s.query(BaziRecord).all()
                 ],
             }
@@ -493,6 +500,24 @@ class DataStore:
                 existing = s.query(User).filter(User.username == u["username"]).first()
                 if not existing:
                     s.add(User(username=u["username"], display_name=u.get("display_name")))
+
+            for r in data.get("records", []):
+                existing = s.query(BaziRecord).filter(BaziRecord.id == r.get("id")).first()
+                if not existing:
+                    s.add(BaziRecord(
+                        id=r.get("id"), user_id=r.get("user_id"), label=r.get("label"),
+                        year=r["year"], month=r["month"], day=r["day"],
+                        hour=r["hour"], minute=r.get("minute", 0),
+                        gender=r.get("gender", "male"),
+                        day_master=r.get("day_master"),
+                        pillars_json=r.get("pillars_json"),
+                        analysis_json=r.get("analysis_json"),
+                        shensha_json=r.get("shensha_json"),
+                        geju_json=r.get("geju_json"),
+                        yongshen_json=r.get("yongshen_json"),
+                        tiaohou_json=r.get("tiaohou_json"),
+                        tags=r.get("tags"), notes=r.get("notes"),
+                    ))
             s.commit()
             return True
 
