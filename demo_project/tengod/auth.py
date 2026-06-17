@@ -53,6 +53,7 @@ ROLE_PERMISSIONS = {
             "name:analyze", "marriage:analyze",
             "knowledge:search", "knowledge:wuxing",
             "chat:send", "chat:report",
+            "ai:interpret", "ai:interpret:stream",
             "records:read", "records:write", "records:delete",
         ],
         "quota_daily": 100,

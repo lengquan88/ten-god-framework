@@ -1339,6 +1339,254 @@ async def ai_report(bazi: BaziInput, request: Request,
 
 
 # ============================================================================
+# 阶段十七：AI 智能解读 API 端点
+# ============================================================================
+
+class AIInterpretRequest(BaseModel):
+    """AI 解读请求"""
+    question: str = Field(default="", description="可选：用户关注的具体问题")
+
+
+@app.post("/api/ai/interpret/bazi", tags=["AI 智能解读"])
+async def ai_interpret_bazi(bazi: BaziInput, request: Request,
+                            use_rag: bool = Query(False, description="是否启用RAG增强"),
+                            question: str = Query("", description="可选关注问题"),
+                            stream: bool = Query(False, description="是否流式输出")):
+    """八字深度 AI 解读（四柱+神煞+格局+喜用神+调候+大运）"""
+    from tengod.auth import authorize
+    authorize(request, "ai:interpret" if not stream else "ai:interpret:stream")
+    from tengod.metrics_collector import metrics
+    metrics.record_ai_chat()
+
+    from tengod.ai_interpreter import (
+        build_bazi_context, interpret_bazi, interpret_bazi_stream,
+    )
+    from tengod.bazi_analyzer import BaziAnalyzer
+    from tengod.shensha_engine import calc_all_shensha
+    from tengod.geju_engine import analyze_bazi_comprehensive
+    from tengod.llm_adapter import get_llm
+
+    try:
+        # 1. 排盘 + 综合分析
+        analyzer = BaziAnalyzer(
+            bazi.year, bazi.month, bazi.day, bazi.hour, bazi.minute,
+            is_male=(bazi.gender == "male"),
+            longitude=bazi.longitude, latitude=bazi.latitude,
+        )
+        analysis = analyzer.analysis
+
+        # 2. 神煞推算
+        shensha_result = calc_all_shensha(analysis["pillars"])
+
+        # 3. 格局/喜用神/调候综合分析
+        comprehensive = analyze_bazi_comprehensive(analysis["pillars"])
+
+        # 4. 构建结构化上下文
+        from tengod.ai_interpreter import _to_dict
+        shensha_dict = _to_dict(shensha_result)
+        comp_dict = _to_dict(comprehensive)
+        context = build_bazi_context(
+            pillars=analysis["pillars"],
+            day_master=analysis["day_master"],
+            gender=bazi.gender,
+            wuxing=analysis.get("wuxing"),
+            shigan_map=analysis.get("shigan_map"),
+            shensha=shensha_dict,
+            geju=comp_dict.get("geju"),
+            yongshen=comp_dict.get("yongshen"),
+            tiaohou=comp_dict.get("tiaohou"),
+            dayuns=analysis.get("dayuns"),
+            branch_relations=analysis.get("branch_relations"),
+        )
+
+        llm = get_llm()
+
+        # 5. 流式或非流式输出
+        if stream:
+            from fastapi.responses import StreamingResponse
+
+            async def generate():
+                async for chunk in interpret_bazi_stream(
+                    context, llm=llm, use_rag=use_rag, question=question
+                ):
+                    yield f"data: {json.dumps({'chunk': chunk}, ensure_ascii=False)}\n\n"
+                yield "data: [DONE]\n\n"
+
+            return StreamingResponse(
+                generate(),
+                media_type="text/event-stream",
+                headers={"X-Backend": llm.model_name},
+            )
+
+        report = await interpret_bazi(context, llm=llm, use_rag=use_rag, question=question)
+        return {
+            "interpretation": report,
+            "model": llm.model_name,
+            "backend": os.environ.get("TENGOD_LLM_BACKEND", "mock"),
+            "rag_used": use_rag,
+            "context_preview": context[:200],
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI 八字解读失败: {e}")
+
+
+@app.post("/api/ai/interpret/ziwei", tags=["AI 智能解读"])
+async def ai_interpret_ziwei(bazi: BaziInput, request: Request,
+                             question: str = Query("", description="可选关注问题")):
+    """紫微斗数 AI 解读"""
+    from tengod.auth import authorize
+    authorize(request, "ai:interpret")
+    from tengod.ai_interpreter import build_ziwei_context, interpret_ziwei
+    from tengod.ziwei_engine import calc_ziwei, ziwei_to_dict
+    from tengod.llm_adapter import get_llm
+
+    try:
+        chart = calc_ziwei(bazi.year, bazi.month, bazi.day, bazi.hour,
+                          bazi.minute, bazi.gender)
+        chart_dict = ziwei_to_dict(chart)
+        context = build_ziwei_context(chart_dict)
+
+        llm = get_llm()
+        report = await interpret_ziwei(context, llm=llm, question=question)
+        return {
+            "interpretation": report,
+            "model": llm.model_name,
+            "backend": os.environ.get("TENGOD_LLM_BACKEND", "mock"),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI 紫微解读失败: {e}")
+
+
+@app.post("/api/ai/interpret/liuyao", tags=["AI 智能解读"])
+async def ai_interpret_liuyao(request: Request,
+                              question: str = Query(..., description="所占之事")):
+    """六爻 AI 解读"""
+    from tengod.auth import authorize
+    authorize(request, "ai:interpret")
+    from tengod.ai_interpreter import build_liuyao_context, interpret_liuyao
+    from tengod.liuyao_engine import shake_and_calc
+    from tengod.ai_interpreter import _to_dict
+    from tengod.llm_adapter import get_llm
+
+    try:
+        result = shake_and_calc()
+        result_dict = _to_dict(result)
+        context = build_liuyao_context(result_dict)
+
+        llm = get_llm()
+        report = await interpret_liuyao(context, question=question, llm=llm)
+        return {
+            "interpretation": report,
+            "model": llm.model_name,
+            "backend": os.environ.get("TENGOD_LLM_BACKEND", "mock"),
+            "gua_name": result_dict.get("ben_gua_name", ""),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI 六爻解读失败: {e}")
+
+
+@app.post("/api/ai/interpret/name", tags=["AI 智能解读"])
+async def ai_interpret_name(request: Request,
+                            surname: str = Query(..., description="姓氏"),
+                            given_name: str = Query(..., description="名字")):
+    """姓名学 AI 解读"""
+    from tengod.auth import authorize
+    authorize(request, "ai:interpret")
+    from tengod.ai_interpreter import build_name_context, interpret_name
+    from tengod.name_engine import analyze_name
+    from tengod.ai_interpreter import _to_dict
+    from tengod.llm_adapter import get_llm
+
+    try:
+        result = analyze_name(surname, given_name)
+        result_dict = _to_dict(result)
+        context = build_name_context(result_dict)
+
+        llm = get_llm()
+        report = await interpret_name(context, llm=llm)
+        return {
+            "interpretation": report,
+            "model": llm.model_name,
+            "backend": os.environ.get("TENGOD_LLM_BACKEND", "mock"),
+            "score": result_dict.get("score", 0),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI 姓名解读失败: {e}")
+
+
+class MarriageInterpretRequest(BaseModel):
+    """合婚 AI 解读请求"""
+    name1: str = Field(..., description="甲方姓名")
+    name2: str = Field(..., description="乙方姓名")
+    bazi1: Dict[str, Any] = Field(..., description="甲方八字数据")
+    bazi2: Dict[str, Any] = Field(..., description="乙方八字数据")
+
+
+@app.post("/api/ai/interpret/marriage", tags=["AI 智能解读"])
+async def ai_interpret_marriage(req: MarriageInterpretRequest, request: Request):
+    """合婚 AI 解读"""
+    from tengod.auth import authorize
+    authorize(request, "ai:interpret")
+    from tengod.ai_interpreter import build_marriage_context, interpret_marriage
+    from tengod.marriage_engine import analyze_marriage
+    from tengod.ai_interpreter import _to_dict
+    from tengod.llm_adapter import get_llm
+
+    try:
+        result = analyze_marriage(req.name1, req.bazi1, req.name2, req.bazi2)
+        result_dict = _to_dict(result)
+        context = build_marriage_context(result_dict)
+
+        llm = get_llm()
+        report = await interpret_marriage(context, llm=llm)
+        return {
+            "interpretation": report,
+            "model": llm.model_name,
+            "backend": os.environ.get("TENGOD_LLM_BACKEND", "mock"),
+            "total_score": result_dict.get("total_score", 0),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI 合婚解读失败: {e}")
+
+
+@app.post("/api/ai/interpret/oracle", tags=["AI 智能解读"])
+async def ai_interpret_oracle(request: Request,
+                              question: str = Query(..., description="所占之事"),
+                              mode: str = Query("tuibeitu", description="占卜模式")):
+    """Oracle 推背图 AI 深度解读"""
+    from tengod.auth import authorize
+    authorize(request, "ai:interpret")
+    from tengod.ai_interpreter import build_oracle_context, interpret_oracle
+    from tengod.伤官_破界创新.oracle_engine import OracleEngine, OracleMode
+    from tengod.ai_interpreter import _to_dict
+    from tengod.llm_adapter import get_llm
+
+    try:
+        mode_map = {
+            "tuibeitu": OracleMode.TUIBEITU,
+            "zhouyi": OracleMode.ZHOUYI,
+            "zigua": OracleMode.ZIGUA,
+        }
+        oracle_mode = mode_map.get(mode.lower(), OracleMode.TUIBEITU)
+        engine = OracleEngine()
+        result = engine.cast(question, mode=oracle_mode)
+        result_dict = _to_dict(result)
+        context = build_oracle_context(result_dict)
+
+        llm = get_llm()
+        report = await interpret_oracle(context, question=question, llm=llm)
+        return {
+            "interpretation": report,
+            "model": llm.model_name,
+            "backend": os.environ.get("TENGOD_LLM_BACKEND", "mock"),
+            "hexagram": result_dict.get("hexagram", ""),
+            "hexagram_name": result_dict.get("hexagram", ""),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI Oracle 解读失败: {e}")
+
+
+# ============================================================================
 # 阶段十三：用户认证 API 端点
 # ============================================================================
 
