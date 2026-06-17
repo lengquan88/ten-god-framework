@@ -1033,6 +1033,107 @@ async def db_stats():
 
 
 # ============================================================================
+# LLM 大模型 API
+# ============================================================================
+
+class ChatQuery(BaseModel):
+    """AI 对话查询"""
+    question: str = Field(..., min_length=1, description="用户问题")
+    bazi_json: Optional[Dict[str, Any]] = Field(default=None, description="八字上下文（可选）")
+    use_rag: bool = Field(default=True, description="是否启用 RAG 增强")
+    stream: bool = Field(default=False, description="是否流式输出")
+
+
+class ChatResponse(BaseModel):
+    """AI 对话响应"""
+    question: str
+    answer: str
+    model: str
+    backend: str
+    rag_used: bool
+    usage: Dict[str, int] = {}
+
+
+@app.post("/api/chat", tags=["AI 对话"])
+async def ai_chat(query: ChatQuery, request: Request):
+    """AI 命理对话（支持 RAG 增强）"""
+    from tengod.llm_adapter import get_llm, chat, chat_stream, ChatMessage
+
+    llm = get_llm()
+
+    # 构建八字上下文
+    bazi_context = None
+    if query.bazi_json:
+        bazi = query.bazi_json
+        bazi_context = (
+            f"八字：{bazi.get('pillars', {}).get('year', '')} "
+            f"{bazi.get('pillars', {}).get('month', '')} "
+            f"{bazi.get('pillars', {}).get('day', '')} "
+            f"{bazi.get('pillars', {}).get('hour', '')}\n"
+            f"日主：{bazi.get('day_master', '')}\n"
+            f"性别：{bazi.get('input', {}).get('gender', '')}"
+        )
+
+    # 流式输出
+    if query.stream:
+        from fastapi.responses import StreamingResponse
+
+        async def generate():
+            async for chunk in chat_stream(
+                query.question, bazi_context, llm, use_rag=query.use_rag
+            ):
+                yield f"data: {json.dumps({'chunk': chunk}, ensure_ascii=False)}\n\n"
+            yield "data: [DONE]\n\n"
+
+        return StreamingResponse(
+            generate(),
+            media_type="text/event-stream",
+            headers={"X-Backend": llm.model_name},
+        )
+
+    # 非流式
+    answer = await chat(query.question, bazi_context, llm, use_rag=query.use_rag)
+    return ChatResponse(
+        question=query.question,
+        answer=answer,
+        model=llm.model_name,
+        backend=os.environ.get("TENGOD_LLM_BACKEND", "mock"),
+        rag_used=query.use_rag,
+    )
+
+
+@app.post("/api/chat/report", tags=["AI 对话"])
+async def ai_report(bazi: BaziInput, request: Request,
+                    use_rag: bool = Query(True, description="是否启用 RAG")):
+    """AI 生成命理报告"""
+    from tengod.llm_adapter import get_llm, generate_report
+    from tengod.bazi_analyzer import BaziAnalyzer
+    from tengod.report_generator import BaziReportGenerator
+
+    try:
+        analyzer = BaziAnalyzer(
+            bazi.year, bazi.month, bazi.day,
+            bazi.hour, bazi.minute,
+            is_male=(bazi.gender == "male"),
+            longitude=bazi.longitude, latitude=bazi.latitude,
+        )
+        gen = BaziReportGenerator(analyzer)
+        report_text = gen.text_report()
+
+        llm = get_llm()
+        enhanced = await generate_report(report_text, llm, use_rag=use_rag)
+
+        return {
+            "original": report_text[:500],
+            "enhanced": enhanced,
+            "model": llm.model_name,
+            "rag_used": use_rag,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI 报告生成失败: {e}")
+
+
+# ============================================================================
 # 全局异常处理
 # ============================================================================
 
