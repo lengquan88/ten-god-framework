@@ -246,6 +246,23 @@ class ReportQuery(BaseModel):
     include_yongshen: bool = Field(default=True)
 
 
+class RecordLabel(BaseModel):
+    """记录标签更新"""
+    label: Optional[str] = Field(default=None, description="记录标签")
+    tags: Optional[str] = Field(default=None, description="标签")
+    notes: Optional[str] = Field(default=None, description="备注")
+
+
+class RecordSearch(BaseModel):
+    """记录搜索"""
+    year: Optional[int] = Field(default=None, ge=1900, le=2100)
+    month: Optional[int] = Field(default=None, ge=1, le=12)
+    day_master: Optional[str] = Field(default=None)
+    gender: Optional[str] = Field(default=None)
+    tag: Optional[str] = Field(default=None)
+    limit: int = Field(default=50, ge=1, le=200)
+
+
 class HealthResponse(BaseModel):
     """健康检查响应"""
     status: str = "ok"
@@ -797,6 +814,222 @@ async def dizhi_analyze(query: DizhiQuery, request: Request,
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"地支分析失败: {e}")
+
+
+# ============================================================================
+# 数据持久化 API
+# ============================================================================
+
+def _get_store() -> "DataStore":
+    from tengod.data_store import get_data_store
+    return get_data_store()
+
+
+@app.post("/api/records", tags=["数据持久化"])
+async def save_record(bazi: BaziInput, request: Request,
+                      label: str = Query(None, description="记录标签"),
+                      username: str = Query("anonymous", description="用户名")):
+    """保存八字排盘记录（自动计算排盘+神煞+格局+喜用神）"""
+    try:
+        from tengod.bazi_analyzer import BaziAnalyzer
+        from tengod.shensha_engine import calc_all_shensha
+        from tengod.geju_engine import calc_geju, calc_yongshen, calc_tiaohou
+
+        is_male = bazi.gender == "male"
+        analyzer = BaziAnalyzer(bazi.year, bazi.month, bazi.day,
+                                bazi.hour, bazi.minute, is_male=is_male,
+                                longitude=bazi.longitude, latitude=bazi.latitude)
+        a = analyzer.analysis
+        pillars = a["pillars"]
+
+        store = _get_store()
+        user = store.get_or_create_user(username)
+
+        # 保存完整分析结果
+        record_id = store.save_bazi_record(
+            year=bazi.year, month=bazi.month, day=bazi.day,
+            hour=bazi.hour, minute=bazi.minute,
+            gender=bazi.gender,
+            longitude=bazi.longitude, latitude=bazi.latitude,
+            user_id=user.id, label=label,
+            day_master=a["day_master"],
+            pillars=pillars,
+            analysis=a,
+            shensha={"total": len(calc_all_shensha(pillars).all_shensha),
+                     "summary": calc_all_shensha(pillars).summary},
+            geju={
+                "name": calc_geju(pillars).geju_name,
+                "type": calc_geju(pillars).geju_type,
+                "desc": calc_geju(pillars).geju_desc,
+                "score": calc_geju(pillars).score,
+            },
+            yongshen={
+                "wang_shuai": calc_yongshen(pillars).wang_shuai,
+                "yong_shen": calc_yongshen(pillars).yong_shen,
+                "ji_shen": calc_yongshen(pillars).ji_shen,
+            },
+            tiaohou={
+                "required": calc_tiaohou(pillars).required_tiaohou,
+                "tiaohou_shens": calc_tiaohou(pillars).tiaohou_shens,
+            },
+        )
+
+        return {
+            "id": record_id,
+            "user_id": user.id,
+            "username": username,
+            "day_master": a["day_master"],
+            "pillars": pillars,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"保存记录失败: {e}")
+
+
+@app.get("/api/records", tags=["数据持久化"])
+async def list_records(
+    user_id: int = Query(None, description="用户 ID"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    """列出八字排盘记录"""
+    try:
+        store = _get_store()
+        records = store.list_bazi_records(user_id=user_id, limit=limit, offset=offset)
+        return {
+            "total": store.count_bazi_records(user_id=user_id),
+            "limit": limit,
+            "offset": offset,
+            "records": [
+                {
+                    "id": r.id, "user_id": r.user_id, "label": r.label,
+                    "year": r.year, "month": r.month, "day": r.day,
+                    "hour": r.hour, "gender": r.gender,
+                    "day_master": r.day_master,
+                    "tags": r.tags,
+                    "created_at": r.created_at.isoformat() if r.created_at else None,
+                }
+                for r in records
+            ],
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"列出记录失败: {e}")
+
+
+@app.get("/api/records/{record_id}", tags=["数据持久化"])
+async def get_record(record_id: int):
+    """获取单条八字排盘记录（含完整分析结果）"""
+    try:
+        store = _get_store()
+        record = store.get_bazi_record(record_id)
+        if record is None:
+            raise HTTPException(status_code=404, detail=f"记录不存在: {record_id}")
+        return record.to_dict()
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取记录失败: {e}")
+
+
+@app.put("/api/records/{record_id}", tags=["数据持久化"])
+async def update_record(record_id: int, update: RecordLabel):
+    """更新记录标签/备注"""
+    try:
+        store = _get_store()
+        kwargs = {}
+        if update.label is not None:
+            kwargs["label"] = update.label
+        if update.tags is not None:
+            kwargs["tags"] = update.tags
+        if update.notes is not None:
+            kwargs["notes"] = update.notes
+        if not kwargs:
+            raise HTTPException(status_code=400, detail="No update fields provided")
+        ok = store.update_bazi_record(record_id, **kwargs)
+        if not ok:
+            raise HTTPException(status_code=404, detail=f"记录不存在: {record_id}")
+        return {"id": record_id, "updated": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"更新记录失败: {e}")
+
+
+@app.delete("/api/records/{record_id}", tags=["数据持久化"])
+async def delete_record(record_id: int):
+    """删除八字排盘记录"""
+    try:
+        store = _get_store()
+        ok = store.delete_bazi_record(record_id)
+        if not ok:
+            raise HTTPException(status_code=404, detail=f"记录不存在: {record_id}")
+        return {"id": record_id, "deleted": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"删除记录失败: {e}")
+
+
+@app.post("/api/records/search", tags=["数据持久化"])
+async def search_records(search: RecordSearch):
+    """搜索八字排盘记录"""
+    try:
+        store = _get_store()
+        records = store.search_bazi_records(
+            year=search.year, month=search.month,
+            day_master=search.day_master,
+            gender=search.gender,
+            tag=search.tag,
+            limit=search.limit,
+        )
+        return {
+            "count": len(records),
+            "records": [
+                {
+                    "id": r.id, "user_id": r.user_id, "label": r.label,
+                    "year": r.year, "month": r.month, "day": r.day,
+                    "hour": r.hour, "gender": r.gender,
+                    "day_master": r.day_master,
+                    "tags": r.tags,
+                    "created_at": r.created_at.isoformat() if r.created_at else None,
+                }
+                for r in records
+            ],
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"搜索记录失败: {e}")
+
+
+@app.get("/api/users", tags=["数据持久化"])
+async def list_users(limit: int = Query(50, ge=1, le=200)):
+    """列出用户"""
+    try:
+        store = _get_store()
+        users = store.list_users(limit=limit)
+        return {
+            "count": len(users),
+            "users": [
+                {"id": u.id, "username": u.username, "display_name": u.display_name,
+                 "created_at": u.created_at.isoformat() if u.created_at else None}
+                for u in users
+            ],
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"列出用户失败: {e}")
+
+
+# ============================================================================
+# 增强 stats 端点（含数据库统计）
+# ============================================================================
+
+@app.get("/api/stats/db", tags=["系统"])
+async def db_stats():
+    """数据库统计信息"""
+    try:
+        store = _get_store()
+        return store.stats()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"数据库统计失败: {e}")
 
 
 # ============================================================================
