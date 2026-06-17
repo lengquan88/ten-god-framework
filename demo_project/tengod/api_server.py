@@ -1049,6 +1049,49 @@ async def db_stats():
 
 
 # ============================================================================
+# 阶段十一：高级术数 API 模型
+# ============================================================================
+
+class ZiweiQuery(BaseModel):
+    """紫微斗数排盘查询"""
+    year: int = Field(..., ge=1900, le=2100, description="公历年")
+    month: int = Field(..., ge=1, le=12, description="公历月")
+    day: int = Field(..., ge=1, le=31, description="公历日")
+    hour: int = Field(default=0, ge=0, le=23, description="小时")
+    minute: int = Field(default=0, ge=0, le=59, description="分钟")
+    gender: str = Field(default="male", description="性别 (male/female)")
+
+
+class LiuyaoQuery(BaseModel):
+    """六爻摇卦查询"""
+    yao_str: Optional[str] = Field(default=None, description="六爻字符串 (1=少阳,0=少阴,3=老阳,2=老阴)")
+    day_ganzhi: Optional[str] = Field(default=None, description="日干支")
+
+
+class QimenQuery(BaseModel):
+    """奇门遁甲排盘查询"""
+    year: int = Field(..., ge=1900, le=2100, description="公历年")
+    month: int = Field(..., ge=1, le=12, description="公历月")
+    day: int = Field(..., ge=1, le=31, description="公历日")
+    hour: int = Field(default=0, ge=0, le=23, description="小时")
+    minute: int = Field(default=0, ge=0, le=59, description="分钟")
+
+
+class NameQuery(BaseModel):
+    """姓名学分析查询"""
+    surname: str = Field(..., min_length=1, max_length=2, description="姓氏")
+    given_name: str = Field(..., min_length=1, max_length=2, description="名字")
+
+
+class MarriageQuery(BaseModel):
+    """合婚分析查询"""
+    bazi1: Dict[str, Any] = Field(..., description="男方八字数据")
+    bazi2: Dict[str, Any] = Field(..., description="女方八字数据")
+    name1: str = Field(default="男方", description="男方姓名")
+    name2: str = Field(default="女方", description="女方姓名")
+
+
+# ============================================================================
 # LLM 大模型 API
 # ============================================================================
 
@@ -1147,6 +1190,134 @@ async def ai_report(bazi: BaziInput, request: Request,
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AI 报告生成失败: {e}")
+
+
+# ============================================================================
+# 阶段十一：高级术数 API 端点
+# ============================================================================
+
+@app.post("/api/ziwei/calc", tags=["高级术数"])
+async def ziwei_calc(query: ZiweiQuery):
+    """紫微斗数排盘"""
+    try:
+        from tengod.ziwei_engine import ZiweiEngine
+        chart = ZiweiEngine.calc_chart(
+            query.year, query.month, query.day,
+            query.hour, query.minute, query.gender
+        )
+        return ZiweiEngine.to_dict(chart)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"紫微斗数排盘失败: {e}")
+
+
+@app.post("/api/liuyao/shake", tags=["高级术数"])
+async def liuyao_shake(query: LiuyaoQuery):
+    """六爻摇卦"""
+    try:
+        from tengod.liuyao_engine import LiuyaoEngine, calc_from_yao
+        if query.yao_str:
+            result = calc_from_yao(query.yao_str, query.day_ganzhi)
+        else:
+            result = LiuyaoEngine.calc_gua(day_ganzhi=query.day_ganzhi)
+        return {
+            "ben_gua": result.ben_gua_name,
+            "bian_gua": result.bian_gua_name,
+            "hu_gua": result.hu_gua_name,
+            "ben_symbol": result.ben_gua_symbol,
+            "bian_symbol": result.bian_gua_symbol,
+            "gua_gong": result.gua_gong,
+            "shang_gua": result.shang_gua,
+            "xia_gua": result.xia_gua,
+            "dong_yao": result.dong_yao_positions,
+            "yaos": [
+                {
+                    "position": y.position,
+                    "symbol": LiuyaoEngine._yao_to_symbol(y.value, y.is_dong),
+                    "liuqin": y.liuqin,
+                    "zhi": y.zhi,
+                    "liushen": y.liushen,
+                    "shi": y.shi,
+                    "ying": y.ying,
+                    "is_dong": y.is_dong,
+                }
+                for y in result.yaos
+            ],
+            "duanci": result.ben_gua_duanci,
+            "judgment": result.overall_judgment,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"六爻摇卦失败: {e}")
+
+
+@app.post("/api/qimen/calc", tags=["高级术数"])
+async def qimen_calc(query: QimenQuery):
+    """奇门遁甲排盘"""
+    try:
+        from tengod.qimen_engine import QimenEngine
+        chart = QimenEngine.calc_chart(
+            query.year, query.month, query.day,
+            query.hour, query.minute
+        )
+        return QimenEngine.to_dict(chart)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"奇门遁甲排盘失败: {e}")
+
+
+@app.post("/api/name/analyze", tags=["高级术数"])
+async def name_analyze(query: NameQuery):
+    """姓名学分析"""
+    try:
+        from tengod.name_engine import NameEngine
+        result = NameEngine.analyze(query.surname, query.given_name)
+        return {
+            "surname": result.surname,
+            "given_name": result.given_name,
+            "surname_strokes": result.surname_strokes,
+            "given_strokes": result.given_strokes,
+            "wuge": {
+                "tian": {"value": result.wuge.tian_ge, "ji": result.wuge.tian_ge_ji},
+                "ren": {"value": result.wuge.ren_ge, "ji": result.wuge.ren_ge_ji},
+                "di": {"value": result.wuge.di_ge, "ji": result.wuge.di_ge_ji},
+                "wai": {"value": result.wuge.wai_ge, "ji": result.wuge.wai_ge_ji},
+                "zong": {"value": result.wuge.zong_ge, "ji": result.wuge.zong_ge_ji},
+            },
+            "sancai": "·".join(result.sancai),
+            "sancai_ji": result.sancai_ji,
+            "sancai_desc": result.sancai_desc,
+            "overall_score": result.overall_score,
+            "overall_grade": result.overall_grade,
+            "suggestions": result.suggestions,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"姓名学分析失败: {e}")
+
+
+@app.post("/api/marriage/analyze", tags=["高级术数"])
+async def marriage_analyze(query: MarriageQuery):
+    """合婚分析"""
+    try:
+        from tengod.marriage_engine import MarriageEngine
+        result = MarriageEngine.analyze(
+            query.name1, query.bazi1,
+            query.name2, query.bazi2
+        )
+        return {
+            "name1": result.name1,
+            "name2": result.name2,
+            "day_gan1": result.day_gan1,
+            "day_gan2": result.day_gan2,
+            "nayin": {"nayin1": result.nayin1, "nayin2": result.nayin2, "match": result.nayin_match, "score": result.nayin_score},
+            "ri_gan": {"relation": result.ri_gan_he, "score": result.ri_gan_score},
+            "dizhi": {"relations": result.zhi_relations, "score": result.zhi_score},
+            "wuxing": {"analysis": result.wuxing_bu, "score": result.wuxing_score},
+            "shengxiao": {"shengxiao1": result.shengxiao1, "shengxiao2": result.shengxiao2, "score": result.shengxiao_score},
+            "overall_score": result.overall_score,
+            "overall_grade": result.overall_grade,
+            "summary": result.summary,
+            "suggestions": result.suggestions,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"合婚分析失败: {e}")
 
 
 # ============================================================================

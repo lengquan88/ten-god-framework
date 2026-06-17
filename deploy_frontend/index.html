@@ -214,6 +214,21 @@
   <a href="#history" data-page="history">
     <span class="icon">📜</span> 历史记录
   </a>
+  <a href="#ziwei" data-page="ziwei">
+    <span class="icon">🌟</span> 紫微斗数
+  </a>
+  <a href="#liuyao" data-page="liuyao">
+    <span class="icon">🪙</span> 六爻占卜
+  </a>
+  <a href="#qimen" data-page="qimen">
+    <span class="icon">🏯</span> 奇门遁甲
+  </a>
+  <a href="#name" data-page="name">
+    <span class="icon">📛</span> 姓名分析
+  </a>
+  <a href="#marriage" data-page="marriage">
+    <span class="icon">💑</span> 合婚配对
+  </a>
   <div class="status">
     <span class="dot" id="apiStatus"></span>
     <span style="font-size:12px;color:var(--text3)" id="apiStatusText">检测中...</span>
@@ -379,6 +394,122 @@
     <div id="historyContent">
       <div class="loading"><div class="spinner"></div><p>加载中...</p></div>
     </div>
+  </div>
+
+  <!-- ====== 紫微斗数页 ====== -->
+  <div class="page" id="page-ziwei">
+    <h1>紫微斗数</h1>
+    <p class="subtitle">十二宫 · 星曜分布 · 四化飞星</p>
+    <div class="card">
+      <div class="grid grid3">
+        <div class="form-group">
+          <label>出生年</label>
+          <input type="number" id="zwYear" value="2000" min="1900" max="2100">
+        </div>
+        <div class="form-group">
+          <label>出生月</label>
+          <input type="number" id="zwMonth" value="1" min="1" max="12">
+        </div>
+        <div class="form-group">
+          <label>出生日</label>
+          <input type="number" id="zwDay" value="1" min="1" max="31">
+        </div>
+        <div class="form-group">
+          <label>出生时</label>
+          <input type="number" id="zwHour" value="0" min="0" max="23">
+        </div>
+        <div class="form-group">
+          <label>性别</label>
+          <select id="zwGender"><option value="male">男</option><option value="female">女</option></select>
+        </div>
+        <div class="form-group">
+          <label>&nbsp;</label>
+          <button class="btn" onclick="calcZiwei()">排盘</button>
+        </div>
+      </div>
+    </div>
+    <div id="ziweiResult"></div>
+  </div>
+
+  <!-- ====== 六爻占卜页 ====== -->
+  <div class="page" id="page-liuyao">
+    <h1>六爻占卜</h1>
+    <p class="subtitle">铜钱摇卦 · 六十四卦 · 六亲六神</p>
+    <div class="card" style="text-align:center">
+      <p class="text-sm mb-1">心中默念所求之事，然后点击摇卦</p>
+      <button class="btn" onclick="shakeLiuyao()" style="font-size:18px;padding:16px 40px">🪙 摇卦</button>
+      <div class="mt-1">
+        <label class="text-sm">日干支</label>
+        <input type="text" id="lyDayGanzhi" value="甲子" style="width:80px;text-align:center;margin-left:8px">
+      </div>
+    </div>
+    <div id="liuyaoResult"></div>
+  </div>
+
+  <!-- ====== 奇门遁甲页 ====== -->
+  <div class="page" id="page-qimen">
+    <h1>奇门遁甲</h1>
+    <p class="subtitle">九宫 · 八门 · 九星 · 八神</p>
+    <div class="card">
+      <div class="grid grid3">
+        <div class="form-group">
+          <label>年</label>
+          <input type="number" id="qmYear" value="2024" min="1900" max="2100">
+        </div>
+        <div class="form-group">
+          <label>月</label>
+          <input type="number" id="qmMonth" value="1" min="1" max="12">
+        </div>
+        <div class="form-group">
+          <label>日</label>
+          <input type="number" id="qmDay" value="1" min="1" max="31">
+        </div>
+        <div class="form-group">
+          <label>时</label>
+          <input type="number" id="qmHour" value="0" min="0" max="23">
+        </div>
+        <div class="form-group">
+          <label>&nbsp;</label>
+          <button class="btn" onclick="calcQimen()">排盘</button>
+        </div>
+      </div>
+    </div>
+    <div id="qimenResult"></div>
+  </div>
+
+  <!-- ====== 姓名分析页 ====== -->
+  <div class="page" id="page-name">
+    <h1>姓名学分析</h1>
+    <p class="subtitle">五格剖象 · 三才配置 · 数理吉凶</p>
+    <div class="card">
+      <div class="grid grid2">
+        <div class="form-group">
+          <label>姓氏</label>
+          <input type="text" id="nmSurname" value="张" maxlength="2" style="width:80px">
+        </div>
+        <div class="form-group">
+          <label>名字</label>
+          <input type="text" id="nmGivenName" value="伟明" maxlength="2" style="width:80px">
+        </div>
+      </div>
+      <div class="text-center mt-1">
+        <button class="btn" onclick="analyzeName()">分析</button>
+      </div>
+    </div>
+    <div id="nameResult"></div>
+  </div>
+
+  <!-- ====== 合婚配对页 ====== -->
+  <div class="page" id="page-marriage">
+    <h1>八字合婚</h1>
+    <p class="subtitle">纳音匹配 · 日干五合 · 五行互补 · 生肖配对</p>
+    <div class="card">
+      <p class="text-sm mb-1">请先在排盘页面分别排好双方八字，再点击合婚分析</p>
+      <div class="text-center">
+        <button class="btn" onclick="calcMarriage()">💑 合婚分析</button>
+      </div>
+    </div>
+    <div id="marriageResult"></div>
   </div>
 
 </main>
@@ -763,6 +894,200 @@ async function loadReport() {
     res.textContent = d.report;
   } catch {
     res.innerHTML = '<p style="color:var(--red)">报告生成失败</p>';
+  }
+}
+
+// ====================================================================
+// 阶段十一：高级术数功能
+// ====================================================================
+
+// 紫微斗数
+async function calcZiwei() {
+  const res = document.getElementById('ziweiResult');
+  res.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  try {
+    const r = await fetch(API + '/api/ziwei/calc', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        year: +document.getElementById('zwYear').value,
+        month: +document.getElementById('zwMonth').value,
+        day: +document.getElementById('zwDay').value,
+        hour: +document.getElementById('zwHour').value,
+        gender: document.getElementById('zwGender').value
+      })
+    });
+    const d = await r.json();
+    let html = `<div class="card"><span class="card-header">命盘信息</span>`;
+    html += `<p>命宫: ${d.ming_gong.name}(${d.ming_gong.zhi}) | 身宫: ${d.shen_gong.name} | 五行局: ${d.wuxing_ju}</p>`;
+    html += `<p>四化: 禄(${d.sihua.化禄}) 权(${d.sihua.化权}) 科(${d.sihua.化科}) 忌(${d.sihua.化忌})</p>`;
+    html += `<p>命主: ${d.ming_zhu} | 身主: ${d.shen_zhu}</p></div>`;
+    
+    html += '<div class="grid grid2">';
+    for (const g of d.gongs) {
+      const stars = g.main_stars.length ? g.main_stars.join(', ') : '—';
+      const aux = g.aux_stars.length ? g.aux_stars.join(', ') : '';
+      html += `<div class="card">
+        <span class="card-header">${g.name} <span class="tag tag-ping">${g.ganzhi}</span></span>
+        <p class="text-sm">主星: ${stars}${g.sihua ? ' [' + g.sihua + ']' : ''}</p>
+        ${aux ? '<p class="text-sm">辅星: ' + aux + '</p>' : ''}
+      </div>`;
+    }
+    html += '</div>';
+    
+    html += '<div class="card"><span class="card-header">大限</span><div class="flex-wrap">';
+    for (const dx of d.daxian) {
+      html += `<span class="tag tag-ping">${dx.gong_name}: ${dx.age_range}</span>`;
+    }
+    html += '</div></div>';
+    res.innerHTML = html;
+  } catch (e) {
+    res.innerHTML = `<p style="color:var(--red)">排盘失败: ${e.message}</p>`;
+  }
+}
+
+// 六爻摇卦
+async function shakeLiuyao() {
+  const res = document.getElementById('liuyaoResult');
+  res.innerHTML = '<div class="loading"><div class="spinner"></div><p>摇卦中...</p></div>';
+  try {
+    const dayGz = document.getElementById('lyDayGanzhi').value || '甲子';
+    const r = await fetch(API + '/api/liuyao/shake', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ day_ganzhi: dayGz })
+    });
+    const d = await r.json();
+    let html = `<div class="card">
+      <span class="card-header">卦象</span>
+      <p>本卦: <b>${d.ben_gua}</b> ${d.ben_symbol}</p>
+      <p>变卦: ${d.bian_gua} ${d.bian_symbol}</p>
+      <p>互卦: ${d.hu_gua} | 卦宫: ${d.gua_gong}</p>
+      ${d.dong_yao.length ? '<p>动爻: 第' + d.dong_yao.join(', ') + '爻</p>' : '<p>静卦</p>'}
+    </div>`;
+    
+    html += '<div class="card"><span class="card-header">六爻详情</span>';
+    for (let i = d.yaos.length - 1; i >= 0; i--) {
+      const y = d.yaos[i];
+      const tags = [y.shi ? '世' : '', y.ying ? '应' : '', y.is_dong ? '动' : ''].filter(Boolean).join(' ');
+      html += `<p class="text-sm">${y.position}爻 ${y.symbol} ${y.liuqin} ${y.zhi} ${y.liushen} ${tags ? '<b>' + tags + '</b>' : ''}</p>`;
+    }
+    html += '</div>';
+    
+    html += `<div class="card"><p>${d.duanci}</p><p class="text-sm mt-1">${d.judgment}</p></div>`;
+    res.innerHTML = html;
+  } catch (e) {
+    res.innerHTML = `<p style="color:var(--red)">摇卦失败: ${e.message}</p>`;
+  }
+}
+
+// 奇门遁甲
+async function calcQimen() {
+  const res = document.getElementById('qimenResult');
+  res.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  try {
+    const r = await fetch(API + '/api/qimen/calc', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        year: +document.getElementById('qmYear').value,
+        month: +document.getElementById('qmMonth').value,
+        day: +document.getElementById('qmDay').value,
+        hour: +document.getElementById('qmHour').value
+      })
+    });
+    const d = await r.json();
+    let html = `<div class="card">
+      <span class="card-header">排盘信息</span>
+      <p>四柱: 年${d.sizhu.year} 月${d.sizhu.month} 日${d.sizhu.day} 时${d.sizhu.hour}</p>
+      <p>局: ${d.ju} | 旬首: ${d.xun_shou} | 值符: ${d.zhi_fu} | 值使: ${d.zhi_shi}</p>
+    </div>`;
+    
+    html += '<div class="grid grid3">';
+    const layout = [[4,9,2],[3,5,7],[8,1,6]];
+    for (const row of layout) {
+      for (const num of row) {
+        const g = d.gongs[num] || {};
+        html += `<div class="card" style="font-size:12px">
+          <span class="card-header">${g.name}宫 ${g.direction}</span>
+          <p>地盘: ${g.di_gan} | 天盘: ${g.tian_gan}</p>
+          <p>门: ${g.men} | 星: ${g.xing}</p>
+          <p>神: ${g.shen}</p>
+        </div>`;
+      }
+    }
+    html += '</div>';
+    res.innerHTML = html;
+  } catch (e) {
+    res.innerHTML = `<p style="color:var(--red)">排盘失败: ${e.message}</p>`;
+  }
+}
+
+// 姓名分析
+async function analyzeName() {
+  const res = document.getElementById('nameResult');
+  res.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  try {
+    const r = await fetch(API + '/api/name/analyze', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        surname: document.getElementById('nmSurname').value,
+        given_name: document.getElementById('nmGivenName').value
+      })
+    });
+    const d = await r.json();
+    let html = `<div class="card">
+      <span class="card-header">${d.surname}${d.given_name} · 综合评分: ${d.overall_score}/100 [${d.overall_grade}]</span>
+      <div class="grid grid2">
+        <div><p>天格: ${d.wuge.tian.value} [${d.wuge.tian.ji}]</p></div>
+        <div><p>人格: ${d.wuge.ren.value} [${d.wuge.ren.ji}] ← 主运</p></div>
+        <div><p>地格: ${d.wuge.di.value} [${d.wuge.di.ji}] ← 前运</p></div>
+        <div><p>外格: ${d.wuge.wai.value} [${d.wuge.wai.ji}] ← 副运</p></div>
+        <div><p>总格: ${d.wuge.zong.value} [${d.wuge.zong.ji}] ← 后运</p></div>
+      </div>
+      <p class="mt-1">三才: ${d.sancai} [${d.sancai_ji}] - ${d.sancai_desc}</p>
+      <p class="text-sm mt-1">${d.suggestions.join('; ')}</p>
+    </div>`;
+    res.innerHTML = html;
+  } catch (e) {
+    res.innerHTML = `<p style="color:var(--red)">分析失败: ${e.message}</p>`;
+  }
+}
+
+// 合婚分析
+let currentBazi2 = null;
+async function calcMarriage() {
+  if (!currentBazi) {
+    alert('请先在排盘页面排好男方八字');
+    return;
+  }
+  const res = document.getElementById('marriageResult');
+  res.innerHTML = '<div class="loading"><div class="spinner"></div><p>合婚分析中...</p></div>';
+  try {
+    // 如果没有currentBazi2，使用当前八字+模拟女方的数据
+    const bazi2 = currentBazi2 || currentBazi;
+    const r = await fetch(API + '/api/marriage/analyze', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name1: '男方',
+        bazi1: { input: currentBazi.input, pillars: currentBazi.bazi.pillars, day_master: currentBazi.bazi.day_master, analysis: { wuxing: currentBazi.bazi.wuxing, wuxing_score: currentBazi.bazi.wuxing_score } },
+        name2: '女方',
+        bazi2: { input: currentBazi.input, pillars: currentBazi.bazi.pillars, day_master: currentBazi.bazi.day_master, analysis: { wuxing: currentBazi.bazi.wuxing, wuxing_score: currentBazi.bazi.wuxing_score } }
+      })
+    });
+    const d = await r.json();
+    let html = `<div class="card">
+      <span class="card-header">合婚结果 · 综合: ${d.overall_score}/100 [${d.overall_grade}]</span>
+      <div class="grid grid2">
+        <div><p>纳音: ${d.nayin.match}</p><p class="text-sm">${d.nayin.score}分</p></div>
+        <div><p>日干: ${d.ri_gan.relation}</p><p class="text-sm">${d.ri_gan.score}分</p></div>
+        <div><p>地支: ${d.dizhi.relations.join(', ')}</p><p class="text-sm">${d.dizhi.score}分</p></div>
+        <div><p>五行: ${d.wuxing.analysis}</p><p class="text-sm">${d.wuxing.score}分</p></div>
+        <div><p>生肖: ${d.shengxiao.shengxiao1} vs ${d.shengxiao.shengxiao2}</p><p class="text-sm">${d.shengxiao.score}分</p></div>
+      </div>
+      <p class="mt-1">${d.summary}</p>
+      <p class="text-sm mt-1">${d.suggestions.join('; ')}</p>
+    </div>`;
+    res.innerHTML = html;
+  } catch (e) {
+    res.innerHTML = `<p style="color:var(--red)">分析失败: ${e.message}</p>`;
   }
 }
 
