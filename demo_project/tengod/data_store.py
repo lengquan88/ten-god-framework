@@ -40,6 +40,10 @@ DEFAULT_DB_PATH = os.environ.get(
     str(Path(__file__).resolve().parent.parent / "data" / "tengod.db"),
 )
 
+# 数据库 URL（优先使用环境变量，支持 PostgreSQL）
+# 示例: postgresql://tengod:secret@db:5432/tengod
+DATABASE_URL = os.environ.get("TENGOD_DATABASE_URL", "")
+
 
 # ============================================================================
 # ORM 模型
@@ -174,16 +178,26 @@ class ReportCache(Base):
 # ============================================================================
 
 class DataStore:
-    """数据持久化存储（SQLite + SQLAlchemy）"""
+    """数据持久化存储（支持 SQLite 和 PostgreSQL）"""
 
-    def __init__(self, db_path: Optional[str] = None):
-        self.db_path = db_path or DEFAULT_DB_PATH
-        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
-        self._engine = create_engine(
-            f"sqlite:///{self.db_path}",
-            echo=False,
-            connect_args={"check_same_thread": False},
-        )
+    def __init__(self, db_path: Optional[str] = None, db_url: Optional[str] = None):
+        # 优先使用 db_url（PostgreSQL），其次 db_path（SQLite）
+        url = db_url or DATABASE_URL
+        if url:
+            # PostgreSQL 模式
+            self.db_url = url
+            self.db_path = None
+            self._engine = create_engine(url, echo=False, pool_pre_ping=True, pool_size=10, max_overflow=20)
+        else:
+            # SQLite 模式（默认）
+            self.db_path = db_path or DEFAULT_DB_PATH
+            self.db_url = None
+            os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
+            self._engine = create_engine(
+                f"sqlite:///{self.db_path}",
+                echo=False,
+                connect_args={"check_same_thread": False},
+            )
         Base.metadata.create_all(self._engine)
 
     def _session(self) -> Session:
@@ -386,9 +400,15 @@ class DataStore:
     def stats(self) -> Dict[str, Any]:
         """数据库统计信息"""
         with self._session() as s:
+            db_info: Dict[str, Any] = {}
+            if self.db_path:
+                db_info["db_path"] = self.db_path
+                db_info["db_size_mb"] = round(os.path.getsize(self.db_path) / 1024 / 1024, 2) if os.path.exists(self.db_path) else 0
+            else:
+                db_info["db_url"] = self.db_url
+                db_info["db_type"] = "postgresql"
             return {
-                "db_path": self.db_path,
-                "db_size_mb": round(os.path.getsize(self.db_path) / 1024 / 1024, 2) if os.path.exists(self.db_path) else 0,
+                **db_info,
                 "total_users": s.query(func.count(User.id)).scalar() or 0,
                 "total_records": s.query(func.count(BaziRecord.id)).scalar() or 0,
                 "total_cached_reports": s.query(func.count(ReportCache.id)).scalar() or 0,
@@ -410,22 +430,63 @@ class DataStore:
     # ── 备份与恢复 ──────────────────────────────────────────────────────────
 
     def backup(self, backup_path: Optional[str] = None) -> str:
-        """备份数据库到指定路径"""
+        """备份数据库到指定路径（SQLite 模式下文件复制，PostgreSQL 模式下导出 JSON）"""
         import shutil
+        if self.db_path:
+            if backup_path is None:
+                backup_path = f"{self.db_path}.backup.{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
+            shutil.copy2(self.db_path, backup_path)
+            return backup_path
+        # PostgreSQL 模式：导出为 JSON
         if backup_path is None:
-            backup_path = f"{self.db_path}.backup.{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
-        shutil.copy2(self.db_path, backup_path)
+            backup_path = f"tengod_backup_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.json"
+        data = self._export_all()
+        with open(backup_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2, default=str)
         return backup_path
 
     def restore(self, backup_path: str) -> bool:
         """从备份恢复数据库"""
-        import shutil
         if not os.path.exists(backup_path):
             return False
-        # 先备份当前数据库
-        self.backup()
-        shutil.copy2(backup_path, self.db_path)
-        return True
+        if self.db_path:
+            import shutil
+            self.backup()
+            shutil.copy2(backup_path, self.db_path)
+            return True
+        # PostgreSQL 模式：从 JSON 导入
+        with open(backup_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return self._import_all(data)
+
+    def _export_all(self) -> Dict[str, Any]:
+        """导出所有数据为字典"""
+        with self._session() as s:
+            return {
+                "users": [
+                    {"id": u.id, "username": u.username, "display_name": u.display_name,
+                     "created_at": str(u.created_at)}
+                    for u in s.query(User).all()
+                ],
+                "records": [
+                    {"id": r.id, "user_id": r.user_id, "label": r.label,
+                     "year": r.year, "month": r.month, "day": r.day,
+                     "hour": r.hour, "minute": r.minute, "gender": r.gender,
+                     "calendar": r.calendar, "day_master": r.day_master,
+                     "bazi_json": r.bazi_json, "created_at": str(r.created_at)}
+                    for r in s.query(BaziRecord).all()
+                ],
+            }
+
+    def _import_all(self, data: Dict[str, Any]) -> bool:
+        """从字典导入数据"""
+        with self._session() as s:
+            for u in data.get("users", []):
+                existing = s.query(User).filter(User.username == u["username"]).first()
+                if not existing:
+                    s.add(User(username=u["username"], display_name=u.get("display_name")))
+            s.commit()
+            return True
 
     def close(self):
         self._engine.dispose()

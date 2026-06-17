@@ -1,0 +1,17 @@
+# 中华文明数字永生体 · Docker 忽略文件
+__pycache__
+*.pyc
+*.pyo
+.git
+.gitignore
+.env
+*.md
+data/
+logs/
+backups/
+*.db
+*.backup.*
+venv/
+.venv/
+.pytest_cache/
+.ruff_cache/

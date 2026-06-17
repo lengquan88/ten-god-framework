@@ -1,56 +1,113 @@
-# ═══════════════════════════════════════════════════════════
-# 十神架构 · docker-compose.yml v1.5.0
-# 一键部署：十神 API 服务 + PostgreSQL + 数据持久化
-# ═══════════════════════════════════════════════════════════
+# ============================================================================
+# 中华文明数字永生体 · 十神 API Server · Docker Compose 编排
+# 阶段十二：生产化部署运维
+# ============================================================================
+# 四容器架构：
+#   1. db    - PostgreSQL 15 数据库
+#   2. redis - Redis 7 缓存/限流
+#   3. api   - FastAPI 应用服务器
+#   4. nginx - Nginx 反向代理 + HTTPS
+# ============================================================================
 
 version: "3.9"
 
 services:
-  # ─── PostgreSQL 数据库 ───────────────────────────────
-  postgres:
+  # ── PostgreSQL 数据库 ──────────────────────────────────────────────
+  db:
     image: postgres:15-alpine
-    container_name: tengod-postgres
+    container_name: tengod-db
     restart: unless-stopped
     environment:
-      POSTGRES_DB: tengod
-      POSTGRES_USER: tengod
-      POSTGRES_PASSWORD: tengod_secret
+      POSTGRES_USER: ${POSTGRES_USER:-tengod}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tengod_secret_2026}
+      POSTGRES_DB: ${POSTGRES_DB:-tengod}
+      TZ: Asia/Shanghai
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./docker/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
     ports:
       - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U tengod -d tengod"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tengod}"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - tengod_net
 
-  # ─── 十神 API 服务 ───────────────────────────────────
-  tengod:
-    build: .
+  # ── Redis 缓存 ────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: tengod-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - tengod_net
+
+  # ── FastAPI 应用服务器 ────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: tengod-api
     restart: unless-stopped
-    ports:
-      - "8000:8000"
     environment:
-      - TENGOD_DB_BACKEND=postgresql
-      - TENGOD_DB_URL=postgresql://tengod:tengod_secret@postgres:5432/tengod
-      - TENGOD_ENV=production
-      - TENGOD_LOG_LEVEL=INFO
-    depends_on:
-      postgres:
-        condition: service_healthy
+      TENGOD_DATABASE_URL: postgresql://${POSTGRES_USER:-tengod}:${POSTGRES_PASSWORD:-tengod_secret_2026}@db:5432/${POSTGRES_DB:-tengod}
+      TENGOD_REDIS_URL: redis://redis:6379/0
+      TENGOD_API_KEY: ${TENGOD_API_KEY:-}
+      TENGOD_ENV: production
+      TZ: Asia/Shanghai
     volumes:
-      - tengod_data:/app/data
-      - tengod_logs:/app/logs
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ../deploy_frontend:/app/static:ro
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    expose:
+      - "8000"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 15s
+      start_period: 40s
+    networks:
+      - tengod_net
+
+  # ── Nginx 反向代理 ────────────────────────────────────────────────
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: tengod-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/certs:/etc/nginx/certs:ro
+      - nginx_logs:/var/log/nginx
+    depends_on:
+      - api
+    networks:
+      - tengod_net
 
 volumes:
-  pgdata:
-  tengod_data:
-  tengod_logs:
+  pg_data:
+  redis_data:
+  nginx_logs:
+
+networks:
+  tengod_net:
+    driver: bridge

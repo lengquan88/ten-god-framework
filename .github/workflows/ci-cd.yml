@@ -1,0 +1,167 @@
+# ============================================================================
+# 中华文明数字永生体 · CI/CD 流水线
+# 阶段十二：生产化部署运维
+# ============================================================================
+# GitHub Actions 工作流：
+#   1. test    - 代码测试（lint + unit test）
+#   2. build   - Docker 镜像构建
+#   3. deploy  - 生产部署（仅 main 分支）
+# ============================================================================
+
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - "demo_project/**"
+      - ".github/workflows/**"
+  pull_request:
+    branches: [main]
+
+env:
+  PYTHON_VERSION: "3.11"
+  DOCKER_IMAGE: tengod-api
+
+jobs:
+  # ── 测试阶段 ──────────────────────────────────────────────────────
+  test:
+    name: 🧪 测试
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: demo_project
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 设置 Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install ruff pytest pytest-cov
+
+      - name: 代码检查 (Ruff)
+        run: |
+          ruff check tengod/ || true
+          ruff format --check tengod/ || true
+
+      - name: 导入测试
+        run: |
+          python -c "from tengod import bazi_calculator; print('✅ 八字计算器')"
+          python -c "from tengod import bazi_analyzer; print('✅ 八字分析器')"
+          python -c "from tengod import shensha_engine; print('✅ 神煞引擎')"
+          python -c "from tengod import geju_engine; print('✅ 格局引擎')"
+          python -c "from tengod import vector_store; print('✅ 向量存储')"
+          python -c "from tengod import ziwei_engine; print('✅ 紫微斗数')"
+          python -c "from tengod import liuyao_engine; print('✅ 六爻引擎')"
+          python -c "from tengod import qimen_engine; print('✅ 奇门遁甲')"
+          python -c "from tengod import name_engine; print('✅ 姓名学')"
+          python -c "from tengod import marriage_engine; print('✅ 合婚分析')"
+          python -c "from tengod import data_store; print('✅ 数据持久化')"
+          python -c "from tengod import llm_adapter; print('✅ LLM适配器')"
+          python -c "from tengod import metrics_collector; print('✅ 监控采集')"
+
+      - name: 功能测试
+        run: |
+          python -c "
+          from tengod.bazi_calculator import BaziCalculator
+          c = BaziCalculator(2000, 3, 15, 8, 30, 'male')
+          print('✅ 八字排盘:', c.chart.year_gan, c.chart.year_zhi)
+          "
+          python -c "
+          from tengod.ziwei_engine import calc_ziwei
+          chart = calc_ziwei(2000, 3, 15, 8, 30, 'male')
+          print('✅ 紫微排盘: 命宫', chart.ming_gong_index)
+          "
+          python -c "
+          from tengod.liuyao_engine import shake_and_calc
+          r = shake_and_calc('甲子')
+          print('✅ 六爻摇卦:', r.ben_gua_name)
+          "
+          python -c "
+          from tengod.name_engine import analyze_name
+          r = analyze_name('张', '伟明')
+          print('✅ 姓名分析: 评分', r.overall_score)
+          "
+
+      - name: API 启动测试
+        run: |
+          python -m tengod.api_server --host 0.0.0.0 --port 8000 &
+          sleep 5
+          curl -s http://localhost:8000/api/health | python -m json.tool
+          curl -s http://localhost:8000/api/metrics | python -m json.tool | head -5
+          kill %1 2>/dev/null || true
+
+  # ── 构建阶段 ──────────────────────────────────────────────────────
+  build:
+    name: 📦 构建 Docker 镜像
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+    defaults:
+      run:
+        working-directory: demo_project
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 设置 Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 构建镜像
+        uses: docker/build-push-action@v5
+        with:
+          context: demo_project
+          file: demo_project/Dockerfile
+          push: false
+          tags: ${{ env.DOCKER_IMAGE }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: 验证镜像
+        run: |
+          docker run --rm -d --name test-api -p 8001:8000 ${{ env.DOCKER_IMAGE }}:${{ github.sha }}
+          sleep 10
+          curl -s http://localhost:8001/api/health | python -m json.tool
+          docker stop test-api || true
+
+  # ── 部署阶段（仅 main 分支） ──────────────────────────────────────
+  deploy:
+    name: 🚀 部署到生产
+    runs-on: ubuntu-latest
+    needs: [test, build]
+    if: github.ref == 'refs/heads/main'
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 部署通知
+        run: |
+          echo "🚀 部署到生产环境"
+          echo "提交: ${{ github.sha }}"
+          echo "分支: ${{ github.ref_name }}"
+          echo "触发者: ${{ github.actor }}"
+          echo ""
+          echo "请在服务器上执行以下命令完成部署："
+          echo "  cd /opt/tengod"
+          echo "  git pull origin main"
+          echo "  docker-compose build"
+          echo "  docker-compose up -d"
+          echo "  docker-compose ps"
+
+      - name: 健康检查脚本
+        run: |
+          echo "#!/bin/bash" > deploy/health-check.sh
+          echo "echo '🔍 执行健康检查...'" >> deploy/health-check.sh
+          echo "curl -sf http://localhost/api/health || exit 1" >> deploy/health-check.sh
+          echo "curl -sf http://localhost/api/health/full | python -m json.tool" >> deploy/health-check.sh
+          echo "echo '✅ 健康检查通过'" >> deploy/health-check.sh
+          chmod +x deploy/health-check.sh

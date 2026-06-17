@@ -81,7 +81,7 @@ _total_errors: int = 0
 
 from starlette.middleware.base import BaseHTTPMiddleware
 
-PUBLIC_PATHS = {"/api/health", "/api/stats", "/docs", "/redoc", "/openapi.json"}
+PUBLIC_PATHS = {"/api/health", "/api/health/full", "/api/stats", "/metrics", "/api/metrics", "/docs", "/redoc", "/openapi.json"}
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
@@ -392,6 +392,28 @@ async def health_check():
     }
 
 
+@app.get("/api/health/full", tags=["系统"])
+async def health_check_full():
+    """全面健康检查（含数据库、Redis、向量存储、系统资源）"""
+    from tengod.metrics_collector import HealthChecker
+    return HealthChecker.check_all()
+
+
+@app.get("/metrics", tags=["系统"])
+async def prometheus_metrics():
+    """Prometheus 指标端点"""
+    from tengod.metrics_collector import metrics
+    from fastapi import Response
+    return Response(content=metrics.to_prometheus(), media_type="text/plain")
+
+
+@app.get("/api/metrics", tags=["系统"])
+async def api_metrics():
+    """JSON 格式监控指标"""
+    from tengod.metrics_collector import metrics
+    return metrics.get_snapshot()
+
+
 @app.get("/api/stats", tags=["系统"])
 async def system_stats():
     """系统统计信息"""
@@ -424,6 +446,8 @@ async def system_stats():
 async def bazi_calc(bazi: BaziInput, request: Request):
     """八字排盘：计算四柱 + 大运 + 流年 + 十神 + 五行分析"""
     try:
+        from tengod.metrics_collector import metrics
+        metrics.record_bazi_calc()
         analyzer = _bazi_to_analyzer(bazi)
         a = analyzer.analysis
         chart = analyzer.chart
@@ -678,6 +702,8 @@ async def knowledge_search(query: SearchQuery, request: Request,
                            ):
     """语义搜索：基于 FAISS 向量的知识检索"""
     try:
+        from tengod.metrics_collector import metrics
+        metrics.record_knowledge_search()
         from tengod.vector_store import get_vector_store
         store = get_vector_store()
         result = store.search_json(query.query, top_k=query.top_k, type_filter=query.type_filter)
@@ -1116,6 +1142,8 @@ class ChatResponse(BaseModel):
 @app.post("/api/chat", tags=["AI 对话"])
 async def ai_chat(query: ChatQuery, request: Request):
     """AI 命理对话（支持 RAG 增强）"""
+    from tengod.metrics_collector import metrics
+    metrics.record_ai_chat()
     from tengod.llm_adapter import get_llm, chat, chat_stream, ChatMessage
 
     llm = get_llm()
@@ -1200,6 +1228,8 @@ async def ai_report(bazi: BaziInput, request: Request,
 async def ziwei_calc(query: ZiweiQuery):
     """紫微斗数排盘"""
     try:
+        from tengod.metrics_collector import metrics
+        metrics.record_ziwei_calc()
         from tengod.ziwei_engine import ZiweiEngine
         chart = ZiweiEngine.calc_chart(
             query.year, query.month, query.day,
@@ -1214,6 +1244,8 @@ async def ziwei_calc(query: ZiweiQuery):
 async def liuyao_shake(query: LiuyaoQuery):
     """六爻摇卦"""
     try:
+        from tengod.metrics_collector import metrics
+        metrics.record_liuyao_calc()
         from tengod.liuyao_engine import LiuyaoEngine, calc_from_yao
         if query.yao_str:
             result = calc_from_yao(query.yao_str, query.day_ganzhi)
@@ -1253,6 +1285,8 @@ async def liuyao_shake(query: LiuyaoQuery):
 async def qimen_calc(query: QimenQuery):
     """奇门遁甲排盘"""
     try:
+        from tengod.metrics_collector import metrics
+        metrics.record_qimen_calc()
         from tengod.qimen_engine import QimenEngine
         chart = QimenEngine.calc_chart(
             query.year, query.month, query.day,
@@ -1267,6 +1301,8 @@ async def qimen_calc(query: QimenQuery):
 async def name_analyze(query: NameQuery):
     """姓名学分析"""
     try:
+        from tengod.metrics_collector import metrics
+        metrics.record_name_analysis()
         from tengod.name_engine import NameEngine
         result = NameEngine.analyze(query.surname, query.given_name)
         return {
@@ -1296,6 +1332,8 @@ async def name_analyze(query: NameQuery):
 async def marriage_analyze(query: MarriageQuery):
     """合婚分析"""
     try:
+        from tengod.metrics_collector import metrics
+        metrics.record_marriage_analysis()
         from tengod.marriage_engine import MarriageEngine
         result = MarriageEngine.analyze(
             query.name1, query.bazi1,
