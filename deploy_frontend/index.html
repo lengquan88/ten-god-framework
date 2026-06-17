@@ -3,442 +3,775 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>神似评估器 · 对话质量看板 ◉ · Cloud Edition</title>
-<script src="cloud_config.js"></script>
+<title>十神架构 · 八字命理分析系统</title>
 <style>
-:root {
-  --bg-primary: #080810;
-  --bg-secondary: #0c0c18;
-  --bg-card: #101022;
-  --accent: #5eead4;
-  --accent-dim: #5eead422;
-  --text-primary: #e0e0f0;
-  --text-secondary: #8080a0;
-  --border: #1e1e3a;
-  --success: #34d399;
-  --warning: #fbbf24;
-  --danger: #f87171;
-  --info: #60a5fa;
-  --purple: #a78bfa;
-  --pink: #f472b6;
-}
-*{margin:0;padding:0;box-sizing:border-box}
-body {
-  font-family:'Segoe UI',system-ui,sans-serif;
-  background:var(--bg-primary);color:var(--text-primary);
-  min-height:100vh;overflow-x:hidden;
-}
-body::before{
-  content:'';position:fixed;top:-50%;left:-50%;
-  width:200%;height:200%;
-  background:radial-gradient(ellipse at 30%20%,#5eead408 0%,transparent 50%),
-              radial-gradient(ellipse at 70%80%,#f472b608 0%,transparent 50%);
-  z-index:0;pointer-events:none;
-}
-.dashboard{position:relative;z-index:1;max-width:1400px;margin:0 auto;padding:24px;}
-
-/* Header */
-.header{
-  display:flex;justify-content:space-between;align-items:center;
-  padding:20px 28px;background:var(--bg-card);
-  border:1px solid var(--border);border-radius:16px;margin-bottom:24px;
-}
-.header h1{
-  font-size:1.4rem;font-weight:700;
-  background:linear-gradient(135deg,var(--accent),var(--purple));
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
-}
-.header .sub{font-size:0.8rem;color:var(--text-secondary);margin-top:4px;}
-.api-status{
-  display:flex;align-items:center;gap:8px;
-  padding:6px 14px;border-radius:20px;font-size:0.8rem;
-  background:var(--bg-primary);border:1px solid var(--border);
-}
-.api-dot{width:8px;height:8px;border-radius:50%;animation:pulse 2s infinite;}
-.api-dot.online{background:var(--success);box-shadow:0 0 6px #34d39988;}
-.api-dot.offline{background:var(--danger);animation:none;}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.6}}
-
-/* Grid */
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
-.grid.single{grid-template-columns:1fr}
-.card{
-  background:var(--bg-card);border:1px solid var(--border);
-  border-radius:16px;padding:20px;margin-bottom:20px;
-}
-.card-title{
-  font-size:0.9rem;font-weight:600;margin-bottom:16px;
-  color:var(--accent);display:flex;align-items:center;gap:8px;
-}
-
-/* Input */
-.input-group{display:flex;flex-direction:column;gap:12px;}
-.input-group label{font-size:0.8rem;color:var(--text-secondary);}
-.input-group textarea,.input-group input{
-  background:var(--bg-primary);color:var(--text-primary);
-  border:1px solid var(--border);border-radius:8px;
-  padding:10px 14px;font-size:0.85rem;resize:vertical;
-  transition:border-color 0.2s;
-}
-.input-group textarea:focus,.input-group input:focus{
-  outline:none;border-color:var(--accent);
-}
-.domain-grid{
-  display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;
-}
-.domain-btn{
-  background:var(--bg-primary);color:var(--text-primary);
-  border:1px solid var(--border);border-radius:8px;
-  padding:6px 14px;cursor:pointer;font-size:0.8rem;
-  transition:all 0.2s;
-}
-.domain-btn:hover{border-color:var(--accent);background:var(--accent-dim);}
-.domain-btn.active{border-color:var(--accent);background:var(--accent-dim);color:var(--accent);}
-.eval-btn{
-  background:linear-gradient(135deg,var(--accent),var(--purple));
-  color:var(--bg-primary);border:none;border-radius:8px;
-  padding:10px 24px;cursor:pointer;font-weight:600;font-size:0.9rem;
-  transition:all 0.2s;align-self:flex-start;
-}
-.eval-btn:hover{transform:translateY(-1px);box-shadow:0 4px 20px #5eead444;}
-.eval-btn:disabled{opacity:0.5;cursor:not-allowed;}
-
-/* Results */
-.psi-big{
-  font-size:3.5rem;font-weight:700;text-align:center;
-  background:linear-gradient(135deg,var(--accent),var(--info));
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
-  line-height:1;
-}
-.psi-label{text-align:center;font-size:0.75rem;color:var(--text-secondary);margin-top:4px;}
-.psi-diagnosis{
-  text-align:center;font-size:0.9rem;margin-top:8px;
-  padding:6px 12px;border-radius:8px;display:inline-block;
-}
-.dim-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px;}
-.dim-item{
-  background:var(--bg-primary);border:1px solid var(--border);
-  border-radius:8px;padding:10px;text-align:center;
-}
-.dim-label{font-size:0.65rem;color:var(--text-secondary);}
-.dim-value{font-size:1.2rem;font-weight:600;margin-top:2px;}
-.qi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px;}
-.qi-item{
-  background:var(--bg-primary);border:1px solid var(--border);
-  border-radius:8px;padding:8px;text-align:center;
-}
-.qi-label{font-size:0.65rem;color:var(--text-secondary);}
-.qi-value{font-size:1rem;font-weight:600;margin-top:2px;}
-.qi-bar{
-  height:4px;border-radius:2px;margin-top:6px;
-  background:var(--bg-secondary);overflow:hidden;
-}
-.qi-bar-fill{height:100%;border-radius:2px;transition:width 0.5s;}
-
-/* History chart */
-canvas{margin-top:12px;border-radius:8px;max-height:180px;}
-.history-list{margin-top:12px;max-height:200px;overflow-y:auto;}
-.history-item{
-  display:flex;justify-content:space-between;
-  padding:4px 8px;font-size:0.75rem;color:var(--text-secondary);
-  border-bottom:1px solid var(--border);
-}
-
-/* Nodes */
-.node-list{margin-top:8px;}
-.node-item{
-  padding:8px 12px;margin-bottom:4px;
-  background:var(--bg-primary);border-radius:6px;
-  font-size:0.8rem;border-left:3px solid var(--border);
-  display:flex;justify-content:space-between;align-items:center;
-}
-.node-score{font-size:0.7rem;color:var(--text-secondary);white-space:nowrap;margin-left:8px;}
-
-/* Loading */
-.loading{text-align:center;padding:20px;color:var(--text-secondary);}
-.loading .spinner{
-  width:24px;height:24px;border:2px solid var(--border);
-  border-top-color:var(--accent);border-radius:50%;
-  animation:spin 0.8s linear infinite;margin:0 auto 8px;
-}
-@keyframes spin{to{transform:rotate(360deg)}}
-
-@media(max-width:800px){
-  .grid{grid-template-columns:1fr}
-  .dim-grid{grid-template-columns:repeat(2,1fr)}
-}
+  :root {
+    --bg: #0a0a1a; --bg2: #12122a; --bg3: #1a1a3a;
+    --gold: #d4a843; --gold2: #f5d76e; --accent: #6c5ce7;
+    --text: #c8c8d8; --text2: #8a8aaa; --text3: #5a5a7a;
+    --green: #00d68f; --red: #ff6b6b; --blue: #45a7ff;
+    --radius: 10px; --transition: 0.2s ease;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg); color: var(--text);
+    display: flex; height: 100vh; overflow: hidden;
+  }
+  /* ── Sidebar ── */
+  nav {
+    width: 220px; min-width: 220px; background: var(--bg2);
+    display: flex; flex-direction: column;
+    border-right: 1px solid rgba(255,255,255,0.05);
+    flex-shrink: 0;
+  }
+  nav .logo {
+    padding: 24px 20px; font-size: 18px; font-weight: 700;
+    color: var(--gold2); text-align: center;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+  nav .logo span { font-size: 12px; color: var(--text3); display: block; }
+  nav a {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px 20px; color: var(--text2); text-decoration: none;
+    font-size: 14px; transition: var(--transition);
+    border-left: 3px solid transparent;
+  }
+  nav a:hover { background: var(--bg3); color: var(--text); }
+  nav a.active { 
+    color: var(--gold); background: rgba(212,168,67,0.08);
+    border-left-color: var(--gold);
+  }
+  nav .icon { font-size: 18px; width: 24px; text-align: center; }
+  nav .status { padding: 20px; margin-top: auto; border-top: 1px solid rgba(255,255,255,0.05); }
+  nav .status .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+  nav .status .dot.online { background: var(--green); }
+  nav .status .dot.offline { background: var(--red); }
+  /* ── Main ── */
+  main {
+    flex: 1; overflow-y: auto; padding: 30px;
+    background: linear-gradient(135deg, var(--bg) 0%, var(--bg2) 100%);
+  }
+  .page { display: none; }
+  .page.active { display: block; }
+  /* ── Components ── */
+  h1 { font-size: 24px; color: var(--gold2); margin-bottom: 6px; }
+  h2 { font-size: 18px; color: var(--gold); margin: 24px 0 12px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+  .subtitle { color: var(--text3); font-size: 13px; margin-bottom: 24px; }
+  .card {
+    background: var(--bg2); border-radius: var(--radius);
+    padding: 20px; border: 1px solid rgba(255,255,255,0.05);
+    margin-bottom: 16px;
+  }
+  .card-header { font-size: 15px; font-weight: 600; color: var(--gold); margin-bottom: 12px; }
+  .grid { display: grid; gap: 16px; }
+  .grid2 { grid-template-columns: 1fr 1fr; }
+  .grid3 { grid-template-columns: 1fr 1fr 1fr; }
+  .grid4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+  /* ── Form ── */
+  .form-row { display: flex; gap: 12px; margin-bottom: 12px; align-items: flex-end; flex-wrap: wrap; }
+  .form-group { display: flex; flex-direction: column; gap: 4px; }
+  .form-group label { font-size: 12px; color: var(--text3); font-weight: 600; }
+  .form-group input, .form-group select {
+    background: var(--bg3); border: 1px solid rgba(255,255,255,0.08);
+    color: var(--text); padding: 10px 14px; border-radius: 8px;
+    font-size: 14px; outline: none; transition: var(--transition);
+    width: 100%; min-width: 80px;
+  }
+  .form-group input:focus { border-color: var(--gold); }
+  .btn {
+    background: linear-gradient(135deg, var(--gold), var(--gold2));
+    color: #1a1a2e; border: none; padding: 10px 24px;
+    border-radius: 8px; font-size: 14px; font-weight: 600;
+    cursor: pointer; transition: var(--transition);
+  }
+  .btn:hover { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(212,168,67,0.3); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+  .btn-sm { padding: 6px 14px; font-size: 12px; }
+  .btn-outline {
+    background: transparent; border: 1px solid var(--gold);
+    color: var(--gold);
+  }
+  /* ── Tags ── */
+  .tag {
+    display: inline-block; padding: 3px 10px; border-radius: 20px;
+    font-size: 11px; font-weight: 600;
+  }
+  .tag-ji { background: rgba(0,214,143,0.15); color: var(--green); }
+  .tag-xiong { background: rgba(255,107,107,0.15); color: var(--red); }
+  .tag-ping { background: rgba(255,255,255,0.08); color: var(--text2); }
+  .tag-wx { background: rgba(108,92,231,0.15); color: var(--accent); }
+  /* ── Table ── */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 10px 12px; color: var(--text3); font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06); }
+  td { padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.03); }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+  /* ── Pillars Display ── */
+  .pillars {
+    display: flex; gap: 12px; margin: 16px 0; justify-content: center;
+  }
+  .pillar {
+    text-align: center; padding: 16px 24px; border-radius: var(--radius);
+    background: var(--bg3); border: 1px solid rgba(255,255,255,0.08);
+    min-width: 90px;
+  }
+  .pillar .ganzhi { font-size: 22px; font-weight: 700; color: var(--gold2); }
+  .pillar .label { font-size: 11px; color: var(--text3); margin-top: 6px; }
+  .pillar .shigan { font-size: 12px; color: var(--accent); margin-top: 4px; }
+  /* ── Loading ── */
+  .loading { text-align: center; padding: 40px; color: var(--text3); }
+  .spinner {
+    display: inline-block; width: 30px; height: 30px;
+    border: 3px solid rgba(255,255,255,0.1);
+    border-top-color: var(--gold); border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  /* ── Chat ── */
+  .chat-container {
+    display: flex; flex-direction: column; height: calc(100vh - 180px);
+  }
+  .chat-messages {
+    flex: 1; overflow-y: auto; padding: 12px;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .chat-msg {
+    max-width: 80%; padding: 12px 16px; border-radius: 12px;
+    font-size: 14px; line-height: 1.6;
+  }
+  .chat-msg.user {
+    align-self: flex-end; background: var(--accent);
+    color: #fff; border-bottom-right-radius: 4px;
+  }
+  .chat-msg.assistant {
+    align-self: flex-start; background: var(--bg3);
+    color: var(--text); border-bottom-left-radius: 4px;
+  }
+  .chat-input-row {
+    display: flex; gap: 8px; padding: 12px 0;
+    border-top: 1px solid rgba(255,255,255,0.05);
+  }
+  .chat-input-row input {
+    flex: 1; background: var(--bg3); border: 1px solid rgba(255,255,255,0.08);
+    color: var(--text); padding: 12px 16px; border-radius: 8px;
+    font-size: 14px; outline: none;
+  }
+  .chat-input-row input:focus { border-color: var(--gold); }
+  /* ── 3D iframe ── */
+  .iframe-3d {
+    width: 100%; height: calc(100vh - 160px);
+    border: 1px solid rgba(255,255,255,0.05); border-radius: var(--radius);
+  }
+  /* ── Responsive ── */
+  @media (max-width: 768px) {
+    body { flex-direction: column; }
+    nav { width: 100%; min-width: 0; flex-direction: row; overflow-x: auto; padding: 0; }
+    nav .logo { display: none; }
+    nav a { padding: 12px; font-size: 12px; border-left: none; border-bottom: 2px solid transparent; }
+    nav a.active { border-bottom-color: var(--gold); border-left: none; }
+    nav .status { display: none; }
+    main { padding: 16px; }
+    .grid2, .grid3, .grid4 { grid-template-columns: 1fr; }
+    .pillars { flex-wrap: wrap; }
+  }
+  /* ── Misc ── */
+  .text-center { text-align: center; }
+  .text-sm { font-size: 12px; color: var(--text3); }
+  .mt-1 { margin-top: 8px; }
+  .mt-2 { margin-top: 16px; }
+  .mb-1 { margin-bottom: 8px; }
+  .flex-between { display: flex; justify-content: space-between; align-items: center; }
+  .wuxing-bar {
+    height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px;
+    margin: 4px 0; overflow: hidden;
+  }
+  .wuxing-bar-fill { height: 100%; border-radius: 3px; transition: width 0.5s ease; }
+  .cursor-pointer { cursor: pointer; }
+  .pulse { animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
 </style>
 </head>
 <body>
-<div class="dashboard">
 
-  <!-- Header -->
-  <div class="header">
-    <div>
-      <h1>◉ 神似评估器 · 对话质量看板 v1.0</h1>
-      <div class="sub">P444 地支藏干 · P446 容器发散 · 本中余三气评估</div>
-    </div>
-    <div class="api-status" id="apiStatus">
-      <div class="api-dot offline" id="apiDot"></div>
-      <span id="apiStatusText">检查连接中...</span>
-    </div>
+<!-- Sidebar -->
+<nav>
+  <div class="logo">十神架构<span>八字命理分析系统</span></div>
+  <a href="#calc" class="active" data-page="calc">
+    <span class="icon">🧮</span> 八字排盘
+  </a>
+  <a href="#report" data-page="report">
+    <span class="icon">📋</span> 命理报告
+  </a>
+  <a href="#knowledge" data-page="knowledge">
+    <span class="icon">📚</span> 知识库
+  </a>
+  <a href="#chat" data-page="chat">
+    <span class="icon">🤖</span> AI 对话
+  </a>
+  <a href="#visual" data-page="visual">
+    <span class="icon">🌐</span> 3D 可视化
+  </a>
+  <a href="#history" data-page="history">
+    <span class="icon">📜</span> 历史记录
+  </a>
+  <div class="status">
+    <span class="dot" id="apiStatus"></span>
+    <span style="font-size:12px;color:var(--text3)" id="apiStatusText">检测中...</span>
   </div>
+</nav>
 
-  <div class="grid">
-    <!-- Left Panel: Input + Controls -->
+<!-- Main Content -->
+<main id="mainContent">
+
+  <!-- ====== 排盘页 ====== -->
+  <div class="page active" id="page-calc">
+    <h1>八字排盘</h1>
+    <p class="subtitle">输入出生时间，一键推算四柱、大运、流年、神煞、格局</p>
+
     <div class="card">
-      <div class="card-title">📝 对话输入</div>
-      <div class="domain-grid" id="domainGrid"></div>
-      <div class="input-group">
-        <label>根问题 (Root Question)</label>
-        <input id="rootQuestion" value="零信任安全架构的核心原则是什么?" spellcheck="false">
-      </div>
-      <div class="input-group" style="margin-top:12px;">
-        <label>回答节点 (每行一条)</label>
-        <textarea id="answers" rows="4" spellcheck="false">永不信任始终验证是零信任基石
-最小权限原则限制横向移动
-每项请求都需要身份验证
-微隔离替代传统边界防护</textarea>
-      </div>
-      <div class="input-group" style="margin-top:12px;">
-        <label>Qi 风格</label>
-        <select id="qiStyle" style="background:var(--bg-primary);color:var(--text-primary);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:0.85rem;">
-          <option value="qi_main">qi_main (平衡) [默认]</option>
-          <option value="balanced">balanced (均衡)</option>
-          <option value="qi_aggressive">qi_aggressive (激进)</option>
-          <option value="qi_detail">qi_detail (细节)</option>
-        </select>
-      </div>
-      <div style="display:flex;gap:12px;margin-top:16px;">
-        <button class="eval-btn" id="evalBtn" onclick="evaluate()">◉ 评估</button>
-        <button class="eval-btn" style="background:var(--bg-primary);color:var(--text-primary);border:1px solid var(--border);" onclick="domainSnapshot()">📊 全域快照</button>
-      </div>
-    </div>
-
-    <!-- Right Panel: Results -->
-    <div>
-      <!-- Ψ Score -->
-      <div class="card" id="psiCard">
-        <div class="card-title">Ψ 神似指数</div>
-        <div id="psiResult">
-          <div class="loading"><div class="spinner"></div>等待评估...</div>
+      <div class="card-header">出生信息</div>
+      <div class="form-row">
+        <div class="form-group"><label>年</label><input type="number" id="inYear" value="1990" min="1900" max="2100"></div>
+        <div class="form-group"><label>月</label><input type="number" id="inMonth" value="6" min="1" max="12"></div>
+        <div class="form-group"><label>日</label><input type="number" id="inDay" value="15" min="1" max="31"></div>
+        <div class="form-group"><label>时</label><input type="number" id="inHour" value="10" min="0" max="23"></div>
+        <div class="form-group"><label>分</label><input type="number" id="inMinute" value="30" min="0" max="59"></div>
+        <div class="form-group"><label>性别</label>
+          <select id="inGender"><option value="male">男</option><option value="female">女</option></select>
+        </div>
+        <div class="form-group"><label>经度</label><input type="number" id="inLng" value="116.4" step="0.1" style="width:80px"></div>
+        <div class="form-group">
+          <label>&nbsp;</label>
+          <button class="btn" id="btnCalc" onclick="calcBazi()">开始排盘</button>
         </div>
       </div>
-      <!-- History Chart -->
+    </div>
+
+    <div class="loading" id="calcLoading" style="display:none">
+      <div class="spinner"></div><p class="mt-1">正在计算八字、神煞、格局...</p>
+    </div>
+
+    <div id="calcResult" style="display:none">
       <div class="card">
-        <div class="card-title">📈 Ψ 趋势</div>
-        <canvas id="psiChart"></canvas>
+        <div class="flex-between">
+          <div class="card-header">四柱八字</div>
+          <span class="text-sm" id="resultTime"></span>
+        </div>
+        <div class="pillars" id="pillarsDisplay"></div>
+        <div class="text-center text-sm mt-1" id="dayMasterInfo"></div>
+      </div>
+
+      <div class="grid grid2">
+        <div class="card">
+          <div class="card-header">五行分布</div>
+          <div id="wuxingDisplay"></div>
+        </div>
+        <div class="card">
+          <div class="card-header">十神分布</div>
+          <div id="shiganDisplay"></div>
+        </div>
+      </div>
+
+      <div class="grid grid2">
+        <div class="card">
+          <div class="card-header">格局判断</div>
+          <div id="gejuDisplay"></div>
+        </div>
+        <div class="card">
+          <div class="card-header">喜用神 & 调候</div>
+          <div id="yongshenDisplay"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">神煞总览</div>
+        <div id="shenshaDisplay"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">大运流年</div>
+        <div id="dayunDisplay"></div>
+      </div>
+
+      <div class="text-center mt-2">
+        <button class="btn btn-outline" onclick="switchPage('report')">查看完整报告 →</button>
+        <button class="btn btn-sm btn-outline" onclick="saveRecord()" style="margin-left:8px">保存记录</button>
       </div>
     </div>
   </div>
 
-  <!-- Node Detail -->
-  <div class="card" id="nodeDetailCard" style="display:none;">
-    <div class="card-title">🔍 节点级分析</div>
-    <div class="node-list" id="nodeDetail"></div>
+  <!-- ====== 报告页 ====== -->
+  <div class="page" id="page-report">
+    <h1>命理报告</h1>
+    <p class="subtitle">完整的八字命理综合分析报告</p>
+    <div id="reportContent" style="white-space:pre-wrap;line-height:2;font-family:'PingFang SC','Microsoft YaHei',monospace;font-size:13px;">
+      <div class="loading"><div class="spinner"></div><p>请先进行八字排盘</p></div>
+    </div>
   </div>
 
-</div>
+  <!-- ====== 知识库页 ====== -->
+  <div class="page" id="page-knowledge">
+    <h1>知识库</h1>
+    <p class="subtitle">搜索命理知识图谱 · 111个节点</p>
+
+    <div class="card">
+      <div class="form-row">
+        <div class="form-group" style="flex:1">
+          <input type="text" id="kbSearch" placeholder="输入关键词，如：五行、八卦、天干..." onkeydown="if(event.key==='Enter')searchKnowledge()">
+        </div>
+        <div class="form-group">
+          <select id="kbFilter">
+            <option value="">全部类型</option>
+            <option value="element">五行</option>
+            <option value="trigram">八卦</option>
+            <option value="tiangan">天干</option>
+            <option value="dizhi">地支</option>
+            <option value="shigan">十神</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>&nbsp;</label>
+          <button class="btn" onclick="searchKnowledge()">搜索</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="kbResults"></div>
+
+    <div class="grid grid3" id="kbQuickLinks">
+      <div class="card cursor-pointer" onclick="quickSearch('五行')"><div class="card-header">五行</div><span class="text-sm">金木水火土</span></div>
+      <div class="card cursor-pointer" onclick="quickSearch('八卦')"><div class="card-header">八卦</div><span class="text-sm">乾坤震巽坎离艮兑</span></div>
+      <div class="card cursor-pointer" onclick="quickSearch('天干')"><div class="card-header">天干</div><span class="text-sm">甲乙丙丁戊己庚辛壬癸</span></div>
+      <div class="card cursor-pointer" onclick="quickSearch('地支')"><div class="card-header">地支</div><span class="text-sm">子丑寅卯辰巳午未申酉戌亥</span></div>
+      <div class="card cursor-pointer" onclick="quickSearch('十神')"><div class="card-header">十神</div><span class="text-sm">比肩劫财食神伤官...</span></div>
+      <div class="card cursor-pointer" onclick="quickSearch('河图')"><div class="card-header">河图洛书</div><span class="text-sm">上古数理模型</span></div>
+    </div>
+  </div>
+
+  <!-- ====== AI 对话页 ====== -->
+  <div class="page" id="page-chat">
+    <h1>AI 命理对话</h1>
+    <p class="subtitle">结合八字上下文与知识库的智能问答</p>
+    <div class="chat-container">
+      <div class="chat-messages" id="chatMessages">
+        <div class="chat-msg assistant">
+          你好！我是命理顾问。你可以问我关于八字、五行、格局、神煞等问题。如果已排盘，我会结合你的八字进行分析。
+        </div>
+      </div>
+      <div class="chat-input-row">
+        <input type="text" id="chatInput" placeholder="输入你的问题..." onkeydown="if(event.key==='Enter')sendChat()">
+        <button class="btn" onclick="sendChat()">发送</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== 3D 可视化页 ====== -->
+  <div class="page" id="page-visual">
+    <h1>3D 可视化</h1>
+    <p class="subtitle">WebGL 3D 交互：五行生克 · 八卦方位 · 天干地支 · 十神图谱 · 河图洛书 · 综合罗盘 · 八字排盘</p>
+    <iframe class="iframe-3d" src="/static/wuxing_3d_holo.html" id="iframe3d"></iframe>
+  </div>
+
+  <!-- ====== 历史记录页 ====== -->
+  <div class="page" id="page-history">
+    <h1>历史记录</h1>
+    <p class="subtitle">已保存的八字排盘记录</p>
+    <div id="historyContent">
+      <div class="loading"><div class="spinner"></div><p>加载中...</p></div>
+    </div>
+  </div>
+
+</main>
 
 <script>
-// ═══ 配置 ═══
-const API = window.SpiritAPI ? window.SpiritAPI.baseUrl : 'http://localhost:8000';
-const API_KEY = window.SpiritAPI ? window.SpiritAPI.apiKey : 'spirit-p444-dev-key';
+// ====================================================================
+// API 配置
+// ====================================================================
+const API = 'http://127.0.0.1:8000';
+let currentBazi = null;  // 当前排盘结果
+let currentBaziInput = null;  // 当前排盘输入
 
-const DOMAINS = {
-  '架构': {q:'如何提升系统架构的可扩展性?',a:['采用微服务架构将功能模块解耦独立部署','引入消息队列降低服务间依赖','实现水平扩展通过负载均衡','使用缓存层减少数据库压力']},
-  '金融': {q:'如何评估量化策略的回测效果?',a:['夏普比率和最大回撤是核心指标','验证策略在牛熊市表现一致性','过拟合检测使用交叉验证','滑点和交易成本是回测实盘差距主因']},
-  '安全': {q:'零信任安全架构的核心原则是什么?',a:['永不信任始终验证是零信任基石','最小权限原则限制横向移动','每项请求都需要身份验证','微隔离替代传统边界防护']},
-  '设计': {q:'如何评估UI设计的一致性原则?',a:['色彩系统和排版体系全局统一','组件库设计规范是一致性基础','交互模式在所有页面保持一致','核心是减少用户认知负担']},
-  '安全深':{q:'渗透测试的方法论和工具链?',a:['信息收集使用Nmap和Shodan资产测绘','漏洞扫描使用Nessus和OpenVAS','利用阶段验证漏洞的可利用性','核心是出具修复建议而非仅报告漏洞']},
+// ====================================================================
+// 页面路由
+// ====================================================================
+function switchPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('nav a').forEach(a => a.classList.remove('active'));
+  const page = document.getElementById('page-' + name);
+  const link = document.querySelector(`[data-page="${name}"]`);
+  if (page) page.classList.add('active');
+  if (link) link.classList.add('active');
+  if (name === 'history') loadHistory();
+}
+
+document.querySelectorAll('nav a').forEach(a => {
+  a.addEventListener('click', e => {
+    e.preventDefault();
+    switchPage(a.dataset.page);
+  });
+});
+
+// ====================================================================
+// API 状态检测
+// ====================================================================
+async function checkApiStatus() {
+  try {
+    const r = await fetch(API + '/api/health');
+    const d = await r.json();
+    document.getElementById('apiStatus').className = 'dot online';
+    document.getElementById('apiStatusText').textContent = 'API 在线';
+  } catch {
+    document.getElementById('apiStatus').className = 'dot offline';
+    document.getElementById('apiStatusText').textContent = 'API 离线';
+  }
+}
+checkApiStatus();
+setInterval(checkApiStatus, 30000);
+
+// ====================================================================
+// 八字排盘
+// ====================================================================
+async function calcBazi() {
+  const btn = document.getElementById('btnCalc');
+  const loading = document.getElementById('calcLoading');
+  const result = document.getElementById('calcResult');
+
+  btn.disabled = true;
+  loading.style.display = 'block';
+  result.style.display = 'none';
+
+  const input = {
+    year: parseInt(document.getElementById('inYear').value),
+    month: parseInt(document.getElementById('inMonth').value),
+    day: parseInt(document.getElementById('inDay').value),
+    hour: parseInt(document.getElementById('inHour').value),
+    minute: parseInt(document.getElementById('inMinute').value),
+    gender: document.getElementById('inGender').value,
+    longitude: parseFloat(document.getElementById('inLng').value),
+    latitude: 39.9
+  };
+  currentBaziInput = input;
+
+  try {
+    const r = await fetch(API + '/api/bazi/full', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input)
+    });
+    const d = await r.json();
+    currentBazi = d;
+    renderCalcResult(d);
+    loading.style.display = 'none';
+    result.style.display = 'block';
+  } catch (e) {
+    loading.innerHTML = '<p style="color:var(--red)">连接 API 失败，请确认服务已启动</p>';
+  }
+  btn.disabled = false;
+}
+
+function renderCalcResult(d) {
+  const b = d.bazi;
+  const s = d.shensha;
+  const g = d.geju;
+  const y = d.yongshen;
+  const t = d.tiaohou;
+
+  // 时间
+  document.getElementById('resultTime').textContent = '真太阳时: ' + d.input.true_solar_time;
+
+  // 四柱
+  const pillars = document.getElementById('pillarsDisplay');
+  const labels = ['年柱', '月柱', '日柱', '时柱'];
+  const keys = ['year', 'month', 'day', 'hour'];
+  pillars.innerHTML = keys.map((k, i) => {
+    const shigan = b.shigan_map && b.shigan_map[k + (k === 'day' ? '' : '_gan')] ? b.shigan_map[k + (k === 'day' ? '' : '_gan')] : '';
+    return `<div class="pillar">
+      <div class="ganzhi">${b.pillars[k]}</div>
+      <div class="label">${labels[i]}</div>
+      <div class="shigan">${shigan || '日主'}</div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('dayMasterInfo').textContent = `日主：${b.day_master}  ${b.day_master_info || ''}`;
+
+  // 五行
+  const wx = document.getElementById('wuxingDisplay');
+  const wxC = { '木': '#4CAF50', '火': '#F44336', '土': '#FF9800', '金': '#FFD700', '水': '#2196F3' };
+  wx.innerHTML = ['木', '火', '土', '金', '水'].map(w => {
+    const cnt = b.wuxing[w] || 0;
+    const score = b.wuxing_score[w] || '-';
+    const pct = Math.min(100, Math.max(0, cnt * 20));
+    return `<div class="flex-between mb-1">
+      <span>${w}</span><span class="text-sm">${cnt}个 / ${score}</span>
+      <div class="wuxing-bar" style="flex:1;margin-left:8px;max-width:100px">
+        <div class="wuxing-bar-fill" style="width:${pct}%;background:${wxC[w]}"></div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // 十神
+  const sg = document.getElementById('shiganDisplay');
+  const sgMap = b.shigan_count || {};
+  sg.innerHTML = Object.entries(sgMap).sort((a, b) => b[1] - a[1]).map(([k, v]) =>
+    `<span class="tag tag-wx" style="margin:3px">${k} ×${v}</span>`
+  ).join('') || '<span class="text-sm">无数据</span>';
+
+  // 格局
+  document.getElementById('gejuDisplay').innerHTML = `
+    <p><strong>${g.name}</strong> <span class="tag tag-ping">${g.type}</span></p>
+    <p class="text-sm mt-1">${g.desc}</p>
+    <p class="text-sm mt-1">纯度：${g.score}/100 ${g.is_cong ? '· 从格' : ''} ${g.is_huaqi ? '· 化气格' : ''}</p>
+    <p class="text-sm">适用神：${(g.shiyongshen || []).join(', ') || '无'}</p>
+    <p class="text-sm">忌神：${(g.jishen || []).join(', ') || '无'}</p>
+  `;
+
+  // 喜用神
+  document.getElementById('yongshenDisplay').innerHTML = `
+    <p><strong>日主状态：</strong>${y.wang_shuai}（${y.wang_shuai_level}/100）</p>
+    <p class="mt-1"><strong>用神：</strong>${(y.yong_shen || []).join(', ') || '无'}</p>
+    <p><strong>忌神：</strong>${(y.ji_shen || []).join(', ') || '无'}</p>
+    <p class="text-sm mt-1">${y.desc}</p>
+    <hr style="border-color:rgba(255,255,255,0.05);margin:8px 0">
+    <p><strong>调候：</strong>${t.required ? '需要 (' + t.season + ')' : '不需调候'}</p>
+    <p><strong>调候用神：</strong>${(t.tiaohou_shens || []).join(', ') || '无'}</p>
+    <p class="text-sm">${t.desc || ''}</p>
+  `;
+
+  // 神煞
+  const ss = document.getElementById('shenshaDisplay');
+  const ssDetail = s.detail || {};
+  const ji = Object.entries(ssDetail).filter(([_, v]) => v.cat === '吉神' || v.cat === '吉');
+  const xiong = Object.entries(ssDetail).filter(([_, v]) => v.cat === '凶' || v.cat === '大凶');
+  ss.innerHTML = `
+    <p>共 ${s.total} 种神煞：吉神 ${ji.length} 个 / 凶神 ${xiong.length} 个</p>
+    <div class="mt-1">
+      ${ji.slice(0, 6).map(([k, v]) => `<span class="tag tag-ji" style="margin:2px">${k}</span>`).join('')}
+      ${xiong.slice(0, 6).map(([k, v]) => `<span class="tag tag-xiong" style="margin:2px">${k}</span>`).join('')}
+    </div>
+    <p class="text-sm mt-1">${s.summary || ''}</p>
+  `;
+
+  // 大运
+  const du = document.getElementById('dayunDisplay');
+  du.innerHTML = (d.dayun || []).slice(0, 5).map(du =>
+    `<div style="display:inline-block;margin:4px 8px;padding:4px 12px;background:var(--bg3);border-radius:6px;font-size:12px">
+      ${du.age}-${du.age+9}岁 ${du.pillar}
+    </div>`
+  ).join('') + '<br><span class="text-sm">近期流年：' + (d.liunian || []).slice(0, 6).map(l => `${l.year}年 ${l.pillar}`).join(' · ') + '</span>';
+}
+
+// ====================================================================
+// 保存记录
+// ====================================================================
+async function saveRecord() {
+  if (!currentBaziInput) return;
+  try {
+    const r = await fetch(API + '/api/records?label=网页排盘', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(currentBaziInput)
+    });
+    const d = await r.json();
+    alert('保存成功！记录 ID: ' + d.id);
+  } catch {
+    alert('保存失败，请确认 API 服务已启动');
+  }
+}
+
+// ====================================================================
+// 知识库搜索
+// ====================================================================
+async function searchKnowledge() {
+  const q = document.getElementById('kbSearch').value.trim();
+  const filter = document.getElementById('kbFilter').value;
+  if (!q) return;
+
+  const res = document.getElementById('kbResults');
+  res.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+  try {
+    const body = { query: q, top_k: 10 };
+    if (filter) body.type_filter = filter;
+    const r = await fetch(API + '/api/knowledge/search', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const d = await r.json();
+    const results = d.results || [];
+    res.innerHTML = results.length === 0
+      ? '<div class="card"><p class="text-center text-sm">未找到相关结果</p></div>'
+      : results.map((r, i) => `
+        <div class="card">
+          <div class="flex-between">
+            <span class="card-header">${r.name} <span class="tag tag-ping">${r.type}</span></span>
+            <span class="text-sm">相似度: ${(r.similarity * 100).toFixed(1)}%</span>
+          </div>
+          <p class="text-sm">${r.text || ''}</p>
+        </div>
+      `).join('');
+  } catch {
+    res.innerHTML = '<div class="card"><p class="text-center" style="color:var(--red)">搜索失败</p></div>';
+  }
+}
+
+function quickSearch(q) {
+  document.getElementById('kbSearch').value = q;
+  searchKnowledge();
+}
+
+// ====================================================================
+// AI 对话
+// ====================================================================
+async function sendChat() {
+  const input = document.getElementById('chatInput');
+  const q = input.value.trim();
+  if (!q) return;
+
+  const msgs = document.getElementById('chatMessages');
+  msgs.innerHTML += `<div class="chat-msg user">${q}</div>`;
+  input.value = '';
+
+  // 添加加载中
+  const loadingId = 'loading-' + Date.now();
+  msgs.innerHTML += `<div class="chat-msg assistant" id="${loadingId}"><span class="spinner" style="width:16px;height:16px"></span></div>`;
+  msgs.scrollTop = msgs.scrollHeight;
+
+  try {
+    const body = { question: q, use_rag: true };
+    if (currentBazi) {
+      body.bazi_json = {
+        pillars: currentBazi.bazi.pillars,
+        day_master: currentBazi.bazi.day_master,
+        input: currentBazi.input
+      };
+    }
+
+    const r = await fetch(API + '/api/chat', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const d = await r.json();
+    document.getElementById(loadingId).textContent = d.answer;
+  } catch {
+    document.getElementById(loadingId).textContent = '对话失败，请确认 API 服务已启动';
+  }
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+// ====================================================================
+// 历史记录
+// ====================================================================
+async function loadHistory() {
+  const res = document.getElementById('historyContent');
+  try {
+    const r = await fetch(API + '/api/records?limit=50');
+    const d = await r.json();
+    const records = d.records || [];
+    res.innerHTML = records.length === 0
+      ? '<div class="card"><p class="text-center text-sm">暂无记录</p></div>'
+      : `<table>
+        <thead><tr><th>ID</th><th>出生时间</th><th>性别</th><th>日主</th><th>标签</th><th>时间</th><th>操作</th></tr></thead>
+        <tbody>${records.map(r => `
+          <tr>
+            <td>${r.id}</td>
+            <td>${r.year}-${r.month.toString().padStart(2, '0')}-${r.day.toString().padStart(2, '0')} ${r.hour.toString().padStart(2, '0')}:00</td>
+            <td>${r.gender === 'male' ? '男' : '女'}</td>
+            <td>${r.day_master || '-'}</td>
+            <td>${r.label || '-'}</td>
+            <td>${(r.created_at || '').substring(0, 10)}</td>
+            <td>
+              <button class="btn btn-sm" onclick="loadRecord(${r.id})">查看</button>
+              <button class="btn btn-sm btn-outline" onclick="deleteRecord(${r.id})">删除</button>
+            </td>
+          </tr>
+        `).join('')}</tbody>
+      </table>`;
+  } catch {
+    res.innerHTML = '<div class="card"><p class="text-center" style="color:var(--red)">加载失败</p></div>';
+  }
+}
+
+async function loadRecord(id) {
+  try {
+    const r = await fetch(API + '/api/records/' + id);
+    const d = await r.json();
+    currentBazi = {
+      bazi: { pillars: d.pillars, day_master: d.day_master, day_master_info: '', shigan_map: {}, shigan_count: d.analysis?.shigan_count || {}, wuxing: d.analysis?.wuxing || {}, wuxing_score: d.analysis?.wuxing_score || {}, branch_relations: d.analysis?.branch_relations || {} },
+      shensha: { total: d.shensha?.total || 0, summary: '', detail: d.shensha || {} },
+      geju: d.geju || { name: '-', type: '-', desc: '', score: 0, is_cong: false, is_huaqi: false, shiyongshen: [], jishen: [] },
+      yongshen: d.yongshen || { wang_shuai: '-', wang_shuai_level: 0, yong_shen: [], ji_shen: [], desc: '' },
+      tiaohou: d.tiaohou || { required: false, tiaohou_shens: [], season: '', desc: '' },
+      dayun: d.analysis?.dayuns || [],
+      liunian: d.analysis?.liunians || [],
+      input: { true_solar_time: '', gender: d.gender === 'male' ? '男' : '女' }
+    };
+    // 设置输入
+    document.getElementById('inYear').value = d.year;
+    document.getElementById('inMonth').value = d.month;
+    document.getElementById('inDay').value = d.day;
+    document.getElementById('inHour').value = d.hour;
+    document.getElementById('inMinute').value = d.minute;
+    document.getElementById('inGender').value = d.gender;
+    document.getElementById('inLng').value = d.longitude;
+    currentBaziInput = { year: d.year, month: d.month, day: d.day, hour: d.hour, minute: d.minute, gender: d.gender, longitude: d.longitude, latitude: d.latitude || 39.9 };
+    renderCalcResult(currentBazi);
+    document.getElementById('calcResult').style.display = 'block';
+    switchPage('calc');
+  } catch {
+    alert('加载记录失败');
+  }
+}
+
+async function deleteRecord(id) {
+  if (!confirm('确认删除记录 #' + id + '？')) return;
+  try {
+    await fetch(API + '/api/records/' + id, { method: 'DELETE' });
+    loadHistory();
+  } catch {
+    alert('删除失败');
+  }
+}
+
+// ====================================================================
+// 报告页切换时自动加载
+// ====================================================================
+const origSwitchPage = switchPage;
+switchPage = function(name) {
+  origSwitchPage(name);
+  if (name === 'report' && currentBazi) {
+    loadReport();
+  }
 };
 
-let historyData = [];
-let psiChart = null;
-
-// ═══ 初始化 ═══
-async function init() {
-  // API 状态检查
-  try {
-    const r = await fetch(`${API}/`);
-    const d = await r.json();
-    document.getElementById('apiDot').className = 'api-dot online';
-    document.getElementById('apiStatusText').textContent =
-      `v${d.version} | 在线 | branch=${d.branch_loaded ? '✅' : '❌'}`;
-  } catch(e) {
-    document.getElementById('apiStatusText').textContent = '❌ API 未运行';
+async function loadReport() {
+  const res = document.getElementById('reportContent');
+  if (!currentBaziInput) {
+    res.innerHTML = '<div class="loading"><p>请先进行八字排盘</p></div>';
+    return;
   }
-
-  // 域按钮
-  const grid = document.getElementById('domainGrid');
-  Object.keys(DOMAINS).forEach(name => {
-    const btn = document.createElement('button');
-    btn.className = 'domain-btn';
-    btn.textContent = name;
-    btn.onclick = () => {
-      document.querySelectorAll('.domain-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      const d = DOMAINS[name];
-      document.getElementById('rootQuestion').value = d.q;
-      document.getElementById('answers').value = d.a.join('\n');
-    };
-    grid.appendChild(btn);
-  });
-  // 默认选中
-  const firstBtn = grid.querySelector('.domain-btn');
-  if (firstBtn) { firstBtn.classList.add('active'); }
-
-  // 图表初始化
-  const canvas = document.getElementById('psiChart');
-  if (canvas && window.Chart) {
-    psiChart = new Chart(canvas, {
-      type: 'line',
-      data: { labels:[], datasets:[{
-        label:'Ψ', data:[], borderColor:'#5eead4', backgroundColor:'#5eead422',
-        tension:0.3, fill:true, pointRadius:3, pointHoverRadius:5
-      }]},
-      options: {
-        responsive:true, maintainAspectRatio:false,
-        plugins:{legend:{display:false}},
-        scales:{
-          x:{display:true, ticks:{color:'#8080a0',maxTicksLimit:8}},
-          y:{min:0,max:1,ticks:{color:'#8080a0',stepSize:0.2}}
-        }
-      }
-    });
-  }
-
-  // 自动评估架构域
-  autoEval();
-}
-
-// ═══ 评估 ═══
-async function evaluate() {
-  const btn = document.getElementById('evalBtn');
-  btn.disabled = true; btn.textContent = '评估中...';
-  const start = performance.now();
-
+  res.innerHTML = '<div class="loading"><div class="spinner"></div><p>生成报告中...</p></div>';
   try {
-    const q = document.getElementById('rootQuestion').value.trim();
-    const a = document.getElementById('answers').value.split('\n').filter(s => s.trim());
-    const qi = document.getElementById('qiStyle').value;
-
-    const r = await fetch(`${API}/evaluate`, {
-      method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':`Bearer ${API_KEY}`},
-      body: JSON.stringify({root_question:q, answers:a, qi_style:qi, return_explain:true})
+    const r = await fetch(API + '/api/bazi/report', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        bazi: currentBaziInput,
+        format: 'text',
+        include_shensha: true,
+        include_geju: true,
+        include_yongshen: true
+      })
     });
     const d = await r.json();
-    const elapsed = ((performance.now()-start)/1000).toFixed(2);
-
-    if (d.spirit_score !== undefined) displayResult(d, elapsed, a);
-    else throw new Error(d.detail || 'API错误');
-  } catch(e) {
-    document.getElementById('psiResult').innerHTML =
-      `<div style="text-align:center;padding:20px;color:var(--danger);">
-        ❌ 评估失败: ${e.message}<br>
-        <span style="font-size:0.75rem;color:var(--text-secondary);">确保 API 在 ${API} 运行</span>
-      </div>`;
+    res.textContent = d.report;
+  } catch {
+    res.innerHTML = '<p style="color:var(--red)">报告生成失败</p>';
   }
-  btn.disabled = false; btn.textContent = '◉ 评估';
 }
 
-function displayResult(d, elapsed, answers) {
-  const s = d.spirit_score;
-
-  // Ψ 大数字
-  document.getElementById('psiResult').innerHTML = `
-    <div class="psi-big" style="color:${s>=0.8?'var(--success)':s>=0.6?'var(--accent)':s>=0.4?'var(--warning)':'var(--danger)'}">${s.toFixed(4)}</div>
-    <div class="psi-label">Ψ 神似指数 · ${elapsed}s</div>
-    ${d.diagnosis ? `<div class="psi-diagnosis" style="background:${s>=0.6?'var(--accent-dim)':'var(--bg-primary)'};color:${s>=0.8?'var(--success)':s>=0.6?'var(--accent)':'var(--warning)'}">${d.diagnosis}</div>` : ''}
-    <div class="dim-grid">
-      ${['intention','coherence','priority','insight'].map(k =>
-        `<div class="dim-item">
-          <div class="dim-label">${k}</div>
-          <div class="dim-value" style="color:${(d.dimensions[k]||0)>=0.7?'var(--success)':'var(--warning)'}">${(d.dimensions[k]||0).toFixed(4)}</div>
-        </div>`
-      ).join('')}
-    </div>
-    <div class="qi-grid">
-      ${d.qi_scores ? ['b','z','y'].map(k => {
-        const label = {b:'本气·核心意图',z:'中气·逻辑连贯',y:'余气·细节洞见'}[k];
-        const pct = ((d.qi_scores[k]||0)/0.5*100).toFixed(0);
-        return `<div class="qi-item">
-          <div class="qi-label">${label}</div>
-          <div class="qi-value">${(d.qi_scores[k]||0).toFixed(4)}</div>
-          <div class="qi-bar"><div class="qi-bar-fill" style="width:${Math.min(pct,100)}%;background:${k==='b'?'var(--accent)':k==='z'?'var(--info)':'var(--purple)'}"></div></div>
-        </div>`;
-      }).join('') : ''}
-    </div>
-  `;
-
-  // 节点级分析
-  if (d.explain && d.explain.nodes) {
-    document.getElementById('nodeDetailCard').style.display = 'block';
-    document.getElementById('nodeDetail').innerHTML = d.explain.nodes.map(n =>
-      `<div class="node-item">
-        <span>#${n.id}: ${n.ans}</span>
-        <span class="node-score">int=${(n.intention||0).toFixed(3)} coh=${(n.coherence||0).toFixed(3)}</span>
-      </div>`
-    ).join('');
-  }
-
-  // 历史记录
-  const label = new Date().toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
-  historyData.push({label, psi:s, t:Date.now()});
-  if (historyData.length > 30) historyData.shift();
-  updateChart();
-}
-
-function updateChart() {
-  if (!psiChart) return;
-  psiChart.data.labels = historyData.map(h => h.label);
-  psiChart.data.datasets[0].data = historyData.map(h => h.psi);
-  psiChart.update('none');
-}
-
-// ═══ 自动评估 ═══
-function autoEval() {
-  const q = document.getElementById('rootQuestion').value;
-  const a = document.getElementById('answers').value;
-  if (q && a) evaluate();
-}
-
-// ═══ 全域快照 ═══
-async function domainSnapshot() {
-  const btn = document.querySelector('.eval-btn:last-child');
-  btn.disabled = true; btn.textContent = '快照中...';
-  const results = [];
-  for (const [name, d] of Object.entries(DOMAINS)) {
-    try {
-      const r = await fetch(`${API}/evaluate`, {
-        method:'POST',
-        headers:{'Content-Type':'application/json','Authorization':`Bearer ${API_KEY}`},
-        body: JSON.stringify({root_question:d.q, answers:d.a, qi_style:'qi_main', return_explain:false})
-      });
-      const data = await r.json();
-      results.push({name, psi:data.spirit_score});
-      historyData.push({label:`${name}`, psi:data.spirit_score, t:Date.now()});
-    } catch(e) { results.push({name, psi:0}); }
-  }
-  if (historyData.length > 30) historyData = historyData.slice(-30);
-  updateChart();
-
-  document.getElementById('psiResult').innerHTML = `
-    <div class="psi-label" style="margin-bottom:8px;">全域快照 (${new Date().toLocaleTimeString()})</div>
-    ${results.map(r => `
-      <div style="display:flex;justify-content:space-between;padding:4px 8px;border-bottom:1px solid var(--border);font-size:0.85rem;">
-        <span>${r.name}</span>
-        <span style="color:${r.psi>=0.6?'var(--success)':'var(--warning)'};font-weight:600;">Ψ=${r.psi.toFixed(4)}</span>
-      </div>
-    `).join('')}
-  `;
-  btn.disabled = false; btn.textContent = '📊 全域快照';
-}
-
-// ═══ 启动 ═══
-document.addEventListener('DOMContentLoaded', init);
+// ====================================================================
+// 初始化
+// ====================================================================
+document.getElementById('kbSearch').addEventListener('input', function() {
+  if (this.value.length >= 2) searchKnowledge();
+});
 </script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 </body>
 </html>

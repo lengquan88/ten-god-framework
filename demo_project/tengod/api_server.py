@@ -49,7 +49,8 @@ from typing import Any, Dict, List, Optional, Union
 
 from fastapi import FastAPI, HTTPException, Request, Depends, Query, Header
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 import uvicorn
 
@@ -337,6 +338,11 @@ app.middleware("http")(log_middleware)
 # 限流
 app.middleware("http")(rate_limit_middleware)
 
+# 静态文件（3D 可视化等）
+_static_dir = os.path.join(os.path.dirname(__file__), "..", "..", "deploy_frontend")
+if os.path.isdir(_static_dir):
+    app.mount("/static", StaticFiles(directory=_static_dir), name="static")
+
 
 # ============================================================================
 # 辅助函数
@@ -357,6 +363,16 @@ def _bazi_to_analyzer(bazi: BaziInput):
     return BaziAnalyzer(bazi.year, bazi.month, bazi.day,
                         bazi.hour, bazi.minute, is_male=is_male,
                         longitude=bazi.longitude, latitude=bazi.latitude)
+
+
+# ============================================================================
+# 根路由 → 前端 SPA
+# ============================================================================
+
+@app.get("/", response_class=RedirectResponse, include_in_schema=False)
+async def root():
+    """重定向到前端 SPA"""
+    return RedirectResponse(url="/static/index.html")
 
 
 # ============================================================================
