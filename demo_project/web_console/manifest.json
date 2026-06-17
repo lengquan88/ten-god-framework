@@ -1,36 +1,78 @@
 {
-  "name": "十神架构控制台",
+  "name": "十神架构 · 中华文明数字永生体",
   "short_name": "十神",
-  "description": "中华文明数字永生体 · 十神架构 Web 控制台",
-  "start_url": "/web_console/index.html",
+  "description": "中华文明数字永生体 · 十神架构 PWA 控制台，支持八字排盘、命例案例库、知识图谱、离线使用",
+  "start_url": "/app/index.html",
+  "scope": "/app/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
   "background_color": "#0a0a0f",
   "theme_color": "#c9a96e",
   "orientation": "any",
+  "lang": "zh-CN",
+  "dir": "ltr",
+  "categories": ["utilities", "productivity", "lifestyle"],
   "icons": [
     {
-      "src": "/web_console/icon-192.png",
+      "src": "/app/icon-192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
-      "src": "/web_console/icon-512.png",
+      "src": "/app/icon-512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/app/icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
-  "categories": ["utilities", "productivity"],
-  "lang": "zh-CN",
+  "screenshots": [
+    {
+      "src": "/app/screenshot-mobile.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "移动端总览"
+    },
+    {
+      "src": "/app/screenshot-desktop.png",
+      "sizes": "1920x1080",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "桌面端总览"
+    }
+  ],
   "shortcuts": [
     {
-      "name": "知识库",
-      "url": "/web_console/index.html#knowledge",
+      "name": "八字排盘",
+      "short_name": "排盘",
+      "url": "/app/index.html#bazi",
+      "description": "八字排盘与命理分析"
+    },
+    {
+      "name": "命例案例库",
+      "short_name": "案例",
+      "url": "/app/index.html#cases",
+      "description": "浏览命例案例"
+    },
+    {
+      "name": "知识图谱",
+      "short_name": "图谱",
+      "url": "/app/index.html#knowledge",
       "description": "查看知识图谱"
     },
     {
-      "name": "Oracle",
-      "url": "/web_console/index.html#oracle",
+      "name": "推背图",
+      "short_name": "推背",
+      "url": "/app/index.html#oracle",
       "description": "咨询 Oracle"
     }
-  ]
+  ],
+  "prefer_related_applications": false
 }

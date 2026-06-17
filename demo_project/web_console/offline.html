@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>离线 · 十神架构</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a0f; color: #e8e4dd;
+    font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    padding: 24px; text-align: center;
+  }
+  .container { max-width: 400px; }
+  .logo {
+    width: 80px; height: 80px; border-radius: 50%; margin: 0 auto 24px;
+    background: linear-gradient(135deg, #c9a96e 0%, #8b6f3a 100%);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 36px; font-weight: 900; color: #0a0a0f;
+    box-shadow: 0 0 30px rgba(201,169,110,0.3);
+    animation: pulse 3s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%,100% { box-shadow: 0 0 30px rgba(201,169,110,0.3); }
+    50% { box-shadow: 0 0 50px rgba(201,169,110,0.5); }
+  }
+  h1 {
+    font-family: 'Noto Serif SC', serif; font-size: 24px; font-weight: 700;
+    margin-bottom: 12px; letter-spacing: 2px;
+  }
+  h1 span { color: #c9a96e; }
+  p { color: #8b8a8e; font-size: 14px; line-height: 1.8; margin-bottom: 24px; }
+  .hint {
+    background: #181825; border: 1px solid #27273a; border-radius: 8px;
+    padding: 16px; margin: 16px 0; font-size: 13px; color: #8b8a8e; text-align: left;
+  }
+  .hint-title { color: #c9a96e; font-weight: 600; margin-bottom: 8px; }
+  .btn {
+    display: inline-block; padding: 12px 32px; border-radius: 8px;
+    background: linear-gradient(135deg, #8b6f3a 0%, #c9a96e 100%);
+    color: #0a0a0f; font-weight: 600; font-size: 14px; text-decoration: none;
+    border: none; cursor: pointer; transition: 0.25s;
+  }
+  .btn:hover { box-shadow: 0 0 16px rgba(201,169,110,0.4); }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="logo">神</div>
+  <h1>十<span>神</span>架构</h1>
+  <p>当前处于离线状态</p>
+  <div class="hint">
+    <div class="hint-title">离线可用功能</div>
+    • 查看已缓存的八字记录<br>
+    • 浏览已缓存的命例案例<br>
+    • 知识图谱（已缓存部分）<br>
+    • 离线操作将自动同步
+  </div>
+  <p style="font-size: 12px;">网络恢复后，离线期间的操作将自动同步到服务器</p>
+  <button class="btn" onclick="location.reload()">重新连接</button>
+</div>
+</body>
+</html>

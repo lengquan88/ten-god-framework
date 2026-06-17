@@ -346,6 +346,11 @@ _static_dir = os.path.join(os.path.dirname(__file__), "..", "..", "deploy_fronte
 if os.path.isdir(_static_dir):
     app.mount("/static", StaticFiles(directory=_static_dir), name="static")
 
+# 阶段十九：PWA Web 控制台挂载
+_web_console_dir = os.path.join(os.path.dirname(__file__), "..", "web_console")
+if os.path.isdir(_web_console_dir):
+    app.mount("/app", StaticFiles(directory=_web_console_dir, html=True), name="web_console")
+
 
 # ============================================================================
 # 辅助函数
@@ -375,6 +380,10 @@ def _bazi_to_analyzer(bazi: BaziInput):
 @app.get("/", response_class=RedirectResponse, include_in_schema=False)
 async def root():
     """重定向到前端 SPA"""
+    # 阶段十九：优先重定向到 PWA 控制台
+    _web_console_dir = os.path.join(os.path.dirname(__file__), "..", "web_console")
+    if os.path.isdir(_web_console_dir):
+        return RedirectResponse(url="/app/index.html")
     return RedirectResponse(url="/static/index.html")
 
 

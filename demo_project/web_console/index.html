@@ -2,11 +2,20 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
+<meta name="theme-color" content="#0a0a0f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="十神">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="/app/manifest.json">
+<link rel="icon" href="/app/icon-192.png">
+<link rel="apple-touch-icon" href="/app/icon-192.png">
 <title>十神架构 · 控制台</title>
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="/app/offline-store.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700;900&family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
 
@@ -32,12 +41,17 @@
     --earth: #8b7355;
     --metal: #c9b99a;
     --radius: 8px;
+    --radius-lg: 12px;
     --shadow: 0 4px 24px rgba(0,0,0,0.4);
     --font-display: 'Noto Serif SC', serif;
     --font-body: 'Noto Sans SC', sans-serif;
     --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --nav-height: 56px;
   }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { overscroll-behavior-y: contain; }
   body {
     background: var(--bg-deep);
     color: var(--text-primary);
@@ -45,6 +59,7 @@
     line-height: 1.6;
     overflow-x: hidden;
     min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
   }
   body::before {
     content: ''; position: fixed; inset: 0;
@@ -52,128 +67,147 @@
                 radial-gradient(ellipse at 20% 100%, rgba(74,111,165,0.05) 0%, transparent 60%);
     pointer-events: none; z-index: 0;
   }
-  /* Scrollbar */
-  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
   ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
-  /* Layout */
-  .app { position: relative; z-index: 1; }
+  /* ─── Layout ─── */
+  .app { position: relative; z-index: 1; min-height: 100vh; display: flex; flex-direction: column; }
+
   .header {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 20px 32px; border-bottom: 1px solid var(--border);
-    background: rgba(18,18,26,0.8); backdrop-filter: blur(12px);
+    padding: calc(12px + var(--safe-top)) 20px 12px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(18,18,26,0.85); backdrop-filter: blur(12px);
     position: sticky; top: 0; z-index: 100;
   }
-  .header-brand { display: flex; align-items: center; gap: 14px; }
+  .header-brand { display: flex; align-items: center; gap: 12px; }
   .header-logo {
-    width: 44px; height: 44px; border-radius: 50%;
+    width: 40px; height: 40px; border-radius: 50%;
     background: linear-gradient(135deg, var(--gold) 0%, var(--gold-dim) 100%);
     display: flex; align-items: center; justify-content: center;
-    font-family: var(--font-display); font-weight: 900; font-size: 22px;
+    font-family: var(--font-display); font-weight: 900; font-size: 20px;
     color: var(--bg-deep); box-shadow: 0 0 20px rgba(201,169,110,0.3);
-    animation: logoPulse 3s ease-in-out infinite;
+    animation: logoPulse 3s ease-in-out infinite; flex-shrink: 0;
   }
   @keyframes logoPulse {
     0%,100% { box-shadow: 0 0 20px rgba(201,169,110,0.3); }
     50% { box-shadow: 0 0 35px rgba(201,169,110,0.5); }
   }
-  .header-title { font-family: var(--font-display); font-size: 22px; font-weight: 700; letter-spacing: 2px; }
+  .header-title { font-family: var(--font-display); font-size: 18px; font-weight: 700; letter-spacing: 1px; }
   .header-title span { color: var(--gold); }
+  .header-meta { display: flex; align-items: center; gap: 10px; }
   .header-version {
-    font-size: 11px; color: var(--text-muted); background: var(--bg-card);
-    padding: 3px 10px; border-radius: 12px; border: 1px solid var(--border);
+    font-size: 10px; color: var(--text-muted); background: var(--bg-card);
+    padding: 3px 8px; border-radius: 10px; border: 1px solid var(--border);
   }
   .header-status {
-    display: flex; align-items: center; gap: 8px;
-    font-size: 13px; color: var(--jade-bright);
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; color: var(--jade-bright);
   }
+  .header-status.offline { color: var(--cinnabar-bright); }
   .header-status-dot {
-    width: 8px; height: 8px; border-radius: 50%;
+    width: 7px; height: 7px; border-radius: 50%;
     background: var(--jade-bright); animation: dotPulse 2s ease-in-out infinite;
   }
+  .header-status.offline .header-status-dot { background: var(--cinnabar-bright); animation: none; }
   @keyframes dotPulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
-  .header-status.error { color: var(--cinnabar-bright); }
-  .header-status.error .header-status-dot { background: var(--cinnabar-bright); }
 
-  .nav {
-    display: flex; gap: 4px; padding: 12px 32px;
+  /* ─── Desktop Nav (top) ─── */
+  .nav-top {
+    display: flex; gap: 4px; padding: 10px 20px;
     border-bottom: 1px solid var(--border);
-    background: rgba(10,10,15,0.6);
+    background: rgba(10,10,15,0.6); overflow-x: auto;
   }
   .nav-btn {
-    padding: 8px 20px; border: 1px solid transparent; border-radius: 6px;
+    padding: 8px 16px; border: 1px solid transparent; border-radius: 6px;
     background: transparent; color: var(--text-secondary); font-size: 13px;
     cursor: pointer; transition: var(--transition); font-family: var(--font-body);
-    font-weight: 500;
+    font-weight: 500; white-space: nowrap; display: flex; align-items: center; gap: 6px;
   }
   .nav-btn:hover { color: var(--text-primary); background: var(--bg-hover); }
   .nav-btn.active {
     color: var(--gold-bright); background: rgba(201,169,110,0.08);
     border-color: rgba(201,169,110,0.2);
   }
+  .nav-btn-icon { font-size: 15px; }
 
-  .main { padding: 24px 32px; max-width: 1400px; margin: 0 auto; }
+  /* ─── Bottom Nav (mobile) ─── */
+  .nav-bottom {
+    display: none; position: fixed; bottom: 0; left: 0; right: 0; z-index: 200;
+    background: rgba(18,18,26,0.95); backdrop-filter: blur(16px);
+    border-top: 1px solid var(--border);
+    padding-bottom: var(--safe-bottom);
+  }
+  .nav-bottom-items {
+    display: flex; height: var(--nav-height);
+  }
+  .nav-bottom-btn {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 2px; background: transparent; border: none; color: var(--text-muted);
+    font-size: 10px; cursor: pointer; transition: var(--transition); font-family: var(--font-body);
+  }
+  .nav-bottom-btn.active { color: var(--gold-bright); }
+  .nav-bottom-btn-icon { font-size: 20px; line-height: 1; }
 
-  /* Cards */
+  .main {
+    flex: 1; padding: 16px; max-width: 1400px; margin: 0 auto; width: 100%;
+    padding-bottom: calc(16px + var(--nav-height) + var(--safe-bottom));
+  }
+
+  /* ─── Cards ─── */
   .card {
     background: var(--bg-panel); border: 1px solid var(--border);
-    border-radius: var(--radius); padding: 24px; transition: var(--transition);
-    box-shadow: var(--shadow);
+    border-radius: var(--radius-lg); padding: 20px; transition: var(--transition);
+    box-shadow: var(--shadow); margin-bottom: 16px;
   }
   .card:hover { border-color: rgba(201,169,110,0.15); }
   .card-title {
-    font-family: var(--font-display); font-size: 16px; font-weight: 600;
-    margin-bottom: 16px; display: flex; align-items: center; gap: 8px;
+    font-family: var(--font-display); font-size: 15px; font-weight: 600;
+    margin-bottom: 14px; display: flex; align-items: center; gap: 8px;
   }
   .card-title::before {
-    content: ''; width: 3px; height: 18px; background: var(--gold);
+    content: ''; width: 3px; height: 16px; background: var(--gold);
     border-radius: 2px;
   }
 
-  /* Grid */
-  .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
-  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  /* ─── Grid ─── */
+  .grid-2 { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
 
-  /* Feature badge */
-  .feature-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+  /* ─── Feature badge ─── */
+  .feature-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; }
   .feature-badge {
-    display: flex; align-items: center; gap: 8px; padding: 10px 14px;
+    display: flex; align-items: center; gap: 8px; padding: 10px 12px;
     border-radius: 6px; background: var(--bg-card); border: 1px solid var(--border);
     font-size: 12px; transition: var(--transition);
   }
   .feature-badge.on { border-color: rgba(91,140,90,0.3); color: var(--jade-bright); }
   .feature-badge.off { color: var(--text-muted); opacity: 0.5; }
-  .feature-dot {
-    width: 6px; height: 6px; border-radius: 50%;
-    background: var(--text-muted);
-  }
+  .feature-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-muted); flex-shrink: 0; }
   .feature-badge.on .feature-dot { background: var(--jade-bright); box-shadow: 0 0 6px rgba(91,140,90,0.5); }
 
-  /* Stats */
+  /* ─── Stats ─── */
   .stat-card {
     background: var(--bg-card); border: 1px solid var(--border);
-    border-radius: var(--radius); padding: 18px 20px;
+    border-radius: var(--radius); padding: 16px;
     text-align: center; transition: var(--transition);
   }
   .stat-card:hover { border-color: var(--gold-dim); }
   .stat-value {
-    font-family: var(--font-display); font-size: 32px; font-weight: 700;
+    font-family: var(--font-display); font-size: 28px; font-weight: 700;
     color: var(--gold-bright);
   }
-  .stat-label { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+  .stat-label { font-size: 11px; color: var(--text-secondary); margin-top: 4px; }
 
-  /* Module card */
+  /* ─── Module card ─── */
   .module-card {
     background: var(--bg-card); border: 1px solid var(--border);
-    border-radius: var(--radius); padding: 16px 18px; transition: var(--transition);
+    border-radius: var(--radius); padding: 14px; transition: var(--transition);
   }
   .module-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.3); }
-  .module-name {
-    font-family: var(--font-display); font-size: 15px; font-weight: 600; margin-bottom: 4px;
-  }
+  .module-name { font-family: var(--font-display); font-size: 14px; font-weight: 600; margin-bottom: 4px; }
   .module-role { font-size: 11px; color: var(--text-secondary); }
   .module-status {
     display: inline-block; margin-top: 8px; padding: 3px 10px; border-radius: 10px;
@@ -181,15 +215,14 @@
   }
   .module-status.ready { background: rgba(91,140,90,0.15); color: var(--jade-bright); border: 1px solid rgba(91,140,90,0.2); }
   .module-status.unavailable { background: rgba(196,85,77,0.1); color: var(--text-muted); border: 1px solid rgba(196,85,77,0.1); }
-  .module-status.degraded { background: rgba(212,131,58,0.15); color: var(--fire); border: 1px solid rgba(212,131,58,0.2); }
 
-  /* Knowledge graph */
+  /* ─── Knowledge graph ─── */
   .graph-container {
-    position: relative; min-height: 400px; background: var(--bg-card);
+    position: relative; min-height: 360px; background: var(--bg-card);
     border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden;
   }
   .graph-node {
-    position: absolute; padding: 6px 14px; border-radius: 20px;
+    position: absolute; padding: 5px 12px; border-radius: 20px;
     font-size: 12px; font-weight: 500; white-space: nowrap;
     transition: transform 0.2s, box-shadow 0.2s; cursor: pointer;
   }
@@ -203,69 +236,150 @@
   .graph-node.default { background: rgba(255,255,255,0.05); border: 1px solid var(--border); color: var(--text-secondary); }
   .graph-svg { position: absolute; inset: 0; pointer-events: none; }
 
-  /* Oracle */
-  .oracle-form { display: flex; gap: 12px; margin-bottom: 16px; }
-  .oracle-input {
-    flex: 1; padding: 12px 16px; background: var(--bg-card); border: 1px solid var(--border);
+  /* ─── Form elements ─── */
+  .form-row { display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+  .form-group { flex: 1; min-width: 120px; }
+  .form-label { font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; display: block; }
+  .input, .select, .oracle-input {
+    width: 100%; padding: 11px 14px; background: var(--bg-card); border: 1px solid var(--border);
     border-radius: var(--radius); color: var(--text-primary); font-family: var(--font-body);
     font-size: 14px; outline: none; transition: var(--transition);
   }
-  .oracle-input:focus { border-color: var(--gold-dim); box-shadow: 0 0 0 2px rgba(201,169,110,0.1); }
-  .oracle-input::placeholder { color: var(--text-muted); }
+  .input:focus, .select:focus, .oracle-input:focus {
+    border-color: var(--gold-dim); box-shadow: 0 0 0 2px rgba(201,169,110,0.1);
+  }
+  .input::placeholder, .oracle-input::placeholder { color: var(--text-muted); }
+  .oracle-form { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+  .oracle-form .oracle-input { flex: 1; min-width: 200px; }
+
   .btn {
-    padding: 10px 24px; border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 11px 20px; border: 1px solid var(--border); border-radius: var(--radius);
     background: var(--bg-card); color: var(--text-primary); font-family: var(--font-body);
     font-size: 13px; font-weight: 500; cursor: pointer; transition: var(--transition);
+    min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   }
   .btn:hover { background: var(--bg-hover); }
+  .btn:active { transform: scale(0.97); }
   .btn-primary {
     background: linear-gradient(135deg, var(--gold-dim) 0%, var(--gold) 100%);
     border-color: var(--gold); color: var(--bg-deep); font-weight: 600;
   }
   .btn-primary:hover { box-shadow: 0 0 16px rgba(201,169,110,0.3); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
   .btn-danger { border-color: var(--cinnabar); color: var(--cinnabar-bright); }
   .btn-danger:hover { background: rgba(196,85,77,0.1); }
+  .btn-sm { padding: 6px 12px; font-size: 12px; min-height: 32px; }
 
+  /* ─── Oracle ─── */
   .oracle-result {
-    padding: 24px; background: var(--bg-card); border: 1px solid var(--border);
+    padding: 20px; background: var(--bg-card); border: 1px solid var(--border);
     border-radius: var(--radius);
   }
   .oracle-hexagram {
-    font-family: var(--font-display); font-size: 48px; font-weight: 900;
-    color: var(--gold-bright); text-align: center; margin-bottom: 12px;
+    font-family: var(--font-display); font-size: 42px; font-weight: 900;
+    color: var(--gold-bright); text-align: center; margin-bottom: 10px;
   }
-  .oracle-detail {
-    display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
-    margin-top: 16px;
-  }
+  .oracle-detail { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 14px; }
   .oracle-field { text-align: center; }
   .oracle-field-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
   .oracle-field-value { font-size: 14px; font-weight: 500; margin-top: 4px; }
 
-  /* Task list */
+  /* ─── Task list ─── */
   .task-list { display: flex; flex-direction: column; gap: 8px; }
   .task-item {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 12px 16px; background: var(--bg-card); border: 1px solid var(--border);
+    padding: 12px 14px; background: var(--bg-card); border: 1px solid var(--border);
     border-radius: 6px; font-size: 13px; transition: var(--transition);
   }
   .task-item:hover { border-color: var(--text-muted); }
-  .task-status {
-    padding: 3px 10px; border-radius: 10px; font-size: 11px; font-weight: 500;
-  }
+  .task-status { padding: 3px 10px; border-radius: 10px; font-size: 11px; font-weight: 500; }
   .task-status.pending { background: rgba(74,111,165,0.15); color: var(--water-bright); }
   .task-status.running { background: rgba(212,131,58,0.15); color: var(--fire); }
   .task-status.done { background: rgba(91,140,90,0.15); color: var(--jade-bright); }
   .task-status.failed { background: rgba(196,85,77,0.15); color: var(--cinnabar-bright); }
 
-  /* Metrics */
-  .metric-bar {
-    height: 6px; background: var(--bg-card); border-radius: 3px; overflow: hidden; margin-top: 6px;
+  /* ─── Bazi pillars ─── */
+  .pillars-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 14px 0; }
+  .pillar-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 12px 8px; text-align: center;
   }
-  .metric-fill { height: 100%; border-radius: 3px; transition: width 0.6s ease; }
-  .metric-fill.gold { background: linear-gradient(90deg, var(--gold-dim), var(--gold-bright)); }
+  .pillar-label { font-size: 11px; color: var(--text-muted); margin-bottom: 6px; }
+  .pillar-ganzi { font-family: var(--font-display); font-size: 18px; font-weight: 700; color: var(--gold-bright); }
+  .pillar-zhi { font-family: var(--font-display); font-size: 18px; font-weight: 700; color: var(--water-bright); margin-top: 4px; }
+  .pillar-wuxing { font-size: 10px; color: var(--text-secondary); margin-top: 6px; }
 
-  /* Loading */
+  .bazi-info { display: grid; grid-template-columns: 1fr; gap: 10px; margin-top: 14px; }
+  .bazi-info-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 14px; background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 6px; font-size: 13px;
+  }
+  .bazi-info-label { color: var(--text-secondary); }
+  .bazi-info-value { color: var(--gold-bright); font-weight: 500; }
+
+  .wuxing-bar { display: flex; height: 24px; border-radius: 4px; overflow: hidden; margin-top: 8px; }
+  .wuxing-segment { display: flex; align-items: center; justify-content: center; font-size: 10px; color: #fff; transition: width 0.6s; }
+  .wuxing-metal { background: #c9b99a; color: #333; }
+  .wuxing-wood { background: #5b8c5a; }
+  .wuxing-water { background: #4a6fa5; }
+  .wuxing-fire { background: #d4833a; }
+  .wuxing-earth { background: #8b7355; }
+
+  /* ─── Cases ─── */
+  .case-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 14px; margin-bottom: 10px;
+    transition: var(--transition); cursor: pointer;
+  }
+  .case-card:hover { border-color: var(--gold-dim); transform: translateY(-1px); }
+  .case-title { font-family: var(--font-display); font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+  .case-summary { font-size: 13px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 8px; }
+  .case-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .case-tag {
+    padding: 2px 8px; border-radius: 10px; font-size: 11px;
+    background: rgba(201,169,110,0.1); color: var(--gold-bright); border: 1px solid rgba(201,169,110,0.2);
+  }
+  .case-category {
+    padding: 2px 8px; border-radius: 10px; font-size: 11px;
+    background: rgba(91,140,90,0.15); color: var(--jade-bright); border: 1px solid rgba(91,140,90,0.2);
+  }
+  .case-stats { font-size: 11px; color: var(--text-muted); margin-left: auto; }
+
+  .case-filter { display: flex; gap: 8px; margin-bottom: 14px; overflow-x: auto; padding-bottom: 4px; }
+  .case-filter-btn {
+    padding: 6px 14px; border-radius: 16px; border: 1px solid var(--border);
+    background: var(--bg-card); color: var(--text-secondary); font-size: 12px;
+    cursor: pointer; white-space: nowrap; transition: var(--transition);
+  }
+  .case-filter-btn.active { background: rgba(201,169,110,0.1); color: var(--gold-bright); border-color: var(--gold-dim); }
+
+  /* ─── PWA install banner ─── */
+  .install-banner {
+    position: fixed; bottom: calc(var(--nav-height) + var(--safe-bottom) + 12px);
+    left: 12px; right: 12px; z-index: 150;
+    background: linear-gradient(135deg, var(--bg-panel) 0%, var(--bg-card) 100%);
+    border: 1px solid var(--gold-dim); border-radius: var(--radius-lg);
+    padding: 14px 16px; display: flex; align-items: center; gap: 12px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5); animation: slideUp 0.3s ease;
+  }
+  @keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  .install-icon { font-size: 28px; }
+  .install-text { flex: 1; }
+  .install-title { font-size: 14px; font-weight: 600; color: var(--gold-bright); }
+  .install-desc { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+
+  /* ─── Network status toast ─── */
+  .net-toast {
+    position: fixed; top: calc(60px + var(--safe-top)); left: 50%; transform: translateX(-50%);
+    z-index: 180; padding: 8px 18px; border-radius: 20px; font-size: 12px;
+    background: var(--cinnabar); color: #fff; box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    animation: fadeIn 0.3s ease;
+  }
+  .net-toast.online { background: var(--jade); }
+  @keyframes fadeIn { from { opacity: 0; transform: translate(-50%, -10px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+  /* ─── Loading ─── */
   .loading { text-align: center; padding: 40px; color: var(--text-muted); }
   .spinner {
     display: inline-block; width: 24px; height: 24px; border: 2px solid var(--border);
@@ -273,13 +387,35 @@
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  /* Responsive */
-  @media (max-width: 900px) {
-    .grid-2,.grid-3 { grid-template-columns: 1fr; }
-    .grid-4 { grid-template-columns: repeat(2, 1fr); }
-    .nav { padding: 8px 16px; overflow-x: auto; }
-    .main { padding: 16px; }
-    .oracle-detail { grid-template-columns: repeat(2, 1fr); }
+  .empty-state { text-align: center; padding: 40px 20px; color: var(--text-muted); font-size: 14px; }
+  .empty-state-icon { font-size: 40px; margin-bottom: 12px; opacity: 0.5; }
+
+  /* ─── Responsive: tablet & desktop ─── */
+  @media (min-width: 768px) {
+    .main { padding: 24px 32px; padding-bottom: 32px; }
+    .grid-2 { grid-template-columns: repeat(2, 1fr); }
+    .grid-4 { grid-template-columns: repeat(4, 1fr); }
+    .oracle-detail { grid-template-columns: repeat(4, 1fr); }
+    .bazi-info { grid-template-columns: repeat(2, 1fr); }
+    .pillars-grid { gap: 12px; }
+    .pillar-ganzi, .pillar-zhi { font-size: 22px; }
+    .stat-value { font-size: 32px; }
+    .header-title { font-size: 22px; }
+    .nav-bottom { display: none; }
+    .nav-top { display: flex; }
+    .install-banner { left: 24px; right: 24px; max-width: 480px; margin: 0 auto; }
+  }
+
+  /* ─── Mobile: bottom nav, hide top nav ─── */
+  @media (max-width: 767px) {
+    .nav-top { display: none; }
+    .nav-bottom { display: block; }
+    .header { padding-left: 16px; padding-right: 16px; }
+    .header-version { display: none; }
+    .card { padding: 16px; }
+    .pillars-grid { grid-template-columns: repeat(4, 1fr); gap: 6px; }
+    .pillar-card { padding: 10px 4px; }
+    .pillar-ganzi, .pillar-zhi { font-size: 16px; }
   }
 </style>
 </head>
@@ -305,13 +441,115 @@ const MODULES = [
   { name: '元辰', role: '本源定位', key: 'exception_tracking' },
 ];
 
+const WUXING_NAMES = { '金': 'metal', '木': 'wood', '水': 'water', '火': 'fire', '土': 'earth' };
+const WUXING_COLORS = { '金': '#c9b99a', '木': '#5b8c5a', '水': '#4a6fa5', '火': '#d4833a', '土': '#8b7355' };
+
+// ─── PWA Install Prompt Hook ────────────────────────────
+function usePWAInstall() {
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [installed, setInstalled] = useState(false);
+
+  useEffect(() => {
+    const handler = (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    const installedHandler = () => { setInstalled(true); setDeferredPrompt(null); };
+    window.addEventListener('beforeinstallprompt', handler);
+    window.addEventListener('appinstalled', installedHandler);
+    // 检测是否已安装
+    if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) {
+      setInstalled(true);
+    }
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handler);
+      window.removeEventListener('appinstalled', installedHandler);
+    };
+  }, []);
+
+  const promptInstall = async () => {
+    if (!deferredPrompt) return false;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    setDeferredPrompt(null);
+    return outcome === 'accepted';
+  };
+
+  return { canInstall: !!deferredPrompt && !installed, installed, promptInstall };
+}
+
+// ─── Network Status Hook ────────────────────────────────
+function useNetworkStatus() {
+  const [online, setOnline] = useState(navigator.onLine);
+  const [toast, setToast] = useState(null);
+
+  useEffect(() => {
+    const onOnline = () => { setOnline(true); setToast({ msg: '网络已恢复', type: 'online' }); setTimeout(() => setToast(null), 2500); };
+    const onOffline = () => { setOnline(false); setToast({ msg: '已离线 · 操作将自动同步', type: 'offline' }); };
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    return () => {
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+    };
+  }, []);
+
+  return { online, toast };
+}
+
+// ─── SW Registration ────────────────────────────────────
+function useServiceWorker() {
+  const [swVersion, setSwVersion] = useState(null);
+  const [updateReady, setUpdateReady] = useState(false);
+
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+    navigator.serviceWorker.register('/app/service-worker.js', { scope: '/app/' })
+      .then((reg) => {
+        console.log('[PWA] SW registered:', reg.scope);
+        // 获取 SW 版本
+        const channel = new MessageChannel();
+        channel.port1.onmessage = (e) => { if (e.data.version) setSwVersion(e.data.version); };
+        if (reg.active) reg.active.postMessage({ type: 'GET_VERSION' }, [channel.port2]);
+        // 检测更新
+        reg.addEventListener('updatefound', () => {
+          const newWorker = reg.installing;
+          if (newWorker) {
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                setUpdateReady(true);
+              }
+            });
+          }
+        });
+      })
+      .catch((err) => console.warn('[PWA] SW registration failed:', err));
+
+    // 监听 SW 消息
+    navigator.serviceWorker.addEventListener('message', (event) => {
+      if (event.data && event.data.type === 'sync-complete') {
+        console.log('[PWA] Synced', event.data.synced, 'ops');
+      }
+    });
+  }, []);
+
+  const applyUpdate = () => {
+    if (navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({ type: 'SKIP_WAITING' });
+    }
+    window.location.reload();
+  };
+
+  return { swVersion, updateReady, applyUpdate };
+}
+
 // ─── Dashboard ──────────────────────────────────────────
 function Dashboard({ state }) {
   const features = state?.features || {};
   const knowledge = state?.knowledge || {};
   return (
     <div>
-      <div className="grid-4" style={{ marginBottom: 24 }}>
+      <div className="grid-4" style={{ marginBottom: 16 }}>
         <div className="stat-card">
           <div className="stat-value">{state?.version || '1.5.0'}</div>
           <div className="stat-label">版本</div>
@@ -361,6 +599,300 @@ function Dashboard({ state }) {
   );
 }
 
+// ─── Bazi Calculator Page ───────────────────────────────
+function BaziPage() {
+  const [form, setForm] = useState({ year: 1990, month: 6, day: 15, hour: 10, minute: 0, gender: 'male' });
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [history, setHistory] = useState([]);
+  const [showHistory, setShowHistory] = useState(false);
+
+  // 加载本地历史记录
+  const loadHistory = useCallback(async () => {
+    if (window.OfflineStore) {
+      try {
+        const records = await window.OfflineStore.listBaziRecords();
+        setHistory(records);
+      } catch (e) { /* ignore */ }
+    }
+  }, []);
+
+  useEffect(() => { loadHistory(); }, [loadHistory]);
+
+  const calc = async () => {
+    setLoading(true); setError(''); setResult(null);
+    try {
+      const r = await fetch(API + '/bazi/full', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
+      const d = await r.json();
+      if (d.code === 0) {
+        setResult(d.data);
+        // 保存到本地离线缓存
+        if (window.OfflineStore) {
+          try {
+            await window.OfflineStore.saveBaziRecord({
+              ...form,
+              pillars: d.data.pillars,
+              analysis: d.data.analysis,
+              geju: d.data.geju,
+            });
+            loadHistory();
+          } catch (e) { /* ignore */ }
+        }
+      } else setError(d.message || '排盘失败');
+    } catch (e) {
+      setError('API 连接失败，请检查网络');
+    }
+    setLoading(false);
+  };
+
+  const pillars = result?.pillars || {};
+  const wuxing = result?.analysis?.wuxing || {};
+  const wuxingTotal = Object.values(wuxing).reduce((a, b) => a + b, 0) || 1;
+
+  const loadFromHistory = (record) => {
+    setResult({ pillars: record.pillars, analysis: record.analysis, geju: record.geju });
+    setShowHistory(false);
+  };
+
+  return (
+    <div>
+      <div className="card">
+        <div className="card-title" style={{ justifyContent: 'space-between' }}>
+          <span>八字排盘</span>
+          {history.length > 0 && (
+            <button className="btn btn-sm" onClick={() => setShowHistory(!showHistory)}>
+              {showHistory ? '隐藏历史' : `历史 (${history.length})`}
+            </button>
+          )}
+        </div>
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">年</label>
+            <input className="input" type="number" value={form.year}
+              onChange={e => setForm({...form, year: +e.target.value})} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">月</label>
+            <input className="input" type="number" min="1" max="12" value={form.month}
+              onChange={e => setForm({...form, month: +e.target.value})} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">日</label>
+            <input className="input" type="number" min="1" max="31" value={form.day}
+              onChange={e => setForm({...form, day: +e.target.value})} />
+          </div>
+        </div>
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">时</label>
+            <input className="input" type="number" min="0" max="23" value={form.hour}
+              onChange={e => setForm({...form, hour: +e.target.value})} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">分</label>
+            <input className="input" type="number" min="0" max="59" value={form.minute}
+              onChange={e => setForm({...form, minute: +e.target.value})} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">性别</label>
+            <select className="select" value={form.gender}
+              onChange={e => setForm({...form, gender: e.target.value})}>
+              <option value="male">男</option>
+              <option value="female">女</option>
+            </select>
+          </div>
+        </div>
+        <button className="btn btn-primary" onClick={calc} disabled={loading} style={{ width: '100%' }}>
+          {loading ? '排盘中…' : '开始排盘'}
+        </button>
+        {error && <div style={{ color: 'var(--cinnabar-bright)', fontSize: 13, marginTop: 10 }}>{error}</div>}
+      </div>
+
+      {showHistory && history.length > 0 && (
+        <div className="card">
+          <div className="card-title">本地历史记录（离线可用）</div>
+          {history.map(r => (
+            <div key={r.local_id} className="task-item" style={{ cursor: 'pointer' }}
+              onClick={() => loadFromHistory(r)}>
+              <span>{r.year}-{r.month}-{r.day} {r.hour}:{(r.minute||0).toString().padStart(2,'0')} {r.gender === 'male' ? '男' : '女'}</span>
+              <span className="case-tag">{r.day_master || '—'}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {result && (
+        <div className="card">
+          <div className="card-title">四柱八字</div>
+          <div className="pillars-grid">
+            {['year', 'month', 'day', 'hour'].map(pos => {
+              const p = pillars[pos] || '';
+              const gan = p.slice(0, 1), zhi = p.slice(1, 2);
+              const labels = { year: '年柱', month: '月柱', day: '日柱', hour: '时柱' };
+              return (
+                <div key={pos} className="pillar-card">
+                  <div className="pillar-label">{labels[pos]}</div>
+                  <div className="pillar-ganzi">{gan}</div>
+                  <div className="pillar-zhi">{zhi}</div>
+                  <div className="pillar-wuxing">{p}</div>
+                </div>
+              );
+            })}
+          </div>
+
+          {Object.keys(wuxing).length > 0 && (
+            <div style={{ marginTop: 16 }}>
+              <div className="form-label">五行分布</div>
+              <div className="wuxing-bar">
+                {Object.entries(wuxing).map(([k, v]) => (
+                  <div key={k} className={`wuxing-segment ${WUXING_NAMES[k] || ''}`}
+                    style={{ width: `${(v / wuxingTotal) * 100}%` }}
+                    title={`${k}: ${v}`}>
+                    {v > 0 && v}
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: 12, marginTop: 8, flexWrap: 'wrap' }}>
+                {Object.entries(wuxing).map(([k, v]) => (
+                  <span key={k} style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                    <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: WUXING_COLORS[k], marginRight: 4 }}></span>
+                    {k} {v}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="bazi-info">
+            {result.analysis?.day_master && (
+              <div className="bazi-info-item">
+                <span className="bazi-info-label">日主</span>
+                <span className="bazi-info-value">{result.analysis.day_master}</span>
+              </div>
+            )}
+            {result.geju?.geju_name && (
+              <div className="bazi-info-item">
+                <span className="bazi-info-label">格局</span>
+                <span className="bazi-info-value">{result.geju.geju_name}</span>
+              </div>
+            )}
+            {result.analysis?.yongshen && (
+              <div className="bazi-info-item">
+                <span className="bazi-info-label">用神</span>
+                <span className="bazi-info-value">{result.analysis.yongshen}</span>
+              </div>
+            )}
+            {result.analysis?.tiaohou && (
+              <div className="bazi-info-item">
+                <span className="bazi-info-label">调候</span>
+                <span className="bazi-info-value">{result.analysis.tiaohou}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Cases Page ─────────────────────────────────────────
+function CasesPage() {
+  const [cases, setCases] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [activeCategory, setActiveCategory] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [searchKeyword, setSearchKeyword] = useState('');
+  const [fromCache, setFromCache] = useState(false);
+
+  const fetchCases = useCallback(async () => {
+    setLoading(true); setFromCache(false);
+    try {
+      let url = API + '/cases?limit=50';
+      if (activeCategory) url += `&category=${encodeURIComponent(activeCategory)}`;
+      const r = await fetch(url);
+      const d = await r.json();
+      const list = d.cases || d.data?.cases || [];
+      setCases(list);
+      // 缓存到本地 IndexedDB
+      if (window.OfflineStore && list.length) {
+        try { await window.OfflineStore.cacheCases(list); } catch (e) { /* ignore */ }
+      }
+    } catch (e) {
+      // 网络失败，从本地缓存读取
+      if (window.OfflineStore) {
+        try {
+          const cached = await window.OfflineStore.listCachedCases(activeCategory || null);
+          setCases(cached);
+          setFromCache(true);
+        } catch (e2) { /* ignore */ }
+      }
+    }
+    setLoading(false);
+  }, [activeCategory]);
+
+  const fetchCategories = useCallback(async () => {
+    try {
+      const r = await fetch(API + '/cases/categories/list');
+      const d = await r.json();
+      setCategories(d.categories || []);
+    } catch (e) { /* ignore */ }
+  }, []);
+
+  useEffect(() => { fetchCategories(); }, [fetchCategories]);
+  useEffect(() => { fetchCases(); }, [fetchCases]);
+
+  const filtered = searchKeyword
+    ? cases.filter(c => (c.title || '').includes(searchKeyword) || (c.summary || '').includes(searchKeyword))
+    : cases;
+
+  return (
+    <div>
+      <div className="card">
+        <div className="card-title" style={{ justifyContent: 'space-between' }}>
+          <span>命例案例库</span>
+          {fromCache && <span style={{ fontSize: 11, color: 'var(--cinnabar-bright)', fontWeight: 400 }}>● 离线缓存</span>}
+        </div>
+        <input className="input oracle-input" placeholder="搜索案例标题或摘要..."
+          value={searchKeyword} onChange={e => setSearchKeyword(e.target.value)}
+          style={{ marginBottom: 12 }} />
+        <div className="case-filter">
+          <button className={`case-filter-btn ${!activeCategory ? 'active' : ''}`}
+            onClick={() => setActiveCategory('')}>全部</button>
+          {categories.map(cat => (
+            <button key={cat} className={`case-filter-btn ${activeCategory === cat ? 'active' : ''}`}
+              onClick={() => setActiveCategory(cat)}>{cat}</button>
+          ))}
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="loading"><div className="spinner"></div></div>
+      ) : filtered.length === 0 ? (
+        <div className="empty-state">
+          <div className="empty-state-icon">◈</div>
+          <div>暂无案例</div>
+        </div>
+      ) : (
+        filtered.map(c => (
+          <div key={c.id} className="case-card">
+            <div className="case-title">{c.title}</div>
+            {c.summary && <div className="case-summary">{c.summary}</div>}
+            <div className="case-meta">
+              {c.category && <span className="case-category">{c.category}</span>}
+              {(c.tags || []).slice(0, 3).map(t => <span key={t} className="case-tag">{t}</span>)}
+              <span className="case-stats">浏览 {c.view_count || 0}</span>
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
 // ─── Knowledge Graph ────────────────────────────────────
 function KnowledgeGraph({ state }) {
   const [nodes, setNodes] = useState([]);
@@ -378,7 +910,7 @@ function KnowledgeGraph({ state }) {
 
   useEffect(() => {
     if (containerRef.current) {
-      setDims({ w: containerRef.current.offsetWidth, h: Math.max(500, containerRef.current.offsetWidth * 0.55) });
+      setDims({ w: containerRef.current.offsetWidth, h: Math.max(400, containerRef.current.offsetWidth * 0.55) });
     }
   }, [nodes]);
 
@@ -388,17 +920,11 @@ function KnowledgeGraph({ state }) {
     const positioned = nodes.map((n, i) => {
       const angle = (i / nodes.length) * Math.PI * 2 + (i % 3) * 0.3;
       const r = 0.5 + (i % 4) * 0.15;
-      return {
-        ...n,
-        x: cx + Math.cos(angle) * rx * r - 40,
-        y: cy + Math.sin(angle) * ry * r - 16,
-      };
+      return { ...n, x: cx + Math.cos(angle) * rx * r - 40, y: cy + Math.sin(angle) * ry * r - 16 };
     });
     setEdges(positioned.flatMap((n, i) =>
       positioned.slice(i + 1, i + 3).map((m, j) => ({
-        id: `${n.id}-${m.id}`,
-        x1: n.x + 40, y1: n.y + 16,
-        x2: m.x + 40, y2: m.y + 16,
+        id: `${n.id}-${m.id}`, x1: n.x + 40, y1: n.y + 16, x2: m.x + 40, y2: m.y + 16,
       }))
     ));
     setNodes(positioned);
@@ -408,9 +934,7 @@ function KnowledgeGraph({ state }) {
     <div className="card">
       <div className="card-title" style={{ justifyContent: 'space-between' }}>
         <span>知识图谱（{nodes.length} 节点）</span>
-        <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 400 }}>
-          部分节点关系可视化
-        </span>
+        <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 400 }}>部分节点关系可视化</span>
       </div>
       {loading ? (
         <div className="loading"><div className="spinner"></div></div>
@@ -424,9 +948,7 @@ function KnowledgeGraph({ state }) {
           </svg>
           {nodes.map(n => (
             <div key={n.id} className={`graph-node ${n.node_type || 'default'}`}
-              style={{ left: Math.max(0, n.x), top: Math.max(0, n.y) }}>
-              {n.name}
-            </div>
+              style={{ left: Math.max(0, n.x), top: Math.max(0, n.y) }}>{n.name}</div>
           ))}
         </div>
       )}
@@ -446,22 +968,19 @@ function Oracle() {
     setLoading(true); setError(''); setResult(null);
     try {
       const r = await fetch(API + '/oracle', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question: question.trim() }),
       });
       const d = await r.json();
       if (d.code === 0) setResult(d.data);
       else setError(d.message || '咨询失败');
-    } catch (e) {
-      setError('API 连接失败');
-    }
+    } catch (e) { setError('API 连接失败'); }
     setLoading(false);
   };
 
   return (
     <div>
-      <div className="card" style={{ marginBottom: 20 }}>
+      <div className="card">
         <div className="card-title">推背图 Oracle · 认知引擎</div>
         <div className="oracle-form">
           <input className="oracle-input" value={question}
@@ -504,12 +1023,6 @@ function Oracle() {
               <div style={{ fontSize: 14, color: 'var(--gold-bright)', lineHeight: 1.8 }}>{result.prediction}</div>
             </div>
           )}
-          {result.wisdom && (
-            <div style={{ marginTop: 12, padding: 16, background: 'rgba(91,140,90,0.05)', borderRadius: 6, border: '1px solid rgba(91,140,90,0.1)' }}>
-              <div style={{ fontSize: 13, color: 'var(--jade)', marginBottom: 8 }}>人生智慧</div>
-              <div style={{ fontSize: 14, color: 'var(--text-primary)', lineHeight: 1.8 }}>{result.wisdom}</div>
-            </div>
-          )}
         </div>
       )}
     </div>
@@ -530,9 +1043,7 @@ function Tasks() {
       if (scheduler?.by_status) {
         const all = [];
         Object.entries(scheduler.by_status).forEach(([status, count]) => {
-          for (let i = 0; i < count; i++) {
-            all.push({ id: `${status}-${i}`, status, name: `任务 ${i + 1}` });
-          }
+          for (let i = 0; i < count; i++) all.push({ id: `${status}-${i}`, status, name: `任务 ${i + 1}` });
         });
         setTasks(all);
       }
@@ -545,23 +1056,21 @@ function Tasks() {
   const submitTask = async () => {
     if (!funcName.trim()) return;
     await fetch(API + '/tasks/submit', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ func_name: funcName.trim() }),
     });
-    setFuncName('');
-    fetchTasks();
+    setFuncName(''); fetchTasks();
   };
 
   return (
     <div>
-      <div className="card" style={{ marginBottom: 20 }}>
+      <div className="card">
         <div className="card-title">提交任务</div>
         <div className="oracle-form">
           <input className="oracle-input" value={funcName}
             onChange={e => setFuncName(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && submitTask()}
-            placeholder="任务函数名 (e.g. generate, evaluate, innovate)" />
+            placeholder="任务函数名 (e.g. generate)" />
           <button className="btn btn-primary" onClick={submitTask}>提交</button>
         </div>
       </div>
@@ -570,9 +1079,7 @@ function Tasks() {
         {loading ? (
           <div className="loading"><div className="spinner"></div></div>
         ) : tasks.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: 30, color: 'var(--text-muted)', fontSize: 14 }}>
-            暂无运行中的任务
-          </div>
+          <div className="empty-state"><div className="empty-state-icon">⚙</div><div>暂无运行中的任务</div></div>
         ) : (
           <div className="task-list">
             {tasks.map(t => (
@@ -594,28 +1101,21 @@ function MetricsView({ state }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/metrics')
-      .then(r => r.text())
-      .then(t => setMetricsText(t))
-      .catch(() => setMetricsText('# metrics unavailable\n'))
-      .finally(() => setLoading(false));
+    fetch('/metrics').then(r => r.text()).then(t => setMetricsText(t))
+      .catch(() => setMetricsText('# metrics unavailable\n')).finally(() => setLoading(false));
   }, []);
 
   const parseMetrics = () => {
     const lines = metricsText.split('\n').filter(l => l && !l.startsWith('#'));
     const result = {};
-    lines.forEach(l => {
-      const [name, val] = l.split(' ');
-      if (name && val) result[name] = parseFloat(val) || val;
-    });
+    lines.forEach(l => { const [name, val] = l.split(' '); if (name && val) result[name] = parseFloat(val) || val; });
     return result;
   };
-
   const parsed = parseMetrics();
 
   return (
     <div>
-      <div className="grid-4" style={{ marginBottom: 24 }}>
+      <div className="grid-4" style={{ marginBottom: 16 }}>
         <div className="stat-card">
           <div className="stat-value">{parsed['tengod_uptime_seconds'] ? Math.floor(parsed['tengod_uptime_seconds']) : '—'}</div>
           <div className="stat-label">运行秒数</div>
@@ -649,27 +1149,49 @@ function MetricsView({ state }) {
 
 // ─── App ────────────────────────────────────────────────
 function App() {
-  const [tab, setTab] = useState('dashboard');
+  const [tab, setTab] = useState(() => {
+    const hash = window.location.hash.replace('#', '');
+    return hash || 'dashboard';
+  });
   const [state, setState] = useState(null);
   const [connected, setConnected] = useState(false);
-  const [error, setError] = useState(false);
+  const { canInstall, promptInstall } = usePWAInstall();
+  const { online, toast } = useNetworkStatus();
+  const { swVersion, updateReady, applyUpdate } = useServiceWorker();
+  const [showInstallBanner, setShowInstallBanner] = useState(true);
 
   const fetchState = useCallback(async () => {
     try {
       const r = await fetch(API + '/status');
       const d = await r.json();
-      setState(d.data); setConnected(true); setError(false);
-    } catch (e) {
-      setError(true); setConnected(false);
-    }
+      setState(d.data); setConnected(true);
+    } catch (e) { setConnected(false); }
   }, []);
 
   useEffect(() => { fetchState(); const i = setInterval(fetchState, 8000); return () => clearInterval(i); }, [fetchState]);
 
-  const tabs = [
+  useEffect(() => {
+    const onHashChange = () => {
+      const hash = window.location.hash.replace('#', '');
+      if (hash) setTab(hash);
+    };
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
+
+  const switchTab = (id) => { setTab(id); window.location.hash = id; };
+
+  // 导航项：移动端底部5个，桌面端顶部全部
+  const mobileTabs = [
     { id: 'dashboard', label: '总览', icon: '▣' },
+    { id: 'bazi', label: '排盘', icon: '卦' },
+    { id: 'cases', label: '案例', icon: '◈' },
+    { id: 'oracle', label: '推背', icon: '☯' },
+    { id: 'metrics', label: '指标', icon: '◉' },
+  ];
+  const desktopTabs = [
+    ...mobileTabs.slice(0, 4),
     { id: 'knowledge', label: '知识图谱', icon: '◈' },
-    { id: 'oracle', label: '推背图', icon: '☯' },
     { id: 'tasks', label: '任务', icon: '⚙' },
     { id: 'metrics', label: '指标', icon: '◉' },
   ];
@@ -681,25 +1203,23 @@ function App() {
           <div className="header-logo">神</div>
           <div>
             <div className="header-title">十<span>神</span>架构</div>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: 1 }}>
-              中华文明数字永生体
-            </div>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', letterSpacing: 1 }}>中华文明数字永生体</div>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+        <div className="header-meta">
           <span className="header-version">v{state?.version || '1.5.0'}</span>
-          <div className={`header-status ${error ? 'error' : ''}`}>
+          <div className={`header-status ${!online ? 'offline' : ''}`}>
             <span className="header-status-dot"></span>
-            {error ? '离线' : '运行中'}
+            {online ? '在线' : '离线'}
           </div>
         </div>
       </header>
 
-      <nav className="nav">
-        {tabs.map(t => (
-          <button key={t.id} className={`nav-btn ${tab === t.id ? 'active' : ''}`}
-            onClick={() => setTab(t.id)}>
-            {t.icon} {t.label}
+      {/* Desktop top nav */}
+      <nav className="nav-top">
+        {desktopTabs.map(t => (
+          <button key={t.id} className={`nav-btn ${tab === t.id ? 'active' : ''}`} onClick={() => switchTab(t.id)}>
+            <span className="nav-btn-icon">{t.icon}</span> {t.label}
           </button>
         ))}
       </nav>
@@ -712,11 +1232,53 @@ function App() {
           </div>
         )}
         {tab === 'dashboard' && state && <Dashboard state={state} />}
+        {tab === 'bazi' && <BaziPage />}
+        {tab === 'cases' && <CasesPage />}
         {tab === 'knowledge' && <KnowledgeGraph state={state} />}
         {tab === 'oracle' && <Oracle />}
         {tab === 'tasks' && <Tasks />}
         {tab === 'metrics' && <MetricsView state={state} />}
       </main>
+
+      {/* Mobile bottom nav */}
+      <nav className="nav-bottom">
+        <div className="nav-bottom-items">
+          {mobileTabs.map(t => (
+            <button key={t.id} className={`nav-bottom-btn ${tab === t.id ? 'active' : ''}`} onClick={() => switchTab(t.id)}>
+              <span className="nav-bottom-btn-icon">{t.icon}</span>
+              <span>{t.label}</span>
+            </button>
+          ))}
+        </div>
+      </nav>
+
+      {/* PWA Install Banner */}
+      {canInstall && showInstallBanner && (
+        <div className="install-banner">
+          <span className="install-icon">📱</span>
+          <div className="install-text">
+            <div className="install-title">安装十神架构</div>
+            <div className="install-desc">添加到主屏幕，离线可用</div>
+          </div>
+          <button className="btn btn-primary btn-sm" onClick={async () => { const ok = await promptInstall(); if (ok) setShowInstallBanner(false); }}>安装</button>
+          <button className="btn btn-sm" onClick={() => setShowInstallBanner(false)}>×</button>
+        </div>
+      )}
+
+      {/* SW Update Ready */}
+      {updateReady && (
+        <div className="install-banner">
+          <span className="install-icon">✦</span>
+          <div className="install-text">
+            <div className="install-title">新版本可用</div>
+            <div className="install-desc">点击更新到最新版本</div>
+          </div>
+          <button className="btn btn-primary btn-sm" onClick={applyUpdate}>更新</button>
+        </div>
+      )}
+
+      {/* Network toast */}
+      {toast && <div className={`net-toast ${toast.type === 'online' ? 'online' : ''}`}>{toast.msg}</div>}
     </div>
   );
 }
