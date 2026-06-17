@@ -189,6 +189,90 @@
   .cursor-pointer { cursor: pointer; }
   .pulse { animation: pulse 2s infinite; }
   @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+  /* ── 阶段十三：用户认证 UI ── */
+  .user-box {
+    padding: 14px 16px; margin-top: auto;
+    border-top: 1px solid rgba(255,255,255,0.05);
+    font-size: 12px;
+  }
+  .user-box .uname { color: var(--gold2); font-weight: 600; font-size: 13px; }
+  .user-box .urole { color: var(--text3); font-size: 11px; }
+  .user-box .quota-bar {
+    height: 4px; background: var(--bg3); border-radius: 2px;
+    margin: 6px 0 4px; overflow: hidden;
+  }
+  .user-box .quota-fill {
+    height: 100%; background: var(--green); border-radius: 2px;
+    transition: width 0.3s ease;
+  }
+  .user-box .quota-fill.warn { background: var(--gold); }
+  .user-box .quota-fill.danger { background: var(--red); }
+  .user-box .quota-text { color: var(--text3); font-size: 10px; }
+  .user-box .btn-logout {
+    display: block; width: 100%; margin-top: 8px;
+    padding: 6px; background: transparent; color: var(--text3);
+    border: 1px solid rgba(255,255,255,0.08); border-radius: 6px;
+    font-size: 11px; cursor: pointer; transition: var(--transition);
+  }
+  .user-box .btn-logout:hover { color: var(--red); border-color: var(--red); }
+  .btn-login {
+    display: block; width: 100%; padding: 8px;
+    background: var(--gold); color: var(--bg); border: none;
+    border-radius: 6px; font-size: 13px; font-weight: 600;
+    cursor: pointer; transition: var(--transition);
+  }
+  .btn-login:hover { background: var(--gold2); }
+
+  /* ── Modal ── */
+  .modal-overlay {
+    display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.7); z-index: 1000;
+    justify-content: center; align-items: center;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal {
+    background: var(--bg2); border-radius: 12px; padding: 32px;
+    width: 380px; max-width: 90vw;
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  .modal h2 { margin: 0 0 6px; border: none; padding: 0; }
+  .modal .subtitle { margin-bottom: 20px; }
+  .modal .tab-row {
+    display: flex; gap: 0; margin-bottom: 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  .modal .tab {
+    flex: 1; padding: 10px; text-align: center; cursor: pointer;
+    color: var(--text3); font-size: 14px; font-weight: 600;
+    border-bottom: 2px solid transparent; transition: var(--transition);
+  }
+  .modal .tab.active { color: var(--gold); border-bottom-color: var(--gold); }
+  .modal .field { margin-bottom: 14px; }
+  .modal .field label { display: block; font-size: 12px; color: var(--text3); margin-bottom: 4px; }
+  .modal .field input {
+    width: 100%; background: var(--bg3); border: 1px solid rgba(255,255,255,0.08);
+    color: var(--text); padding: 10px 14px; border-radius: 8px;
+    font-size: 14px; outline: none;
+  }
+  .modal .field input:focus { border-color: var(--gold); }
+  .modal .btn-submit {
+    width: 100%; padding: 12px; background: var(--gold); color: var(--bg);
+    border: none; border-radius: 8px; font-size: 15px; font-weight: 700;
+    cursor: pointer; transition: var(--transition); margin-top: 8px;
+  }
+  .modal .btn-submit:hover { background: var(--gold2); }
+  .modal .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+  .modal .error-msg {
+    color: var(--red); font-size: 12px; margin-top: 8px;
+    display: none;
+  }
+  .modal .error-msg.show { display: block; }
+  .modal .close-btn {
+    position: absolute; top: 16px; right: 20px;
+    color: var(--text3); font-size: 24px; cursor: pointer;
+    background: none; border: none;
+  }
 </style>
 </head>
 <body>
@@ -229,7 +313,23 @@
   <a href="#marriage" data-page="marriage">
     <span class="icon">💑</span> 合婚配对
   </a>
-  <div class="status">
+  <!-- 阶段十三：用户状态区域 -->
+  <div class="user-box" id="userBox">
+    <!-- 未登录状态 -->
+    <div id="userLoggedOut" style="display:none;">
+      <button class="btn-login" onclick="showAuthModal()">🔐 登录 / 注册</button>
+    </div>
+    <!-- 已登录状态 -->
+    <div id="userLoggedIn" style="display:none;">
+      <div class="uname" id="userDisplayName">-</div>
+      <div class="urole" id="userRoleName">-</div>
+      <div class="quota-bar"><div class="quota-fill" id="quotaFill" style="width:100%"></div></div>
+      <div class="quota-text" id="quotaText">配额: -/-</div>
+      <button class="btn-logout" onclick="logout()">退出登录</button>
+    </div>
+  </div>
+  <!-- API 状态 -->
+  <div class="status" style="margin-top:0;border-top:none;padding-top:8px;">
     <span class="dot" id="apiStatus"></span>
     <span style="font-size:12px;color:var(--text3)" id="apiStatusText">检测中...</span>
   </div>
@@ -514,6 +614,33 @@
 
 </main>
 
+<!-- 阶段十三：登录/注册模态框 -->
+<div class="modal-overlay" id="authModal">
+  <div class="modal" style="position:relative;">
+    <button class="close-btn" onclick="hideAuthModal()">×</button>
+    <h2 id="authTitle">登录</h2>
+    <p class="subtitle">登录后享受更高配额与数据持久化</p>
+    <div class="tab-row">
+      <div class="tab active" id="tabLogin" onclick="switchAuthTab('login')">登录</div>
+      <div class="tab" id="tabRegister" onclick="switchAuthTab('register')">注册</div>
+    </div>
+    <div class="field" id="fieldDisplayName" style="display:none;">
+      <label>显示名（可选）</label>
+      <input type="text" id="authDisplayName" placeholder="您的昵称">
+    </div>
+    <div class="field">
+      <label>用户名</label>
+      <input type="text" id="authUsername" placeholder="3-64 个字符" autocomplete="username">
+    </div>
+    <div class="field">
+      <label>密码</label>
+      <input type="password" id="authPassword" placeholder="至少 6 位" autocomplete="current-password">
+    </div>
+    <div class="error-msg" id="authError"></div>
+    <button class="btn-submit" id="authSubmit" onclick="submitAuth()">登录</button>
+  </div>
+</div>
+
 <script>
 // ====================================================================
 // API 配置
@@ -521,6 +648,181 @@
 const API = 'http://127.0.0.1:8000';
 let currentBazi = null;  // 当前排盘结果
 let currentBaziInput = null;  // 当前排盘输入
+
+// ====================================================================
+// 阶段十三：用户认证 - Token 管理
+// ====================================================================
+let authToken = localStorage.getItem('tengod_token');
+let refreshToken = localStorage.getItem('tengod_refresh');
+let currentUser = null;
+
+/** 统一 API 请求函数（自动携带 token + 401 自动刷新） */
+async function apiFetch(url, options = {}) {
+  if (authToken) {
+    options.headers = options.headers || {};
+    options.headers['Authorization'] = 'Bearer ' + authToken;
+  }
+  let resp = await fetch(url, options);
+  // token 过期，尝试刷新
+  if (resp.status === 401 && refreshToken) {
+    const refreshed = await tryRefreshToken();
+    if (refreshed) {
+      options.headers['Authorization'] = 'Bearer ' + authToken;
+      resp = await fetch(url, options);
+    }
+  }
+  // 未登录访问需要认证的端点，提示登录
+  if (resp.status === 401 && !authToken) {
+    showAuthModal();
+  }
+  return resp;
+}
+
+/** 尝试刷新 token */
+async function tryRefreshToken() {
+  try {
+    const r = await fetch(API + '/api/auth/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refreshToken })
+    });
+    if (!r.ok) { logout(); return false; }
+    const d = await r.json();
+    authToken = d.access_token;
+    localStorage.setItem('tengod_token', authToken);
+    return true;
+  } catch { logout(); return false; }
+}
+
+/** 显示认证模态框 */
+function showAuthModal() {
+  document.getElementById('authModal').classList.add('show');
+  switchAuthTab('login');
+}
+
+/** 隐藏认证模态框 */
+function hideAuthModal() {
+  document.getElementById('authModal').classList.remove('show');
+  document.getElementById('authError').classList.remove('show');
+}
+
+/** 切换登录/注册标签 */
+function switchAuthTab(tab) {
+  const isLogin = tab === 'login';
+  document.getElementById('tabLogin').classList.toggle('active', isLogin);
+  document.getElementById('tabRegister').classList.toggle('active', !isLogin);
+  document.getElementById('authTitle').textContent = isLogin ? '登录' : '注册';
+  document.getElementById('authSubmit').textContent = isLogin ? '登录' : '注册';
+  document.getElementById('fieldDisplayName').style.display = isLogin ? 'none' : 'block';
+  document.getElementById('authError').classList.remove('show');
+}
+
+/** 提交登录/注册 */
+async function submitAuth() {
+  const btn = document.getElementById('authSubmit');
+  const errEl = document.getElementById('authError');
+  const username = document.getElementById('authUsername').value.trim();
+  const password = document.getElementById('authPassword').value;
+  const displayName = document.getElementById('authDisplayName').value.trim();
+  const isLogin = document.getElementById('tabLogin').classList.contains('active');
+
+  if (!username || username.length < 3) {
+    errEl.textContent = '用户名至少 3 个字符'; errEl.classList.add('show'); return;
+  }
+  if (!password || password.length < 6) {
+    errEl.textContent = '密码至少 6 位'; errEl.classList.add('show'); return;
+  }
+
+  btn.disabled = true; btn.textContent = '处理中...';
+  errEl.classList.remove('show');
+
+  try {
+    const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register';
+    const body = isLogin
+      ? { username, password }
+      : { username, password, display_name: displayName || undefined };
+    const r = await fetch(API + endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const d = await r.json();
+    if (!r.ok) {
+      errEl.textContent = d.error || d.detail || '操作失败';
+      errEl.classList.add('show');
+      return;
+    }
+    if (d.access_token) {
+      authToken = d.access_token;
+      refreshToken = d.refresh_token;
+      localStorage.setItem('tengod_token', authToken);
+      localStorage.setItem('tengod_refresh', refreshToken);
+      hideAuthModal();
+      await loadUserInfo();
+    } else {
+      // 注册成功，自动切换到登录标签
+      switchAuthTab('login');
+      document.getElementById('authPassword').value = '';
+      errEl.textContent = '注册成功，请登录';
+      errEl.style.color = 'var(--green)';
+      errEl.classList.add('show');
+      setTimeout(() => { errEl.classList.remove('show'); errEl.style.color = ''; }, 2000);
+    }
+  } catch (e) {
+    errEl.textContent = '网络错误: ' + e.message;
+    errEl.classList.add('show');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = isLogin ? '登录' : '注册';
+  }
+}
+
+/** 退出登录 */
+function logout() {
+  authToken = null;
+  refreshToken = null;
+  currentUser = null;
+  localStorage.removeItem('tengod_token');
+  localStorage.removeItem('tengod_refresh');
+  updateUserBox();
+}
+
+/** 加载当前用户信息 */
+async function loadUserInfo() {
+  if (!authToken) { updateUserBox(); return; }
+  try {
+    const r = await apiFetch(API + '/api/auth/me');
+    if (!r.ok) { if (r.status === 401) logout(); return; }
+    currentUser = await r.json();
+    updateUserBox();
+  } catch { /* ignore */ }
+}
+
+/** 更新侧边栏用户状态 */
+function updateUserBox() {
+  const loggedOut = document.getElementById('userLoggedOut');
+  const loggedIn = document.getElementById('userLoggedIn');
+  if (currentUser) {
+    loggedOut.style.display = 'none';
+    loggedIn.style.display = 'block';
+    document.getElementById('userDisplayName').textContent = currentUser.username;
+    document.getElementById('userRoleName').textContent = currentUser.role_name || currentUser.role;
+    const q = currentUser.quota || {};
+    const used = q.used_today || 0;
+    const limit = q.daily_limit || 1;
+    const pct = Math.max(0, Math.min(100, (1 - used / limit) * 100));
+    const fill = document.getElementById('quotaFill');
+    fill.style.width = pct + '%';
+    fill.className = 'quota-fill' + (pct < 20 ? ' danger' : pct < 50 ? ' warn' : '');
+    document.getElementById('quotaText').textContent = `配额: ${limit - used}/${limit}`;
+  } else {
+    loggedOut.style.display = 'block';
+    loggedIn.style.display = 'none';
+  }
+}
+
+// 启动时加载用户信息
+loadUserInfo();
 
 // ====================================================================
 // 页面路由
@@ -584,7 +886,7 @@ async function calcBazi() {
   currentBaziInput = input;
 
   try {
-    const r = await fetch(API + '/api/bazi/full', {
+    const r = await apiFetch(API + '/api/bazi/full', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(input)
     });
@@ -696,7 +998,7 @@ function renderCalcResult(d) {
 async function saveRecord() {
   if (!currentBaziInput) return;
   try {
-    const r = await fetch(API + '/api/records?label=网页排盘', {
+    const r = await apiFetch(API + '/api/records?label=网页排盘', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(currentBaziInput)
     });
@@ -721,7 +1023,7 @@ async function searchKnowledge() {
   try {
     const body = { query: q, top_k: 10 };
     if (filter) body.type_filter = filter;
-    const r = await fetch(API + '/api/knowledge/search', {
+    const r = await apiFetch(API + '/api/knowledge/search', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
@@ -775,7 +1077,7 @@ async function sendChat() {
       };
     }
 
-    const r = await fetch(API + '/api/chat', {
+    const r = await apiFetch(API + '/api/chat', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
@@ -793,7 +1095,7 @@ async function sendChat() {
 async function loadHistory() {
   const res = document.getElementById('historyContent');
   try {
-    const r = await fetch(API + '/api/records?limit=50');
+    const r = await apiFetch(API + '/api/records?limit=50');
     const d = await r.json();
     const records = d.records || [];
     res.innerHTML = records.length === 0
@@ -822,7 +1124,7 @@ async function loadHistory() {
 
 async function loadRecord(id) {
   try {
-    const r = await fetch(API + '/api/records/' + id);
+    const r = await apiFetch(API + '/api/records/' + id);
     const d = await r.json();
     currentBazi = {
       bazi: { pillars: d.pillars, day_master: d.day_master, day_master_info: '', shigan_map: {}, shigan_count: d.analysis?.shigan_count || {}, wuxing: d.analysis?.wuxing || {}, wuxing_score: d.analysis?.wuxing_score || {}, branch_relations: d.analysis?.branch_relations || {} },
@@ -854,7 +1156,7 @@ async function loadRecord(id) {
 async function deleteRecord(id) {
   if (!confirm('确认删除记录 #' + id + '？')) return;
   try {
-    await fetch(API + '/api/records/' + id, { method: 'DELETE' });
+    await apiFetch(API + '/api/records/' + id, { method: 'DELETE' });
     loadHistory();
   } catch {
     alert('删除失败');
@@ -880,7 +1182,7 @@ async function loadReport() {
   }
   res.innerHTML = '<div class="loading"><div class="spinner"></div><p>生成报告中...</p></div>';
   try {
-    const r = await fetch(API + '/api/bazi/report', {
+    const r = await apiFetch(API + '/api/bazi/report', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         bazi: currentBaziInput,
@@ -906,7 +1208,7 @@ async function calcZiwei() {
   const res = document.getElementById('ziweiResult');
   res.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
   try {
-    const r = await fetch(API + '/api/ziwei/calc', {
+    const r = await apiFetch(API + '/api/ziwei/calc', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         year: +document.getElementById('zwYear').value,
@@ -951,7 +1253,7 @@ async function shakeLiuyao() {
   res.innerHTML = '<div class="loading"><div class="spinner"></div><p>摇卦中...</p></div>';
   try {
     const dayGz = document.getElementById('lyDayGanzhi').value || '甲子';
-    const r = await fetch(API + '/api/liuyao/shake', {
+    const r = await apiFetch(API + '/api/liuyao/shake', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ day_ganzhi: dayGz })
     });
@@ -984,7 +1286,7 @@ async function calcQimen() {
   const res = document.getElementById('qimenResult');
   res.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
   try {
-    const r = await fetch(API + '/api/qimen/calc', {
+    const r = await apiFetch(API + '/api/qimen/calc', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         year: +document.getElementById('qmYear').value,
@@ -1025,7 +1327,7 @@ async function analyzeName() {
   const res = document.getElementById('nameResult');
   res.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
   try {
-    const r = await fetch(API + '/api/name/analyze', {
+    const r = await apiFetch(API + '/api/name/analyze', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         surname: document.getElementById('nmSurname').value,
@@ -1063,7 +1365,7 @@ async function calcMarriage() {
   try {
     // 如果没有currentBazi2，使用当前八字+模拟女方的数据
     const bazi2 = currentBazi2 || currentBazi;
-    const r = await fetch(API + '/api/marriage/analyze', {
+    const r = await apiFetch(API + '/api/marriage/analyze', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name1: '男方',

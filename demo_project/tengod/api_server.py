@@ -331,8 +331,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 鉴权
+# 鉴权（API Key）
 app.add_middleware(AuthMiddleware)
+# 阶段十三：JWT 用户认证中间件
+from tengod.auth import auth_middleware
+app.middleware("http")(auth_middleware)
 # 请求日志
 app.middleware("http")(log_middleware)
 # 限流
@@ -445,6 +448,8 @@ async def system_stats():
 @app.post("/api/bazi/calc", tags=["八字排盘"])
 async def bazi_calc(bazi: BaziInput, request: Request):
     """八字排盘：计算四柱 + 大运 + 流年 + 十神 + 五行分析"""
+    from tengod.auth import authorize
+    authorize(request, "bazi:calc")
     try:
         from tengod.metrics_collector import metrics
         metrics.record_bazi_calc()
@@ -479,6 +484,8 @@ async def bazi_calc(bazi: BaziInput, request: Request):
 @app.post("/api/bazi/shensha", tags=["八字排盘"])
 async def bazi_shensha(bazi: BaziInput, request: Request):
     """神煞推算：40+ 神煞分析"""
+    from tengod.auth import authorize
+    authorize(request, "bazi:calc")
     try:
         from tengod.shensha_engine import calc_all_shensha
         pillars = _build_pillars(bazi)
@@ -505,6 +512,8 @@ async def bazi_shensha(bazi: BaziInput, request: Request):
 @app.post("/api/bazi/geju", tags=["八字排盘"])
 async def bazi_geju(bazi: BaziInput, request: Request):
     """格局判断"""
+    from tengod.auth import authorize
+    authorize(request, "bazi:calc")
     try:
         from tengod.geju_engine import calc_geju
         pillars = _build_pillars(bazi)
@@ -530,6 +539,8 @@ async def bazi_geju(bazi: BaziInput, request: Request):
 async def bazi_yongshen(bazi: BaziInput, request: Request,
                         ):
     """喜用神分析"""
+    from tengod.auth import authorize
+    authorize(request, "bazi:calc")
     try:
         from tengod.geju_engine import calc_yongshen
         pillars = _build_pillars(bazi)
@@ -555,6 +566,8 @@ async def bazi_yongshen(bazi: BaziInput, request: Request,
 async def bazi_tiaohou(bazi: BaziInput, request: Request,
                        ):
     """调候分析"""
+    from tengod.auth import authorize
+    authorize(request, "bazi:calc")
     try:
         from tengod.geju_engine import calc_tiaohou
         pillars = _build_pillars(bazi)
@@ -574,6 +587,8 @@ async def bazi_tiaohou(bazi: BaziInput, request: Request,
 @app.post("/api/bazi/full", tags=["八字排盘"])
 async def bazi_full(bazi: BaziInput, request: Request):
     """综合八字分析：排盘 + 神煞 + 格局 + 喜用神 + 调候（一次性返回全部）"""
+    from tengod.auth import authorize
+    authorize(request, "bazi:full")
     try:
         from tengod.bazi_analyzer import BaziAnalyzer
         from tengod.shensha_engine import calc_all_shensha
@@ -656,6 +671,8 @@ async def bazi_full(bazi: BaziInput, request: Request):
 async def bazi_report(query: ReportQuery, request: Request,
                       ):
     """生成命理报告（文本/Markdown/JSON/HTML）"""
+    from tengod.auth import authorize
+    authorize(request, "bazi:report")
     try:
         from tengod.bazi_analyzer import BaziAnalyzer
         from tengod.shensha_engine import calc_all_shensha
@@ -701,6 +718,8 @@ async def bazi_report(query: ReportQuery, request: Request,
 async def knowledge_search(query: SearchQuery, request: Request,
                            ):
     """语义搜索：基于 FAISS 向量的知识检索"""
+    from tengod.auth import authorize
+    authorize(request, "knowledge:search")
     try:
         from tengod.metrics_collector import metrics
         metrics.record_knowledge_search()
@@ -716,6 +735,8 @@ async def knowledge_search(query: SearchQuery, request: Request,
 async def knowledge_recommend(query: RecommendQuery, request: Request,
                               ):
     """知识关联推荐：基于知识图谱的节点关联推荐"""
+    from tengod.auth import authorize
+    authorize(request, "knowledge:search")
     try:
         from tengod.vector_store import get_vector_store
         store = get_vector_store()
@@ -730,9 +751,12 @@ async def knowledge_recommend(query: RecommendQuery, request: Request,
 
 
 @app.get("/api/knowledge/wuxing/{element}", tags=["知识查询"])
-async def wuxing_query(element: str, relation_mode: str = Query("info", description="info/relations"),
+async def wuxing_query(element: str, request: Request,
+                       relation_mode: str = Query("info", description="info/relations"),
                        ):
     """五行查询：生克/方位/脏腑/颜色"""
+    from tengod.auth import authorize
+    authorize(request, "knowledge:wuxing")
     try:
         from tengod.knowledge_graph import get_knowledge_graph
         kg = get_knowledge_graph()
@@ -752,9 +776,12 @@ async def wuxing_query(element: str, relation_mode: str = Query("info", descript
 
 
 @app.get("/api/knowledge/bagua/{trigram}", tags=["知识查询"])
-async def bagua_query(trigram: str, query_type: str = Query("info", description="info/relations"),
+async def bagua_query(trigram: str, request: Request,
+                      query_type: str = Query("info", description="info/relations"),
                       ):
     """八卦查询：卦象信息/方位/五行属性"""
+    from tengod.auth import authorize
+    authorize(request, "knowledge:wuxing")
     try:
         from tengod.knowledge_graph import get_knowledge_graph
         kg = get_knowledge_graph()
@@ -777,6 +804,8 @@ async def bagua_query(trigram: str, query_type: str = Query("info", description=
 async def shigan_derive(query: ShiganQuery, request: Request,
                         ):
     """十神推演：日主天干与目标天干的关系推演"""
+    from tengod.auth import authorize
+    authorize(request, "knowledge:search")
     try:
         from tengod.divination_engine import ShiganEngine, TianganEngine
         dm = query.day_master
@@ -805,6 +834,8 @@ async def shigan_derive(query: ShiganQuery, request: Request,
 async def dizhi_analyze(query: DizhiQuery, request: Request,
                         ):
     """地支分析：藏干/六合/三合/六冲/六害/六破/相刑"""
+    from tengod.auth import authorize
+    authorize(request, "knowledge:search")
     try:
         from tengod.divination_engine import DizhiEngine, find_interactions
         branches = query.branches.split(",")
@@ -867,11 +898,22 @@ def _get_store() -> "DataStore":
     return get_data_store()
 
 
+def _get_data_store() -> "DataStore":
+    """获取数据存储实例（别名，兼容认证端点）"""
+    from tengod.data_store import get_data_store
+    return get_data_store()
+
+
 @app.post("/api/records", tags=["数据持久化"])
 async def save_record(bazi: BaziInput, request: Request,
                       label: str = Query(None, description="记录标签"),
-                      username: str = Query("anonymous", description="用户名")):
-    """保存八字排盘记录（自动计算排盘+神煞+格局+喜用神）"""
+                      username: str = Query(None, description="用户名（已废弃，自动使用当前登录用户）")):
+    """保存八字排盘记录（自动计算排盘+神煞+格局+喜用神）
+
+    阶段十三：记录自动关联到当前登录用户（多租户隔离）
+    """
+    from tengod.auth import authorize
+    auth_user = authorize(request, "records:write")
     try:
         from tengod.bazi_analyzer import BaziAnalyzer
         from tengod.shensha_engine import calc_all_shensha
@@ -885,15 +927,13 @@ async def save_record(bazi: BaziInput, request: Request,
         pillars = a["pillars"]
 
         store = _get_store()
-        user = store.get_or_create_user(username)
-
-        # 保存完整分析结果
+        # 阶段十三：使用当前登录用户 ID（多租户隔离）
         record_id = store.save_bazi_record(
             year=bazi.year, month=bazi.month, day=bazi.day,
             hour=bazi.hour, minute=bazi.minute,
             gender=bazi.gender,
             longitude=bazi.longitude, latitude=bazi.latitude,
-            user_id=user.id, label=label,
+            user_id=auth_user.id, label=label,
             day_master=a["day_master"],
             pillars=pillars,
             analysis=a,
@@ -918,8 +958,8 @@ async def save_record(bazi: BaziInput, request: Request,
 
         return {
             "id": record_id,
-            "user_id": user.id,
-            "username": username,
+            "user_id": auth_user.id,
+            "username": auth_user.username,
             "day_master": a["day_master"],
             "pillars": pillars,
             "created_at": datetime.now(timezone.utc).isoformat(),
@@ -930,11 +970,20 @@ async def save_record(bazi: BaziInput, request: Request,
 
 @app.get("/api/records", tags=["数据持久化"])
 async def list_records(
-    user_id: int = Query(None, description="用户 ID"),
+    request: Request,
+    user_id: int = Query(None, description="用户 ID（仅管理员可指定）"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ):
-    """列出八字排盘记录"""
+    """列出八字排盘记录
+
+    阶段十三：普通用户只能查看自己的记录，管理员可查看所有或指定用户
+    """
+    from tengod.auth import authorize
+    auth_user = authorize(request, "records:read", consume_quota=False)
+    # 多租户隔离：非管理员强制只看自己的记录
+    if not auth_user.is_admin:
+        user_id = auth_user.id
     try:
         store = _get_store()
         records = store.list_bazi_records(user_id=user_id, limit=limit, offset=offset)
@@ -959,13 +1008,21 @@ async def list_records(
 
 
 @app.get("/api/records/{record_id}", tags=["数据持久化"])
-async def get_record(record_id: int):
-    """获取单条八字排盘记录（含完整分析结果）"""
+async def get_record(record_id: int, request: Request):
+    """获取单条八字排盘记录（含完整分析结果）
+
+    阶段十三：普通用户只能查看自己的记录
+    """
+    from tengod.auth import authorize
+    auth_user = authorize(request, "records:read", consume_quota=False)
     try:
         store = _get_store()
         record = store.get_bazi_record(record_id)
         if record is None:
             raise HTTPException(status_code=404, detail=f"记录不存在: {record_id}")
+        # 多租户隔离
+        if not auth_user.is_admin and record.user_id != auth_user.id:
+            raise HTTPException(status_code=403, detail="无权访问此记录")
         return record.to_dict()
     except HTTPException:
         raise
@@ -974,10 +1031,20 @@ async def get_record(record_id: int):
 
 
 @app.put("/api/records/{record_id}", tags=["数据持久化"])
-async def update_record(record_id: int, update: RecordLabel):
-    """更新记录标签/备注"""
+async def update_record(record_id: int, update: RecordLabel, request: Request):
+    """更新记录标签/备注
+
+    阶段十三：普通用户只能更新自己的记录
+    """
+    from tengod.auth import authorize
+    auth_user = authorize(request, "records:write", consume_quota=False)
     try:
         store = _get_store()
+        record = store.get_bazi_record(record_id)
+        if record is None:
+            raise HTTPException(status_code=404, detail=f"记录不存在: {record_id}")
+        if not auth_user.is_admin and record.user_id != auth_user.id:
+            raise HTTPException(status_code=403, detail="无权修改此记录")
         kwargs = {}
         if update.label is not None:
             kwargs["label"] = update.label
@@ -998,10 +1065,20 @@ async def update_record(record_id: int, update: RecordLabel):
 
 
 @app.delete("/api/records/{record_id}", tags=["数据持久化"])
-async def delete_record(record_id: int):
-    """删除八字排盘记录"""
+async def delete_record(record_id: int, request: Request):
+    """删除八字排盘记录
+
+    阶段十三：普通用户只能删除自己的记录
+    """
+    from tengod.auth import authorize
+    auth_user = authorize(request, "records:delete", consume_quota=False)
     try:
         store = _get_store()
+        record = store.get_bazi_record(record_id)
+        if record is None:
+            raise HTTPException(status_code=404, detail=f"记录不存在: {record_id}")
+        if not auth_user.is_admin and record.user_id != auth_user.id:
+            raise HTTPException(status_code=403, detail="无权删除此记录")
         ok = store.delete_bazi_record(record_id)
         if not ok:
             raise HTTPException(status_code=404, detail=f"记录不存在: {record_id}")
@@ -1013,8 +1090,10 @@ async def delete_record(record_id: int):
 
 
 @app.post("/api/records/search", tags=["数据持久化"])
-async def search_records(search: RecordSearch):
+async def search_records(search: RecordSearch, request: Request):
     """搜索八字排盘记录"""
+    from tengod.auth import authorize
+    authorize(request, "records:read")
     try:
         store = _get_store()
         records = store.search_bazi_records(
@@ -1072,6 +1151,41 @@ async def db_stats():
         return store.stats()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"数据库统计失败: {e}")
+
+
+# ============================================================================
+# 阶段十三：用户认证 API 模型
+# ============================================================================
+
+class RegisterRequest(BaseModel):
+    """注册请求"""
+    username: str = Field(..., min_length=3, max_length=64, description="用户名")
+    password: str = Field(..., min_length=6, max_length=128, description="密码")
+    display_name: Optional[str] = Field(default=None, max_length=128, description="显示名")
+    email: Optional[str] = Field(default=None, max_length=128, description="邮箱")
+
+
+class LoginRequest(BaseModel):
+    """登录请求"""
+    username: str = Field(..., description="用户名")
+    password: str = Field(..., description="密码")
+
+
+class RefreshRequest(BaseModel):
+    """刷新令牌请求"""
+    refresh_token: str = Field(..., description="刷新令牌")
+
+
+class ChangePasswordRequest(BaseModel):
+    """修改密码请求"""
+    old_password: str = Field(..., description="旧密码")
+    new_password: str = Field(..., min_length=6, max_length=128, description="新密码")
+
+
+class UpdateUserRequest(BaseModel):
+    """更新用户信息请求"""
+    display_name: Optional[str] = Field(default=None, max_length=128)
+    email: Optional[str] = Field(default=None, max_length=128)
 
 
 # ============================================================================
@@ -1142,6 +1256,8 @@ class ChatResponse(BaseModel):
 @app.post("/api/chat", tags=["AI 对话"])
 async def ai_chat(query: ChatQuery, request: Request):
     """AI 命理对话（支持 RAG 增强）"""
+    from tengod.auth import authorize
+    authorize(request, "chat:send")
     from tengod.metrics_collector import metrics
     metrics.record_ai_chat()
     from tengod.llm_adapter import get_llm, chat, chat_stream, ChatMessage
@@ -1193,6 +1309,8 @@ async def ai_chat(query: ChatQuery, request: Request):
 async def ai_report(bazi: BaziInput, request: Request,
                     use_rag: bool = Query(True, description="是否启用 RAG")):
     """AI 生成命理报告"""
+    from tengod.auth import authorize
+    authorize(request, "chat:report")
     from tengod.llm_adapter import get_llm, generate_report
     from tengod.bazi_analyzer import BaziAnalyzer
     from tengod.report_generator import BaziReportGenerator
@@ -1221,12 +1339,277 @@ async def ai_report(bazi: BaziInput, request: Request,
 
 
 # ============================================================================
+# 阶段十三：用户认证 API 端点
+# ============================================================================
+
+@app.post("/api/auth/register", tags=["用户认证"])
+async def register(req: RegisterRequest):
+    """用户注册"""
+    from tengod.auth import PasswordHasher
+    from tengod.data_store import DataStore, User as UserModel
+
+    store = _get_data_store()
+    with store._session() as s:
+        # 检查用户名是否已存在
+        existing = s.query(UserModel).filter(UserModel.username == req.username).first()
+        if existing:
+            raise HTTPException(status_code=409, detail="用户名已存在")
+
+        # 创建用户
+        user = UserModel(
+            username=req.username,
+            display_name=req.display_name or req.username,
+            email=req.email,
+            password_hash=PasswordHasher.hash(req.password),
+            role="user",
+            is_active=1,
+        )
+        s.add(user)
+        s.commit()
+        s.refresh(user)
+
+    return {
+        "message": "注册成功",
+        "user": {
+            "id": user.id,
+            "username": user.username,
+            "display_name": user.display_name,
+            "role": user.role,
+        },
+    }
+
+
+@app.post("/api/auth/login", tags=["用户认证"])
+async def login(req: LoginRequest):
+    """用户登录"""
+    from tengod.auth import PasswordHasher, JWTManager, create_token_pair
+    from tengod.data_store import DataStore, User as UserModel
+
+    store = _get_data_store()
+    with store._session() as s:
+        user = s.query(UserModel).filter(UserModel.username == req.username).first()
+        if user is None:
+            raise HTTPException(status_code=401, detail="用户名或密码错误")
+        if not user.is_active:
+            raise HTTPException(status_code=403, detail="账号已被禁用")
+        if not user.password_hash:
+            raise HTTPException(status_code=401, detail="账号未设置密码")
+
+        if not PasswordHasher.verify(req.password, user.password_hash):
+            raise HTTPException(status_code=401, detail="用户名或密码错误")
+
+        # 更新最后登录时间
+        user.last_login_at = datetime.now(timezone.utc)
+        s.commit()
+
+        tokens = create_token_pair(user.id, user.username, user.role)
+
+    return {
+        "message": "登录成功",
+        "user": {
+            "id": user.id,
+            "username": user.username,
+            "display_name": user.display_name,
+            "role": user.role,
+        },
+        **tokens,
+    }
+
+
+@app.post("/api/auth/refresh", tags=["用户认证"])
+async def refresh_token(req: RefreshRequest):
+    """刷新访问令牌"""
+    from tengod.auth import JWTManager, create_token_pair
+
+    payload = JWTManager.verify_token(req.refresh_token)
+    if payload is None:
+        raise HTTPException(status_code=401, detail="刷新令牌无效或已过期")
+    if payload.get("type") != "refresh":
+        raise HTTPException(status_code=401, detail="令牌类型错误")
+
+    tokens = create_token_pair(
+        int(payload["sub"]),
+        payload["username"],
+        payload["role"],
+    )
+    return {"message": "刷新成功", **tokens}
+
+
+@app.get("/api/auth/me", tags=["用户认证"])
+async def get_me(request: Request):
+    """获取当前用户信息"""
+    from tengod.auth import CurrentUser
+
+    user: Optional[CurrentUser] = getattr(request.state, "current_user", None)
+    if user is None or not user.is_authenticated:
+        raise HTTPException(status_code=401, detail="未登录")
+
+    from tengod.auth import QuotaManager, ROLE_PERMISSIONS
+    quota = ROLE_PERMISSIONS.get(user.role, {}).get("quota_daily", 100)
+    allowed, used, remaining = QuotaManager.check(user.id, quota)
+
+    return {
+        "id": user.id,
+        "username": user.username,
+        "role": user.role,
+        "role_name": ROLE_PERMISSIONS.get(user.role, {}).get("name", "未知"),
+        "permissions": user.permissions,
+        "quota": {
+            "daily_limit": quota,
+            "used_today": used,
+            "remaining": remaining,
+        },
+    }
+
+
+@app.post("/api/auth/change-password", tags=["用户认证"])
+async def change_password(req: ChangePasswordRequest, request: Request):
+    """修改密码"""
+    from tengod.auth import CurrentUser, PasswordHasher
+    from tengod.data_store import DataStore, User as UserModel
+
+    user: Optional[CurrentUser] = getattr(request.state, "current_user", None)
+    if user is None or not user.is_authenticated:
+        raise HTTPException(status_code=401, detail="未登录")
+
+    store = _get_data_store()
+    with store._session() as s:
+        db_user = s.query(UserModel).filter(UserModel.id == user.id).first()
+        if db_user is None:
+            raise HTTPException(status_code=404, detail="用户不存在")
+
+        if not PasswordHasher.verify(req.old_password, db_user.password_hash):
+            raise HTTPException(status_code=400, detail="旧密码错误")
+
+        db_user.password_hash = PasswordHasher.hash(req.new_password)
+        s.commit()
+
+    return {"message": "密码修改成功"}
+
+
+@app.put("/api/auth/profile", tags=["用户认证"])
+async def update_profile(req: UpdateUserRequest, request: Request):
+    """更新用户资料"""
+    from tengod.auth import CurrentUser
+    from tengod.data_store import DataStore, User as UserModel
+
+    user: Optional[CurrentUser] = getattr(request.state, "current_user", None)
+    if user is None or not user.is_authenticated:
+        raise HTTPException(status_code=401, detail="未登录")
+
+    store = _get_data_store()
+    with store._session() as s:
+        db_user = s.query(UserModel).filter(UserModel.id == user.id).first()
+        if db_user is None:
+            raise HTTPException(status_code=404, detail="用户不存在")
+
+        if req.display_name is not None:
+            db_user.display_name = req.display_name
+        if req.email is not None:
+            db_user.email = req.email
+        s.commit()
+        result = {
+            "id": db_user.id,
+            "username": db_user.username,
+            "display_name": db_user.display_name,
+            "email": db_user.email,
+            "role": db_user.role,
+        }
+
+    return {"message": "资料更新成功", "user": result}
+
+
+# ── 管理员端点 ──────────────────────────────────────────────────────
+
+@app.get("/api/admin/users", tags=["管理员"])
+async def list_users(request: Request):
+    """列出所有用户（仅管理员）"""
+    from tengod.auth import CurrentUser
+    from tengod.data_store import DataStore, User as UserModel
+
+    user: Optional[CurrentUser] = getattr(request.state, "current_user", None)
+    if user is None or user.role != "admin":
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+
+    store = _get_data_store()
+    with store._session() as s:
+        users = s.query(UserModel).order_by(UserModel.created_at.desc()).all()
+        return {
+            "total": len(users),
+            "users": [
+                {
+                    "id": u.id,
+                    "username": u.username,
+                    "display_name": u.display_name,
+                    "email": u.email,
+                    "role": u.role,
+                    "is_active": bool(u.is_active),
+                    "created_at": str(u.created_at) if u.created_at else None,
+                    "last_login_at": str(u.last_login_at) if u.last_login_at else None,
+                }
+                for u in users
+            ],
+        }
+
+
+@app.put("/api/admin/users/{user_id}/role", tags=["管理员"])
+async def update_user_role(user_id: int, role: str, request: Request):
+    """更新用户角色（仅管理员）"""
+    from tengod.auth import CurrentUser, ROLE_PERMISSIONS
+    from tengod.data_store import DataStore, User as UserModel
+
+    current: Optional[CurrentUser] = getattr(request.state, "current_user", None)
+    if current is None or current.role != "admin":
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+
+    if role not in ROLE_PERMISSIONS:
+        raise HTTPException(status_code=400, detail=f"无效角色: {role}")
+
+    store = _get_data_store()
+    with store._session() as s:
+        user = s.query(UserModel).filter(UserModel.id == user_id).first()
+        if user is None:
+            raise HTTPException(status_code=404, detail="用户不存在")
+        user.role = role
+        s.commit()
+        username = user.username
+
+    return {"message": f"用户 {username} 角色已更新为 {role}"}
+
+
+@app.put("/api/admin/users/{user_id}/status", tags=["管理员"])
+async def toggle_user_status(user_id: int, request: Request):
+    """启用/禁用用户（仅管理员）"""
+    from tengod.auth import CurrentUser
+    from tengod.data_store import DataStore, User as UserModel
+
+    current: Optional[CurrentUser] = getattr(request.state, "current_user", None)
+    if current is None or current.role != "admin":
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+
+    store = _get_data_store()
+    with store._session() as s:
+        user = s.query(UserModel).filter(UserModel.id == user_id).first()
+        if user is None:
+            raise HTTPException(status_code=404, detail="用户不存在")
+        user.is_active = 0 if user.is_active else 1
+        s.commit()
+        username = user.username
+        is_active = bool(user.is_active)
+
+    status_text = "启用" if is_active else "禁用"
+    return {"message": f"用户 {username} 已{status_text}"}
+
+
+# ============================================================================
 # 阶段十一：高级术数 API 端点
 # ============================================================================
 
 @app.post("/api/ziwei/calc", tags=["高级术数"])
-async def ziwei_calc(query: ZiweiQuery):
+async def ziwei_calc(query: ZiweiQuery, request: Request):
     """紫微斗数排盘"""
+    from tengod.auth import authorize
+    authorize(request, "ziwei:calc")
     try:
         from tengod.metrics_collector import metrics
         metrics.record_ziwei_calc()
@@ -1241,8 +1624,10 @@ async def ziwei_calc(query: ZiweiQuery):
 
 
 @app.post("/api/liuyao/shake", tags=["高级术数"])
-async def liuyao_shake(query: LiuyaoQuery):
+async def liuyao_shake(query: LiuyaoQuery, request: Request):
     """六爻摇卦"""
+    from tengod.auth import authorize
+    authorize(request, "liuyao:shake")
     try:
         from tengod.metrics_collector import metrics
         metrics.record_liuyao_calc()
@@ -1282,8 +1667,10 @@ async def liuyao_shake(query: LiuyaoQuery):
 
 
 @app.post("/api/qimen/calc", tags=["高级术数"])
-async def qimen_calc(query: QimenQuery):
+async def qimen_calc(query: QimenQuery, request: Request):
     """奇门遁甲排盘"""
+    from tengod.auth import authorize
+    authorize(request, "qimen:calc")
     try:
         from tengod.metrics_collector import metrics
         metrics.record_qimen_calc()
@@ -1298,8 +1685,10 @@ async def qimen_calc(query: QimenQuery):
 
 
 @app.post("/api/name/analyze", tags=["高级术数"])
-async def name_analyze(query: NameQuery):
+async def name_analyze(query: NameQuery, request: Request):
     """姓名学分析"""
+    from tengod.auth import authorize
+    authorize(request, "name:analyze")
     try:
         from tengod.metrics_collector import metrics
         metrics.record_name_analysis()
@@ -1329,8 +1718,10 @@ async def name_analyze(query: NameQuery):
 
 
 @app.post("/api/marriage/analyze", tags=["高级术数"])
-async def marriage_analyze(query: MarriageQuery):
+async def marriage_analyze(query: MarriageQuery, request: Request):
     """合婚分析"""
+    from tengod.auth import authorize
+    authorize(request, "marriage:analyze")
     try:
         from tengod.metrics_collector import metrics
         metrics.record_marriage_analysis()

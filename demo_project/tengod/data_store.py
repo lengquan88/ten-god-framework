@@ -60,6 +60,14 @@ class User(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     username: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
     display_name: Mapped[str] = mapped_column(String(128), nullable=True)
+    # 阶段十三：认证字段
+    password_hash: Mapped[str] = mapped_column(String(256), nullable=True)
+    role: Mapped[str] = mapped_column(String(16), nullable=False, default="user")  # admin/user/guest
+    email: Mapped[str] = mapped_column(String(128), nullable=True, index=True)
+    is_active: Mapped[int] = mapped_column(Integer, nullable=False, default=1)  # 1=活跃 0=禁用
+    # API 配额
+    api_quota_daily: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
+    last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
     )
@@ -67,7 +75,7 @@ class User(Base):
     records: Mapped[List["BaziRecord"]] = relationship(back_populates="user", lazy="select")
 
     def __repr__(self):
-        return f"<User(id={self.id}, username={self.username!r})>"
+        return f"<User(id={self.id}, username={self.username!r}, role={self.role!r})>"
 
 
 class BaziRecord(Base):
