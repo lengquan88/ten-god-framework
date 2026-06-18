@@ -264,6 +264,200 @@ class TengodClient:
             },
         )
 
+    # ── 八字排盘（阶段二十扩展） ──────────────────────
+
+    def bazi_full(
+        self,
+        year: int,
+        month: int,
+        day: int,
+        hour: int,
+        minute: int = 0,
+        gender: str = "male",
+    ) -> Dict[str, Any]:
+        """完整八字排盘"""
+        r = self._request(
+            "POST",
+            "/api/bazi/full",
+            body={
+                "year": year,
+                "month": month,
+                "day": day,
+                "hour": hour,
+                "minute": minute,
+                "gender": gender,
+            },
+        )
+        return r.get("data", {})
+
+    def bazi_calc(self, year: int, month: int, day: int, hour: int) -> Dict[str, Any]:
+        """基础八字排盘"""
+        r = self._request(
+            "POST",
+            "/api/bazi/calc",
+            body={"year": year, "month": month, "day": day, "hour": hour},
+        )
+        return r.get("data", {})
+
+    # ── 命例案例库（阶段二十扩展） ────────────────────
+
+    def list_cases(
+        self, category: str = "", limit: int = 50, offset: int = 0
+    ) -> Dict[str, Any]:
+        """列出命例案例"""
+        params = f"?limit={limit}&offset={offset}"
+        if category:
+            params += f"&category={category}"
+        return self._request("GET", f"/api/cases{params}")
+
+    def get_case(self, case_id: int) -> Dict[str, Any]:
+        """获取案例详情"""
+        return self._request("GET", f"/api/cases/{case_id}")
+
+    def create_case(
+        self,
+        record_id: int,
+        title: str,
+        category: str = "",
+        summary: str = "",
+        tags: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """创建命例案例"""
+        return self._request(
+            "POST",
+            "/api/cases",
+            body={
+                "record_id": record_id,
+                "title": title,
+                "category": category or None,
+                "summary": summary or None,
+                "tags": tags or [],
+            },
+        )
+
+    def search_cases(
+        self,
+        keyword: str = "",
+        category: str = "",
+        tag: str = "",
+        day_master: str = "",
+        geju: str = "",
+        limit: int = 20,
+    ) -> Dict[str, Any]:
+        """多维度搜索案例"""
+        body = {"limit": limit}
+        if keyword:
+            body["keyword"] = keyword
+        if category:
+            body["category"] = category
+        if tag:
+            body["tag"] = tag
+        if day_master:
+            body["day_master"] = day_master
+        if geju:
+            body["geju"] = geju
+        return self._request("POST", "/api/cases/search", body=body)
+
+    def similar_cases(self, case_id: int, limit: int = 5) -> List[Dict[str, Any]]:
+        """获取相似案例推荐"""
+        r = self._request("GET", f"/api/cases/{case_id}/similar?limit={limit}")
+        return r.get("cases", [])
+
+    def case_categories(self) -> List[str]:
+        """获取案例分类列表"""
+        r = self._request("GET", "/api/cases/categories/list")
+        return r.get("categories", [])
+
+    def case_tags(self) -> List[str]:
+        """获取案例标签列表"""
+        r = self._request("GET", "/api/cases/tags/list")
+        return r.get("tags", [])
+
+    def case_stats(self) -> Dict[str, Any]:
+        """案例库统计"""
+        return self._request("GET", "/api/cases/stats/summary")
+
+    def export_cases(self, format: str = "json") -> Any:
+        """导出案例"""
+        return self._request("GET", f"/api/cases/export/all?format={format}")
+
+    def favorite_case(self, case_id: int) -> Dict[str, Any]:
+        """收藏案例"""
+        return self._request("POST", f"/api/cases/{case_id}/favorite")
+
+    def like_case(self, case_id: int) -> Dict[str, Any]:
+        """点赞案例"""
+        return self._request("POST", f"/api/cases/{case_id}/like")
+
+    # ── Webhook（阶段二十扩展） ───────────────────────
+
+    def list_webhook_events(self) -> List[Dict[str, Any]]:
+        """列出 Webhook 事件类型"""
+        r = self._request("GET", "/api/webhooks/events")
+        return r.get("events", [])
+
+    def create_webhook(
+        self,
+        url: str,
+        events: List[str],
+        secret: str = "",
+        description: str = "",
+    ) -> Dict[str, Any]:
+        """创建 Webhook 订阅"""
+        return self._request(
+            "POST",
+            "/api/webhooks",
+            body={
+                "url": url,
+                "events": events,
+                "secret": secret,
+                "description": description,
+            },
+        )
+
+    def list_webhooks(self, active_only: bool = False) -> List[Dict[str, Any]]:
+        """列出 Webhook 订阅"""
+        r = self._request("GET", f"/api/webhooks?active_only={str(active_only).lower()}")
+        return r.get("subscriptions", [])
+
+    def delete_webhook(self, sub_id: int) -> bool:
+        """删除 Webhook 订阅"""
+        r = self._request("DELETE", f"/api/webhooks/{sub_id}")
+        return r.get("deleted", False)
+
+    def trigger_webhook(self, event_type: str, payload: Dict[str, Any]) -> int:
+        """触发 Webhook 事件"""
+        r = self._request(
+            "POST",
+            "/api/webhooks/trigger",
+            body={"event_type": event_type, "payload": payload},
+        )
+        return r.get("triggered", 0)
+
+    def webhook_stats(self) -> Dict[str, Any]:
+        """Webhook 统计"""
+        return self._request("GET", "/api/webhooks/stats/summary")
+
+    # ── 插件系统（阶段二十扩展） ──────────────────────
+
+    def list_plugins(self, state: str = "") -> List[Dict[str, Any]]:
+        """列出插件"""
+        url = "/api/plugins"
+        if state:
+            url += f"?state={state}"
+        r = self._request("GET", url)
+        return r.get("plugins", [])
+
+    def plugin_stats(self) -> Dict[str, Any]:
+        """插件统计"""
+        return self._request("GET", "/api/plugins/stats/summary")
+
+    # ── 系统版本（阶段二十扩展） ──────────────────────
+
+    def api_version(self) -> Dict[str, Any]:
+        """获取 API 版本信息"""
+        return self._request("GET", "/api/version")
+
 
 __all__ = ["TengodClient", "TengodError"]
-__version__ = "2.0.0"
+__version__ = "3.0.0"

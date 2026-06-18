@@ -56,12 +56,14 @@ ROLE_PERMISSIONS = {
             "ai:interpret", "ai:interpret:stream",
             "case:read", "case:write", "case:delete",
             "records:read", "records:write", "records:delete",
+            "webhook:read", "webhook:write",
+            "plugin:read",
         ],
         "quota_daily": 100,
     },
     "guest": {
         "name": "访客",
-        "permissions": ["bazi:calc", "knowledge:search", "case:read"],
+        "permissions": ["bazi:calc", "knowledge:search", "case:read", "plugin:read"],
         "quota_daily": 10,
     },
 }

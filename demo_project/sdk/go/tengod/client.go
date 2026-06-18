@@ -1,4 +1,4 @@
-// Package tengod 提供十神架构 HTTP API 的 Go 客户端 SDK v2.0.0
+// Package tengod 提供十神架构 HTTP API 的 Go 客户端 SDK v3.0.0
 //
 // 用法:
 //
@@ -315,4 +315,263 @@ func (c *Client) Login(username, password string) (string, error) {
 		c.APIKey = wrapper.Data.AccessToken
 	}
 	return wrapper.Data.AccessToken, nil
+}
+
+// ── 八字排盘（阶段二十扩展） ─────────────────────────
+
+// BaziInput 八字排盘输入
+type BaziInput struct {
+	Year    int    `json:"year"`
+	Month   int    `json:"month"`
+	Day     int    `json:"day"`
+	Hour    int    `json:"hour"`
+	Minute  int    `json:"minute"`
+	Gender  string `json:"gender"`
+}
+
+// BaziFull 完整八字排盘
+func (c *Client) BaziFull(year, month, day, hour, minute int, gender string) (map[string]any, error) {
+	body := BaziInput{Year: year, Month: month, Day: day, Hour: hour, Minute: minute, Gender: gender}
+	var wrapper struct {
+		Code int            `json:"code"`
+		Data map[string]any `json:"data"`
+	}
+	err := c.request("POST", "/api/bazi/full", body, &wrapper)
+	if err != nil {
+		return nil, err
+	}
+	return wrapper.Data, nil
+}
+
+// BaziCalc 基础八字排盘
+func (c *Client) BaziCalc(year, month, day, hour int) (map[string]any, error) {
+	body := map[string]int{"year": year, "month": month, "day": day, "hour": hour}
+	var wrapper struct {
+		Code int            `json:"code"`
+		Data map[string]any `json:"data"`
+	}
+	err := c.request("POST", "/api/bazi/calc", body, &wrapper)
+	if err != nil {
+		return nil, err
+	}
+	return wrapper.Data, nil
+}
+
+// ── 命例案例库（阶段二十扩展） ───────────────────────
+
+// Case 命例案例
+type Case struct {
+	ID          int      `json:"id"`
+	Title       string   `json:"title"`
+	Category    string   `json:"category"`
+	Summary     string   `json:"summary"`
+	Tags        []string `json:"tags"`
+	ViewCount   int      `json:"view_count"`
+	IsPublic    bool     `json:"is_public"`
+	IsFeatured  bool     `json:"is_featured"`
+}
+
+// ListCases 列出命例案例
+func (c *Client) ListCases(category string, limit, offset int) ([]Case, error) {
+	path := fmt.Sprintf("/api/cases?limit=%d&offset=%d", limit, offset)
+	if category != "" {
+		path += "&category=" + category
+	}
+	var wrapper struct {
+		Total int    `json:"total"`
+		Cases []Case `json:"cases"`
+	}
+	err := c.request("GET", path, nil, &wrapper)
+	if err != nil {
+		return nil, err
+	}
+	return wrapper.Cases, nil
+}
+
+// GetCase 获取案例详情
+func (c *Client) GetCase(caseID int) (*Case, error) {
+	var case_ Case
+	err := c.request("GET", fmt.Sprintf("/api/cases/%d", caseID), nil, &case_)
+	if err != nil {
+		return nil, err
+	}
+	return &case_, nil
+}
+
+// CreateCase 创建命例案例
+func (c *Client) CreateCase(recordID int, title, category, summary string, tags []string) (map[string]any, error) {
+	body := map[string]any{
+		"record_id": recordID,
+		"title":     title,
+		"category":  category,
+		"summary":   summary,
+		"tags":      tags,
+	}
+	var result map[string]any
+	err := c.request("POST", "/api/cases", body, &result)
+	return result, err
+}
+
+// SearchCases 多维度搜索案例
+func (c *Client) SearchCases(keyword, category, dayMaster, geju string, limit int) ([]Case, error) {
+	body := map[string]any{"limit": limit}
+	if keyword != "" {
+		body["keyword"] = keyword
+	}
+	if category != "" {
+		body["category"] = category
+	}
+	if dayMaster != "" {
+		body["day_master"] = dayMaster
+	}
+	if geju != "" {
+		body["geju"] = geju
+	}
+	var wrapper struct {
+		Cases []Case `json:"cases"`
+	}
+	err := c.request("POST", "/api/cases/search", body, &wrapper)
+	if err != nil {
+		return nil, err
+	}
+	return wrapper.Cases, nil
+}
+
+// SimilarCases 获取相似案例推荐
+func (c *Client) SimilarCases(caseID, limit int) ([]Case, error) {
+	var wrapper struct {
+		Cases []Case `json:"cases"`
+	}
+	err := c.request("GET", fmt.Sprintf("/api/cases/%d/similar?limit=%d", caseID, limit), nil, &wrapper)
+	if err != nil {
+		return nil, err
+	}
+	return wrapper.Cases, nil
+}
+
+// CaseCategories 获取案例分类列表
+func (c *Client) CaseCategories() ([]string, error) {
+	var wrapper struct {
+		Categories []string `json:"categories"`
+	}
+	err := c.request("GET", "/api/cases/categories/list", nil, &wrapper)
+	return wrapper.Categories, err
+}
+
+// CaseStats 案例库统计
+func (c *Client) CaseStats() (map[string]any, error) {
+	var result map[string]any
+	err := c.request("GET", "/api/cases/stats/summary", nil, &result)
+	return result, err
+}
+
+// FavoriteCase 收藏案例
+func (c *Client) FavoriteCase(caseID int) error {
+	return c.request("POST", fmt.Sprintf("/api/cases/%d/favorite", caseID), nil, nil)
+}
+
+// LikeCase 点赞案例
+func (c *Client) LikeCase(caseID int) error {
+	return c.request("POST", fmt.Sprintf("/api/cases/%d/like", caseID), nil, nil)
+}
+
+// ── Webhook（阶段二十扩展） ──────────────────────────
+
+// WebhookSubscription Webhook 订阅
+type WebhookSubscription struct {
+	ID             int      `json:"id"`
+	URL            string   `json:"url"`
+	Events         []string `json:"events"`
+	IsActive       bool     `json:"is_active"`
+	Description    string   `json:"description"`
+	TotalDelivered int      `json:"total_delivered"`
+	TotalFailed    int      `json:"total_failed"`
+}
+
+// ListWebhookEvents 列出 Webhook 事件类型
+func (c *Client) ListWebhookEvents() ([]map[string]string, error) {
+	var wrapper struct {
+		Events []map[string]string `json:"events"`
+	}
+	err := c.request("GET", "/api/webhooks/events", nil, &wrapper)
+	return wrapper.Events, err
+}
+
+// CreateWebhook 创建 Webhook 订阅
+func (c *Client) CreateWebhook(url string, events []string, secret, description string) (*WebhookSubscription, error) {
+	body := map[string]any{
+		"url":         url,
+		"events":      events,
+		"secret":      secret,
+		"description": description,
+	}
+	var sub WebhookSubscription
+	err := c.request("POST", "/api/webhooks", body, &sub)
+	if err != nil {
+		return nil, err
+	}
+	return &sub, nil
+}
+
+// ListWebhooks 列出 Webhook 订阅
+func (c *Client) ListWebhooks(activeOnly bool) ([]WebhookSubscription, error) {
+	path := fmt.Sprintf("/api/webhooks?active_only=%v", activeOnly)
+	var wrapper struct {
+		Subscriptions []WebhookSubscription `json:"subscriptions"`
+	}
+	err := c.request("GET", path, nil, &wrapper)
+	return wrapper.Subscriptions, err
+}
+
+// DeleteWebhook 删除 Webhook 订阅
+func (c *Client) DeleteWebhook(subID int) error {
+	return c.request("DELETE", fmt.Sprintf("/api/webhooks/%d", subID), nil, nil)
+}
+
+// TriggerWebhook 触发 Webhook 事件
+func (c *Client) TriggerWebhook(eventType string, payload map[string]any) (int, error) {
+	body := map[string]any{"event_type": eventType, "payload": payload}
+	var wrapper struct {
+		Triggered int `json:"triggered"`
+	}
+	err := c.request("POST", "/api/webhooks/trigger", body, &wrapper)
+	return wrapper.Triggered, err
+}
+
+// WebhookStats Webhook 统计
+func (c *Client) WebhookStats() (map[string]any, error) {
+	var result map[string]any
+	err := c.request("GET", "/api/webhooks/stats/summary", nil, &result)
+	return result, err
+}
+
+// ── 插件系统（阶段二十扩展） ─────────────────────────
+
+// ListPlugins 列出插件
+func (c *Client) ListPlugins(state string) ([]map[string]any, error) {
+	path := "/api/plugins"
+	if state != "" {
+		path += "?state=" + state
+	}
+	var wrapper struct {
+		Plugins []map[string]any `json:"plugins"`
+	}
+	err := c.request("GET", path, nil, &wrapper)
+	return wrapper.Plugins, err
+}
+
+// PluginStats 插件统计
+func (c *Client) PluginStats() (map[string]any, error) {
+	var result map[string]any
+	err := c.request("GET", "/api/plugins/stats/summary", nil, &result)
+	return result, err
+}
+
+// ── 系统版本（阶段二十扩展） ─────────────────────────
+
+// APIVersion 获取 API 版本信息
+func (c *Client) APIVersion() (map[string]any, error) {
+	var result map[string]any
+	err := c.request("GET", "/api/version", nil, &result)
+	return result, err
 }

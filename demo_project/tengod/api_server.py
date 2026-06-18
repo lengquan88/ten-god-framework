@@ -1650,6 +1650,31 @@ class CaseLinkRequest(BaseModel):
     note: Optional[str] = None
 
 
+# ─── 阶段二十：Webhook 请求模型 ──────────────────────────
+
+class WebhookSubscribeRequest(BaseModel):
+    """Webhook 订阅请求"""
+    url: str = Field(..., min_length=1, max_length=512, description="回调 URL")
+    events: List[str] = Field(..., min_items=1, description="订阅事件列表，支持 * 通配")
+    secret: Optional[str] = Field(default="", max_length=256, description="HMAC 签名密钥")
+    description: Optional[str] = Field(default="", max_length=256)
+
+
+class WebhookUpdateRequest(BaseModel):
+    """Webhook 更新请求"""
+    url: Optional[str] = Field(default=None, max_length=512)
+    events: Optional[List[str]] = None
+    secret: Optional[str] = None
+    is_active: Optional[bool] = None
+    description: Optional[str] = None
+
+
+class WebhookTriggerRequest(BaseModel):
+    """Webhook 手动触发（管理员）"""
+    event_type: str = Field(..., max_length=64)
+    payload: dict = Field(default_factory=dict)
+
+
 @app.post("/api/cases", tags=["命例案例库"])
 async def create_case(req: CaseCreateRequest, request: Request):
     """创建命例案例"""
@@ -1909,6 +1934,235 @@ async def like_case(case_id: int, request: Request):
     if count is None:
         raise HTTPException(status_code=404, detail="案例不存在")
     return {"id": case_id, "like_count": count}
+
+
+# ============================================================================
+# 阶段二十 20.1：开放 API — Webhook 与插件系统
+# ============================================================================
+
+@app.get("/api/webhooks/events", tags=["Webhook"])
+async def list_webhook_events(request: Request):
+    """列出所有可用的事件类型"""
+    from tengod.auth import authorize
+    authorize(request, "webhook:read")
+    from tengod.webhook import EVENT_TYPES
+    return {"events": [{"type": k, "description": v} for k, v in EVENT_TYPES.items()]}
+
+
+@app.post("/api/webhooks", tags=["Webhook"])
+async def create_webhook(req: WebhookSubscribeRequest, request: Request):
+    """创建 Webhook 订阅"""
+    from tengod.auth import authorize
+    authorize(request, "webhook:write")
+    from tengod.webhook import get_webhook_manager
+    wh = get_webhook_manager()
+    return wh.subscribe(url=req.url, events=req.events, secret=req.secret or "", description=req.description or "")
+
+
+@app.get("/api/webhooks", tags=["Webhook"])
+async def list_webhooks(request: Request, active_only: bool = False):
+    """列出 Webhook 订阅"""
+    from tengod.auth import authorize
+    authorize(request, "webhook:read")
+    from tengod.webhook import get_webhook_manager
+    wh = get_webhook_manager()
+    return {"subscriptions": wh.list_subscriptions(active_only=active_only)}
+
+
+@app.get("/api/webhooks/{sub_id}", tags=["Webhook"])
+async def get_webhook(sub_id: int, request: Request):
+    """获取 Webhook 订阅详情"""
+    from tengod.auth import authorize
+    authorize(request, "webhook:read")
+    from tengod.webhook import get_webhook_manager
+    wh = get_webhook_manager()
+    sub = wh.get_subscription(sub_id)
+    if not sub:
+        raise HTTPException(status_code=404, detail="订阅不存在")
+    return sub
+
+
+@app.put("/api/webhooks/{sub_id}", tags=["Webhook"])
+async def update_webhook(sub_id: int, req: WebhookUpdateRequest, request: Request):
+    """更新 Webhook 订阅"""
+    from tengod.auth import authorize
+    authorize(request, "webhook:write")
+    from tengod.webhook import get_webhook_manager
+    wh = get_webhook_manager()
+    sub = wh.update_subscription(
+        sub_id,
+        url=req.url,
+        events=req.events,
+        secret=req.secret,
+        is_active=req.is_active,
+        description=req.description,
+    )
+    if not sub:
+        raise HTTPException(status_code=404, detail="订阅不存在")
+    return sub
+
+
+@app.delete("/api/webhooks/{sub_id}", tags=["Webhook"])
+async def delete_webhook(sub_id: int, request: Request):
+    """取消 Webhook 订阅"""
+    from tengod.auth import authorize
+    authorize(request, "webhook:delete")
+    from tengod.webhook import get_webhook_manager
+    wh = get_webhook_manager()
+    ok = wh.unsubscribe(sub_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="订阅不存在")
+    return {"deleted": True, "id": sub_id}
+
+
+@app.post("/api/webhooks/{sub_id}/test", tags=["Webhook"])
+async def test_webhook(sub_id: int, request: Request):
+    """发送测试事件到 Webhook"""
+    from tengod.auth import authorize
+    authorize(request, "webhook:write")
+    from tengod.webhook import get_webhook_manager
+    wh = get_webhook_manager()
+    result = wh.test_subscription(sub_id)
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+    return result
+
+
+@app.get("/api/webhooks/{sub_id}/deliveries", tags=["Webhook"])
+async def list_webhook_deliveries(sub_id: int, request: Request, limit: int = 50):
+    """列出 Webhook 交付记录"""
+    from tengod.auth import authorize
+    authorize(request, "webhook:read")
+    from tengod.webhook import get_webhook_manager
+    wh = get_webhook_manager()
+    return {"deliveries": wh.list_deliveries(sub_id=sub_id, limit=limit)}
+
+
+@app.post("/api/webhooks/trigger", tags=["Webhook"])
+async def trigger_webhook(req: WebhookTriggerRequest, request: Request):
+    """手动触发事件（管理员）"""
+    from tengod.auth import authorize
+    authorize(request, "webhook:write")
+    from tengod.webhook import get_webhook_manager
+    wh = get_webhook_manager()
+    count = wh.trigger(req.event_type, req.payload)
+    return {"triggered": count, "event_type": req.event_type}
+
+
+@app.get("/api/webhooks/stats/summary", tags=["Webhook"])
+async def webhook_stats(request: Request):
+    """Webhook 统计"""
+    from tengod.auth import authorize
+    authorize(request, "webhook:read")
+    from tengod.webhook import get_webhook_manager
+    wh = get_webhook_manager()
+    return wh.stats()
+
+
+# ─── 插件系统 API ────────────────────────────────────────
+
+@app.get("/api/plugins", tags=["插件系统"])
+async def list_plugins(request: Request, state: Optional[str] = None):
+    """列出插件"""
+    from tengod.auth import authorize
+    authorize(request, "plugin:read")
+    from tengod.比肩_架构协同.plugin_manager import PluginManager
+    pm = PluginManager()
+    pm.discover()
+    return {"plugins": pm.list_plugins(state=state)}
+
+
+@app.get("/api/plugins/stats/summary", tags=["插件系统"])
+async def plugin_stats(request: Request):
+    """插件统计"""
+    from tengod.auth import authorize
+    authorize(request, "plugin:read")
+    from tengod.比肩_架构协同.plugin_manager import PluginManager
+    pm = PluginManager()
+    return pm.stats()
+
+
+# ─── 阶段二十 20.3：高级分析 API ─────────────────────────
+
+class BatchBaziRequest(BaseModel):
+    """批量排盘请求"""
+    inputs: List[Dict[str, Any]] = Field(..., min_items=1, max_items=100)
+
+
+class CompareCasesRequest(BaseModel):
+    """命例对比请求"""
+    record_a_id: int
+    record_b_id: int
+
+
+class TrajectoryRequest(BaseModel):
+    """命运轨迹推演请求"""
+    year: int = Field(..., ge=1900, le=2100)
+    month: int = Field(..., ge=1, le=12)
+    day: int = Field(..., ge=1, le=31)
+    hour: int = Field(..., ge=0, le=23)
+    minute: int = Field(default=0, ge=0, le=59)
+    gender: str = Field(default="male")
+    start_age: int = Field(default=0, ge=0, le=100)
+    end_age: int = Field(default=80, ge=1, le=120)
+
+
+@app.post("/api/advanced/compare", tags=["高级分析"])
+async def compare_cases(req: CompareCasesRequest, request: Request):
+    """命例对比分析"""
+    from tengod.auth import authorize
+    authorize(request, "bazi:full")
+    from tengod.advanced_analysis import AdvancedAnalyzer
+    analyzer = AdvancedAnalyzer()
+    result = analyzer.compare_cases(req.record_a_id, req.record_b_id)
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+    return result
+
+
+@app.post("/api/advanced/batch-bazi", tags=["高级分析"])
+async def batch_bazi(req: BatchBaziRequest, request: Request):
+    """批量排盘"""
+    from tengod.auth import authorize
+    authorize(request, "bazi:full")
+    from tengod.advanced_analysis import AdvancedAnalyzer
+    analyzer = AdvancedAnalyzer()
+    return analyzer.batch_bazi(req.inputs)
+
+
+@app.post("/api/advanced/trajectory", tags=["高级分析"])
+async def destiny_trajectory(req: TrajectoryRequest, request: Request):
+    """命运轨迹推演"""
+    from tengod.auth import authorize
+    authorize(request, "bazi:full")
+    from tengod.advanced_analysis import AdvancedAnalyzer
+    analyzer = AdvancedAnalyzer()
+    return analyzer.destiny_trajectory(
+        year=req.year, month=req.month, day=req.day, hour=req.hour,
+        minute=req.minute, gender=req.gender,
+        start_age=req.start_age, end_age=req.end_age,
+    )
+
+
+# ─── API 版本信息 ────────────────────────────────────────
+
+@app.get("/api/version", tags=["系统"])
+async def api_version():
+    """API 版本信息"""
+    return {
+        "api_version": "3.0.0",
+        "engine_version": _get_data_store().get_version() if hasattr(_get_data_store(), "get_version") else "1.5.0",
+        "sdk_versions": {
+            "python": "3.0.0",
+            "javascript": "3.0.0",
+            "go": "1.0.0",
+        },
+        "pwa_version": "3.0.0",
+        "features": [
+            "bazi_analysis", "case_library", "knowledge_graph", "oracle",
+            "ai_interpreter", "pwa", "webhook", "plugins", "rbac",
+        ],
+    }
 
 
 # ============================================================================

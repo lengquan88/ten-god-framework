@@ -1,5 +1,5 @@
 /**
- * tengod-client — 十神架构 JavaScript/TypeScript SDK v2.0.0
+ * tengod-client — 十神架构 JavaScript/TypeScript SDK v3.0.0
  * ============================================================
  * 通过 HTTP API 访问十神服务的 JavaScript 客户端。
  *
@@ -286,6 +286,126 @@ export class TengodClient {
 
   async register(username: string, password: string, email?: string): Promise<ApiResponse> {
     return this.request('POST', '/api/auth/register', { username, password, email });
+  }
+
+  // ── 八字排盘（阶段二十扩展） ──────────────────
+
+  async baziFull(year: number, month: number, day: number, hour: number,
+                 minute: number = 0, gender: string = 'male'): Promise<any> {
+    const r = await this.request<ApiResponse<any>>('POST', '/api/bazi/full',
+      { year, month, day, hour, minute, gender });
+    return r.data || {};
+  }
+
+  async baziCalc(year: number, month: number, day: number, hour: number): Promise<any> {
+    const r = await this.request<ApiResponse<any>>('POST', '/api/bazi/calc',
+      { year, month, day, hour });
+    return r.data || {};
+  }
+
+  // ── 命例案例库（阶段二十扩展） ────────────────
+
+  async listCases(category?: string, limit: number = 50, offset: number = 0): Promise<any> {
+    let url = `/api/cases?limit=${limit}&offset=${offset}`;
+    if (category) url += `&category=${encodeURIComponent(category)}`;
+    return this.request('GET', url);
+  }
+
+  async getCase(caseId: number): Promise<any> {
+    return this.request('GET', `/api/cases/${caseId}`);
+  }
+
+  async createCase(recordId: number, title: string, category?: string,
+                  summary?: string, tags?: string[]): Promise<any> {
+    return this.request('POST', '/api/cases', {
+      record_id: recordId, title, category, summary, tags: tags || []
+    });
+  }
+
+  async searchCases(params: { keyword?: string; category?: string; tag?: string;
+    day_master?: string; geju?: string; limit?: number } = {}): Promise<any> {
+    return this.request('POST', '/api/cases/search', { limit: 20, ...params });
+  }
+
+  async similarCases(caseId: number, limit: number = 5): Promise<any[]> {
+    const r = await this.request<ApiResponse<any>>('GET', `/api/cases/${caseId}/similar?limit=${limit}`);
+    return r.cases || [];
+  }
+
+  async caseCategories(): Promise<string[]> {
+    const r = await this.request<ApiResponse<string[]>>('GET', '/api/cases/categories/list');
+    return r.categories || [];
+  }
+
+  async caseTags(): Promise<string[]> {
+    const r = await this.request<ApiResponse<string[]>>('GET', '/api/cases/tags/list');
+    return r.tags || [];
+  }
+
+  async caseStats(): Promise<any> {
+    return this.request('GET', '/api/cases/stats/summary');
+  }
+
+  async exportCases(format: string = 'json'): Promise<any> {
+    return this.request('GET', `/api/cases/export/all?format=${format}`);
+  }
+
+  async favoriteCase(caseId: number): Promise<any> {
+    return this.request('POST', `/api/cases/${caseId}/favorite`);
+  }
+
+  async likeCase(caseId: number): Promise<any> {
+    return this.request('POST', `/api/cases/${caseId}/like`);
+  }
+
+  // ── Webhook（阶段二十扩展） ───────────────────
+
+  async listWebhookEvents(): Promise<any[]> {
+    const r = await this.request<ApiResponse<any[]>>('GET', '/api/webhooks/events');
+    return r.events || [];
+  }
+
+  async createWebhook(url: string, events: string[], secret?: string, description?: string): Promise<any> {
+    return this.request('POST', '/api/webhooks', { url, events, secret, description });
+  }
+
+  async listWebhooks(activeOnly: boolean = false): Promise<any[]> {
+    const r = await this.request<ApiResponse<any[]>>('GET', `/api/webhooks?active_only=${activeOnly}`);
+    return r.subscriptions || [];
+  }
+
+  async deleteWebhook(subId: number): Promise<boolean> {
+    const r = await this.request<ApiResponse<any>>('DELETE', `/api/webhooks/${subId}`);
+    return r.deleted || false;
+  }
+
+  async triggerWebhook(eventType: string, payload: any): Promise<number> {
+    const r = await this.request<ApiResponse<any>>('POST', '/api/webhooks/trigger',
+      { event_type: eventType, payload });
+    return r.triggered || 0;
+  }
+
+  async webhookStats(): Promise<any> {
+    return this.request('GET', '/api/webhooks/stats/summary');
+  }
+
+  // ── 插件系统（阶段二十扩展） ──────────────────
+
+  async listPlugins(state?: string): Promise<any[]> {
+    let url = '/api/plugins';
+    if (state) url += `?state=${state}`;
+    const r = await this.request<ApiResponse<any[]>>(url.includes('?') ? 'GET' : 'GET', url);
+    return r.plugins || [];
+  }
+
+  async pluginStats(): Promise<any> {
+    return this.request('GET', '/api/plugins/stats/summary');
+  }
+
+  // ── 系统版本（阶段二十扩展） ──────────────────
+
+  async apiVersion(): Promise<any> {
+    return this.request('GET', '/api/version');
   }
 }
 
