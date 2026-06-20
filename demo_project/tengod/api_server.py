@@ -2107,6 +2107,120 @@ class TrajectoryRequest(BaseModel):
     end_age: int = Field(default=80, ge=1, le=120)
 
 
+# ============================================================================
+# 阶段二十一：流年/玄空/七政/高级术数 请求模型
+# ============================================================================
+
+class LiunianRequest(BaseModel):
+    """流年断语请求"""
+    pillars: Dict[str, str] = Field(..., description='四柱 {"year":"甲子","month":"丙寅","day":"戊辰","hour":"庚申"}')
+    target_year: int = Field(default=2026, ge=1900, le=2200)
+    years_range: Optional[List[int]] = Field(default=None, description='批量分析的年份列表')
+
+
+class FengshuiRequest(BaseModel):
+    """玄空飞星请求"""
+    sitting: str = Field(default="北", description='坐向：如"北"、"南"、"东"、"西"')
+    facing: str = Field(default="南", description='朝向')
+    year: int = Field(default=2026, ge=1900, le=2200)
+    house_info: Optional[Dict[str, str]] = Field(default=None, description='房屋信息')
+
+
+class QizhengRequest(BaseModel):
+    """七政四余排盘请求"""
+    year: int = Field(..., ge=1900, le=2200)
+    month: int = Field(..., ge=1, le=12)
+    day: int = Field(..., ge=1, le=31)
+    hour: int = Field(default=12, ge=0, le=23)
+    minute: int = Field(default=0, ge=0, le=59)
+
+
+class AdvancedShushuRequest(BaseModel):
+    """高级术数（铁板神数/邵子神数/称骨算命）请求"""
+    pillars: Dict[str, str] = Field(..., description='四柱 {"year":"甲子","month":"丙寅","day":"戊辰","hour":"庚申"}')
+    lunar_month: Optional[int] = Field(default=None, ge=1, le=12, description='农历月（称骨用）')
+    lunar_day: Optional[int] = Field(default=None, ge=1, le=31, description='农历日（称骨用）')
+
+
+# ============================================================================
+# 阶段二十一：流年/玄空/七政/高级术数 API 端点
+# ============================================================================
+
+@app.post("/api/prediction/liunian", tags=["流年断语"])
+async def liunian_judgment(req: LiunianRequest, request: Request):
+    """单年流年断语与批量运势分析"""
+    from tengod.auth import authorize
+    authorize(request, "bazi:full")
+    from tengod.liunian_judgment import LiunianJudgmentEngine
+    engine = LiunianJudgmentEngine()
+
+    if req.years_range and len(req.years_range) > 0:
+        return engine.judge(req.pillars, req.years_range)
+
+    result = engine.judge_year(req.pillars, req.target_year)
+    if hasattr(result, "to_dict"):
+        return result.to_dict()
+    if hasattr(result, "__dataclass_fields__"):
+        from dataclasses import asdict
+        return asdict(result)
+    return result
+
+
+@app.post("/api/prediction/fengshui", tags=["玄空风水"])
+async def fengshui_analysis(req: FengshuiRequest, request: Request):
+    """玄空飞星排盘与阳宅风水分析"""
+    from tengod.auth import authorize
+    authorize(request, "bazi:full")
+    from tengod.fengshui.xuankong import XuankongEngine, YangzhaiAnalyzer
+    engine = XuankongEngine()
+    result = engine.compute(sitting=req.sitting, facing=req.facing, year=req.year)
+
+    response = {}
+    if hasattr(result, "__dataclass_fields__"):
+        from dataclasses import asdict
+        response = asdict(result)
+    else:
+        response = result
+
+    if req.house_info:
+        analyzer = YangzhaiAnalyzer()
+        analysis = analyzer.analyze(result, req.house_info)
+        if isinstance(response, dict):
+            response["house_analysis"] = analysis
+
+    return response
+
+
+@app.post("/api/prediction/qizheng", tags=["七政四余"])
+async def qizheng_calc(req: QizhengRequest, request: Request):
+    """七政四余星象排盘"""
+    from tengod.auth import authorize
+    authorize(request, "bazi:full")
+    from tengod.qizheng.engine import QizhengEngine
+    engine = QizhengEngine()
+    result = engine.compute(year=req.year, month=req.month, day=req.day,
+                            hour=req.hour, minute=req.minute)
+    if hasattr(result, "__dataclass_fields__"):
+        from dataclasses import asdict
+        return asdict(result)
+    return result
+
+
+@app.post("/api/prediction/shushu", tags=["高级术数"])
+async def advanced_shushu(req: AdvancedShushuRequest, request: Request):
+    """铁板神数 / 邵子神数 / 称骨算命 综合分析"""
+    from tengod.auth import authorize
+    authorize(request, "bazi:full")
+    from tengod.advanced_shushu import AdvancedShuShuEngine
+    engine = AdvancedShuShuEngine()
+    result = engine.compute_all(
+        pillars=req.pillars,
+        lunar_month=req.lunar_month,
+        lunar_day=req.lunar_day,
+    )
+    return result
+
+
 @app.post("/api/advanced/compare", tags=["高级分析"])
 async def compare_cases(req: CompareCasesRequest, request: Request):
     """命例对比分析"""
