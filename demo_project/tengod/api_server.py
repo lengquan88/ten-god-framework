@@ -2206,6 +2206,54 @@ async def qizheng_calc(req: QizhengRequest, request: Request):
     return result
 
 
+# ============================================================================
+# 阶段二十二：综合多体系分析
+# ============================================================================
+
+class ComprehensiveRequest(BaseModel):
+    """综合分析请求"""
+    birth_year: int = Field(..., ge=1900, le=2100, description="出生年")
+    birth_month: int = Field(..., ge=1, le=12, description="出生月")
+    birth_day: int = Field(..., ge=1, le=31, description="出生日")
+    birth_hour: int = Field(default=12, ge=0, le=23, description="出生时(0-23)")
+    birth_minute: int = Field(default=0, ge=0, le=59, description="出生分")
+    gender: str = Field(default="male", description="性别: male/female")
+    target_year: int = Field(default=2026, ge=1900, le=2200, description="流年分析年份")
+    pillars: Optional[Dict[str, str]] = Field(default=None, description="四柱干支(可不填，自动计算)")
+    sitting: str = Field(default="北", description="风水坐向-坐")
+    facing: str = Field(default="南", description="风水坐向-向")
+    lunar_month: Optional[int] = Field(default=None, ge=1, le=12, description="农历月")
+    lunar_day: Optional[int] = Field(default=None, ge=1, le=31, description="农历日")
+
+
+@app.post("/api/prediction/comprehensive", tags=["综合分析"])
+async def comprehensive_analysis(req: ComprehensiveRequest, request: Request):
+    """
+    多体系综合分析
+
+    整合8大术数体系：八字、紫微斗数、奇门遁甲、六爻卦、
+    流年断语、玄空风水、七政四余、高级术数（铁板/邵子/称骨）
+
+    提供交叉验证、共识判断与综合报告。
+    """
+    from tengod.auth import authorize
+    authorize(request, "bazi:full")
+    from tengod.multi_system_engine import ComprehensiveAnalyzer
+    analyzer = ComprehensiveAnalyzer()
+    result = analyzer.full_analysis(
+        birth_date=(req.birth_year, req.birth_month, req.birth_day),
+        birth_time=(req.birth_hour, req.birth_minute),
+        gender=req.gender,
+        target_year=req.target_year,
+        pillars=req.pillars,
+        sitting=req.sitting,
+        facing=req.facing,
+        lunar_month=req.lunar_month,
+        lunar_day=req.lunar_day,
+    )
+    return result.to_dict()
+
+
 @app.post("/api/prediction/shushu", tags=["高级术数"])
 async def advanced_shushu(req: AdvancedShushuRequest, request: Request):
     """铁板神数 / 邵子神数 / 称骨算命 综合分析"""
