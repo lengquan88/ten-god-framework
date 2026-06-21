@@ -670,6 +670,188 @@ async def interpret_bazi_from_analysis(
 
 
 # ============================================================================
+# 阶段二十四：多体系综合分析 AI 解读
+# ============================================================================
+
+SYSTEM_PROMPT_FOR_COMPREHENSIVE = (
+    "你是一位精通中国传统命理的资深专家，精通八字命理、紫微斗数、奇门遁甲、"
+    "六爻卦、流年断语、玄空风水、七政四余等多种术数体系。你将收到一份多体系"
+    "综合分析结果，包含各体系分析结论、喜用神忌神交叉验证结果、共识运势评分"
+    "和各分项研判。请生成专业、有深度、易懂的综合命理分析报告，要求：\n"
+    "1. 开篇总论（100字以内）：结合多体系一致性，对命局层次做整体定性。\n"
+    "2. 喜用神与忌神分析（150字以内）：汇总各体系共识与分歧，提出最具共识的"
+    "喜用神方向与忌神提醒。\n"
+    "3. 分项综合研判（200字以内）：事业、财运、感情、健康四方面简述。\n"
+    "4. 关键流年提示（100字以内）：根据流年体系给出近期最重要的一两个提示。\n"
+    "5. 综合建议与趋避（100字以内）：喜用神方位、行业方向等方向性建议。\n"
+    "6. 全篇控制在600-800字，结尾注明\"以上仅供参考\"。"
+)
+
+SYSTEM_PROMPT_FOR_MOCK_COMPREHENSIVE = (
+    "你是中国传统命理大师。请用简洁风格：1句话概括命局，"
+    "列出喜用神忌神，简述事业财运感情健康四方面，给出2条建议，"
+    "结尾注明\"以上仅供参考\"。"
+)
+
+
+def build_comprehensive_context(comp_dict: Dict[str, Any]) -> str:
+    """从 ComprehensiveResult 字典构建结构化上下文字符串"""
+    birth = comp_dict.get("birth_info", {})
+    systems = comp_dict.get("systems", {})
+    cross = comp_dict.get("cross_validation", {})
+    consensus = comp_dict.get("consensus", {})
+    report = comp_dict.get("comprehensive_report", "")
+
+    gender_cn = "男" if birth.get("gender") == "male" else "女" if birth.get("gender") == "female" else birth.get("gender", "")
+
+    lines = [
+        "[基础信息]",
+        f"  性别：{gender_cn}",
+        f"  分析年份：{birth.get('target_year', 'N/A')}",
+        "",
+        "[各体系结论摘要]",
+    ]
+
+    for name, sys_data in systems.items():
+        if isinstance(sys_data, dict):
+            lines.append(f"  [{name}]")
+            if sys_data.get("available") is False:
+                lines.append(f"    [不可用] {sys_data.get('error', '未知错误')}")
+            else:
+                summary = sys_data.get("summary", "")
+                data = sys_data.get("data", {})
+                if summary:
+                    lines.append(f"    摘要：{summary}")
+                for key in ["yongshen", "喜用神", "ming_zhu", "命宫主星",
+                            "geju_name", "格局", "score", "评分"]:
+                    val = data.get(key) if isinstance(data, dict) else None
+                    if val:
+                        lines.append(f"    {key}：{val}")
+            lines.append("")
+
+    lines.extend([
+        "[交叉验证结果]",
+        f"  一致性得分：{cross.get('score', 'N/A')}（满分100）",
+        f"  验证等级：{cross.get('level', 'N/A')}",
+    ])
+    agreed = cross.get("agreements", [])
+    conflicts = cross.get("conflicts", [])
+    if agreed:
+        lines.append(f"  达成一致：{'、'.join(str(ag) for ag in agreed)}")
+    if conflicts:
+        lines.append(f"  存在分歧：{'、'.join(str(cf) for cf in conflicts)}")
+    for p in cross.get("interpretations", []):
+        lines.append(f"  解读：{p}")
+    lines.append("")
+
+    lines.extend([
+        "[共识运势]",
+        f"  综合等级：{consensus.get('overall', 'N/A')}",
+        f"  综合评分：{consensus.get('score', 'N/A')}",
+        f"  事业：{consensus.get('career', 'N/A')}",
+        f"  财运：{consensus.get('wealth', 'N/A')}",
+        f"  感情：{consensus.get('relationships', 'N/A')}",
+        f"  健康：{consensus.get('health', 'N/A')}",
+    ])
+    for k, label in [("key_strengths", "核心优势"), ("key_risks", "核心风险"),
+                      ("best_timing", "最佳时机"), ("weak_timing", "弱运时机")]:
+        items = consensus.get(k, [])
+        if items:
+            lines.append(f"  {label}：{'、'.join(str(x) for x in items)}")
+    lines.append("")
+
+    if report:
+        lines.extend(["", "[系统原始报告摘要]", report[:500]])
+
+    return "\n".join(lines)
+
+
+async def interpret_comprehensive(
+    comp_dict: Dict[str, Any],
+    llm: Optional[BaseLLMAdapter] = None,
+    use_rag: bool = False,
+    question: str = "",
+) -> str:
+    """多体系综合分析 AI 深度解读
+
+    Args:
+        comp_dict: ComprehensiveResult.to_dict() 字典
+        llm: LLM 适配器（默认使用全局实例）
+        use_rag: 是否启用 RAG 知识增强
+        question: 可选的具体问题
+
+    Returns:
+        AI 生成的多体系综合解读报告
+    """
+    if llm is None:
+        llm = get_llm()
+
+    context = build_comprehensive_context(comp_dict)
+
+    # Mock 模式使用简化提示词
+    if "mock" in llm.model_name.lower():
+        system_content = SYSTEM_PROMPT_FOR_MOCK_COMPREHENSIVE
+    else:
+        system_content = SYSTEM_PROMPT_FOR_COMPREHENSIVE
+
+    messages = [ChatMessage(role="system", content=system_content)]
+
+    if use_rag:
+        rag_ctx = _build_rag_context(
+            ["八字", "紫微斗数", "奇门遁甲", "喜用神", "忌神", "格局", "流年"]
+        )
+        if rag_ctx:
+            messages.append(ChatMessage(
+                role="system", content=f"相关命理知识：\n{rag_ctx}"
+            ))
+
+    user_content = f"请根据以下多体系综合分析数据生成报告：\n\n{context}"
+    if question:
+        user_content += f"\n\n用户特别关注：{question}"
+    messages.append(ChatMessage(role="user", content=user_content))
+
+    response = await llm.chat(messages)
+    return response.content
+
+
+async def interpret_comprehensive_stream(
+    comp_dict: Dict[str, Any],
+    llm: Optional[BaseLLMAdapter] = None,
+    use_rag: bool = False,
+    question: str = "",
+) -> AsyncGenerator[str, None]:
+    """多体系综合分析 AI 解读（流式）"""
+    if llm is None:
+        llm = get_llm()
+
+    context = build_comprehensive_context(comp_dict)
+
+    if "mock" in llm.model_name.lower():
+        system_content = SYSTEM_PROMPT_FOR_MOCK_COMPREHENSIVE
+    else:
+        system_content = SYSTEM_PROMPT_FOR_COMPREHENSIVE
+
+    messages = [ChatMessage(role="system", content=system_content)]
+
+    if use_rag:
+        rag_ctx = _build_rag_context(
+            ["八字", "紫微斗数", "奇门", "喜用神", "忌神", "格局"]
+        )
+        if rag_ctx:
+            messages.append(ChatMessage(
+                role="system", content=f"相关命理知识：\n{rag_ctx}"
+            ))
+
+    user_content = f"请根据以下多体系综合分析数据生成报告：\n\n{context}"
+    if question:
+        user_content += f"\n\n用户特别关注：{question}"
+    messages.append(ChatMessage(role="user", content=user_content))
+
+    async for chunk in llm.chat_stream(messages):
+        yield chunk
+
+
+# ============================================================================
 # 辅助
 # ============================================================================
 

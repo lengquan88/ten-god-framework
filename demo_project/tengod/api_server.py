@@ -2254,6 +2254,85 @@ async def comprehensive_analysis(req: ComprehensiveRequest, request: Request):
     return result.to_dict()
 
 
+# ============================================================================
+# 阶段二十四：综合报告生成 + AI 解读
+# ============================================================================
+
+class ComprehensiveInterpretRequest(BaseModel):
+    """综合分析 AI 解读请求"""
+    birth_year: int = Field(..., ge=1900, le=2100)
+    birth_month: int = Field(..., ge=1, le=12)
+    birth_day: int = Field(..., ge=1, le=31)
+    birth_hour: int = Field(default=12, ge=0, le=23)
+    birth_minute: int = Field(default=0, ge=0, le=59)
+    gender: str = Field(default="male")
+    target_year: int = Field(default=2026, ge=1900, le=2200)
+    pillars: Optional[Dict[str, str]] = Field(default=None)
+    sitting: str = Field(default="北")
+    facing: str = Field(default="南")
+    lunar_month: Optional[int] = Field(default=None, ge=1, le=12)
+    lunar_day: Optional[int] = Field(default=None, ge=1, le=31)
+    use_rag: bool = Field(default=False)
+    question: str = Field(default="")
+    report_format: str = Field(default="text",
+                               description="报告格式: text/markdown/html/json")
+
+
+@app.post("/api/prediction/comprehensive/interpret", tags=["综合分析"])
+async def comprehensive_interpret(req: ComprehensiveInterpretRequest, request: Request):
+    """
+    多体系综合分析 + AI 智能解读 + 报告生成
+
+    三合一接口：分析 → AI 解读 → 格式化报告一步完成。
+    支持 text / markdown / html / json 格式输出。
+    """
+    from tengod.auth import authorize
+    authorize(request, "bazi:full")
+    from tengod.multi_system_engine import ComprehensiveAnalyzer
+    from tengod.ai_interpreter import interpret_comprehensive
+    from tengod.report_generator import ComprehensiveReportGenerator
+
+    # 1. 多体系综合分析
+    analyzer = ComprehensiveAnalyzer()
+    comp_result = analyzer.full_analysis(
+        birth_date=(req.birth_year, req.birth_month, req.birth_day),
+        birth_time=(req.birth_hour, req.birth_minute),
+        gender=req.gender,
+        target_year=req.target_year,
+        pillars=req.pillars,
+        sitting=req.sitting,
+        facing=req.facing,
+        lunar_month=req.lunar_month,
+        lunar_day=req.lunar_day,
+    )
+    comp_dict = comp_result.to_dict()
+
+    # 2. AI 智能解读
+    ai_report = await interpret_comprehensive(
+        comp_dict,
+        use_rag=req.use_rag,
+        question=req.question,
+    )
+
+    # 3. 生成格式化报告
+    gen = ComprehensiveReportGenerator(comp_dict)
+    if req.report_format == "markdown":
+        formatted = gen.markdown_report()
+    elif req.report_format == "html":
+        formatted = gen.html_report()
+    elif req.report_format == "json":
+        formatted = gen.json_report()
+    else:
+        formatted = gen.text_report()
+
+    return {
+        "ai_interpretation": ai_report,
+        "formatted_report": formatted,
+        "format": req.report_format,
+        "raw_result": comp_dict,
+    }
+
+
 @app.post("/api/prediction/shushu", tags=["高级术数"])
 async def advanced_shushu(req: AdvancedShushuRequest, request: Request):
     """铁板神数 / 邵子神数 / 称骨算命 综合分析"""

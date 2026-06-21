@@ -29,6 +29,7 @@ from typing import Any, Dict, List, Optional
 
 __all__ = [
     "BaziReportGenerator",
+    "ComprehensiveReportGenerator",
     "generate_report",
     "generate_html_report",
 ]
@@ -741,3 +742,262 @@ if __name__ == "__main__":
     print(gen.text_report())
     print("\n\n=== JSON Report ===")
     print(json.dumps(gen.json_report(), ensure_ascii=False, indent=2))
+
+
+# ============================================================================
+# 阶段二十四：多体系综合报告生成器
+# ============================================================================
+
+class ComprehensiveReportGenerator:
+    """
+    多体系综合报告生成器
+
+    输入：ComprehensiveResult.to_dict() 字典
+    输出：text / markdown / html / json 格式综合报告
+
+    用法：
+        >>> from tengod.report_generator import ComprehensiveReportGenerator
+        >>> gen = ComprehensiveReportGenerator(comp_result.to_dict())
+        >>> print(gen.markdown_report())
+    """
+
+    def __init__(self, comp_dict: Dict[str, Any]):
+        self._d = comp_dict
+        self._birth = comp_dict.get("birth_info", {})
+        self._systems = comp_dict.get("systems", {})
+        self._cross = comp_dict.get("cross_validation", {})
+        self._consensus = comp_dict.get("consensus", {})
+        self._raw_report = comp_dict.get("comprehensive_report", "")
+
+    def _level_bar(self, score: int) -> str:
+        """将 0-100 分数转换为星级条"""
+        filled = min(5, max(0, round(score / 20)))
+        return "★" * filled + "☆" * (5 - filled)
+
+    def text_report(self) -> str:
+        """纯文本综合报告"""
+        lines = []
+        gender_cn = "男" if self._birth.get("gender") == "male" else "女"
+        year = self._birth.get("target_year", "")
+
+        lines.append("=" * 60)
+        lines.append("      多体系综合命理分析报告")
+        lines.append(f"      分析年份：{year}  |  性别：{gender_cn}")
+        lines.append("=" * 60)
+        lines.append("")
+
+        # 共识运势
+        overall = self._consensus.get("overall", "—")
+        score = self._consensus.get("score", 0)
+        lines.append("【共识运势】")
+        lines.append(f"  综合等级：{overall}  {self._level_bar(score)}")
+        lines.append(f"  综合评分：{score}/100")
+        lines.append("")
+        for label, key in [
+            ("事业", "career"), ("财运", "wealth"),
+            ("感情", "relationships"), ("健康", "health"),
+        ]:
+            val = self._consensus.get(key, "—") or "—"
+            lines.append(f"  {label}：{val}")
+        strengths = self._consensus.get("key_strengths", [])
+        if strengths:
+            lines.append(f"  优势：{'、'.join(strengths)}")
+        risks = self._consensus.get("key_risks", [])
+        if risks:
+            lines.append(f"  风险：{'、'.join(risks)}")
+        best = self._consensus.get("best_timing", [])
+        if best:
+            lines.append(f"  最佳时机：{'、'.join(best)}")
+        lines.append("")
+
+        # 交叉验证
+        cross_score = self._cross.get("score", 0)
+        cross_level = self._cross.get("level", "—")
+        lines.append("【交叉验证】")
+        lines.append(f"  一致性：{cross_score}/100  ({cross_level})")
+        agreed = self._cross.get("agreements", [])
+        conflicts = self._cross.get("conflicts", [])
+        if agreed:
+            lines.append(f"  一致体系：{'、'.join(agreed)}")
+        if conflicts:
+            lines.append(f"  分歧体系：{'、'.join(conflicts)}")
+        interp = self._cross.get("interpretations", [])
+        for p in interp:
+            lines.append(f"  解读：{p}")
+        lines.append("")
+
+        # 各体系结果
+        lines.append("【各体系分析结果】")
+        for name, sys_data in self._systems.items():
+            if isinstance(sys_data, dict):
+                lines.append(f"  ■ {name}")
+                if sys_data.get("available") is False:
+                    lines.append(f"    [不可用] {sys_data.get('error', '')}")
+                else:
+                    summary = sys_data.get("summary", "")
+                    if summary:
+                        lines.append(f"    {summary}")
+                lines.append("")
+        lines.append("")
+
+        # 原始报告
+        if self._raw_report:
+            lines.append("【综合分析】")
+            lines.append(self._raw_report[:600])
+            if len(self._raw_report) > 600:
+                lines.append(f"  ... (共 {len(self._raw_report)} 字)")
+        lines.append("")
+        lines.append("=" * 60)
+        lines.append("  本报告由多体系综合分析引擎生成，仅供参考")
+        lines.append("=" * 60)
+        return "\n".join(lines)
+
+    def markdown_report(self) -> str:
+        """Markdown 格式综合报告"""
+        gender_cn = "男" if self._birth.get("gender") == "male" else "女"
+        year = self._birth.get("target_year", "")
+        overall = self._consensus.get("overall", "—")
+        score = self._consensus.get("score", 0)
+        cross_score = self._cross.get("score", 0)
+        cross_level = self._cross.get("level", "—")
+
+        md = [
+            "# 多体系综合命理分析报告",
+            "",
+            f"**分析年份**：{year}  &nbsp;&nbsp; **性别**：{gender_cn}",
+            "",
+            "---",
+            "",
+            "## 一、共识运势",
+            "",
+            f"| 等级 | 评分 | ★评级 |",
+            f"| --- | --- | --- |",
+            f"| {overall} | {score}/100 | {self._level_bar(score)} |",
+            "",
+            f"### 分项研判",
+            "",
+            "| 事业 | 财运 | 感情 | 健康 |",
+            "| --- | --- | --- | --- |",
+            f"| {self._consensus.get('career', '—')} | "
+            f"{self._consensus.get('wealth', '—')} | "
+            f"{self._consensus.get('relationships', '—')} | "
+            f"{self._consensus.get('health', '—')} |",
+            "",
+        ]
+
+        strengths = self._consensus.get("key_strengths", [])
+        if strengths:
+            md.append(f"**核心优势**：{'、'.join(strengths)}")
+        risks = self._consensus.get("key_risks", [])
+        if risks:
+            md.append(f"**核心风险**：{'、'.join(risks)}")
+        best = self._consensus.get("best_timing", [])
+        if best:
+            md.append(f"**最佳时机**：{'、'.join(best)}")
+        md.append("")
+
+        md.extend([
+            "---",
+            "",
+            "## 二、交叉验证",
+            "",
+            f"**一致性**：{cross_score}/100（{cross_level}）",
+            "",
+        ])
+        agreed = self._cross.get("agreements", [])
+        conflicts = self._cross.get("conflicts", [])
+        if agreed:
+            md.append(f"**一致体系**：{'、'.join(agreed)}")
+        if conflicts:
+            md.append(f"**分歧体系**：{'、'.join(conflicts)}")
+        interp = self._cross.get("interpretations", [])
+        for p in interp:
+            md.append(f"- {p}")
+        md.append("")
+
+        md.extend([
+            "---",
+            "",
+            "## 三、各体系分析结果",
+            "",
+        ])
+        for name, sys_data in self._systems.items():
+            if isinstance(sys_data, dict):
+                available = sys_data.get("available", True)
+                status = "✅" if available else "❌"
+                summary = sys_data.get("summary", "（无摘要）")
+                md.append(f"### {status} {name}")
+                md.append(f"{summary}")
+                if not available:
+                    md.append(f"> 错误：{sys_data.get('error', '')}")
+                md.append("")
+
+        if self._raw_report:
+            md.extend([
+                "---",
+                "",
+                "## 四、综合分析",
+                "",
+                self._raw_report,
+                "",
+            ])
+
+        md.extend([
+            "---",
+            "",
+            "*本报告由多体系综合分析引擎生成，仅供参考*",
+        ])
+        return "\n".join(md)
+
+    def json_report(self) -> Dict[str, Any]:
+        """JSON 格式综合报告"""
+        return {
+            "birth_info": self._birth,
+            "consensus": self._consensus,
+            "cross_validation": self._cross,
+            "systems": {
+                k: v if isinstance(v, dict) else {}
+                for k, v in self._systems.items()
+            },
+            "raw_report": self._raw_report,
+            "summary": {
+                "overall": self._consensus.get("overall", "—"),
+                "score": self._consensus.get("score", 0),
+                "cross_score": self._cross.get("score", 0),
+                "agreed_count": len(self._cross.get("agreements", [])),
+                "system_count": len(self._systems),
+            },
+        }
+
+    def html_report(self) -> str:
+        """HTML 格式综合报告（单文件，可直接用浏览器打开）"""
+        md = self.markdown_report()
+        # 简单 Markdown → HTML 转换（完整版需引入 markdown 库）
+        html_body = md.replace("# ", "<h1>").replace("\n## ", "</h1>\n<h2>").replace(
+            "\n### ", "</h2>\n<h3>").replace("\n", "<br/>")
+        html_body = (
+            html_body.replace("**", "")
+            .replace("| ", "<tr><td>").replace(" |", "</td></tr>")
+            .replace(" | ", "</td><td>")
+            .replace("---\n", "<hr/>")
+        )
+        return f"""<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8"/>
+<title>多体系综合命理分析报告</title>
+<style>
+body{{font-family:serif;max-width:800px;margin:2rem auto;padding:0 1rem;
+      background:#1a1a1a;color:#c9b99a;line-height:1.8}}
+h1,h2,h3{{color:#d4af37;border-bottom:1px solid #4a4a4a;padding-bottom:.3em}}
+h1{{font-size:1.6em;text-align:center}}h2{{font-size:1.2em}}h3{{font-size:1em}}
+table{{border-collapse:collapse;width:100%;margin:.5rem 0}}
+td,th{{border:1px solid #4a4a4a;padding:.4rem .6rem}}
+hr{{border:none;border-top:1px solid #4a4a4a;margin:1.5rem 0}}
+blockquote{{background:#252525;border-left:3px solid #d4af37;padding:.5rem 1rem}}
+</style>
+</head>
+<body>
+{html_body}
+</body>
+</html>"""
