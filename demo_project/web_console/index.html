@@ -1561,16 +1561,25 @@ function CasesPage() {
 
 // ─── Knowledge Graph ────────────────────────────────────
 function KnowledgeGraph({ state }) {
+  const [allNodes, setAllNodes] = useState([]);
   const [nodes, setNodes] = useState([]);
   const [edges, setEdges] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchText, setSearchText] = useState('');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [selectedNode, setSelectedNode] = useState(null);
   const containerRef = useRef(null);
   const [dims, setDims] = useState({ w: 800, h: 500 });
 
   useEffect(() => {
     fetch(API + '/knowledge/nodes')
       .then(r => r.json())
-      .then(d => { setNodes(d.data?.items || []); setLoading(false); })
+      .then(d => {
+        const items = d.data?.items || [];
+        setAllNodes(items);
+        setNodes(items);
+        setLoading(false);
+      })
       .catch(() => setLoading(false));
   }, []);
 
@@ -1580,6 +1589,32 @@ function KnowledgeGraph({ state }) {
     }
   }, [nodes]);
 
+  // 搜索筛选
+  useEffect(() => {
+    let filtered = allNodes;
+    if (searchText.trim()) {
+      const q = searchText.trim().toLowerCase();
+      filtered = filtered.filter(n =>
+        (n.name || '').toLowerCase().includes(q) ||
+        (n.description || '').toLowerCase().includes(q) ||
+        (n.category || '').toLowerCase().includes(q)
+      );
+    }
+    if (typeFilter !== 'all') {
+      filtered = filtered.filter(n => (n.node_type || n.category || 'default') === typeFilter);
+    }
+    setNodes(filtered);
+    setSelectedNode(null);
+  }, [searchText, typeFilter, allNodes]);
+
+  // 获取所有可用类型
+  const nodeTypes = React.useMemo(() => {
+    const types = new Set();
+    allNodes.forEach(n => types.add(n.node_type || n.category || 'default'));
+    return Array.from(types);
+  }, [allNodes]);
+
+  // 布局计算
   useEffect(() => {
     if (!nodes.length) return;
     const cx = dims.w / 2, cy = dims.h / 2, rx = dims.w * 0.42, ry = dims.h * 0.38;
@@ -1596,26 +1631,180 @@ function KnowledgeGraph({ state }) {
     setNodes(positioned);
   }, [nodes.length, dims]);
 
+  const typeColors = {
+    'person': '#4CAF50',
+    'concept': '#FFC107',
+    'event': '#2196F3',
+    'text': '#F44336',
+    'default': '#9E9E9E'
+  };
+
   return (
-    <div className="card">
-      <div className="card-title" style={{ justifyContent: 'space-between' }}>
-        <span>知识图谱（{nodes.length} 节点）</span>
-        <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 400 }}>部分节点关系可视化</span>
-      </div>
-      {loading ? (
-        <div className="loading"><div className="spinner"></div></div>
-      ) : (
-        <div className="graph-container" ref={containerRef} style={{ height: dims.h }}>
-          <svg className="graph-svg" width={dims.w} height={dims.h}>
-            {edges.map(e => (
-              <line key={e.id} x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2}
-                stroke="var(--border)" strokeWidth={0.5} opacity={0.4} />
+    <div>
+      <div className="card">
+        <div className="card-title" style={{ justifyContent: 'space-between' }}>
+          <span>知识图谱探索</span>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 400 }}>
+            共 {allNodes.length} 节点 · 当前显示 {nodes.length}
+          </span>
+        </div>
+
+        {/* 搜索筛选区 */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+          <input
+            className="input"
+            placeholder="搜索节点名称、描述或类别..."
+            value={searchText}
+            onChange={e => setSearchText(e.target.value)}
+            style={{ flex: '1 1 200px' }}
+          />
+          <select
+            className="input"
+            value={typeFilter}
+            onChange={e => setTypeFilter(e.target.value)}
+            style={{ flex: '0 0 140px' }}
+          >
+            <option value="all">全部类型</option>
+            {nodeTypes.map(t => (
+              <option key={t} value={t}>{t}</option>
             ))}
-          </svg>
-          {nodes.map(n => (
-            <div key={n.id} className={`graph-node ${n.node_type || 'default'}`}
-              style={{ left: Math.max(0, n.x), top: Math.max(0, n.y) }}>{n.name}</div>
+          </select>
+          {(searchText || typeFilter !== 'all') && (
+            <button
+              className="btn"
+              onClick={() => { setSearchText(''); setTypeFilter('all'); }}
+              style={{ flex: '0 0 auto' }}
+            >
+              清除筛选
+            </button>
+          )}
+        </div>
+
+        {/* 类型图例 */}
+        <div style={{ display: 'flex', gap: 12, marginBottom: 12, flexWrap: 'wrap', fontSize: 11 }}>
+          {nodeTypes.slice(0, 6).map(t => (
+            <div key={t} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{
+                width: 8, height: 8, borderRadius: '50%',
+                background: typeColors[t] || '#9E9E9E'
+              }}></span>
+              <span style={{ color: 'var(--text-muted)' }}>{t}</span>
+            </div>
           ))}
+        </div>
+
+        {loading ? (
+          <div className="loading"><div className="spinner"></div></div>
+        ) : nodes.length === 0 ? (
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
+            未找到匹配节点
+          </div>
+        ) : (
+          <div className="graph-container" ref={containerRef} style={{ height: dims.h, position: 'relative' }}>
+            <svg className="graph-svg" width={dims.w} height={dims.h}>
+              {edges.map(e => (
+                <line key={e.id} x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2}
+                  stroke="var(--border)" strokeWidth={0.5} opacity={0.4} />
+              ))}
+            </svg>
+            {nodes.map(n => {
+              const isSelected = selectedNode && selectedNode.id === n.id;
+              const typeColor = typeColors[n.node_type || n.category || 'default'] || '#9E9E9E';
+              return (
+                <div
+                  key={n.id}
+                  className={`graph-node ${n.node_type || 'default'}`}
+                  style={{
+                    left: Math.max(0, n.x),
+                    top: Math.max(0, n.y),
+                    borderColor: isSelected ? 'var(--gold-bright)' : typeColor,
+                    boxShadow: isSelected ? `0 0 12px ${typeColor}` : 'none',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  onClick={() => setSelectedNode(isSelected ? null : n)}
+                >
+                  {n.name}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* 关系查询面板 */}
+      {selectedNode && (
+        <div className="card">
+          <div className="card-title" style={{ justifyContent: 'space-between' }}>
+            <span>节点详情 · {selectedNode.name}</span>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+              类型: {selectedNode.node_type || selectedNode.category || '未知'}
+            </span>
+          </div>
+
+          {/* 基础信息 */}
+          <div style={{ padding: 12, background: 'var(--panel-bg)', borderRadius: 8, border: '1px solid var(--border)', marginBottom: 12 }}>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+              {selectedNode.description && (
+                <div style={{ marginBottom: 8 }}>
+                  <span style={{ color: 'var(--text-muted)' }}>描述：</span>
+                  {selectedNode.description}
+                </div>
+              )}
+              {selectedNode.category && (
+                <div style={{ marginBottom: 8 }}>
+                  <span style={{ color: 'var(--text-muted)' }}>类别：</span>
+                  {selectedNode.category}
+                </div>
+              )}
+              {selectedNode.metadata && typeof selectedNode.metadata === 'object' && (
+                <div>
+                  <span style={{ color: 'var(--text-muted)' }}>元数据：</span>
+                  {Object.entries(selectedNode.metadata).slice(0, 5).map(([k, v]) => (
+                    <span key={k} style={{ marginLeft: 6 }}>
+                      {k}: {typeof v === 'object' ? JSON.stringify(v) : String(v)}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* 相关节点 */}
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>相关节点（基于类型关联）：</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 8 }}>
+            {(() => {
+              // 查找类型相同或类别相似的节点
+              const currentType = selectedNode.node_type || selectedNode.category;
+              const related = allNodes
+                .filter(n => n.id !== selectedNode.id)
+                .filter(n => (n.node_type || n.category) === currentType)
+                .slice(0, 8);
+
+              if (related.length === 0) {
+                return <div style={{ padding: 12, color: 'var(--text-muted)', fontSize: 11 }}>暂无相关节点</div>;
+              }
+              return related.map(r => (
+                <div
+                  key={r.id}
+                  onClick={() => setSelectedNode(r)}
+                  style={{
+                    padding: 8,
+                    background: 'var(--panel-bg)',
+                    borderRadius: 6,
+                    border: '1px solid var(--border)',
+                    cursor: 'pointer',
+                    fontSize: 11,
+                    color: 'var(--text-secondary)',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <div style={{ color: 'var(--gold)', fontWeight: 500, marginBottom: 2 }}>{r.name}</div>
+                  {r.description && <div style={{ fontSize: 10, opacity: 0.7 }}>{r.description.slice(0, 30)}...</div>}
+                </div>
+              ));
+            })()}
+          </div>
         </div>
       )}
     </div>
@@ -1832,10 +2021,24 @@ function ZiweiPage() {
     setLoading(false);
   };
 
-  const gongNames = ["命宫","兄弟","夫妻","子女","财帛","疾厄","迁移","交友","官禄","田宅","福德","父母"];
+  // 紫微斗数十二宫排列（传统方式：从寅宫起顺时针）
+  const gongLayout = {
+    positions: ['夫妻','兄弟','命宫','父母','福德','田宅','官禄','交友','迁移','疾厄','财帛','子女'],
+    positionIndex: {'命宫':0,'兄弟':1,'夫妻':2,'子女':3,'财帛':4,'疾厄':5,'迁移':6,'交友':7,'官禄':8,'田宅':9,'福德':10,'父母':11}
+  };
+
   const wuxingColor = (elem) => {
     const map = { '木': '#4CAF50', '火': '#F44336', '土': '#FF9800', '金': '#FFC107', '水': '#2196F3' };
     return map[elem] || '#9E9E9E';
+  };
+
+  // 构建圆环：3x4 格子，中间是命宫相关信息
+  // 传统排盘：左上兄弟-夫妻-父母-命宫-右，中间是核心信息
+  const buildZiweiRing = (gongs) => {
+    // 把宫位放到指定位置
+    const positionMap = {};
+    (gongs || []).forEach(g => { positionMap[g.name] = g; });
+    return positionMap;
   };
 
   return (
@@ -1864,36 +2067,101 @@ function ZiweiPage() {
       {result && (
         <>
           <div className="card">
-            <div className="card-title">基本信息</div>
-            <div className="info-grid">
-              <div className="info-item"><div className="info-label">公历</div><div className="info-value">{result.input?.solar}</div></div>
-              <div className="info-item"><div className="info-label">农历</div><div className="info-value">{result.input?.lunar}</div></div>
-              <div className="info-item"><div className="info-label">命宫</div><div className="info-value">{result.ming_gong?.name}({result.ming_gong?.zhi})</div></div>
-              <div className="info-item"><div className="info-label">身宫</div><div className="info-value">{result.shen_gong?.name}</div></div>
-              <div className="info-item"><div className="info-label">五行局</div><div className="info-value" style={{ color: wuxingColor(result.wuxing_ju?.[0]) }}>{result.wuxing_ju}</div></div>
-              <div className="info-item"><div className="info-label">命主</div><div className="info-value">{result.ming_zhu}</div></div>
-            </div>
-            <div style={{ marginTop: 10 }}>
-              <div className="info-label" style={{ marginBottom: 6 }}>四化</div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {[['化禄',result.sihua?.化禄,'#4CAF50'],['化权',result.sihua?.化权,'#FFC107'],['化科',result.sihua?.化科,'#2196F3'],['化忌',result.sihua?.化忌,'#F44336']].map(([k,v,col]) => (
-                  <span key={k} className="case-tag" style={{ color: col }}>{k}:{v}</span>
-                ))}
+            <div className="card-title">紫微斗数排盘图</div>
+            {/* 顶部基础信息条 */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: 8, padding: 12, background: 'var(--panel-bg)', borderRadius: 8, marginBottom: 12, border: '1px solid var(--border)' }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>公历</div>
+                <div style={{ color: 'var(--text-primary)', fontSize: 13, fontWeight: 500 }}>{result.input?.solar || '—'}</div>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>命宫</div>
+                <div style={{ color: 'var(--gold-bright)', fontSize: 15, fontWeight: 600 }}>{result.ming_gong?.name || '—'}({result.ming_gong?.zhi || ''})</div>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>身宫</div>
+                <div style={{ color: 'var(--text-primary)', fontSize: 13, fontWeight: 500 }}>{result.shen_gong?.name || '—'}</div>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>五行局</div>
+                <div style={{ color: wuxingColor(result.wuxing_ju?.[0] || '金'), fontSize: 13, fontWeight: 600 }}>{result.wuxing_ju || '—'}</div>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>命主</div>
+                <div style={{ color: 'var(--text-primary)', fontSize: 13, fontWeight: 500 }}>{result.ming_zhu || '—'}</div>
               </div>
             </div>
+
+            {/* 四化标签 */}
+            <div style={{ display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
+              {[['化禄',result.sihua?.化禄,'#4CAF50'],['化权',result.sihua?.化权,'#FFC107'],['化科',result.sihua?.化科,'#2196F3'],['化忌',result.sihua?.化忌,'#F44336']].map(([k,v,col]) => (
+                <span key={k} style={{ padding: '4px 10px', background: 'var(--panel-bg)', borderRadius: 10, border: `1px solid ${col}33`, fontSize: 12, color: col, fontWeight: 500 }}>{k}：{v || '—'}</span>
+              ))}
+            </div>
+
+            {/* 十二宫环形图：4列x3行 */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4 }}>
+              {['兄弟','夫妻','子女','财帛',
+                '命宫','','','疾厄',
+                '父母','福德','田宅','官禄',
+                '迁移','交友','—','—'].map((name, i) => {
+                if (name === '—') {
+                  return <div key={i} style={{ minHeight: 60 }} />;
+                }
+                const gongs = result.gongs || [];
+                const gong = gongs.find(g => g.name === name) || { name: name, ganzhi: '', main_stars: [], aux_stars: [], sihua: '' };
+                const isMain = name === '命宫' || name === '身宫';
+                return (
+                  <div key={i} style={{
+                    padding: 6,
+                    background: isMain ? 'linear-gradient(135deg, rgba(255, 193, 7, 0.08), rgba(255, 152, 0, 0.05))' : 'var(--panel-bg)',
+                    border: `1px solid ${isMain ? 'var(--gold-bright)' : 'var(--border)'}`,
+                    borderRadius: 6,
+                    minHeight: 85
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
+                      <span style={{ fontSize: 12, color: isMain ? 'var(--gold-bright)' : 'var(--gold)', fontWeight: 600 }}>{name}</span>
+                      <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>{gong.ganzhi || ''}</span>
+                    </div>
+                    {(gong.main_stars || []).slice(0, 3).map((s, j) => (
+                      <div key={j} style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5, paddingLeft: 2 }}>● {s}</div>
+                    ))}
+                    {(gong.aux_stars || []).slice(0, 2).map((s, j) => (
+                      <div key={j} style={{ fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.4, paddingLeft: 4 }}>○ {s}</div>
+                    ))}
+                    {gong.sihua && <div style={{ fontSize: 10, color: '#FFC107', marginTop: 2, fontWeight: 500 }}>{gong.sihua}</div>}
+                  </div>
+                );
+              })}
+            </div>
           </div>
+
+          {/* 宫位详解 */}
           <div className="card">
-            <div className="card-title">十二宫分布</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8 }}>
+            <div className="card-title">宫位详解</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 8 }}>
               {(result.gongs || []).map((g, i) => (
-                <div key={i} style={{ padding: 8, background: 'var(--panel-bg)', borderRadius: 8, border: '1px solid var(--border-subtle)' }}>
-                  <div style={{ fontSize: 12, color: 'var(--gold-bright)', marginBottom: 4 }}>{g.name} <span style={{ color: 'var(--text-muted)' }}>{g.ganzhi}</span></div>
-                  {(g.main_stars || []).map((s, j) => (
-                    <div key={j} style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.6 }}>{s}</div>
-                  ))}
-                  {(g.aux_stars || []).map((s, j) => (
-                    <div key={j} style={{ fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.5 }}>辅:{s}</div>
-                  ))}
+                <div key={i} style={{ padding: 10, background: 'var(--panel-bg)', borderRadius: 8, border: '1px solid var(--border-subtle)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <span style={{ fontSize: 13, color: 'var(--gold-bright)', fontWeight: 600 }}>{g.name}</span>
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{g.ganzhi || ''}</span>
+                  </div>
+                  {(g.main_stars || []).length > 0 && (
+                    <div style={{ marginBottom: 4 }}>
+                      <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 2 }}>主星</div>
+                      {(g.main_stars || []).map((s, j) => (
+                        <span key={j} style={{ display: 'inline-block', fontSize: 11, color: 'var(--text-secondary)', marginRight: 4 }}>{s}</span>
+                      ))}
+                    </div>
+                  )}
+                  {(g.aux_stars || []).length > 0 && (
+                    <div>
+                      <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 2 }}>辅星</div>
+                      {(g.aux_stars || []).map((s, j) => (
+                        <span key={j} style={{ display: 'inline-block', fontSize: 10, color: 'var(--text-muted)', marginRight: 4 }}>{s}</span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -1927,13 +2195,48 @@ function LiuyaoPage() {
     setLoading(false);
   };
 
-  const yaoSymbol = (val, isDong) => {
-    if (val === 1) return { sym: '━━━  ━━━', name: '少阳', color: 'var(--text-primary)', bg: '#2a4a2a' };
-    if (val === 0) return { sym: '━━━  ━━━', name: '少阴', color: 'var(--text-primary)', bg: '#1a2a4a' };
-    if (val === 3) return { sym: '━━━✺━━━', name: '老阳', color: '#FFC107', bg: '#3a3020' };
-    if (val === 2) return { sym: '━━━✺━━━', name: '老阴', color: '#FF9800', bg: '#302010' };
-    return { sym: '━━━  ━━━', name: '—', color: 'var(--text-muted)', bg: 'var(--panel-bg)' };
+  // 爻的颜色和状态标签
+  const yaoStyle = (yao) => {
+    if (yao && yao.is_dong) {
+      // 动爻特殊处理：老阳(值3)和老阴(值2)
+      return { color: '#FFC107', bg: 'rgba(255, 193, 7, 0.15)', border: '1px solid rgba(255, 193, 7, 0.4)' };
+    }
+    // 少阳(值1)和少阴(值0)
+    const val = yao?.value || 0;
+    return val === 1
+      ? { color: '#4CAF50', bg: 'rgba(76, 175, 80, 0.08)', border: '1px solid rgba(76, 175, 80, 0.3)' }
+      : { color: '#2196F3', bg: 'rgba(33, 150, 243, 0.08)', border: '1px solid rgba(33, 150, 243, 0.3)' };
   };
+
+  // 传统卦象展示：绘制六爻从下到上
+  const renderGua = (yaos, title) => (
+    <div style={{ flex: 1, minWidth: 180 }}>
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', marginBottom: 8 }}>{title}</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: 10, background: 'var(--panel-bg)', borderRadius: 8, border: '1px solid var(--border)' }}>
+        {(yaos || []).slice().reverse().map((yao, idx) => {
+          const pos = ['初爻','二爻','三爻','四爻','五爻','六爻'][5 - idx] || '';
+          const val = yao.value;
+          const style = yaoStyle(yao);
+          return (
+            <div key={idx} style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '6px 8px', borderRadius: 4, background: style.bg, border: style.border
+            }}>
+              <span style={{ fontSize: 10, color: 'var(--text-muted)', minWidth: 30 }}>{pos}</span>
+              <div style={{ flex: 1, textAlign: 'center', color: style.color, fontFamily: 'monospace', fontSize: 16, fontWeight: 600 }}>
+                {val === 1 || val === 3
+                  ? '━━━━━━━━━━'
+                  : '━━━━  ━━━━'}
+              </div>
+              {yao.is_dong && (
+                <span style={{ fontSize: 10, color: '#FFC107', fontWeight: 600 }}>动</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 
   return (
     <div>
@@ -1957,49 +2260,98 @@ function LiuyaoPage() {
       {error && <div className="error-box">{error}</div>}
       {result && (
         <>
+          {/* 卦象信息 */}
           <div className="card">
-            <div className="card-title">卦象</div>
-            <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+            <div className="card-title">卦象 · {result.ben_gua || '未命名'}</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, padding: 12, background: 'var(--panel-bg)', borderRadius: 8, marginBottom: 12, border: '1px solid var(--border)' }}>
               <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>上卦</div>
-                <div style={{ fontFamily: 'monospace', fontSize: 20, color: 'var(--gold-bright)', background: 'var(--panel-bg)', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)' }}>
-                  {result.shang_gua || result.ben_gua?.[0]}
+                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>本卦</div>
+                <div style={{ color: 'var(--gold-bright)', fontSize: 16, fontWeight: 600 }}>{result.ben_gua || '—'}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{result.gua_gong || '—'}</div>
+              </div>
+              {result.bian_gua && (
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>变卦</div>
+                  <div style={{ color: '#2196F3', fontSize: 16, fontWeight: 600 }}>{result.bian_gua}</div>
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{result.ben_gua || ''}</div>
-              </div>
-              <div style={{ fontSize: 28, color: 'var(--text-muted)' }}>＋</div>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>下卦</div>
-                <div style={{ fontFamily: 'monospace', fontSize: 20, color: 'var(--gold-bright)', background: 'var(--panel-bg)', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)' }}>
-                  {result.xia_gua || result.ben_gua?.[1]}
+              )}
+              {result.hu_gua && (
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>互卦</div>
+                  <div style={{ color: '#9E9E9E', fontSize: 16, fontWeight: 600 }}>{result.hu_gua}</div>
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{result.bian_gua || ''}</div>
-              </div>
-              <div style={{ flex: 1, minWidth: 120 }}>
-                <div style={{ fontSize: 18, color: 'var(--gold-bright)' }}>{result.ben_gua}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>本卦 · {result.gua_gong || '—'}</div>
-                {result.hu_gua && <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>互卦: {result.hu_gua}</div>}
-              </div>
+              )}
+              {result.dong_yao && (
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>动爻</div>
+                  <div style={{ color: '#FFC107', fontSize: 16, fontWeight: 600 }}>{result.dong_yao}</div>
+                </div>
+              )}
             </div>
             {result.judgment && (
-              <div style={{ marginTop: 12, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.8, background: 'var(--panel-bg)', padding: 12, borderRadius: 8, border: '1px solid var(--border-subtle)', whiteSpace: 'pre-wrap' }}>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.9, background: 'var(--panel-bg)', padding: 12, borderRadius: 8, border: '1px solid var(--border-subtle)', whiteSpace: 'pre-wrap' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>卦辞</div>
                 {result.judgment}
               </div>
             )}
           </div>
+
+          {/* 卦象视觉展示 */}
           <div className="card">
-            <div className="card-title">六爻详情</div>
+            <div className="card-title">卦象图</div>
+            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+              {/* 本卦 */}
+              {renderGua(result.yaos, '本卦 · ' + (result.ben_gua || '—'))}
+              {/* 变卦展示 */}
+              {result.yaos && result.yaos.some(y => y.is_dong) && (
+                <div style={{ flex: 1, minWidth: 180 }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', marginBottom: 8 }}>变卦（动爻变化后）</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: 10, background: 'var(--panel-bg)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                    {(result.yaos || []).slice().reverse().map((yao, idx) => {
+                      const pos = ['初爻','二爻','三爻','四爻','五爻','六爻'][5 - idx] || '';
+                      const changedVal = yao.is_dong ? (yao.value === 3 ? 0 : 1) : yao.value;
+                      const fakeYao = { value: changedVal, is_dong: false };
+                      const style = yaoStyle(fakeYao);
+                      return (
+                        <div key={idx} style={{
+                          display: 'flex', alignItems: 'center', gap: 8,
+                          padding: '6px 8px', borderRadius: 4, background: style.bg, border: style.border
+                        }}>
+                          <span style={{ fontSize: 10, color: 'var(--text-muted)', minWidth: 30 }}>{pos}</span>
+                          <div style={{ flex: 1, textAlign: 'center', color: style.color, fontFamily: 'monospace', fontSize: 16, fontWeight: 600 }}>
+                            {changedVal === 1 ? '━━━━━━━━━━' : '━━━━  ━━━━'}
+                          </div>
+                          {yao.is_dong && <span style={{ fontSize: 10, color: '#FFC107', fontWeight: 600 }}>变</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* 六爻详解 */}
+          <div className="card">
+            <div className="card-title">六爻详解</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {['六爻','五爻','四爻','三爻','二爻','初爻'].map((pos, idx) => {
-                const yao = (result.yaos || [])[5 - idx];
+              {['初爻','二爻','三爻','四爻','五爻','六爻'].map((pos, idx) => {
+                const yao = (result.yaos || [])[idx];
                 if (!yao) return null;
-                const sym = yaoSymbol(yao.position === 6 ? 1 : yao.is_dong ? 3 : 1, yao.is_dong);
+                const style = yaoStyle(yao);
                 return (
-                  <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 8px', background: 'var(--panel-bg)', borderRadius: 6 }}>
-                    <span style={{ fontSize: 10, color: 'var(--text-muted)', minWidth: 28 }}>{pos}</span>
-                    <span style={{ fontFamily: 'monospace', fontSize: 14, color: yao.is_dong ? '#FFC107' : 'var(--text-primary)' }}>{yao.symbol}</span>
-                    <span style={{ fontSize: 11, color: yao.is_dong ? '#FFC107' : 'var(--text-secondary)' }}>{yao.position}爻 {yao.liuqin} {yao.zhi} {yao.shi} {yao.ying}</span>
-                    {yao.is_dong && <span className="case-tag" style={{ color: '#FFC107', fontSize: 10 }}>动</span>}
+                  <div key={idx} style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '8px 12px', borderRadius: 6, background: style.bg, border: style.border
+                  }}>
+                    <span style={{ fontSize: 11, color: style.color, fontWeight: 600, minWidth: 40 }}>{pos}</span>
+                    <span style={{ fontFamily: 'monospace', fontSize: 14, color: style.color, minWidth: 100 }}>
+                      {yao.value === 1 || yao.value === 3 ? '━━━━━━━━━━' : '━━━━  ━━━━'}
+                    </span>
+                    <span style={{ fontSize: 12, color: yao.is_dong ? '#FFC107' : 'var(--text-secondary)', flex: 1 }}>
+                      {yao.value === 3 ? '老阳动爻' : yao.value === 2 ? '老阴动爻' : yao.value === 1 ? '少阳' : '少阴'} · {yao.liuqin || ''} {yao.zhi || ''} {yao.shi === 1 ? '（世）' : ''} {yao.ying === 1 ? '（应）' : ''}
+                    </span>
+                    {yao.is_dong && <span style={{ fontSize: 11, color: '#FFC107', fontWeight: 600, padding: '2px 6px', background: 'rgba(255, 193, 7, 0.2)', borderRadius: 4 }}>动</span>}
                   </div>
                 );
               })}
@@ -2040,9 +2392,14 @@ function QimenPage() {
     return map[elem] || '#9E9E9E';
   };
 
-  // 奇门九宫格布局：4宫9 3宫5 8宫2 / 9宫1 5宫中 7宫7 / 2宫8 1宫3 6宫6
-  const gridLayout = [[4,9,2],[3,5,7],[8,1,6]];
+  // 传统九宫布局（洛书）
+  const luoshuPositions = [
+    [4, 9, 2],
+    [3, 5, 7],
+    [8, 1, 6]
+  ];
   const gongLabels = { 1:'一宫', 2:'二宫', 3:'三宫', 4:'四宫', 5:'中宫', 6:'六宫', 7:'七宫', 8:'八宫', 9:'九宫' };
+  const baguaMap = { 1:'坎', 2:'坤', 3:'震', 4:'巽', 5:'中', 6:'乾', 7:'兑', 8:'艮', 9:'离' };
 
   return (
     <div>
@@ -2056,37 +2413,107 @@ function QimenPage() {
           <div className="input-group"><label>分</label><input className="input" type="number" value={minute} min={0} max={59} onChange={e => setMinute(+e.target.value)} /></div>
         </div>
         <button className="btn btn-primary" style={{ marginTop: 12, width: '100%' }} onClick={calc} disabled={loading}>
-          {loading ? '排盘中…' : '开始排盘'}
+          {loading ? '排盘中…' : '起盘'}
         </button>
       </div>
       {error && <div className="error-box">{error}</div>}
       {result && (
         <>
+          {/* 核心信息卡片 */}
           <div className="card">
-            <div className="card-title">基本信息</div>
-            <div className="info-grid">
-              <div className="info-item"><div className="info-label">时间</div><div className="info-value">{result.input?.solar}</div></div>
-              <div className="info-item"><div className="info-label">四柱</div><div className="info-value">{result.sizhu?.year} {result.sizhu?.month} {result.sizhu?.day} {result.sizhu?.hour}</div></div>
-              <div className="info-item"><div className="info-label">阴遁/阳遁</div><div className="info-value">{result.ju}</div></div>
-              <div className="info-item"><div className="info-label">值符</div><div className="info-value">{result.zhi_fu}</div></div>
-              <div className="info-item"><div className="info-label">值使</div><div className="info-value">{result.zhi_shi}</div></div>
-              <div className="info-item"><div className="info-label">旬首</div><div className="info-value">{result.xun_shou}</div></div>
+            <div className="card-title">遁甲核心</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8, padding: 12, background: 'var(--panel-bg)', borderRadius: 8, border: '1px solid var(--border)' }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>日</div>
+                <div style={{ fontSize: 15, color: 'var(--gold-bright)', fontWeight: 600 }}>{result.sizhu?.year}{result.sizhu?.month ? ' ' + result.sizhu?.month + ' ' + result.sizhu?.day : ''}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{result.sizhu?.hour}</div>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>遁</div>
+                <div style={{ fontSize: 15, color: 'var(--gold-bright)', fontWeight: 600 }}>{result.ju || '—'}</div>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>值符</div>
+                <div style={{ fontSize: 15, color: '#4CAF50', fontWeight: 600 }}>{result.zhi_fu || '—'}</div>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>值使</div>
+                <div style={{ fontSize: 15, color: '#2196F3', fontWeight: 600 }}>{result.zhi_shi || '—'}</div>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>旬首</div>
+                <div style={{ fontSize: 15, color: '#FF9800', fontWeight: 600 }}>{result.xun_shou || '—'}</div>
+              </div>
             </div>
           </div>
+
+          {/* 九宫飞星排盘 */}
           <div className="card">
-            <div className="card-title">九宫飞星</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-              {gridLayout.flat().map(num => {
+            <div className="card-title">九宫飞星盘</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, padding: 8, background: 'var(--panel-bg)', borderRadius: 8, border: '1px solid var(--border)' }}>
+              {luoshuPositions.map((row, rowIdx) => (
+                row.map((num, colIdx) => {
+                  const g = (result.gongs || {})[num] || {};
+                  const bgColor = g.wuxing
+                    ? `linear-gradient(135deg, ${wuxingColor(g.wuxing)}15, ${wuxingColor(g.wuxing)}05)`
+                    : 'var(--bg-secondary)';
+                  return (
+                    <div key={`${rowIdx}-${colIdx}`} style={{
+                      padding: 12,
+                      background: bgColor,
+                      border: `1px solid var(--border)`,
+                      borderRadius: 6,
+                      minHeight: 110
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500 }}>{baguaMap[num]}·{gongLabels[num]}</span>
+                        <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{g.wuxing || ''}</span>
+                      </div>
+                      <div style={{ fontSize: 15, color: wuxingColor(g.wuxing || '#9E9E9E'), fontWeight: 700, textAlign: 'center', marginBottom: 4 }}>
+                        {g.name || g.di_gan || '—'}
+                      </div>
+                      {/* 神/星/门排列 */}
+                      <div style={{ fontSize: 10, color: 'var(--text-secondary)', textAlign: 'center', lineHeight: 1.6 }}>
+                        {g.shen && <div style={{ color: '#FFC107' }}>{g.shen}</div>}
+                        {g.xing && <div style={{ color: '#9E9E9E' }}>★{g.xing}</div>}
+                        {g.men && <div style={{ color: '#4CAF50' }}>门：{g.men}</div>}
+                        {g.tian_gan && <div style={{ color: 'var(--text-muted)' }}>天{g.tian_gan}</div>}
+                        {g.di_gan && <div style={{ color: 'var(--text-muted)' }}>地{g.di_gan}</div>}
+                      </div>
+                    </div>
+                  );
+                })
+              ))}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', marginTop: 8, padding: '4px 8px' }}>
+              布局：洛书九宫 · 4巽9离2坤 · 3震5中7兑 · 8艮1坎6乾
+            </div>
+          </div>
+
+          {/* 宫位详解 */}
+          <div className="card">
+            <div className="card-title">九宫详解</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8 }}>
+              {luoshuPositions.flat().map(num => {
                 const g = (result.gongs || {})[num] || {};
                 return (
-                  <div key={num} style={{ padding: 10, background: 'var(--panel-bg)', borderRadius: 8, border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
-                    <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{gongLabels[num]}</div>
-                    <div style={{ fontSize: 16, color: wuxingColor(g.wuxing), fontWeight: 600, margin: '4px 0' }}>{g.name || '—'}</div>
-                    <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{g.di_gan}</div>
-                    {g.tian_gan && <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>天{g.tian_gan}</div>}
-                    {g.men && <div style={{ fontSize: 10, color: '#4CAF50' }}>门:{g.men}</div>}
-                    {g.xing && <div style={{ fontSize: 10, color: '#FFC107' }}>星:{g.xing}</div>}
-                    {g.shen && <div style={{ fontSize: 10, color: '#9E9E9E' }}>神:{g.shen}</div>}
+                  <div key={num} style={{
+                    padding: 10,
+                    background: 'var(--panel-bg)',
+                    borderRadius: 6,
+                    border: `1px solid var(--border)`,
+                    borderLeft: `3px solid ${wuxingColor(g.wuxing || '#9E9E9E')}`
+                  }}>
+                    <div style={{ fontSize: 12, color: 'var(--gold-bright)', fontWeight: 600, marginBottom: 4 }}>
+                      {gongLabels[num]} · {baguaMap[num]}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+                      <div>天盘：{g.tian_gan || '—'}</div>
+                      <div>地盘：{g.di_gan || '—'}</div>
+                      <div>八门：{g.men || '—'}</div>
+                      <div>九星：{g.xing || '—'}</div>
+                      <div>八神：{g.shen || '—'}</div>
+                    </div>
                   </div>
                 );
               })}
