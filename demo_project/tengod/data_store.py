@@ -122,6 +122,9 @@ class BaziRecord(Base):
     report_cache: Mapped[List["ReportCache"]] = relationship(
         back_populates="bazi_record", lazy="select", cascade="all, delete-orphan"
     )
+    cases: Mapped[List["Case"]] = relationship(
+        back_populates="bazi_record", lazy="select", cascade="all, delete-orphan"
+    )
 
     # 复合索引
     __table_args__ = (
@@ -181,6 +184,68 @@ class ReportCache(Base):
         return f"<ReportCache(id={self.id}, record={self.bazi_record_id}, format={self.format!r})>"
 
 
+class Case(Base):
+    """案例库：分析案例、命例收藏、典型案例"""
+    __tablename__ = "cases"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    title: Mapped[str] = mapped_column(String(256), nullable=False, index=True)
+    summary: Mapped[str] = mapped_column(String(1024 * 16), nullable=True)
+    analysis_text: Mapped[str] = mapped_column(String(1024 * 64), nullable=True)
+    category: Mapped[str] = mapped_column(String(64), nullable=True, index=True)
+    is_public: Mapped[bool] = mapped_column(default=True, index=True)
+    is_featured: Mapped[bool] = mapped_column(default=False, index=True)
+    bazi_record_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("bazi_records.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    user_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    pillars_json: Mapped[str] = mapped_column(String(1024 * 8), nullable=True)
+    geju_json: Mapped[str] = mapped_column(String(1024 * 8), nullable=True)
+    yongshen_json: Mapped[str] = mapped_column(String(1024 * 8), nullable=True)
+    day_master: Mapped[str] = mapped_column(String(8), nullable=True, index=True)
+    tags: Mapped[str] = mapped_column(String(256), nullable=True)
+    fts_vector: Mapped[str] = mapped_column(String(1024 * 16), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+    bazi_record: Mapped[Optional["BaziRecord"]] = relationship(back_populates="cases")
+
+    __table_args__ = (
+        Index("idx_case_category_created", "category", "created_at"),
+        Index("idx_case_featured", "is_featured"),
+    )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "id": self.id,
+            "title": self.title,
+            "summary": self.summary,
+            "analysis_text": self.analysis_text,
+            "category": self.category,
+            "is_public": bool(self.is_public),
+            "is_featured": bool(self.is_featured),
+            "bazi_record_id": self.bazi_record_id,
+            "user_id": self.user_id,
+            "day_master": self.day_master,
+            "tags": self.tags,
+            "pillars": json.loads(self.pillars_json) if self.pillars_json else None,
+            "geju": json.loads(self.geju_json) if self.geju_json else None,
+            "yongshen": json.loads(self.yongshen_json) if self.yongshen_json else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+    def __repr__(self):
+        return f"<Case(id={self.id}, title={self.title!r}, category={self.category!r})>"
+
+
 # ============================================================================
 # DataStore 核心类
 # ============================================================================
@@ -192,10 +257,24 @@ class DataStore:
         # 优先使用 db_url（PostgreSQL），其次 db_path（SQLite）
         url = db_url or DATABASE_URL
         if url:
-            # PostgreSQL 模式
+            # PostgreSQL 模式 —— 使用经过调优的连接池参数
             self.db_url = url
             self.db_path = None
-            self._engine = create_engine(url, echo=False, pool_pre_ping=True, pool_size=10, max_overflow=20)
+            # 连接池：最多 20 空闲 + 30 溢出 = 50 并发；
+            # 空闲 30 分钟自动回收；每次取出前先 ping（避免 stale connection）。
+            create_kwargs: Dict[str, Any] = dict(
+                pool_size=20,
+                max_overflow=30,
+                pool_timeout=30,
+                pool_recycle=1800,
+                pool_pre_ping=True,
+                future=True,
+            )
+            try:
+                self._engine = create_engine(url, echo=False, **create_kwargs)
+            except TypeError:
+                # 某些老版本 SQLAlchemy 不支持部分参数，降级到基础配置
+                self._engine = create_engine(url, echo=False)
         else:
             # SQLite 模式（默认）
             self.db_path = db_path or DEFAULT_DB_PATH
@@ -403,6 +482,189 @@ class DataStore:
             s.commit()
             return count
 
+    # ── 案例库 CRUD ──────────────────────────────────────────────────────
+
+    def _build_fts_vector(self, title: str, summary: Optional[str],
+                          analysis_text: Optional[str]) -> str:
+        """生成简易的全文检索向量（空格分隔的关键词，供 SQLite LIKE / PostgreSQL to_tsvector 回退使用）"""
+        parts: List[str] = []
+        for p in (title or "", summary or "", analysis_text or ""):
+            if p:
+                parts.append(p)
+        return " ".join(parts)
+
+    def save_case(
+        self,
+        title: str,
+        summary: Optional[str] = None,
+        analysis_text: Optional[str] = None,
+        category: Optional[str] = None,
+        is_public: bool = True,
+        is_featured: bool = False,
+        bazi_record_id: Optional[int] = None,
+        user_id: Optional[int] = None,
+        day_master: Optional[str] = None,
+        tags: Optional[str] = None,
+        pillars: Optional[Dict[str, Any]] = None,
+        geju: Optional[Dict[str, Any]] = None,
+        yongshen: Optional[Dict[str, Any]] = None,
+    ) -> int:
+        """保存一条案例，返回案例 ID"""
+        with self._session() as s:
+            case = Case(
+                title=title,
+                summary=summary,
+                analysis_text=analysis_text,
+                category=category,
+                is_public=is_public,
+                is_featured=is_featured,
+                bazi_record_id=bazi_record_id,
+                user_id=user_id,
+                day_master=day_master,
+                tags=tags,
+                pillars_json=json.dumps(pillars, ensure_ascii=False) if pillars else None,
+                geju_json=json.dumps(geju, ensure_ascii=False) if geju else None,
+                yongshen_json=json.dumps(yongshen, ensure_ascii=False) if yongshen else None,
+                fts_vector=self._build_fts_vector(title, summary, analysis_text),
+            )
+            s.add(case)
+            s.commit()
+            s.refresh(case)
+            return case.id
+
+    def get_case(self, case_id: int) -> Optional[Case]:
+        """获取单条案例"""
+        with self._session() as s:
+            return s.query(Case).filter(Case.id == case_id).first()
+
+    def list_cases(
+        self,
+        category: Optional[str] = None,
+        is_public: Optional[bool] = None,
+        is_featured: Optional[bool] = None,
+        user_id: Optional[int] = None,
+        limit: int = 50,
+        offset: int = 0,
+        order_by: str = "created_at_desc",
+    ) -> List[Case]:
+        """列出案例，支持多条件过滤"""
+        with self._session() as s:
+            q = s.query(Case)
+            if category is not None:
+                q = q.filter(Case.category == category)
+            if is_public is not None:
+                q = q.filter(Case.is_public == is_public)
+            if is_featured is not None:
+                q = q.filter(Case.is_featured == is_featured)
+            if user_id is not None:
+                q = q.filter(Case.user_id == user_id)
+            if order_by == "created_at_asc":
+                q = q.order_by(Case.created_at.asc())
+            else:
+                q = q.order_by(Case.created_at.desc())
+            return q.offset(offset).limit(limit).all()
+
+    def search_cases(
+        self,
+        keyword: str,
+        category: Optional[str] = None,
+        limit: int = 50,
+    ) -> List[Case]:
+        """关键词搜索（title / summary / analysis_text）"""
+        if not keyword:
+            return self.list_cases(category=category, limit=limit)
+        pattern = f"%{keyword}%"
+        with self._session() as s:
+            q = s.query(Case).filter(
+                (Case.title.like(pattern))
+                | (Case.summary.like(pattern))
+                | (Case.analysis_text.like(pattern))
+            )
+            if category is not None:
+                q = q.filter(Case.category == category)
+            return q.order_by(Case.created_at.desc()).limit(limit).all()
+
+    def update_case(self, case_id: int, **kwargs) -> bool:
+        """更新案例字段"""
+        with self._session() as s:
+            case = s.query(Case).filter(Case.id == case_id).first()
+            if case is None:
+                return False
+            for key, value in kwargs.items():
+                if hasattr(case, key):
+                    setattr(case, key, value)
+            # 若更新了文本字段，同步更新 fts_vector
+            if any(k in kwargs for k in ("title", "summary", "analysis_text")):
+                case.fts_vector = self._build_fts_vector(
+                    kwargs.get("title", case.title),
+                    kwargs.get("summary", case.summary),
+                    kwargs.get("analysis_text", case.analysis_text),
+                )
+            case.updated_at = datetime.now(timezone.utc)
+            s.commit()
+            return True
+
+    def delete_case(self, case_id: int) -> bool:
+        """删除案例"""
+        with self._session() as s:
+            case = s.query(Case).filter(Case.id == case_id).first()
+            if case is None:
+                return False
+            s.delete(case)
+            s.commit()
+            return True
+
+    def count_cases(self, category: Optional[str] = None,
+                    is_public: Optional[bool] = None) -> int:
+        """统计案例数量"""
+        with self._session() as s:
+            q = s.query(func.count(Case.id))
+            if category is not None:
+                q = q.filter(Case.category == category)
+            if is_public is not None:
+                q = q.filter(Case.is_public == is_public)
+            return q.scalar() or 0
+
+    def fulltext_search(self, keyword: str, limit: int = 20) -> List[Case]:
+        """
+        全文检索：
+          - PostgreSQL 下，若 fts_vector 被填写则使用 LIKE（不依赖未创建的 tsvector 索引）；
+            这里提供基于 fts_vector 的 LIKE 语义，上层可替换为原生 tsquery。
+          - SQLite 下回退为 LIKE 搜索。
+        """
+        if not keyword:
+            return []
+        pattern = f"%{keyword}%"
+        with self._session() as s:
+            return (
+                s.query(Case)
+                .filter(
+                    (Case.fts_vector.like(pattern))
+                    | (Case.title.like(pattern))
+                    | (Case.summary.like(pattern))
+                )
+                .order_by(Case.created_at.desc())
+                .limit(limit)
+                .all()
+            )
+
+    def get_case_stats(self) -> Dict[str, Any]:
+        """案例统计：总数、按分类分布、精选数"""
+        with self._session() as s:
+            total = s.query(func.count(Case.id)).scalar() or 0
+            featured = s.query(func.count(Case.id)).filter(Case.is_featured.is_(True)).scalar() or 0
+            per_category = dict(
+                s.query(Case.category, func.count(Case.id))
+                .filter(Case.category.isnot(None))
+                .group_by(Case.category)
+                .all()
+            )
+            return {
+                "total_cases": int(total),
+                "featured_cases": int(featured),
+                "per_category": per_category,
+            }
+
     # ── 统计 ──────────────────────────────────────────────────────────────
 
     def stats(self) -> Dict[str, Any]:
@@ -420,6 +682,7 @@ class DataStore:
                 "total_users": s.query(func.count(User.id)).scalar() or 0,
                 "total_records": s.query(func.count(BaziRecord.id)).scalar() or 0,
                 "total_cached_reports": s.query(func.count(ReportCache.id)).scalar() or 0,
+                "total_cases": s.query(func.count(Case.id)).scalar() or 0,
                 "top_day_masters": [
                     {"dm": r[0], "count": r[1]}
                     for r in s.query(BaziRecord.day_master, func.count(BaziRecord.id))

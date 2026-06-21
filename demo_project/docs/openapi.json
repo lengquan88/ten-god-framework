@@ -1,0 +1,2026 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Tengod API",
+    "version": "1.0.0",
+    "description": "Tengod 八字命理与知识系统 REST API",
+    "contact": {
+      "name": "Tengod Team"
+    },
+    "license": {
+      "name": "MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8000",
+      "description": "本地开发服务器"
+    }
+  ],
+  "paths": {
+    "/api/admin/records": {
+      "get": {
+        "summary": "分页获取或创建八字记录",
+        "tags": [
+          "八字记录"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      },
+      "post": {
+        "summary": "分页获取或创建八字记录",
+        "tags": [
+          "八字记录"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/admin/records/{record_id}": {
+      "get": {
+        "summary": "单条八字记录的读/更新/删除",
+        "tags": [
+          "八字记录"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      },
+      "patch": {
+        "summary": "单条八字记录的读/更新/删除",
+        "tags": [
+          "八字记录"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      },
+      "delete": {
+        "summary": "单条八字记录的读/更新/删除",
+        "tags": [
+          "八字记录"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/admin/cases": {
+      "get": {
+        "summary": "案例列表/创建",
+        "tags": [
+          "案例管理"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      },
+      "post": {
+        "summary": "案例列表/创建",
+        "tags": [
+          "案例管理"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/admin/cases/{case_id}": {
+      "patch": {
+        "summary": "案例更新/删除",
+        "tags": [
+          "案例管理"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      },
+      "delete": {
+        "summary": "案例更新/删除",
+        "tags": [
+          "案例管理"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/admin/users": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/admin/users/{user_id}": {
+      "get": {
+        "summary": "单个用户信息",
+        "tags": [
+          "用户管理"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      },
+      "patch": {
+        "summary": "单个用户信息",
+        "tags": [
+          "用户管理"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/admin/analysis/trajectory": {
+      "post": {
+        "summary": "命运轨迹推演",
+        "tags": [
+          "高级分析"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/admin/analysis/batch": {
+      "post": {
+        "summary": "批量排盘分析",
+        "tags": [
+          "高级分析"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/admin/analysis/compare": {
+      "post": {
+        "summary": "案例对比",
+        "tags": [
+          "高级分析"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/admin/stats": {
+      "get": {
+        "summary": "系统统计信息",
+        "tags": [
+          "系统"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/admin/health": {
+      "get": {
+        "summary": "健康检查",
+        "tags": [
+          "系统"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/admin/config": {
+      "get": {
+        "summary": "配置读取/写入",
+        "tags": [
+          "系统"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      },
+      "post": {
+        "summary": "配置读取/写入",
+        "tags": [
+          "系统"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/health/full": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/metrics": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/metrics": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/knowledge/shigan": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/knowledge/dizhi": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/records/{record_id}": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/records/search": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/users": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/stats/db": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/chat": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/chat/report": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/ai/interpret/bazi": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/ai/interpret/ziwei": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/ai/interpret/liuyao": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/ai/interpret/name": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/ai/interpret/marriage": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/ai/interpret/oracle": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/cases": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/cases/{case_id}": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/cases/search": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/cases/categories/list": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/cases/tags/list": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/cases/stats/summary": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/cases/export/all": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/cases/import/batch": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/cases/{case_id}/similar": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/cases/{case_id}/links": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/cases/{case_id}/favorite": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/cases/{case_id}/like": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/webhooks/events": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/webhooks": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/webhooks/{sub_id}": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/webhooks/{sub_id}/test": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/webhooks/{sub_id}/deliveries": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/webhooks/trigger": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/webhooks/stats/summary": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/plugins": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/plugins/stats/summary": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/prediction/liunian": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/prediction/fengshui": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/prediction/qizheng": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/prediction/comprehensive": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/prediction/comprehensive/interpret": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/prediction/shushu": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/advanced/compare": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/advanced/batch-bazi": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/advanced/trajectory": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/version": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/auth/register": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/auth/refresh": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/auth/change-password": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/auth/profile": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/admin/users/{user_id}/role": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/admin/users/{user_id}/status": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/ziwei/calc": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/liuyao/shake": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/qimen/calc": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/name/analyze": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/marriage/analyze": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/graph/stats": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/graph/search": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/graph/node/{node_name}": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/graph/node/{node_name}/neighbors": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/graph/path": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/graph/subgraph": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/graph/label/{label}": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/graph/match": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/graph/export": {
+      "get": {
+        "summary": "扫描自 api_server.py",
+        "tags": [
+          "public"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/health": {
+      "get": {
+        "summary": "HTTP 健康检查",
+        "tags": [
+          "系统"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/stats": {
+      "get": {
+        "summary": "系统指标（含向量存储）",
+        "tags": [
+          "系统"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/bazi/calc": {
+      "post": {
+        "summary": "计算四柱、大运、流年、五行等",
+        "tags": [
+          "八字排盘"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/bazi/shensha": {
+      "post": {
+        "summary": "神煞推算",
+        "tags": [
+          "八字排盘"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/bazi/geju": {
+      "post": {
+        "summary": "格局判断",
+        "tags": [
+          "八字排盘"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/bazi/yongshen": {
+      "post": {
+        "summary": "喜用神分析",
+        "tags": [
+          "八字排盘"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/bazi/tiaohou": {
+      "post": {
+        "summary": "调候分析",
+        "tags": [
+          "八字排盘"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/bazi/full": {
+      "post": {
+        "summary": "综合八字分析",
+        "tags": [
+          "八字排盘"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/bazi/report": {
+      "post": {
+        "summary": "命理报告生成（文本/Markdown/JSON/HTML）",
+        "tags": [
+          "八字排盘"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/knowledge/search": {
+      "post": {
+        "summary": "语义搜索（向量）",
+        "tags": [
+          "知识查询"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/knowledge/recommend": {
+      "post": {
+        "summary": "节点关联推荐",
+        "tags": [
+          "知识查询"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/knowledge/wuxing/{element}": {
+      "get": {
+        "summary": "五行查询",
+        "tags": [
+          "知识查询"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/knowledge/bagua/{trigram}": {
+      "get": {
+        "summary": "八卦查询",
+        "tags": [
+          "知识查询"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    },
+    "/api/records": {
+      "get": {
+        "summary": "八字记录（登录用户隔离）",
+        "tags": [
+          "数据持久化"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      },
+      "post": {
+        "summary": "八字记录（登录用户隔离）",
+        "tags": [
+          "数据持久化"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "500": {
+            "description": "服务端异常"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "BaziInput": {
+        "type": "object",
+        "properties": {
+          "year": {
+            "type": "integer"
+          },
+          "month": {
+            "type": "integer"
+          },
+          "day": {
+            "type": "integer"
+          },
+          "hour": {
+            "type": "integer"
+          },
+          "gender": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "generated_at": "2026-06-21T16:04:21.785849+00:00"
+}
