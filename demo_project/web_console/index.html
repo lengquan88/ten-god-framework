@@ -1622,6 +1622,191 @@ function KnowledgeGraph({ state }) {
   );
 }
 
+// ─── Trajectory ────────────────────────────────────────
+function TrajectoryPage() {
+  const [year, setYear] = useState(1990);
+  const [month, setMonth] = useState(6);
+  const [day, setDay] = useState(15);
+  const [hour, setHour] = useState(10);
+  const [minute, setMinute] = useState(0);
+  const [gender, setGender] = useState('male');
+  const [startAge, setStartAge] = useState(0);
+  const [endAge, setEndAge] = useState(60);
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [activeView, setActiveView] = useState('timeline'); // timeline | dayun | liunian
+
+  const analyze = async () => {
+    setLoading(true); setError(''); setResult(null);
+    try {
+      const r = await fetch(API + '/advanced/trajectory', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ year, month, day, hour, minute, gender, start_age: startAge, end_age: endAge }),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      const d = await r.json();
+      setResult(d);
+    } catch (e) { setError('命运轨迹推演失败: ' + e.message); }
+    setLoading(false);
+  };
+
+  const wuxingColor = (elem) => {
+    const map = { '木': '#4CAF50', '火': '#F44336', '土': '#FF9800', '金': '#FFC107', '水': '#2196F3' };
+    return map[elem] || '#9E9E9E';
+  };
+
+  return (
+    <div>
+      <div className="card">
+        <div className="card-title">命运轨迹推演</div>
+        <div className="input-row">
+          <div className="input-group">
+            <label>年</label>
+            <input className="input" type="number" value={year} min={1900} max={2100}
+              onChange={e => setYear(parseInt(e.target.value))} />
+          </div>
+          <div className="input-group">
+            <label>月</label>
+            <input className="input" type="number" value={month} min={1} max={12}
+              onChange={e => setMonth(parseInt(e.target.value))} />
+          </div>
+          <div className="input-group">
+            <label>日</label>
+            <input className="input" type="number" value={day} min={1} max={31}
+              onChange={e => setDay(parseInt(e.target.value))} />
+          </div>
+          <div className="input-group">
+            <label>时</label>
+            <input className="input" type="number" value={hour} min={0} max={23}
+              onChange={e => setHour(parseInt(e.target.value))} />
+          </div>
+          <div className="input-group">
+            <label>分</label>
+            <input className="input" type="number" value={minute} min={0} max={59}
+              onChange={e => setMinute(parseInt(e.target.value))} />
+          </div>
+        </div>
+        <div className="input-row" style={{ marginTop: 8 }}>
+          <div className="input-group">
+            <label>性别</label>
+            <select className="input" value={gender} onChange={e => setGender(e.target.value)}>
+              <option value="male">男</option>
+              <option value="female">女</option>
+            </select>
+          </div>
+          <div className="input-group">
+            <label>起始年龄</label>
+            <input className="input" type="number" value={startAge} min={0} max={100}
+              onChange={e => setStartAge(parseInt(e.target.value))} />
+          </div>
+          <div className="input-group">
+            <label>终止年龄</label>
+            <input className="input" type="number" value={endAge} min={1} max={120}
+              onChange={e => setEndAge(parseInt(e.target.value))} />
+          </div>
+        </div>
+        <button className="btn btn-primary" style={{ marginTop: 12, width: '100%' }}
+          onClick={analyze} disabled={loading}>
+          {loading ? '推演中…' : '开始推演'}
+        </button>
+      </div>
+
+      {error && <div className="error-box">{error}</div>}
+
+      {result && (
+        <>
+          <div className="card">
+            <div className="card-title">基础信息</div>
+            <div className="info-grid">
+              <div className="info-item">
+                <div className="info-label">日主</div>
+                <div className="info-value" style={{ color: wuxingColor(result.day_master === '甲' || result.day_master === '乙' ? '木' : '木') }}>
+                  {result.day_master || '—'}
+                </div>
+              </div>
+              <div className="info-item">
+                <div className="info-label">五行分布</div>
+                <div className="info-value">
+                  {Object.entries(result.wuxing || {}).map(([k, v]) => (
+                    <span key={k} style={{ color: wuxingColor(k), marginRight: 8 }}>{k}:{v}</span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* View toggle */}
+          <div className="card">
+            <div className="card-title" style={{ justifyContent: 'flex-start', gap: 12 }}>
+              <span>人生轨迹</span>
+              <div style={{ display: 'flex', gap: 4, fontSize: 12 }}>
+                {[['timeline','总览'],['dayun','大运'],['liunian','流年']].map(([k,v]) => (
+                  <button key={k} className={`btn btn-sm ${activeView === k ? 'btn-primary' : ''}`}
+                    onClick={() => setActiveView(k)}>{v}</button>
+                ))}
+              </div>
+            </div>
+
+            {activeView === 'timeline' && (
+              <div>
+                {(result.life_stages || []).map((stage, i) => (
+                  <div key={i} className="trajectory-stage">
+                    <div className="trajectory-stage-header">
+                      <span className="trajectory-age">{stage.age_range || `阶段${i+1}`}</span>
+                      <span className="trajectory-name">{stage.name || stage.stage_name || '—'}</span>
+                    </div>
+                    <div className="trajectory-stage-body">{stage.desc || stage.description || stage.summary || '—'}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {activeView === 'dayun' && (
+              <div className="timeline-list">
+                {(result.dayun || []).map((du, i) => (
+                  <div key={i} className="timeline-item">
+                    <div className="timeline-marker" style={{ background: du.favorable ? '#4CAF50' : '#FF5722' }}></div>
+                    <div className="timeline-content">
+                      <div className="timeline-header">
+                        <span className="timeline-age">大运 {du.age_start}-{du.age_end}岁</span>
+                        <span className="timeline-ganzhi">{du.gan_zhi}</span>
+                        <span className="timeline-elem" style={{ color: wuxingColor(du.element) }}>{du.element}</span>
+                        <span className={`timeline-badge ${du.favorable ? 'favorable' : 'unfavorable'}`}>
+                          {du.favorable ? '吉' : '凶'}
+                        </span>
+                      </div>
+                      <div className="timeline-desc">{du.relation || ''}，{du.favorable ? '运势较佳' : '需注意调理'}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {activeView === 'liunian' && (
+              <div className="timeline-list" style={{ maxHeight: 400, overflowY: 'auto' }}>
+                {(result.liunian || []).map((ln, i) => (
+                  <div key={i} className="timeline-item" style={{ padding: '4px 0' }}>
+                    <div className="timeline-marker" style={{ width: 6, height: 6, top: 8 }}></div>
+                    <div className="timeline-content" style={{ padding: '2px 0' }}>
+                      <span style={{ marginRight: 8 }}>{ln.year}年</span>
+                      <span style={{ marginRight: 8, color: 'var(--text-muted)' }}>{ln.age}岁</span>
+                      <span className="timeline-ganzhi" style={{ marginRight: 8 }}>{ln.gan_zhi}</span>
+                      <span style={{ color: wuxingColor(ln.element), marginRight: 8 }}>{ln.element}</span>
+                      <span style={{ fontSize: 11 }}>{ln.relation || ''}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── Oracle ─────────────────────────────────────────────
 function Oracle() {
   const [question, setQuestion] = useState('中华文明传承之道');
@@ -1852,16 +2037,17 @@ function App() {
     { id: 'dashboard', label: '总览', icon: '▣' },
     { id: 'bazi', label: '排盘', icon: '卦' },
     { id: 'comprehensive', label: '综合', icon: '✧' },
+    { id: 'trajectory', label: '轨迹', icon: '↯' },
     { id: 'name', label: '姓名', icon: '名' },
     { id: 'marriage', label: '合婚', icon: '姻' },
     { id: 'cases', label: '案例', icon: '◈' },
     { id: 'oracle', label: '推背', icon: '☯' },
-    { id: 'metrics', label: '指标', icon: '◉' },
   ];
   const desktopTabs = [
     { id: 'dashboard', label: '总览', icon: '▣' },
     { id: 'bazi', label: '排盘', icon: '卦' },
     { id: 'comprehensive', label: '多体系综合', icon: '✧' },
+    { id: 'trajectory', label: '命运轨迹', icon: '↯' },
     { id: 'name', label: '姓名学', icon: '名' },
     { id: 'marriage', label: '合婚分析', icon: '姻' },
     { id: 'cases', label: '案例', icon: '◈' },
@@ -1909,6 +2095,7 @@ function App() {
         {tab === 'dashboard' && state && <Dashboard state={state} />}
         {tab === 'bazi' && <BaziPage />}
         {tab === 'comprehensive' && <ComprehensivePage />}
+        {tab === 'trajectory' && <TrajectoryPage />}
         {tab === 'name' && <NamePage />}
         {tab === 'marriage' && <MarriagePage />}
         {tab === 'cases' && <CasesPage />}
