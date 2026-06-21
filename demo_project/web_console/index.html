@@ -799,6 +799,306 @@ function BaziPage() {
   );
 }
 
+// ─── Comprehensive Page ────────────────────────────────
+function ComprehensivePage() {
+  const [form, setForm] = useState({
+    birth_year: 1990, birth_month: 6, birth_day: 15,
+    birth_hour: 10, birth_minute: 0,
+    gender: 'male',
+    target_year: 2026,
+    sitting: '北', facing: '南',
+    lunar_month: '', lunar_day: '',
+    pillars_year: '', pillars_month: '', pillars_day: '', pillars_hour: '',
+  });
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [activeSystem, setActiveSystem] = useState(null);
+
+  const calc = async () => {
+    setLoading(true); setError(''); setResult(null);
+    try {
+      const payload = {
+        birth_year: +form.birth_year,
+        birth_month: +form.birth_month,
+        birth_day: +form.birth_day,
+        birth_hour: +form.birth_hour,
+        birth_minute: +form.birth_minute,
+        gender: form.gender,
+        target_year: +form.target_year,
+        sitting: form.sitting,
+        facing: form.facing,
+      };
+      if (form.lunar_month && form.lunar_day) {
+        payload.lunar_month = +form.lunar_month;
+        payload.lunar_day = +form.lunar_day;
+      }
+      const pillars = {};
+      if (form.pillars_year) pillars.year = form.pillars_year;
+      if (form.pillars_month) pillars.month = form.pillars_month;
+      if (form.pillars_day) pillars.day = form.pillars_day;
+      if (form.pillars_hour) pillars.hour = form.pillars_hour;
+      if (Object.keys(pillars).length > 0) payload.pillars = pillars;
+
+      const r = await fetch(API + '/prediction/comprehensive', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!r.ok) {
+        const d = await r.json();
+        setError(d?.message || `请求失败 (${r.status})`);
+      } else {
+        const d = await r.json();
+        setResult(d);
+      }
+    } catch (e) {
+      setError('API 连接失败，请检查网络');
+    }
+    setLoading(false);
+  };
+
+  const consensus = result?.consensus || {};
+  const cross = result?.cross_validation || {};
+  const systems = result?.systems || {};
+  const systemNames = Object.keys(systems);
+
+  return (
+    <div>
+      <div className="card">
+        <div className="card-title">多体系综合分析 <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>八字·紫微·奇门·六爻·流年·风水·七政四余</span></div>
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">出生年</label>
+            <input className="input" type="number" value={form.birth_year}
+              onChange={e => setForm({...form, birth_year: e.target.value})} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">月</label>
+            <input className="input" type="number" min="1" max="12" value={form.birth_month}
+              onChange={e => setForm({...form, birth_month: e.target.value})} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">日</label>
+            <input className="input" type="number" min="1" max="31" value={form.birth_day}
+              onChange={e => setForm({...form, birth_day: e.target.value})} />
+          </div>
+        </div>
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">时</label>
+            <input className="input" type="number" min="0" max="23" value={form.birth_hour}
+              onChange={e => setForm({...form, birth_hour: e.target.value})} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">分</label>
+            <input className="input" type="number" min="0" max="59" value={form.birth_minute}
+              onChange={e => setForm({...form, birth_minute: e.target.value})} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">性别</label>
+            <select className="select" value={form.gender}
+              onChange={e => setForm({...form, gender: e.target.value})}>
+              <option value="male">男</option>
+              <option value="female">女</option>
+            </select>
+          </div>
+        </div>
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">目标流年</label>
+            <input className="input" type="number" min="1900" max="2200" value={form.target_year}
+              onChange={e => setForm({...form, target_year: e.target.value})} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">坐向(坐)</label>
+            <input className="input" type="text" value={form.sitting}
+              onChange={e => setForm({...form, sitting: e.target.value})} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">朝向</label>
+            <input className="input" type="text" value={form.facing}
+              onChange={e => setForm({...form, facing: e.target.value})} />
+          </div>
+        </div>
+        <details style={{ marginTop: 8, fontSize: 12, color: 'var(--text-secondary)' }}>
+          <summary style={{ cursor: 'pointer' }}>高级：四柱干支 / 农历(可选)</summary>
+          <div className="form-row" style={{ marginTop: 10 }}>
+            <div className="form-group">
+              <label className="form-label">年柱</label>
+              <input className="input" placeholder="如 庚午" value={form.pillars_year}
+                onChange={e => setForm({...form, pillars_year: e.target.value})} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">月柱</label>
+              <input className="input" placeholder="如 壬午" value={form.pillars_month}
+                onChange={e => setForm({...form, pillars_month: e.target.value})} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">日柱</label>
+              <input className="input" placeholder="如 辛亥" value={form.pillars_day}
+                onChange={e => setForm({...form, pillars_day: e.target.value})} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">时柱</label>
+              <input className="input" placeholder="如 癸巳" value={form.pillars_hour}
+                onChange={e => setForm({...form, pillars_hour: e.target.value})} />
+            </div>
+          </div>
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label">农历月</label>
+              <input className="input" type="number" min="1" max="12" value={form.lunar_month}
+                onChange={e => setForm({...form, lunar_month: e.target.value})} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">农历日</label>
+              <input className="input" type="number" min="1" max="31" value={form.lunar_day}
+                onChange={e => setForm({...form, lunar_day: e.target.value})} />
+            </div>
+          </div>
+        </details>
+        <button className="btn btn-primary" onClick={calc} disabled={loading} style={{ width: '100%', marginTop: 12 }}>
+          {loading ? '综合推演中…' : '开始综合分析'}
+        </button>
+        {error && <div style={{ color: 'var(--cinnabar-bright)', fontSize: 13, marginTop: 10 }}>{error}</div>}
+      </div>
+
+      {result && (
+        <>
+          <div className="card">
+            <div className="card-title">共识运势</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+              <div style={{
+                width: 96, height: 96, borderRadius: '50%',
+                background: `conic-gradient(var(--gold-bright) ${(+consensus.score || 0)}%, var(--panel-bg) 0)`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative',
+                border: '2px solid var(--border-subtle)',
+              }}>
+                <div style={{
+                  position: 'absolute', inset: 8, borderRadius: '50%',
+                  background: 'var(--panel-bg)', display: 'flex', flexDirection: 'column',
+                  alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <div style={{ fontSize: 22, color: 'var(--gold-bright)', fontWeight: 600 }}>{Math.round(+consensus.score || 0)}</div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>总分</div>
+                </div>
+              </div>
+              <div style={{ flex: 1, minWidth: 180 }}>
+                <div style={{ fontSize: 18, color: 'var(--gold-bright)', marginBottom: 6 }}>{consensus.overall || '—'}</div>
+                {consensus.key_strengths?.length > 0 && (
+                  <div style={{ fontSize: 12, marginBottom: 4 }}>
+                    <span style={{ color: 'var(--text-muted)' }}>优势: </span>
+                    {consensus.key_strengths.slice(0, 3).map((x, i) =>
+                      <span key={i}><span className="case-tag">{x}</span> </span>
+                    )}
+                  </div>
+                )}
+                {consensus.key_risks?.length > 0 && (
+                  <div style={{ fontSize: 12 }}>
+                    <span style={{ color: 'var(--text-muted)' }}>风险: </span>
+                    {consensus.key_risks.slice(0, 3).map((x, i) =>
+                      <span key={i}><span className="case-tag" style={{ color: 'var(--cinnabar-bright)' }}>{x}</span> </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div style={{ marginTop: 16 }}>
+              <div className="form-label">分项研判</div>
+              {[
+                { label: '事业', key: 'career' },
+                { label: '财运', key: 'wealth' },
+                { label: '感情', key: 'relationships' },
+                { label: '健康', key: 'health' },
+              ].map(item => {
+                const text = (consensus[item.key] || '').toString();
+                return (
+                  <div key={item.key} style={{ display: 'flex', gap: 10, marginTop: 6, fontSize: 12 }}>
+                    <div style={{ minWidth: 40, color: 'var(--text-muted)' }}>{item.label}</div>
+                    <div style={{ flex: 1, color: 'var(--text-secondary)' }}>{text || '—'}</div>
+                  </div>
+                );
+              })}
+            </div>
+            {consensus.best_timing?.length > 0 && (
+              <div style={{ marginTop: 16, fontSize: 12 }}>
+                <span style={{ color: 'var(--text-muted)' }}>最佳时机: </span>
+                {consensus.best_timing.map((x, i) => <span key={i} className="case-tag">{x}</span>)}
+              </div>
+            )}
+          </div>
+
+          <div className="card">
+            <div className="card-title">交叉验证 · 系统一致性</div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 10 }}>
+              一致性得分: <span style={{ color: 'var(--gold-bright)' }}>{Math.round(+cross.score || 0)}</span>
+              {cross.level && <span style={{ marginLeft: 8, color: 'var(--text-muted)' }}>— {cross.level}</span>}
+            </div>
+            {cross.agreements?.length > 0 && (
+              <div style={{ marginBottom: 8, fontSize: 12 }}>
+                <span style={{ color: 'var(--text-muted)' }}>一致体系: </span>
+                {cross.agreements.map((s, i) => <span key={i} className="case-tag" style={{ background: 'rgba(91,140,90,0.15)', color: '#8fb58e' }}>{s}</span>)}
+              </div>
+            )}
+            {cross.conflicts?.length > 0 && (
+              <div style={{ fontSize: 12 }}>
+                <span style={{ color: 'var(--text-muted)' }}>存在分歧: </span>
+                {cross.conflicts.map((s, i) => <span key={i} className="case-tag" style={{ background: 'rgba(212,131,58,0.15)', color: '#e5a87a' }}>{s}</span>)}
+              </div>
+            )}
+            {cross.interpretations?.length > 0 && (
+              <ul style={{ marginTop: 12, paddingLeft: 18, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+                {cross.interpretations.map((n, i) => <li key={i}>{typeof n === 'string' ? n : JSON.stringify(n)}</li>)}
+              </ul>
+            )}
+          </div>
+
+          {systemNames.length > 0 && (
+            <div className="card">
+              <div className="card-title">各术数体系结果 <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>({systemNames.length} 个体系)</span></div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                {systemNames.map(k => (
+                  <button key={k} className={`btn btn-sm ${activeSystem === k ? 'btn-primary' : ''}`} style={{ borderRadius: 12 }}
+                    onClick={() => setActiveSystem(activeSystem === k ? null : k)}>
+                    {k}
+                    {systems[k]?.available === false && <span style={{ color: 'var(--cinnabar-bright)', marginLeft: 4 }}>×</span>}
+                  </button>
+                ))}
+              </div>
+              {(activeSystem ? [activeSystem] : systemNames.slice(0, 3)).map(k => {
+                const s = systems[k];
+                return (
+                  <div key={k} style={{ marginTop: 10, padding: 12, background: 'var(--panel-bg)', borderRadius: 8, border: '1px solid var(--border-subtle)' }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--gold-bright)', marginBottom: 6 }}>{k}</div>
+                    {s?.summary && <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.7 }}>{s.summary}</div>}
+                    {s?.error && <div style={{ fontSize: 11, color: 'var(--cinnabar-bright)', marginTop: 6 }}>错误: {s.error}</div>}
+                    {s?.data && typeof s.data === 'object' && (
+                      <details style={{ marginTop: 8, fontSize: 11, color: 'var(--text-muted)' }}>
+                        <summary style={{ cursor: 'pointer' }}>原始数据</summary>
+                        <pre style={{ marginTop: 8, padding: 8, background: 'rgba(0,0,0,0.25)', borderRadius: 6, overflow: 'auto', fontSize: 11, lineHeight: 1.5, maxHeight: 260 }}>{JSON.stringify(s.data, null, 2)}</pre>
+                      </details>
+                    )}
+                  </div>
+                );
+              })}
+              {!activeSystem && systemNames.length > 3 && (
+                <div style={{ marginTop: 10, fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>点击上方按钮查看其它体系详情</div>
+              )}
+            </div>
+          )}
+
+          {result.comprehensive_report && (
+            <div className="card">
+              <div className="card-title">综合报告</div>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.85, whiteSpace: 'pre-wrap' }}>{result.comprehensive_report}</div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── Cases Page ─────────────────────────────────────────
 function CasesPage() {
   const [cases, setCases] = useState([]);
@@ -1185,12 +1485,16 @@ function App() {
   const mobileTabs = [
     { id: 'dashboard', label: '总览', icon: '▣' },
     { id: 'bazi', label: '排盘', icon: '卦' },
-    { id: 'cases', label: '案例', icon: '◈' },
+    { id: 'comprehensive', label: '综合', icon: '✧' },
     { id: 'oracle', label: '推背', icon: '☯' },
     { id: 'metrics', label: '指标', icon: '◉' },
   ];
   const desktopTabs = [
-    ...mobileTabs.slice(0, 4),
+    { id: 'dashboard', label: '总览', icon: '▣' },
+    { id: 'bazi', label: '排盘', icon: '卦' },
+    { id: 'comprehensive', label: '多体系综合', icon: '✧' },
+    { id: 'cases', label: '案例', icon: '◈' },
+    { id: 'oracle', label: '推背', icon: '☯' },
     { id: 'knowledge', label: '知识图谱', icon: '◈' },
     { id: 'tasks', label: '任务', icon: '⚙' },
     { id: 'metrics', label: '指标', icon: '◉' },
@@ -1233,6 +1537,7 @@ function App() {
         )}
         {tab === 'dashboard' && state && <Dashboard state={state} />}
         {tab === 'bazi' && <BaziPage />}
+        {tab === 'comprehensive' && <ComprehensivePage />}
         {tab === 'cases' && <CasesPage />}
         {tab === 'knowledge' && <KnowledgeGraph state={state} />}
         {tab === 'oracle' && <Oracle />}
