@@ -1205,6 +1205,266 @@ function ComprehensivePage() {
   );
 }
 
+// ─── Name Page ───────────────────────────────────────────
+function NamePage() {
+  const [surname, setSurname] = useState('张');
+  const [given, setGiven] = useState('三丰');
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const analyze = async () => {
+    setLoading(true); setError(''); setResult(null);
+    try {
+      const r = await fetch(API + '/name/analyze', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ surname, given_name: given }),
+      });
+      if (!r.ok) {
+        const d = await r.json();
+        setError(d.detail || ('请求失败 (' + r.status + ')'));
+      } else {
+        const d = await r.json();
+        setResult(d);
+      }
+    } catch (e) { setError('API 连接失败'); }
+    setLoading(false);
+  };
+
+  const wuge_items = [
+    { label: '天格', key: 'tian' },
+    { label: '人格', key: 'ren' },
+    { label: '地格', key: 'di' },
+    { label: '外格', key: 'wai' },
+    { label: '总格', key: 'zong' },
+  ];
+
+  return (
+    <div>
+      <div className="card">
+        <div className="card-title">姓名学分析（五格+三才）</div>
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">姓氏</label>
+            <input className="input" value={surname} onChange={e => setSurname(e.target.value)} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">名字</label>
+            <input className="input" value={given} onChange={e => setGiven(e.target.value)} />
+          </div>
+        </div>
+        <button className="btn btn-primary" onClick={analyze} disabled={loading || !surname || !given}>
+          {loading ? '计算中...' : '开始姓名分析'}
+        </button>
+        {error && <div style={{ color: 'var(--cinnabar-bright)', fontSize: 12, marginTop: 10 }}>{error}</div>}
+      </div>
+
+      {result && (
+        <>
+          <div className="card">
+            <div className="card-title">综合评分</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+              <div style={{
+                width: 80, height: 80, borderRadius: '50%',
+                background: 'conic-gradient(var(--gold-bright) ' + result.overall_score + '%, var(--panel-bg) 0)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid var(--border-subtle)'
+              }}>
+                <div style={{
+                  position: 'absolute', width: 60, height: 60, borderRadius: '50%', background: 'var(--panel-bg)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, color: 'var(--gold-bright)'
+                }}>{result.overall_score}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 14, color: 'var(--gold-bright)', marginBottom: 4 }}>{result.overall_grade}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                  三才配置：<span style={{ color: 'var(--gold-bright)' }}>{result.sancai}</span>
+                  <span style={{ marginLeft: 8 }}>{result.sancai_ji}</span>
+                </div>
+              </div>
+            </div>
+            <div style={{ marginTop: 12, fontSize: 11, color: 'var(--text-muted)' }}>{result.sancai_desc}</div>
+          </div>
+
+          <div className="card">
+            <div className="card-title">五格剖象</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
+              {wuge_items.map(item => (
+                <div key={item.key} style={{
+                  padding: 10, background: 'var(--panel-bg)', border: '1px solid var(--border-subtle)',
+                  borderRadius: 8, textAlign: 'center'
+                }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item.label}</div>
+                  <div style={{ fontSize: 20, color: 'var(--gold-bright)', fontWeight: 600, margin: '4px 0' }}>
+                    {result.wuge[item.key].value}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{result.wuge[item.key].ji}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {result.suggestions && result.suggestions.length > 0 && (
+            <div className="card">
+              <div className="card-title">建议</div>
+              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.8 }}>
+                {result.suggestions.map((s, i) => <li key={i}>{s}</li>)}
+              </ul>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── Marriage Page ───────────────────────────────────────
+function MarriagePage() {
+  const [self, setSelf] = useState({ name: '张三', year: 1990, month: 6, day: 15, hour: 10 });
+  const [partner, setPartner] = useState({ name: '李四', year: 1992, month: 3, day: 20, hour: 14 });
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const analyze = async () => {
+    setLoading(true); setError(''); setResult(null);
+    try {
+      const r = await fetch(API + '/marriage/analyze', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name1: self.name,
+          bazi1: { input: { year: self.year, month: self.month, day: self.day, hour: self.hour },
+                  day_master: '', pillars: {} },
+          name2: partner.name,
+          bazi2: { input: { year: partner.year, month: partner.month, day: partner.day, hour: partner.hour },
+                  day_master: '', pillars: {} },
+        }),
+      });
+      if (!r.ok) {
+        const d = await r.json();
+        setError(d.detail || ('请求失败 (' + r.status + ')'));
+      } else {
+        const d = await r.json();
+        setResult(d);
+      }
+    } catch (e) { setError('API 连接失败'); }
+    setLoading(false);
+  };
+
+  const renderInput = (data, setData, label) => (
+    <div className="card">
+      <div className="card-title">{label}</div>
+      <div className="form-row">
+        <div className="form-group">
+          <label className="form-label">姓名</label>
+          <input className="input" value={data.name} onChange={e => setData({...data, name: e.target.value})} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">出生年</label>
+          <input className="input" type="number" value={data.year} onChange={e => setData({...data, year: +e.target.value || 0})} />
+        </div>
+      </div>
+      <div className="form-row">
+        <div className="form-group">
+          <label className="form-label">月</label>
+          <input className="input" type="number" value={data.month} onChange={e => setData({...data, month: +e.target.value || 0})} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">日</label>
+          <input className="input" type="number" value={data.day} onChange={e => setData({...data, day: +e.target.value || 0})} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">时</label>
+          <input className="input" type="number" value={data.hour} onChange={e => setData({...data, hour: +e.target.value || 0})} />
+        </div>
+      </div>
+    </div>
+  );
+
+  const items = [
+    { key: 'nayin', label: '年柱纳音' },
+    { key: 'ri_gan', label: '日柱天干' },
+    { key: 'dizhi', label: '地支关系' },
+    { key: 'wuxing', label: '五行互补' },
+    { key: 'shengxiao', label: '生肖配对' },
+  ];
+
+  return (
+    <div>
+      {renderInput(self, setSelf, '本人信息')}
+      {renderInput(partner, setPartner, '对方信息')}
+      <div className="card">
+        <button className="btn btn-primary" onClick={analyze} disabled={loading || !self.name || !partner.name} style={{ width: '100%' }}>
+          {loading ? '合婚分析中...' : '开始合婚分析'}
+        </button>
+        {error && <div style={{ color: 'var(--cinnabar-bright)', fontSize: 12, marginTop: 10 }}>{error}</div>}
+      </div>
+
+      {result && (
+        <>
+          <div className="card">
+            <div className="card-title">合婚综合评分</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+              <div style={{
+                width: 96, height: 96, borderRadius: '50%',
+                background: 'conic-gradient(var(--gold-bright) ' + result.overall_score + '%, var(--panel-bg) 0)',
+                position: 'relative', border: '2px solid var(--border-subtle)'
+              }}>
+                <div style={{
+                  position: 'absolute', inset: 10, borderRadius: '50%', background: 'var(--panel-bg)',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center'
+                }}>
+                  <div style={{ fontSize: 24, color: 'var(--gold-bright)', fontWeight: 600 }}>{result.overall_score}</div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>总分</div>
+                </div>
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 14, color: 'var(--gold-bright)', marginBottom: 4 }}>{result.overall_grade}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>{result.summary}</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="card-title">分项分析</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
+              {items.map(item => {
+                const val = result[item.key];
+                if (!val) return null;
+                const score = val.score || 0;
+                const match = val.match || val.relation || '';
+                return (
+                  <div key={item.key} style={{
+                    padding: 10, background: 'var(--panel-bg)', border: '1px solid var(--border-subtle)',
+                    borderRadius: 8, textAlign: 'center'
+                  }}>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item.label}</div>
+                    <div style={{ fontSize: 22, color: 'var(--gold-bright)', fontWeight: 600, margin: '4px 0' }}>{score}</div>
+                    <div style={{ fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.5 }}>{match}</div>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-secondary)' }}>
+              天干配合：<span style={{ color: 'var(--gold-bright)' }}>{result.day_gan1}</span>
+              <span style={{ margin: '0 4px' }}>×</span>
+              <span style={{ color: 'var(--gold-bright)' }}>{result.day_gan2}</span>
+            </div>
+          </div>
+
+          {result.suggestions && result.suggestions.length > 0 && (
+            <div className="card">
+              <div className="card-title">合婚建议</div>
+              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.8 }}>
+                {result.suggestions.map((s, i) => <li key={i}>{s}</li>)}
+              </ul>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── Cases Page ─────────────────────────────────────────
 function CasesPage() {
   const [cases, setCases] = useState([]);
@@ -1592,6 +1852,9 @@ function App() {
     { id: 'dashboard', label: '总览', icon: '▣' },
     { id: 'bazi', label: '排盘', icon: '卦' },
     { id: 'comprehensive', label: '综合', icon: '✧' },
+    { id: 'name', label: '姓名', icon: '名' },
+    { id: 'marriage', label: '合婚', icon: '姻' },
+    { id: 'cases', label: '案例', icon: '◈' },
     { id: 'oracle', label: '推背', icon: '☯' },
     { id: 'metrics', label: '指标', icon: '◉' },
   ];
@@ -1599,6 +1862,8 @@ function App() {
     { id: 'dashboard', label: '总览', icon: '▣' },
     { id: 'bazi', label: '排盘', icon: '卦' },
     { id: 'comprehensive', label: '多体系综合', icon: '✧' },
+    { id: 'name', label: '姓名学', icon: '名' },
+    { id: 'marriage', label: '合婚分析', icon: '姻' },
     { id: 'cases', label: '案例', icon: '◈' },
     { id: 'oracle', label: '推背', icon: '☯' },
     { id: 'knowledge', label: '知识图谱', icon: '◈' },
@@ -1644,6 +1909,8 @@ function App() {
         {tab === 'dashboard' && state && <Dashboard state={state} />}
         {tab === 'bazi' && <BaziPage />}
         {tab === 'comprehensive' && <ComprehensivePage />}
+        {tab === 'name' && <NamePage />}
+        {tab === 'marriage' && <MarriagePage />}
         {tab === 'cases' && <CasesPage />}
         {tab === 'knowledge' && <KnowledgeGraph state={state} />}
         {tab === 'oracle' && <Oracle />}

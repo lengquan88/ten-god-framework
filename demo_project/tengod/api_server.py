@@ -2211,7 +2211,7 @@ async def qizheng_calc(req: QizhengRequest, request: Request):
 # ============================================================================
 
 class ComprehensiveRequest(BaseModel):
-    """综合分析请求"""
+    """综合分析请求（阶段二十五扩展）"""
     birth_year: int = Field(..., ge=1900, le=2100, description="出生年")
     birth_month: int = Field(..., ge=1, le=12, description="出生月")
     birth_day: int = Field(..., ge=1, le=31, description="出生日")
@@ -2224,6 +2224,10 @@ class ComprehensiveRequest(BaseModel):
     facing: str = Field(default="南", description="风水坐向-向")
     lunar_month: Optional[int] = Field(default=None, ge=1, le=12, description="农历月")
     lunar_day: Optional[int] = Field(default=None, ge=1, le=31, description="农历日")
+    # 阶段二十五新增
+    name_surname: Optional[str] = Field(default=None, max_length=4, description="姓氏（用于姓名学分析，可选）")
+    name_given: Optional[str] = Field(default=None, max_length=6, description="名字（用于姓名学分析，可选）")
+    partner: Optional[Dict[str, Any]] = Field(default=None, description="对方信息：{name, bazi: {day_master, pillars}}")
 
 
 @app.post("/api/prediction/comprehensive", tags=["综合分析"])
@@ -2250,6 +2254,9 @@ async def comprehensive_analysis(req: ComprehensiveRequest, request: Request):
         facing=req.facing,
         lunar_month=req.lunar_month,
         lunar_day=req.lunar_day,
+        name_surname=req.name_surname,
+        name_given=req.name_given,
+        partner_info=req.partner,
     )
     return result.to_dict()
 
@@ -2276,6 +2283,9 @@ class ComprehensiveInterpretRequest(BaseModel):
     question: str = Field(default="")
     report_format: str = Field(default="text",
                                description="报告格式: text/markdown/html/json")
+    name_surname: Optional[str] = Field(default=None, description="姓氏（用于姓名学分析）")
+    name_given: Optional[str] = Field(default=None, description="名字（用于姓名学分析）")
+    partner: Optional[Dict[str, Any]] = Field(default=None, description="对方信息")
 
 
 @app.post("/api/prediction/comprehensive/interpret", tags=["综合分析"])
@@ -2304,6 +2314,9 @@ async def comprehensive_interpret(req: ComprehensiveInterpretRequest, request: R
         facing=req.facing,
         lunar_month=req.lunar_month,
         lunar_day=req.lunar_day,
+        name_surname=req.name_surname,
+        name_given=req.name_given,
+        partner_info=req.partner,
     )
     comp_dict = comp_result.to_dict()
 

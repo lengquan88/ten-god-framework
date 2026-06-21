@@ -284,6 +284,77 @@ class ComprehensiveAnalyzer:
         except Exception as e:
             return SystemResult("高级术数", False, error=str(e))
 
+    def _calc_name(self, surname: str, given_name: str) -> SystemResult:
+        """姓名学分析 — 阶段二十五新增"""
+        try:
+            from tengod.name_engine import NameEngine
+            result = NameEngine.analyze(surname, given_name)
+            data = {
+                "surname": result.surname,
+                "given_name": result.given_name,
+                "wuge": {
+                    "tian": result.wuge.tian_ge,
+                    "ren": result.wuge.ren_ge,
+                    "di": result.wuge.di_ge,
+                    "wai": result.wuge.wai_ge,
+                    "zong": result.wuge.zong_ge,
+                },
+                "sancai": list(result.sancai),
+                "sancai_ji": result.sancai_ji,
+                "sancai_desc": result.sancai_desc,
+                "overall_score": result.overall_score,
+                "overall_grade": result.overall_grade,
+                "suggestions": result.suggestions,
+            }
+            summary = f"五格评分 {result.overall_score}分，{result.overall_grade}；三才{'·'.join(result.sancai)}"
+            return SystemResult("姓名学", True, data=data, summary=summary)
+        except Exception as e:
+            return SystemResult("姓名学", False, error=str(e))
+
+    def _calc_marriage(self, name1: str, bazi1: dict,
+                       name2: str, bazi2: dict) -> SystemResult:
+        """合婚分析 — 阶段二十五新增"""
+        try:
+            from tengod.marriage_engine import MarriageEngine
+            result = MarriageEngine.analyze(name1, bazi1, name2, bazi2)
+            data = {
+                "name1": result.name1,
+                "name2": result.name2,
+                "day_gan1": result.day_gan1,
+                "day_gan2": result.day_gan2,
+                "nayin": {
+                    "nayin1": result.nayin1,
+                    "nayin2": result.nayin2,
+                    "match": result.nayin_match,
+                    "score": result.nayin_score,
+                },
+                "ri_gan": {
+                    "relation": result.ri_gan_he,
+                    "score": result.ri_gan_score,
+                },
+                "dizhi": {
+                    "relations": result.zhi_relations,
+                    "score": result.zhi_score,
+                },
+                "wuxing": {
+                    "analysis": result.wuxing_bu,
+                    "score": result.wuxing_score,
+                },
+                "shengxiao": {
+                    "shengxiao1": result.shengxiao1,
+                    "shengxiao2": result.shengxiao2,
+                    "score": result.shengxiao_score,
+                },
+                "overall_score": result.overall_score,
+                "overall_grade": result.overall_grade,
+                "summary": result.summary,
+                "suggestions": result.suggestions,
+            }
+            summary = f"合婚评分 {result.overall_score}分，{result.overall_grade}"
+            return SystemResult("合婚分析", True, data=data, summary=summary)
+        except Exception as e:
+            return SystemResult("合婚分析", False, error=str(e))
+
     def _cross_validate(self, systems: Dict[str, SystemResult]) -> CrossValidation:
         agreements: List[str] = []
         conflicts: List[str] = []
@@ -440,6 +511,9 @@ class ComprehensiveAnalyzer:
         facing: str = "南",
         lunar_month: Optional[int] = None,
         lunar_day: Optional[int] = None,
+        name_surname: Optional[str] = None,
+        name_given: Optional[str] = None,
+        partner_info: Optional[Dict[str, Any]] = None,
     ) -> ComprehensiveResult:
         year, month, day = birth_date
         hour, minute = birth_time
@@ -473,6 +547,23 @@ class ComprehensiveAnalyzer:
         systems["七政四余"] = self._calc_qizheng(year, month, day, hour, minute)
         systems["高级术数"] = self._calc_shushu(
             pillars, lunar_month or month, lunar_day or day)
+
+        # 阶段二十五新增：姓名学分析（若提供姓名参数）
+        if name_surname and name_given:
+            systems["姓名学"] = self._calc_name(name_surname, name_given)
+
+        # 阶段二十五新增：合婚分析（若提供 partner_info）
+        if partner_info:
+            # 提取自己的八字信息供合婚使用
+            bazi_self = {}
+            if systems.get("八字", None) and systems["八字"].data:
+                bazi_self = systems["八字"].data or {}
+            bazi_partner = partner_info.get("bazi", {}) or {}
+            p_name1 = partner_info.get("name1", "本人") or "本人"
+            p_name2 = partner_info.get("name2", "对方") or "对方"
+            systems["合婚分析"] = self._calc_marriage(
+                p_name1, bazi_self, p_name2, bazi_partner
+            )
 
         cross = self._cross_validate(systems)
         consensus = self._build_consensus(systems, cross)
