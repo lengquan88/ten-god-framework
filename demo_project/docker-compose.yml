@@ -78,11 +78,13 @@ services:
       - "9090:9090"
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./alert_rules.yml:/etc/prometheus/alert_rules.yml
       - prometheus-data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
       - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-lifecycle'
     restart: unless-stopped
     networks:
       - tengod-network
@@ -96,8 +98,11 @@ services:
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
       - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_ALERTING_ENABLED=true
     volumes:
       - grafana-data:/var/lib/grafana
+      - ./grafana_datasource.yml:/etc/grafana/provisioning/datasources/datasource.yml
+      - ./grafana_dashboard.json:/etc/grafana/provisioning/dashboards/tengod.json
     depends_on:
       - prometheus
     restart: unless-stopped

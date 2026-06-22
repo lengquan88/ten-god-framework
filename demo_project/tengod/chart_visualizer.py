@@ -11,7 +11,13 @@
 
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
+from html import escape
 import json
+
+
+def _esc(value: Any) -> str:
+    """HTML 转义用户输入，防止 XSS"""
+    return escape(str(value)) if value is not None else ""
 
 
 @dataclass
@@ -182,19 +188,19 @@ class BaziChartVisualizer:
         <div class="pillars">
             <div class="pillar" onclick="showDetail('year')">
                 <div class="pillar-title">年柱</div>
-                <div class="pillar-content">{pillars.get('year', '--')}</div>
+                <div class="pillar-content">{_esc(pillars.get('year', '--'))}</div>
             </div>
             <div class="pillar" onclick="showDetail('month')">
                 <div class="pillar-title">月柱</div>
-                <div class="pillar-content">{pillars.get('month', '--')}</div>
+                <div class="pillar-content">{_esc(pillars.get('month', '--'))}</div>
             </div>
             <div class="pillar" onclick="showDetail('day')">
                 <div class="pillar-title">日柱</div>
-                <div class="pillar-content">{pillars.get('day', '--')}</div>
+                <div class="pillar-content">{_esc(pillars.get('day', '--'))}</div>
             </div>
             <div class="pillar" onclick="showDetail('hour')">
                 <div class="pillar-title">时柱</div>
-                <div class="pillar-content">{pillars.get('hour', '--')}</div>
+                <div class="pillar-content">{_esc(pillars.get('hour', '--'))}</div>
             </div>
         </div>
         
@@ -240,13 +246,13 @@ class BaziChartVisualizer:
         return f"""
         <div class="info-section">
             <div class="info-title">格局</div>
-            <div>{geju or '未判断'}</div>
+            <div>{_esc(geju) or '未判断'}</div>
         </div>
         """
 
     def _generate_shensha_html(self, shensha: List[str]) -> str:
         """生成神煞HTML"""
-        tags = "".join([f'<span class="shensha-tag">{s}</span>' for s in shensha])
+        tags = "".join([f'<span class="shensha-tag">{_esc(s)}</span>' for s in shensha])
         return f"""
         <div class="info-section">
             <div class="info-title">神煞</div>
