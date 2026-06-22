@@ -218,7 +218,6 @@ __all__ = [
     "StructuredLogger",
     "PrometheusMetrics",
     "LogLevel",
-    "LOGGER",
     "get_logger",
     "get_metrics",
 ]

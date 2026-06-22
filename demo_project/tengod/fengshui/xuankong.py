@@ -365,9 +365,12 @@ class XuankongEngine:
             # 简化评分：吉星+3, 凶星-3
             score = 0
             for s in (yun_star, liunian_star, shan_star, xiang_star):
-                if STAR_FORTUNE.get(s) == "吉": score += 3
-                elif STAR_FORTUNE.get(s) == "凶": score -= 3
-                elif STAR_FORTUNE.get(s) == "大凶": score -= 5
+                if STAR_FORTUNE.get(s) == "吉":
+                    score += 3
+                elif STAR_FORTUNE.get(s) == "凶":
+                    score -= 3
+                elif STAR_FORTUNE.get(s) == "大凶":
+                    score -= 5
             overall_scores[palace] = score
 
             palace_name = palace_names.get(palace, str(palace))

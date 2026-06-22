@@ -76,11 +76,16 @@ def _derive_shigan(day_master: str, target_gan: str) -> str:
     dm_yinyang = GAN_YINYANG[day_master]
     t_yinyang = GAN_YINYANG[target_gan]
     same = dm_yinyang == t_yinyang
-    if dm_wuxing == t_wuxing: return '比肩' if same else '劫财'
-    if WUXING_SHENG[dm_wuxing] == t_wuxing: return '食神' if same else '伤官'
-    if WUXING_KE[dm_wuxing] == t_wuxing: return '偏财' if same else '正财'
-    if WUXING_KE[t_wuxing] == dm_wuxing: return '七杀' if same else '正官'
-    if WUXING_SHENG[t_wuxing] == dm_wuxing: return '偏印' if same else '正印'
+    if dm_wuxing == t_wuxing:
+        return '比肩' if same else '劫财'
+    if WUXING_SHENG[dm_wuxing] == t_wuxing:
+        return '食神' if same else '伤官'
+    if WUXING_KE[dm_wuxing] == t_wuxing:
+        return '偏财' if same else '正财'
+    if WUXING_KE[t_wuxing] == dm_wuxing:
+        return '七杀' if same else '正官'
+    if WUXING_SHENG[t_wuxing] == dm_wuxing:
+        return '偏印' if same else '正印'
     return ''
 
 
@@ -324,12 +329,14 @@ class LiunianJudgmentEngine:
                         if isinstance(v, list):
                             for item in v:
                                 if isinstance(item, str) and item in ("木", "火", "土", "金", "水"):
-                                    if item not in yongshen: yongshen.append(item)
+                                    if item not in yongshen:
+                                        yongshen.append(item)
                     elif k in ("jishen", "忌神", "unfavorable", "unfavorable_elements"):
                         if isinstance(v, list):
                             for item in v:
                                 if isinstance(item, str) and item in ("木", "火", "土", "金", "水"):
-                                    if item not in jishen: jishen.append(item)
+                                    if item not in jishen:
+                                        jishen.append(item)
 
         # 递归搜索喜用神/忌神
         if isinstance(bazi_data, dict):
@@ -385,10 +392,14 @@ class LiunianJudgmentEngine:
     # ------------------------------------------------------------------
     @staticmethod
     def _season_of_zhi(zhi: str) -> str:
-        if zhi in ("寅", "卯", "辰"): return "春"
-        if zhi in ("巳", "午", "未"): return "夏"
-        if zhi in ("申", "酉", "戌"): return "秋"
-        if zhi in ("亥", "子", "丑"): return "冬"
+        if zhi in ("寅", "卯", "辰"):
+            return "春"
+        if zhi in ("巳", "午", "未"):
+            return "夏"
+        if zhi in ("申", "酉", "戌"):
+            return "秋"
+        if zhi in ("亥", "子", "丑"):
+            return "冬"
         return ""
 
     # ------------------------------------------------------------------
@@ -414,8 +425,10 @@ class LiunianJudgmentEngine:
         if not day_master:
             pillars = bazi_data.get("pillars", bazi_data.get("四柱", bazi_data.get("pillars_json", {})))
             if isinstance(pillars, str):
-                try: pillars = json.loads(pillars)
-                except Exception: pillars = {}
+                try:
+                    pillars = json.loads(pillars)
+                except Exception:
+                    pillars = {}
             day_pillar = ""
             if isinstance(pillars, dict):
                 day_pillar = pillars.get("day", pillars.get("日柱", ""))
@@ -533,9 +546,12 @@ class LiunianJudgmentEngine:
         # 11) 综合评分
         yj.score = max(0, min(100, 50 + yj.yongshen_bonus + yj.jishen_penalty
                                + yj.shensha_bonus + yj.yueling_bonus + yj.chonghe_bonus))
-        if yj.score >= 70: yj.overall = "吉"
-        elif yj.score >= 40: yj.overall = "平"
-        else: yj.overall = "凶"
+        if yj.score >= 70:
+            yj.overall = "吉"
+        elif yj.score >= 40:
+            yj.overall = "平"
+        else:
+            yj.overall = "凶"
 
         # 12) 警示
         if yj.score < 40:

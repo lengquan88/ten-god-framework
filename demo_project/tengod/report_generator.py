@@ -348,7 +348,8 @@ class BaziReportGenerator:
         try:
             from tengod.dayun_liunian import derive_shigan
         except ImportError:
-            derive_shigan = lambda dm, g: ""
+            def derive_shigan(dm, g):
+                return ""
 
         for du in a['dayuns'][:5]:
             gan_shigan = derive_shigan(a['day_master'], du['pillar'][0])

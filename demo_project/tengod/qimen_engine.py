@@ -108,11 +108,19 @@ class GongPan:
 class QimenChart:
     """奇门遁甲排盘"""
     # 时间
-    year: int; month: int; day: int; hour: int; minute: int
-    year_gan: str; year_zhi: str
-    month_gan: str; month_zhi: str
-    day_gan: str; day_zhi: str
-    hour_gan: str; hour_zhi: str
+    year: int
+    month: int
+    day: int
+    hour: int
+    minute: int
+    year_gan: str
+    year_zhi: str
+    month_gan: str
+    month_zhi: str
+    day_gan: str
+    day_zhi: str
+    hour_gan: str
+    hour_zhi: str
     
     # 局
     yin_yang: str        # "阳" / "阴"

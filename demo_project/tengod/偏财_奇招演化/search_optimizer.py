@@ -417,5 +417,4 @@ __all__ = [
     "AsyncOptimizer",
     "submit_async",
     "get_async_optimizer",
-    "optimize_bayes",
 ]

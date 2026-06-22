@@ -2603,7 +2603,7 @@ async def update_profile(req: UpdateUserRequest, request: Request):
 # ── 管理员端点 ──────────────────────────────────────────────────────
 
 @app.get("/api/admin/users", tags=["管理员"])
-async def list_users(request: Request):
+async def list_users_admin(request: Request):
     """列出所有用户（仅管理员）"""
     from tengod.auth import CurrentUser
     from tengod.data_store import DataStore, User as UserModel
