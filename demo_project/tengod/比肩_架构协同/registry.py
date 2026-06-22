@@ -48,7 +48,7 @@ class LifecycleManager:
                 for h in hooks.get("on_start", []):
                     try:
                         h(name)
-                    except:
+                    except Exception:
                         pass
             elif state in (ComponentState.STOPPED, ComponentState.FAILED):
                 for h in hooks.get(
@@ -56,7 +56,7 @@ class LifecycleManager:
                 ):
                     try:
                         h(name)
-                    except:
+                    except Exception:
                         pass
 
     def get_state(self, name: str) -> ComponentState:

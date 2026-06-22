@@ -81,7 +81,7 @@ def cmd_oracle(args):
     mode = args.mode or "auto"
 
     print(f"\n{'='*50}")
-    print(f"  咨询 Oracle")
+    print("  咨询 Oracle")
     print(f"  问题: {question}")
     print(f"  模式: {mode}")
     print(f"{'='*50}\n")
@@ -121,7 +121,7 @@ def cmd_status(args):
 
     modules = state.get("modules", {})
     if modules:
-        print(f"\n  模块状态:")
+        print("\n  模块状态:")
         for name, status in modules.items():
             icon = "✓" if status else "✗"
             print(f"    {icon} {name}")
@@ -191,7 +191,7 @@ def cmd_knowledge(args):
     elif args.stats:
         if core.kb:
             stats = core.kb.stats()
-            print(f"\n知识库统计:")
+            print("\n知识库统计:")
             print(f"  节点: {stats.get('nodes', 0)}")
             print(f"  边: {stats.get('edges', 0)}")
             print(f"  类型分布: {stats.get('type_distribution', {})}")

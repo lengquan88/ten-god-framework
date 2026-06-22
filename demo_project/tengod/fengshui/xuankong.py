@@ -365,9 +365,12 @@ class XuankongEngine:
             # 简化评分：吉星+3, 凶星-3
             score = 0
             for s in (yun_star, liunian_star, shan_star, xiang_star):
-                if STAR_FORTUNE.get(s) == "吉": score += 3
-                elif STAR_FORTUNE.get(s) == "凶": score -= 3
-                elif STAR_FORTUNE.get(s) == "大凶": score -= 5
+                if STAR_FORTUNE.get(s) == "吉":
+                    score += 3
+                elif STAR_FORTUNE.get(s) == "凶":
+                    score -= 3
+                elif STAR_FORTUNE.get(s) == "大凶":
+                    score -= 5
             overall_scores[palace] = score
 
             palace_name = palace_names.get(palace, str(palace))
@@ -456,7 +459,6 @@ class YangzhaiAnalyzer:
 
         def _dir_judgment(dir_name: str, palace_num: int, key: str) -> str:
             liunian_star = (fengshui_result.liunian_pan or {}).get(palace_num, 5)
-            yun_star = fengshui_result.yun_pan.get(palace_num, 5)
             fortune = STAR_FORTUNE.get(liunian_star, "吉")
             star_name = NINE_STARS.get(liunian_star, str(liunian_star))
             if fortune == "吉":

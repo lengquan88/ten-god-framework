@@ -398,7 +398,7 @@ class KnowledgeGraphDB:
 
     def stats(self) -> Dict[str, Any]:
         """图统计信息"""
-        label_counts = {l: len(ids) for l, ids in self._label_index.items()}
+        label_counts = {label: len(ids) for label, ids in self._label_index.items()}
         relation_counts = {r: len(es) for r, es in self._relation_index.items()}
         return {
             "total_nodes": len(self._nodes),

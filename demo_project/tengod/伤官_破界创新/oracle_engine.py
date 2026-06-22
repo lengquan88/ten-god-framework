@@ -285,7 +285,7 @@ class OracleEngine:
             f"{'═' * 50}",
             f"  卦    名：{result.hexagram}  ({result.hexagram_index:02d}/64)",
             f"  卦    象：上 {result.upper_trigram}  下 {result.lower_trigram}",
-            f"  六    爻：{''.join('━━' if l else ' ━' for l in result.yao_lines)}",
+            f"  六    爻：{''.join('━━' if yao else ' ━' for yao in result.yao_lines)}",
             f"  干    支：{result.gan_zhi}  五行：{result.wuxing}",
             f"  卦    辞：{result.judgment}",
             f"  大    象：{result.image}",

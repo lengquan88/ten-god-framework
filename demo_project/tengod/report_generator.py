@@ -229,12 +229,10 @@ class BaziReportGenerator:
         lines.append("  五行分布：")
         for wx in ["木", "火", "土", "金", "水"]:
             score = a['wuxing_score'].get(wx, "-")
-            count = a['wuxing'].get(wx, 0)
             emoji = WUXING_EMOJI.get(wx, "")
             lines.append(f"    {emoji} {wx}：{score}")
 
         # 旺衰判断
-        total = sum(a['wuxing'].values()) or 1
         sorted_wx = sorted(a['wuxing'].items(), key=lambda x: -x[1])
         if sorted_wx:
             top_wx = sorted_wx[0][0]
@@ -350,7 +348,8 @@ class BaziReportGenerator:
         try:
             from tengod.dayun_liunian import derive_shigan
         except ImportError:
-            derive_shigan = lambda dm, g: ""
+            def derive_shigan(dm, g):
+                return ""
 
         for du in a['dayuns'][:5]:
             gan_shigan = derive_shigan(a['day_master'], du['pillar'][0])
@@ -421,25 +420,25 @@ class BaziReportGenerator:
     def markdown_report(self) -> str:
         """生成 Markdown 格式报告"""
         lines = []
-        lines.append(f"# 八字命理综合分析报告")
-        lines.append(f"")
+        lines.append("# 八字命理综合分析报告")
+        lines.append("")
         lines.append(f"> 生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         lines.append(f"> 引擎版本：食神·创生输出 v{__version__}")
-        lines.append(f"")
+        lines.append("")
 
         gender = "男命" if self._is_male else "女命"
         a = self._analysis
 
-        lines.append(f"## 一、基本信息")
-        lines.append(f"")
+        lines.append("## 一、基本信息")
+        lines.append("")
         lines.append(f"- **出生时间**：{self._year}年{self._month:02d}月{self._day:02d}日 {self._hour:02d}:{self._minute:02d}（{gender}）")
         lines.append(f"- **真太阳时**：{self._chart.true_hour:02d}:{self._chart.true_minute:02d}（经度 {self._longitude}°）")
         lines.append(f"- **八字四柱**：`{a['pillars']['year']}` `{a['pillars']['month']}` `{a['pillars']['day']}` `{a['pillars']['hour']}`")
         lines.append(f"- **日主**：{a['day_master']}")
-        lines.append(f"")
+        lines.append("")
 
-        lines.append(f"## 二、四柱分析")
-        lines.append(f"")
+        lines.append("## 二、四柱分析")
+        lines.append("")
         pillar_names = [
             ("年柱", "year", "year_gan"), ("月柱", "month", "month_gan"),
             ("日柱", "day", "day"), ("时柱", "hour", "hour_gan"),
@@ -451,74 +450,74 @@ class BaziReportGenerator:
             else:
                 shigan = a['shigan_map'].get(sk, "")
             lines.append(f"- **{label}**：`{pillar}` — {shigan}")
-        lines.append(f"")
+        lines.append("")
 
-        lines.append(f"## 三、五行分析")
-        lines.append(f"")
-        lines.append(f"| 五行 | 数量 | 评分 | 状态 |")
-        lines.append(f"|------|------|------|------|")
+        lines.append("## 三、五行分析")
+        lines.append("")
+        lines.append("| 五行 | 数量 | 评分 | 状态 |")
+        lines.append("|------|------|------|------|")
         for wx in ["木", "火", "土", "金", "水"]:
             count = a['wuxing'].get(wx, 0)
             score = a['wuxing_score'].get(wx, "-")
             lines.append(f"| {WUXING_EMOJI.get(wx, '')} {wx} | {count} | {score} | |")
-        lines.append(f"")
+        lines.append("")
 
-        lines.append(f"## 四、十神分析")
-        lines.append(f"")
+        lines.append("## 四、十神分析")
+        lines.append("")
         for sg, cnt in sorted(a['shigan_count'].items(), key=lambda x: -x[1]):
             desc = SHIGAN_DESC.get(sg, "")
             lines.append(f"- **{sg}**：{cnt} 个 — {desc}")
-        lines.append(f"")
+        lines.append("")
 
         if self._shensha:
-            lines.append(f"## 五、神煞分析")
-            lines.append(f"")
+            lines.append("## 五、神煞分析")
+            lines.append("")
             all_s = self._shensha.all_shensha
             ji_list = [(n, v) for n, v in all_s.items() if v.get("cat") in ("吉神", "吉")]
             xiong_list = [(n, v) for n, v in all_s.items() if v.get("cat") in ("凶", "大凶")]
             lines.append(f"共 {len(all_s)} 种神煞（吉 {len(ji_list)} / 凶 {len(xiong_list)}）")
-            lines.append(f"")
+            lines.append("")
             if ji_list:
-                lines.append(f"### 吉神")
+                lines.append("### 吉神")
                 for name, info in ji_list[:5]:
                     lines.append(f"- **{name}**（{info.get('pillar', '')}）：{info.get('desc', '')}")
             if xiong_list:
-                lines.append(f"### 凶神/警示")
+                lines.append("### 凶神/警示")
                 for name, info in xiong_list[:5]:
                     lines.append(f"- **{name}**（{info.get('pillar', '')}）：{info.get('desc', '')}")
-            lines.append(f"")
+            lines.append("")
 
         if self._geju:
             g = self._geju
-            lines.append(f"## 六、格局分析")
-            lines.append(f"")
+            lines.append("## 六、格局分析")
+            lines.append("")
             lines.append(f"- **格局**：{g.geju_name}（{g.geju_type}）")
             lines.append(f"- **纯度**：{g.score:.1f}/100")
             lines.append(f"- **解读**：{g.geju_desc}")
-            lines.append(f"")
+            lines.append("")
 
         if self._yongshen:
             y = self._yongshen
-            lines.append(f"## 七、喜用神与调候")
-            lines.append(f"")
+            lines.append("## 七、喜用神与调候")
+            lines.append("")
             lines.append(f"- **日主状态**：{y.wang_shuai}（{y.wang_shuai_level:.0f}/100）")
             if y.yong_shen:
                 lines.append(f"- **用神**：{', '.join(y.yong_shen)}")
             if y.ji_shen:
                 lines.append(f"- **忌神**：{', '.join(y.ji_shen)}")
-            lines.append(f"")
+            lines.append("")
 
-        lines.append(f"## 八、综合建议")
-        lines.append(f"")
+        lines.append("## 八、综合建议")
+        lines.append("")
         if self._yongshen and self._yongshen.yong_shen:
             lines.append(f"宜补充：{', '.join(self._yongshen.yong_shen)}")
         else:
-            lines.append(f"请根据五行平衡和十神分布综合判断。")
-        lines.append(f"")
+            lines.append("请根据五行平衡和十神分布综合判断。")
+        lines.append("")
 
-        lines.append(f"---")
+        lines.append("---")
         lines.append(f"*报告生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*")
-        lines.append(f"*本报告由 食神·创生输出 引擎自动生成，仅供参考。*")
+        lines.append("*本报告由 食神·创生输出 引擎自动生成，仅供参考。*")
 
         return "\n".join(lines)
 
@@ -870,11 +869,11 @@ class ComprehensiveReportGenerator:
             "",
             "## 一、共识运势",
             "",
-            f"| 等级 | 评分 | ★评级 |",
-            f"| --- | --- | --- |",
+            "| 等级 | 评分 | ★评级 |",
+            "| --- | --- | --- |",
             f"| {overall} | {score}/100 | {self._level_bar(score)} |",
             "",
-            f"### 分项研判",
+            "### 分项研判",
             "",
             "| 事业 | 财运 | 感情 | 健康 |",
             "| --- | --- | --- | --- |",

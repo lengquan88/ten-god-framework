@@ -303,7 +303,7 @@ class CircuitBreaker:
             result = func(*args, **kwargs)
             self._on_success()
             return result
-        except Exception as exc:
+        except Exception:
             self._on_failure()
             if self.fallback is not None:
                 return self.fallback(*args, **kwargs)
@@ -379,7 +379,7 @@ class EnhancedHealthChecker:
             if isinstance(health, dict) and "status" in health:
                 return health
             return {"status": "healthy", "message": "cache available"}
-        except Exception as exc:
+        except Exception:
             try:
                 from tengod.cache_manager import MemoryCacheManager
                 mcm = MemoryCacheManager()

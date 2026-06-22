@@ -108,11 +108,19 @@ class GongPan:
 class QimenChart:
     """奇门遁甲排盘"""
     # 时间
-    year: int; month: int; day: int; hour: int; minute: int
-    year_gan: str; year_zhi: str
-    month_gan: str; month_zhi: str
-    day_gan: str; day_zhi: str
-    hour_gan: str; hour_zhi: str
+    year: int
+    month: int
+    day: int
+    hour: int
+    minute: int
+    year_gan: str
+    year_zhi: str
+    month_gan: str
+    month_zhi: str
+    day_gan: str
+    day_zhi: str
+    hour_gan: str
+    hour_zhi: str
     
     # 局
     yin_yang: str        # "阳" / "阴"
@@ -287,7 +295,6 @@ class QimenEngine:
         """排八门"""
         # 值使门落宫
         men_order = ["休", "生", "伤", "杜", "景", "死", "惊", "开"]
-        zhi_shi_idx = men_order.index(zhi_shi) if zhi_shi in men_order else 0
         
         hour_zhi_idx = DI_ZHI.index(hour_zhi)
         # 计算值使门落宫（简化）

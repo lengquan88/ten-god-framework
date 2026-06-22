@@ -1076,5 +1076,5 @@ if __name__ == "__main__":
             print(f"  {cat}: {names}")
 
     print("\n" + "=" * 70)
-    print(f"  知识图谱自测全部完成 ✓")
+    print("  知识图谱自测全部完成 ✓")
     print("=" * 70)

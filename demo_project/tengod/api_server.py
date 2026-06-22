@@ -2603,7 +2603,7 @@ async def update_profile(req: UpdateUserRequest, request: Request):
 # ── 管理员端点 ──────────────────────────────────────────────────────
 
 @app.get("/api/admin/users", tags=["管理员"])
-async def list_users(request: Request):
+async def list_users_admin(request: Request):
     """列出所有用户（仅管理员）"""
     from tengod.auth import CurrentUser
     from tengod.data_store import DataStore, User as UserModel
@@ -3016,7 +3016,7 @@ async def graph_export(request: Request,
     db = get_graph_db()
 
     if labels:
-        label_list = [l.strip() for l in labels.split(",") if l.strip()]
+        label_list = [label.strip() for label in labels.split(",") if label.strip()]
         return db.export_subgraph_by_label(label_list, max_nodes=limit)
     else:
         return db.export_graph(limit=limit)
@@ -3068,7 +3068,7 @@ def main():
 
     if args.api_key:
         os.environ["TENGOD_API_KEY"] = args.api_key
-        logger.info(f"API Key 鉴权已启用")
+        logger.info("API Key 鉴权已启用")
 
     logger.info(f"启动 API Server: http://{args.host}:{args.port}")
     logger.info(f"Swagger 文档: http://{args.host}:{args.port}/docs")

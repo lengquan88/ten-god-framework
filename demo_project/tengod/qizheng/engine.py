@@ -277,9 +277,12 @@ class QizhengEngine:
         xian_count = 0
         jixing = []
         for name, pos in result.seven_planets.items():
-            if pos.miao_wang == "庙": miao_count += 1
-            elif pos.miao_wang == "旺": wang_count += 1
-            elif pos.miao_wang == "陷": xian_count += 1
+            if pos.miao_wang == "庙":
+                miao_count += 1
+            elif pos.miao_wang == "旺":
+                wang_count += 1
+            elif pos.miao_wang == "陷":
+                xian_count += 1
             if pos.type == "吉星":
                 jixing.append(f"{name}入{pos.palace}({pos.zhi})")
 

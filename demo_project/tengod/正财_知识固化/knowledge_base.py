@@ -681,7 +681,7 @@ class KnowledgeBase:
             print(f"[Warning] SQLAlchemy 初始化失败：{e}")
             return False
 
-    def stats(self) -> Dict[str, Any]:
+    def stats_enhanced(self) -> Dict[str, Any]:
         """统计信息（增强版）"""
         type_count: Dict[str, int] = {}
         for n in self._nodes.values():

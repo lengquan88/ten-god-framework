@@ -177,7 +177,6 @@ _SHENSHA_INFO: Dict[str, Dict[str, Any]] = {
     "福至": {"cat": "吉神", "level": 4, "desc": "福星高照，好运连连"},
     "吉暗": {"cat": "吉", "level": 3, "desc": "暗中得福，贵人不现而自现"},
     "吉关": {"cat": "吉", "level": 3, "desc": "关煞化吉"},
-    "福至": {"cat": "吉神", "level": 4, "desc": "福星高照"},
     "子命": {"cat": "吉", "level": 3, "desc": "子息兴旺"},
 
     # ── 中性/平 ──
@@ -188,7 +187,6 @@ _SHENSHA_INFO: Dict[str, Dict[str, Any]] = {
     "万金曜": {"cat": "平", "level": 2, "desc": "变化之星，运势波动较大"},
     "官事": {"cat": "平", "level": 2, "desc": "易有官非口舌，需谨言慎行"},
     "官灾": {"cat": "凶", "level": 3, "desc": "易有官非诉讼，需注意法律风险"},
-    "官吉": {"cat": "吉", "level": 3, "desc": "官运吉利"},
     "消耗": {"cat": "平", "level": 2, "desc": "容易消耗财力，需理财节制"},
     "相休": {"cat": "平", "level": 2, "desc": "身体易疲劳，需注意休息"},
 
@@ -253,23 +251,9 @@ def _is_yang_zhi(dz: str) -> bool:
 def _calc_year_shensha(year_gan: str, year_zhi: str) -> Dict[str, Dict]:
     """年柱神煞推算"""
     results = {}
-    tg_idx = _get_tiangan_index(year_gan)
-    dz_idx = _get_dizhi_index(year_zhi)
 
     # 天德：口诀"正丁二坤中，三壬四辛同，五乾六甲上，七癸八寅逢，
     #        九丙十居乙，子巳丑庚中"
-    tiande_map = {
-        1: "丁", 2: "坤", 3: "壬", 4: "辛", 5: "乾",
-        6: "甲", 7: "癸", 8: "寅", 9: "丙", 10: "乙",
-        11: "巳", 12: "庚", 0: "子",
-    }
-    # 简化：以年支查天德
-    tiande_branch_map = {
-        0: ("丁", "正月"), 1: ("坤", "二月"), 2: ("壬", "三月"),
-        3: ("辛", "四月"), 4: ("乾", "五月"), 5: ("甲", "六月"),
-        6: ("癸", "七月"), 7: ("寅", "八月"), 8: ("丙", "九月"),
-        9: ("乙", "十月"), 10: ("巳", "十一月"), 11: ("庚", "十二月"),
-    }
     # 天德口诀简化版：年支见地支 → 对应天德天干
     # 正月丁(子), 二月坤(未), 三月壬(寅), 四月辛(卯), 五月乾(戌), 六月甲(辰)
     # 七月癸(巳), 八月寅(未月), 九月丙(申), 十月乙(酉), 十一月巳(戌), 十二月庚(亥)
@@ -295,9 +279,9 @@ def _calc_year_shensha(year_gan: str, year_zhi: str) -> Dict[str, Dict]:
 
     # 月德：口诀"亥卯午月申, 巳子辰月寅, 寅午戌月巳, 申酉丑月未"
     yuede_map = {
-        "亥": "申", "卯": "申", "午": "申",  # 亥卯午 → 申
+        "亥": "申", "卯": "申",  # 亥卯 → 申
         "巳": "寅", "子": "寅", "辰": "寅",  # 巳子辰 → 寅
-        "寅": "巳", "午": "巳", "戌": "巳",  # 寅午戌 → 巳
+        "寅": "巳", "戌": "巳",  # 寅戌 → 巳
         "申": "未", "酉": "未", "丑": "未",  # 申酉丑 → 未
     }
     if year_zhi in yuede_map:
@@ -418,8 +402,6 @@ def _calc_year_shensha(year_gan: str, year_zhi: str) -> Dict[str, Dict]:
 def _calc_month_shensha(month_gan: str, month_zhi: str) -> Dict[str, Dict]:
     """月柱神煞推算"""
     results = {}
-    tg_idx = _get_tiangan_index(month_gan)
-    dz_idx = _get_dizhi_index(month_zhi)
 
     # 驿马：口诀"申子辰马在寅, 亥卯未马在巳, 寅午戌马在申, 巳酉丑马在亥"
     yima_map = {
@@ -478,9 +460,6 @@ def _calc_month_shensha(month_gan: str, month_zhi: str) -> Dict[str, Dict]:
 def _calc_day_shensha(day_gan: str, day_zhi: str) -> Dict[str, Dict]:
     """日柱神煞推算"""
     results = {}
-    tg_idx = _get_tiangan_index(day_gan)
-    dz_idx = _get_dizhi_index(day_zhi)
-    is_yang_gan = TG_YINYANG[tg_idx] == 0
 
     # 桃花：口诀"申子辰见酉, 寅午戌见卯, 亥卯未见子, 巳酉丑见午"
     taohua_map = {
@@ -589,8 +568,6 @@ def _calc_day_shensha(day_gan: str, day_zhi: str) -> Dict[str, Dict]:
 def _calc_hour_shensha(hour_gan: str, hour_zhi: str, day_gan: str) -> Dict[str, Dict]:
     """时柱神煞推算"""
     results = {}
-    dz_idx = _get_dizhi_index(hour_zhi)
-    day_tg_idx = _get_tiangan_index(day_gan)
 
     # 时冲（时支与命局冲）
     # 时支为子午冲：时支见子午，有冲

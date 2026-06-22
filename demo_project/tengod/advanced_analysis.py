@@ -218,7 +218,6 @@ class AdvancedAnalyzer:
                     minute=inp.get("minute", 0),
                     is_male=inp.get("gender", "male") == "male",
                 )
-                report = analyzer.json_report()
                 results.append({
                     "index": i,
                     "input": inp,
@@ -329,7 +328,6 @@ class AdvancedAnalyzer:
         forward = (is_yang and gender == "male") or (not is_yang and gender == "female")
 
         dayun = []
-        current_age = max(start_age, 0)
         # 大运起始年龄（简化：从 5 岁开始）
         dayun_start = 5
         age = dayun_start

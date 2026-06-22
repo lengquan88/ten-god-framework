@@ -436,7 +436,7 @@ def calc_geju(pillars: Dict[str, str]) -> GejuResult:
             jishen = ["食神", "伤官"]
             fujia = ["官杀"]
         else:
-            geju_desc = f"从势格，日主极弱，依从最强五行"
+            geju_desc = "从势格，日主极弱，依从最强五行"
             jishen = [day_gan_wx]
             fujia = []
     else:
@@ -819,30 +819,30 @@ def text_report_comprehensive(pillars: Dict[str, str]) -> str:
     lines.append(f"日主: {r.day_master}（{r.geju.detail.get('day_gan_wuxing','')}）")
     lines.append(f"月令: {r.geju.yueling}（{r.geju.month_zhi}月）")
 
-    lines.append(f"\n【格局判断】")
+    lines.append("\n【格局判断】")
     lines.append(f"  类型: {r.geju.geju_type}")
     lines.append(f"  名称: {r.geju.geju_name}")
     lines.append(f"  说明: {r.geju.geju_desc}")
     lines.append(f"  纯度: {r.geju.score:.0f}分")
     lines.append(f"  忌神: {', '.join(r.geju.jishen) or '无'}")
     if r.geju.is_cong:
-        lines.append(f"  ⚠️ 从格：日主过弱，依从全局")
+        lines.append("  ⚠️ 从格：日主过弱，依从全局")
 
-    lines.append(f"\n【旺衰判断】")
+    lines.append("\n【旺衰判断】")
     lines.append(f"  旺衰: {r.yongshen.wang_shuai} ({r.yongshen.wang_shuai_level:.0f}分)")
 
-    lines.append(f"\n【喜用神】")
+    lines.append("\n【喜用神】")
     lines.append(f"  喜神: {', '.join(r.yongshen.yong_shen)}")
     lines.append(f"  忌神: {', '.join(r.yongshen.ji_shen)}")
     lines.append(f"  说明: {r.yongshen.yongshen_desc}")
 
-    lines.append(f"\n【调候】")
+    lines.append("\n【调候】")
     lines.append(f"  季节: {r.tiaohou.season}季")
     lines.append(f"  需要调候: {'是' if r.tiaohou.required_tiaohou else '否'}")
     if r.tiaohou.required_tiaohou:
         lines.append(f"  调候用神: {', '.join(r.tiaohou.tiaohou_shens)}")
 
-    lines.append(f"\n【五行平衡】")
+    lines.append("\n【五行平衡】")
     for wx, cnt in r.yongshen.wuxing_balance.items():
         bar = "█" * cnt + "░" * (6 - cnt)
         lines.append(f"  {wx}: {bar} {cnt}个")
