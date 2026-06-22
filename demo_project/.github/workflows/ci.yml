@@ -11,11 +11,36 @@ env:
   MODULE_DIR: demo_project/tengod
 
 jobs:
-  # -------- 单元测试 --------
+  # -------- Lint 代码质量检查 --------
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+      - name: Install ruff
+        run: pip install ruff
+      - name: Lint test files (strict)
+        working-directory: demo_project
+        run: ruff check tests/
+      - name: Lint source code (report only)
+        working-directory: demo_project
+        continue-on-error: true
+        run: ruff check tengod/ || true
+      - name: Format check test files
+        working-directory: demo_project
+        run: ruff format --check tests/
+
+  # -------- 单元测试 + 集成测试 + 覆盖率 --------
   test:
-    name: Python ${{ matrix.python-version }} · ${{ matrix.os }}
+    name: Test · Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.10", "3.11", "3.12"]
         os: [ubuntu-latest]
@@ -29,34 +54,50 @@ jobs:
           cache: "pip"
 
       - name: Install dependencies
+        working-directory: demo_project
         run: |
           pip install --upgrade pip
-          pip install pytest pytest-cov
-          # 安装可选依赖（graceful fallback，不阻断测试）
-          pip install openai anthropic sqlalchemy || true
+          pip install -r requirements.txt
+          pip install pytest pytest-cov pytest-asyncio ruff
 
-      - name: Run smoke test
+      - name: Run tests with coverage
+        working-directory: demo_project
         run: |
-          python -c "import sys; sys.path.insert(0, '${{ env.MODULE_DIR }}'); from core import get_core; c = get_core(); print('Core OK')"
+          python -m pytest tests/ \
+            --ignore=tests/test_api_integration.py \
+            --cov=tengod \
+            --cov-report=term-missing \
+            --cov-report=html \
+            --cov-report=xml \
+            --cov-fail-under=40 \
+            -v
 
-      - name: Run module tests
+      - name: Upload coverage HTML report
+        if: matrix.python-version == '3.11'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report-py${{ matrix.python-version }}
+          path: demo_project/htmlcov/
+
+      - name: Upload coverage XML
+        if: matrix.python-version == '3.11'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: demo_project/coverage.xml
+
+      - name: Module import test
         run: |
-          # 逐模块导入验证
           for mod in 比肩_架构协同 劫财_攻防边界 食神_创生输出 正印_滋养守护 伤官_破界创新 正财_知识固化 偏财_奇招演化 正官_法度调度 七杀_品质裁决 偏印_桥接通变 元辰_本源定位 太极_阴阳调和; do
-            python -c "import sys; sys.path.insert(0, '${{ env.MODULE_DIR }}'); import ${mod}" || { echo "FAILED: ${mod}"; exit 1; }
+            python -c "import sys; sys.path.insert(0, 'demo_project/tengod'); import ${mod}" || { echo "FAILED: ${mod}"; exit 1; }
             echo "OK: ${mod}"
           done
 
-      - name: Run Phase 1 smoke test
+      - name: Core smoke test
         run: |
           python -c "
-import sys, os, time
+import sys, os
 sys.path.insert(0, 'demo_project/tengod')
-for d in os.listdir('demo_project/tengod'):
-    full = os.path.join('demo_project/tengod', d)
-    if os.path.isdir(full) and not d.startswith('.'):
-        sys.path.insert(0, full)
-
 from core import get_core, generate_request_id
 core = get_core()
 r = core.run()
@@ -64,13 +105,6 @@ assert r['version'] == '1.5.0', f'Wrong version: {r[\"version\"]}'
 assert len(r['init_steps']) > 0
 print('Core v1.5.0 smoke test PASSED')
 "
-
-      - name: Upload coverage
-        if: matrix.python-version == '3.11'
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: htmlcov/
 
   # -------- Docker 构建测试 --------
   docker:
@@ -88,32 +122,41 @@ print('Core v1.5.0 smoke test PASSED')
           docker run --rm --name tengod-test tengod:test &
           sleep 5
           docker logs tengod-test
-          docker stop tengod-test
+          docker stop tengod-test || true
 
-  # -------- 代码质量检查 --------
-  lint:
-    name: Lint
+  # -------- 安全扫描 --------
+  security:
+    name: Security Scan (pip-audit)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ env.PYTHON_VERSION }}
           cache: "pip"
-      - name: Install ruff
-        run: pip install ruff
-      - name: Run ruff
+      - name: Run pip-audit
         run: |
-          ruff check demo_project/tengod/ --select=E,F,W --ignore=E501,F401,W503 || true
+          pip install pip-audit
+          pip-audit -r demo_project/requirements.txt
 
-  # -------- 安全扫描 --------
-  security:
-    name: Security Scan
+  # -------- 性能基准测试 --------
+  benchmark:
+    name: Performance Benchmark
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Run pip-audit
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+      - name: Install dependencies
+        working-directory: demo_project
         run: |
-          pip install pip-audit || true
-          pip-audit -r demo_project/requirements.txt || true
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install numpy
+      - name: Run benchmark
+        working-directory: demo_project
+        run: python benchmark.py

@@ -1,0 +1,1422 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>五行八卦 · 3D全息玄学系统</title>
+<style>
+:root{--bg:#060612;--panel:#0a0a1e;--border:#1a1a3e;--text:#c8d6e5;--accent:#6366f1;--gold:#f59e0b;--cyan:#22d3ee;--pink:#ec4899;--green:#10b981;--red:#ef4444;--purple:#a855f7;--orange:#f97316;--muted:#475569;--dim:#334155}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI','Microsoft YaHei',sans-serif;min-height:100vh;overflow:hidden}
+body::before{content:'';position:fixed;top:-50%;left:-50%;width:200%;height:200%;background:radial-gradient(ellipse at 30% 20%,rgba(99,102,241,.04) 0%,transparent 50%),radial-gradient(ellipse at 70% 80%,rgba(236,72,153,.04) 0%,transparent 50%);z-index:0;pointer-events:none}
+.dashboard{position:relative;z-index:1;display:flex;flex-direction:column;height:100vh}
+/* ── Header ── */
+.header{display:flex;align-items:center;gap:16px;padding:10px 24px;background:var(--panel);border-bottom:1px solid var(--border);z-index:10;flex-shrink:0}
+.header h1{font-size:1.05rem;font-weight:700;background:linear-gradient(135deg,var(--gold),var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;white-space:nowrap}
+.header .sub{font-size:0.65rem;color:var(--muted)}
+.badge{font-size:0.6rem;padding:2px 7px;border-radius:10px;background:rgba(99,102,241,0.2);border:1px solid rgba(99,102,241,0.4);color:var(--accent);margin-left:8px}
+/* ── Tabs ── */
+.tabs{display:flex;gap:2px;flex:1;justify-content:center}
+.tab-btn{padding:7px 14px;background:transparent;border:1px solid transparent;color:var(--muted);cursor:pointer;font-size:0.72rem;border-radius:6px;transition:all 0.3s;white-space:nowrap;font-family:inherit}
+.tab-btn:hover{color:var(--text);border-color:var(--dim);background:rgba(255,255,255,0.03)}
+.tab-btn.active{color:var(--accent);border-color:var(--accent);background:rgba(99,102,241,0.1);box-shadow:0 0 12px rgba(99,102,241,0.15)}
+/* ── Main ── */
+.main{flex:1;display:flex;overflow:hidden;position:relative}
+#threejs-container{flex:1;position:relative;overflow:hidden}
+#threejs-container canvas{display:block}
+/* ── Sidebar ── */
+.sidebar{width:240px;flex-shrink:0;background:var(--panel);border-left:1px solid var(--border);padding:14px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;font-size:0.7rem;z-index:5}
+.sidebar-title{font-size:0.78rem;font-weight:600;color:var(--accent);padding-bottom:6px;border-bottom:1px solid var(--border)}
+.sidebar .info-row{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid rgba(26,26,62,0.4)}
+.sidebar .info-row .label{color:var(--muted)}
+.sidebar .info-row .val{color:var(--text);text-align:right}
+.tab-hint{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);font-size:0.6rem;color:var(--muted);pointer-events:none;z-index:5}
+/* ── Controls bar ── */
+.controls-bar{display:flex;gap:8px;align-items:center;padding:6px 16px;background:rgba(10,10,30,0.9);border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap}
+.controls-bar span{font-size:0.65rem;color:var(--muted)}
+.ctrl-btn{padding:3px 10px;border-radius:12px;border:1px solid var(--dim);background:transparent;color:var(--muted);font-size:0.65rem;cursor:pointer;font-family:inherit;transition:all 0.2s}
+.ctrl-btn.on{border-color:var(--accent);color:var(--accent);background:rgba(99,102,241,0.15)}
+.ctrl-btn:hover{color:var(--text)}
+/* ── Loading ── */
+#loading{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;z-index:100;transition:opacity 0.5s}
+#loading h2{background:linear-gradient(135deg,var(--gold),var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-size:1.2rem}
+#loading .spinner{width:36px;height:36px;border:3px solid rgba(99,102,241,0.2);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#loading .tips{font-size:0.7rem;color:var(--muted);text-align:center;max-width:300px;line-height:1.6}
+/* ── Tooltip ── */
+#tooltip{position:fixed;background:rgba(10,10,30,0.95);border:1px solid var(--accent);border-radius:8px;padding:10px 14px;font-size:0.7rem;color:var(--text);pointer-events:none;display:none;z-index:50;min-width:160px;box-shadow:0 4px 20px rgba(99,102,241,0.2);max-width:220px}
+#tooltip .tip-title{font-weight:700;color:var(--gold);margin-bottom:6px;font-size:0.75rem}
+#tooltip .tip-row{display:flex;gap:6px;padding:1px 0;justify-content:space-between}
+#tooltip .tip-label{color:var(--muted)}
+#tooltip .tip-val{color:var(--cyan)}
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <h2>✧ 加载3D玄学引擎</h2>
+  <div class="spinner"></div>
+  <div class="tips">正在初始化 WebGL 渲染器<br>鼠标拖拽旋转 · 滚轮缩放 · 右键平移</div>
+</div>
+
+<div class="dashboard">
+  <div class="header">
+    <div>
+      <h1>✧ 五行八卦 · 3D全息玄学系统 <span class="badge">WebGL</span></h1>
+      <div class="sub">Three.js · Particle Effects · OrbitControls · All 7 Tabs 3D-ified</div>
+    </div>
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="0">☯ 五行生克</button>
+      <button class="tab-btn" data-tab="1">☰ 八卦方位</button>
+      <button class="tab-btn" data-tab="2">⚊ 天干地支</button>
+      <button class="tab-btn" data-tab="3">⚝ 十神图谱</button>
+      <button class="tab-btn" data-tab="4">⌂ 河图洛书</button>
+      <button class="tab-btn" data-tab="5">◎ 综合罗盘</button>
+      <button class="tab-btn" data-tab="6">☷ 八字排盘</button>
+    </div>
+  </div>
+
+  <div class="controls-bar" id="ctrlBar">
+    <span>视图:</span>
+    <button class="ctrl-btn on" data-mode="auto">自动旋转</button>
+    <button class="ctrl-btn" data-mode="pause">暂停</button>
+    <button class="ctrl-btn" data-mode="particles">粒子</button>
+    <button class="ctrl-btn" data-mode="glow">发光</button>
+  </div>
+
+  <div class="main">
+    <div id="threejs-container"></div>
+    <div class="sidebar" id="sidebar"><div class="sidebar-title">五行详情</div><div style="color:var(--muted);font-size:0.7rem">点击3D节点查看详情</div></div>
+  </div>
+  <div class="tab-hint" id="tabHint">☯ 五行生克 · 拖拽旋转 | 滚轮缩放 | 右键平移</div>
+</div>
+
+<div id="tooltip">
+  <div class="tip-title" id="tipTitle"></div>
+  <div id="tipBody"></div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { FontLoader } from 'three/addons/loaders/FontLoader.js';
+import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
+
+// ═══════════════════════════════════════
+//  DATA (from wuxing_bagua_holo.html)
+// ═══════════════════════════════════════
+const WUXING = [
+  {name:'木',color:'#10b981',hex:0x10b981,cn:'青/绿',dir:'东',season:'春',zang:'肝',fu:'胆',tri:'震☳巽☴',hetu:'3,8',luo:'3,4',angle:-90},
+  {name:'火',color:'#ef4444',hex:0xef4444,cn:'赤/红',dir:'南',season:'夏',zang:'心',fu:'小肠',tri:'离☲',hetu:'2,7',luo:'9',angle:18},
+  {name:'土',color:'#f59e0b',hex:0xf59e0b,cn:'黄',dir:'中',season:'长夏',zang:'脾',fu:'胃',tri:'坤☷艮☶',hetu:'5,10',luo:'5,2,8',angle:90},
+  {name:'金',color:'#f97316',hex:0xf97316,cn:'白',dir:'西',season:'秋',zang:'肺',fu:'大肠',tri:'乾☰兑☱',hetu:'4,9',luo:'6,7',angle:162},
+  {name:'水',color:'#22d3ee',hex:0x22d3ee,cn:'黑/蓝',dir:'北',season:'冬',zang:'肾',fu:'膀胱',tri:'坎☵',hetu:'1,6',luo:'1',angle:234}
+];
+const SHENG_DESC = {'木生火':'木性温暖，钻木取火','火生土':'火焚木而化灰成土','土生金':'金属矿产蕴藏于土中','金生水':'金属遇冷凝结水珠','水生木':'水能滋润树木生长'};
+const KE_DESC = {'木克土':'树木根系可固土破土','土克水':'堤坝可阻挡水流','水克火':'水能灭火','火克金':'烈火能熔化金属','金克木':'刀具可砍伐树木'};
+
+const BAGUA = {
+  '乾':{sym:'☰',nat:'天',fam:'父',elem:'金',xiangian:{dir:'南',seq:1},houtian:{dir:'西北',seq:6},body:'头',animal:'马',color:'#f97316'},
+  '兑':{sym:'☱',nat:'泽',fam:'少女',elem:'金',xiangian:{dir:'东南',seq:2},houtian:{dir:'西',seq:7},body:'口',animal:'羊',color:'#f97316'},
+  '离':{sym:'☲',nat:'火',fam:'中女',elem:'火',xiangian:{dir:'东',seq:3},houtian:{dir:'南',seq:9},body:'目',animal:'雉',color:'#ef4444'},
+  '震':{sym:'☳',nat:'雷',fam:'长男',elem:'木',xiangian:{dir:'东北',seq:4},houtian:{dir:'东',seq:3},body:'足',animal:'龙',color:'#10b981'},
+  '巽':{sym:'☴',nat:'风',fam:'长女',elem:'木',xiangian:{dir:'西南',seq:5},houtian:{dir:'东南',seq:4},body:'股',animal:'鸡',color:'#10b981'},
+  '坎':{sym:'☵',nat:'水',fam:'中男',elem:'水',xiangian:{dir:'西',seq:6},houtian:{dir:'北',seq:1},body:'耳',animal:'猪',color:'#22d3ee'},
+  '艮':{sym:'☶',nat:'山',fam:'少男',elem:'土',xiangian:{dir:'西北',seq:7},houtian:{dir:'东北',seq:8},body:'手',animal:'狗',color:'#f59e0b'},
+  '坤':{sym:'☷',nat:'地',fam:'母',elem:'土',xiangian:{dir:'北',seq:8},houtian:{dir:'西南',seq:2},body:'腹',animal:'牛',color:'#f59e0b'}
+};
+const XIANTIAN_ORDER = ['乾','兑','离','震','巽','坎','艮','坤'];
+const HOUTIAN_ORDER = ['坎','坤','震','巽','乾','兑','艮','离'];
+
+const TG = [
+  {name:'甲',yy:'阳',elem:'木',dir:'东'},
+  {name:'乙',yy:'阴',elem:'木',dir:'东'},
+  {name:'丙',yy:'阳',elem:'火',dir:'南'},
+  {name:'丁',yy:'阴',elem:'火',dir:'南'},
+  {name:'戊',yy:'阳',elem:'土',dir:'中'},
+  {name:'己',yy:'阴',elem:'土',dir:'中'},
+  {name:'庚',yy:'阳',elem:'金',dir:'西'},
+  {name:'辛',yy:'阴',elem:'金',dir:'西'},
+  {name:'壬',yy:'阳',elem:'水',dir:'北'},
+  {name:'癸',yy:'阴',elem:'水',dir:'北'}
+];
+const DZ = [
+  {name:'子',yy:'阳',elem:'水',zodiac:'🐭 鼠',hour:'23-01',dir:'正北',hs:[{s:'癸',t:'本气',p:'70%'}]},
+  {name:'丑',yy:'阴',elem:'土',zodiac:'🐮 牛',hour:'01-03',dir:'东北',hs:[{s:'己',t:'本气',p:'60%'},{s:'癸',t:'中气',p:'25%'},{s:'辛',t:'余气',p:'15%'}]},
+  {name:'寅',yy:'阳',elem:'木',zodiac:'🐯 虎',hour:'03-05',dir:'东北',hs:[{s:'甲',t:'本气',p:'60%'},{s:'丙',t:'中气',p:'25%'},{s:'戊',t:'余气',p:'15%'}]},
+  {name:'卯',yy:'阴',elem:'木',zodiac:'🐰 兔',hour:'05-07',dir:'正东',hs:[{s:'乙',t:'本气',p:'100%'}]},
+  {name:'辰',yy:'阳',elem:'土',zodiac:'🐲 龙',hour:'07-09',dir:'东南',hs:[{s:'戊',t:'本气',p:'60%'},{s:'乙',t:'中气',p:'25%'},{s:'癸',t:'余气',p:'15%'}]},
+  {name:'巳',yy:'阴',elem:'火',zodiac:'🐍 蛇',hour:'09-11',dir:'东南',hs:[{s:'丙',t:'本气',p:'60%'},{s:'戊',t:'中气',p:'25%'},{s:'庚',t:'余气',p:'15%'}]},
+  {name:'午',yy:'阴',elem:'火',zodiac:'🐴 马',hour:'11-13',dir:'正南',hs:[{s:'丁',t:'本气',p:'70%'},{s:'己',t:'中气',p:'30%'}]},
+  {name:'未',yy:'阴',elem:'土',zodiac:'🐑 羊',hour:'13-15',dir:'西南',hs:[{s:'己',t:'本气',p:'60%'},{s:'丁',t:'中气',p:'25%'},{s:'乙',t:'余气',p:'15%'}]},
+  {name:'申',yy:'阳',elem:'金',zodiac:'🐵 猴',hour:'15-17',dir:'西南',hs:[{s:'庚',t:'本气',p:'60%'},{s:'壬',t:'中气',p:'25%'},{s:'戊',t:'余气',p:'15%'}]},
+  {name:'酉',yy:'阴',elem:'金',zodiac:'🐔 鸡',hour:'17-19',dir:'正西',hs:[{s:'辛',t:'本气',p:'100%'}]},
+  {name:'戌',yy:'阳',elem:'土',zodiac:'🐶 狗',hour:'19-21',dir:'西北',hs:[{s:'戊',t:'本气',p:'60%'},{s:'辛',t:'中气',p:'25%'},{s:'丁',t:'余气',p:'15%'}]},
+  {name:'亥',yy:'阴',elem:'水',zodiac:'🐷 猪',hour:'21-23',dir:'西北',hs:[{s:'壬',t:'本气',p:'70%'},{s:'甲',t:'中气',p:'30%'}]}
+];
+const SHIGUAN = {
+  '正官':{cat:'善神',color:'#6366f1',rel:'克我，阴阳异性',six:'女夫男子女',gen:['正印','偏印'],res:['劫财'],trait:'正直守信，遵纪守法，有责任感'},
+  '七杀':{cat:'凶神',color:'#ef4444',rel:'克我，阴阳同性',six:'女偏夫男子',gen:['正印','偏印'],res:['比肩'],trait:'果敢勇猛，霸道急躁，善竞争'},
+  '正印':{cat:'善神',color:'#22d3ee',rel:'生我，阴阳异性',six:'母亲',gen:['比肩','劫财'],res:['伤官'],trait:'仁慈善良，有学问，温和包容'},
+  '偏印':{cat:'凶神',color:'#ec4899',rel:'生我，阴阳同性',six:'继母/干妈',gen:['比肩','劫财'],res:['食神'],trait:'精明孤僻，思维独特，善钻研'},
+  '正财':{cat:'中性偏善',color:'#10b981',rel:'我克，阴阳异性',six:'男妻',gen:['正官','七杀'],res:['正印','偏印'],trait:'勤俭务实，守信稳重，重物质'},
+  '偏财':{cat:'中性偏善',color:'#f59e0b',rel:'我克，阴阳同性',six:'男妾/父亲',gen:['正官','七杀'],res:['正印','偏印'],trait:'慷慨大方，善于交际，灵活'},
+  '比肩':{cat:'中性',color:'#a855f7',rel:'同我，阴阳同性',six:'兄弟姐妹',gen:['食神','伤官'],res:['正财','偏财'],trait:'独立自我，好强有自尊，义气'},
+  '劫财':{cat:'凶神',color:'#f97316',rel:'同我，阴阳异性',six:'姐妹/异性朋友',gen:['食神','伤官'],res:['正财','偏财'],trait:'冲动好强，善于社交，行动力高'},
+  '食神':{cat:'善神',color:'#6366f1',rel:'我生，阴阳同性',six:'女子',gen:['正财','偏财'],res:['七杀'],trait:'温和宽厚，有才华，乐观豁达'},
+  '伤官':{cat:'凶神',color:'#ec4899',rel:'我生，阴阳异性',six:'女子',gen:['正财','偏财'],res:['正官'],trait:'聪明叛逆，才华横溢，骄傲'}
+};
+
+// ═══════════════════════════════════════
+//  THREE.JS SETUP
+// ═══════════════════════════════════════
+const container = document.getElementById('threejs-container');
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(container.clientWidth, container.clientHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
+container.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x060612);
+scene.fog = new THREE.FogExp2(0x060612, 0.035);
+
+const camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 100);
+camera.position.set(0, 0, 12);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.07;
+controls.minDistance = 3;
+controls.maxDistance = 30;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 0.5;
+
+let currentTab = 0;
+let currentScene = null;
+let animationId = null;
+let clock = new THREE.Clock();
+let particlesEnabled = true;
+let glowEnabled = true;
+
+// ═══════════════════════════════════════
+//  LIGHTS
+// ═══════════════════════════════════════
+scene.add(new THREE.AmbientLight(0x334466, 0.5));
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+dirLight.position.set(5, 10, 7);
+scene.add(dirLight);
+const pointLight1 = new THREE.PointLight(0x6366f1, 1.5, 30);
+pointLight1.position.set(-5, 5, 5);
+scene.add(pointLight1);
+const pointLight2 = new THREE.PointLight(0xf59e0b, 1.0, 20);
+pointLight2.position.set(5, -3, 8);
+scene.add(pointLight2);
+
+// ═══════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════
+function hexToColor(hex) {
+  return new THREE.Color(hex);
+}
+
+function makeTextSprite(text, opts = {}) {
+  const {
+    fontSize = 0.4,
+    color = '#ffffff',
+    bgColor = null,
+    padding = 0.1,
+    fontFamily = 'Microsoft YaHei, sans-serif',
+    fontWeight = 'bold'
+  } = opts;
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = 256;
+  canvas.height = 128;
+  if (bgColor) {
+    ctx.fillStyle = bgColor;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+  ctx.fillStyle = color;
+  ctx.font = `${fontWeight} ${fontSize * 200}px ${fontFamily}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.needsUpdate = true;
+  const mat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
+  const sprite = new THREE.Sprite(mat);
+  const aspect = canvas.width / canvas.height;
+  sprite.scale.set(fontSize * aspect * 2, fontSize * 2, 1);
+  return sprite;
+}
+
+function makeLabel(text, opts = {}) {
+  const { color = '#c8d6e5', fontSize = 0.35, bgColor = null } = opts;
+  return makeTextSprite(text, { color, fontSize, bgColor, fontWeight: 'bold' });
+}
+
+function makeGlowMesh(geometry, color, intensity = 0.6) {
+  const mat = new THREE.MeshBasicMaterial({
+    color: new THREE.Color(color),
+    transparent: true,
+    opacity: intensity * 0.4,
+    side: THREE.BackSide
+  });
+  const mesh = new THREE.Mesh(geometry, mat);
+  return mesh;
+}
+
+function makeParticleLines(from, to, color, count = 20, radius = 0.05) {
+  const group = new THREE.Group();
+  for (let i = 0; i < count; i++) {
+    const t = i / count;
+    const x = from.x + (to.x - from.x) * t + (Math.random() - 0.5) * radius;
+    const y = from.y + (to.y - from.y) * t + (Math.random() - 0.5) * radius;
+    const z = from.z + (to.z - from.z) * t + (Math.random() - 0.5) * radius;
+    const geo = new THREE.SphereGeometry(0.03 + Math.random() * 0.04, 4, 4);
+    const mat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(color),
+      transparent: true,
+      opacity: 0.3 + Math.random() * 0.5
+    });
+    group.add(new THREE.Mesh(geo, mat));
+    group.children[group.children.length - 1].position.set(x, y, z);
+  }
+  return group;
+}
+
+function getElemColor(elem) {
+  const map = { '木': 0x10b981, '火': 0xef4444, '土': 0xf59e0b, '金': 0xf97316, '水': 0x22d3ee' };
+  return map[elem] || 0x888888;
+}
+
+// ═══════════════════════════════════════
+//  CLEAR SCENE
+// ═══════════════════════════════════════
+function clearScene() {
+  if (currentScene) {
+    currentScene.forEach(obj => {
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) {
+        if (Array.isArray(obj.material)) obj.material.forEach(m => { if (m.map) m.map.dispose(); m.dispose(); });
+        else { if (obj.material.map) obj.material.map.dispose(); obj.material.dispose(); }
+      }
+      scene.remove(obj);
+    });
+  }
+  // remove any leftover children
+  while (scene.children.length > 4) { // keep lights + camera-related
+    const c = scene.children[0];
+    if (c.isLight || c.isCamera || c.isFog || c.isScene) { scene.remove(scene.children.find((_,i,arr) => arr.indexOf(c) > 0) || scene.children[scene.children.length-1]); break; }
+    scene.remove(c);
+  }
+  // Remove everything except lights and fog
+  for (let i = scene.children.length - 1; i >= 0; i--) {
+    const c = scene.children[i];
+    if (!c.isLight && !c.isFog && c.type !== 'FogExp2') {
+      scene.remove(c);
+    }
+  }
+  currentScene = [];
+}
+
+// ═══════════════════════════════════════
+//  TAB 0: 五行生克 3D
+// ═══════════════════════════════════════
+function buildSceneWuxing() {
+  clearScene();
+  const objects = [];
+  const R = 3.5;
+  const R2 = 2.2;
+  const wuxingMeshes = [];
+
+  // Background ring particles
+  if (particlesEnabled) {
+    for (let i = 0; i < 200; i++) {
+      const geo = new THREE.SphereGeometry(0.015 + Math.random() * 0.025, 3, 3);
+      const mat = new THREE.MeshBasicMaterial({ color: 0x6366f1, transparent: true, opacity: 0.1 + Math.random() * 0.2 });
+      const m = new THREE.Mesh(geo, mat);
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.random() * Math.PI;
+      m.position.set(Math.sin(phi) * Math.cos(theta) * (3 + Math.random() * 3), Math.sin(phi) * Math.sin(theta) * (3 + Math.random() * 3), Math.cos(phi) * (3 + Math.random() * 3));
+      scene.add(m);
+      objects.push(m);
+    }
+  }
+
+  // Generation ring (相生) — golden torus
+  const genGeo = new THREE.TorusGeometry(R, 0.04, 8, 120);
+  const genMat = new THREE.MeshPhongMaterial({ color: 0xf59e0b, emissive: 0xf59e0b, emissiveIntensity: 0.3, transparent: true, opacity: 0.7 });
+  const genRing = new THREE.Mesh(genGeo, genMat);
+  genRing.rotation.x = Math.PI / 2;
+  scene.add(genRing);
+  objects.push(genRing);
+
+  // Restriction ring (相克) — red torus
+  const keGeo = new THREE.TorusGeometry(R2, 0.03, 8, 120);
+  const keMat = new THREE.MeshPhongMaterial({ color: 0xef4444, emissive: 0xef4444, emissiveIntensity: 0.3, transparent: true, opacity: 0.6 });
+  const keRing = new THREE.Mesh(keGeo, keMat);
+  keRing.rotation.x = Math.PI / 2;
+  scene.add(keRing);
+  objects.push(keRing);
+
+  // 五行节点球体
+  for (let i = 0; i < 5; i++) {
+    const e = WUXING[i];
+    const angle = (e.angle) * Math.PI / 180;
+    const x = Math.cos(angle) * R;
+    const y = Math.sin(angle) * R;
+
+    // Main sphere
+    const geo = new THREE.SphereGeometry(0.5, 32, 32);
+    const mat = new THREE.MeshPhongMaterial({
+      color: e.hex,
+      emissive: e.hex,
+      emissiveIntensity: glowEnabled ? 0.3 : 0.1,
+      shininess: 80,
+      transparent: true,
+      opacity: 0.9
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(x, y, 0);
+    mesh.userData = { type: 'wuxing', data: e, index: i };
+    scene.add(mesh);
+    objects.push(mesh);
+
+    // Glow layer
+    if (glowEnabled) {
+      const glow = makeGlowMesh(new THREE.SphereGeometry(0.65, 16, 16), e.color, 0.5);
+      glow.position.copy(mesh.position);
+      scene.add(glow);
+      objects.push(glow);
+    }
+
+    // Label above
+    const label = makeLabel(e.name, { color: e.color, fontSize: 0.55 });
+    label.position.set(x, y + 0.85, 0);
+    scene.add(label);
+    objects.push(label);
+
+    // Detail label
+    const detailLabel = makeLabel(`${e.dir} · ${e.season}`, { color: '#8899aa', fontSize: 0.28 });
+    detailLabel.position.set(x, y + 1.15, 0);
+    scene.add(detailLabel);
+    objects.push(detailLabel);
+
+    wuxingMeshes.push(mesh);
+  }
+
+  // 相生粒子连线 (木→火→土→金→水→木)
+  if (particlesEnabled) {
+    const shengPairs = [[0,1],[1,2],[2,3],[3,4],[4,0]];
+    shengPairs.forEach(([a, b]) => {
+      const fa = new THREE.Vector3(wuxingMeshes[a].position.x, wuxingMeshes[a].position.y, 0);
+      const fb = new THREE.Vector3(wuxingMeshes[b].position.x, wuxingMeshes[b].position.y, 0);
+      const particles = makeParticleLines(fa, fb, '#f59e0b', 30, 0.15);
+      scene.add(particles);
+      objects.push(particles);
+    });
+
+    // 相克粒子连线 (木→土→水→火→金→木) = index 0→2→4→1→3→0
+    const kePairs = [[0,2],[2,4],[4,1],[1,3],[3,0]];
+    kePairs.forEach(([a, b]) => {
+      const fa = new THREE.Vector3(wuxingMeshes[a].position.x, wuxingMeshes[a].position.y, 0);
+      const fb = new THREE.Vector3(wuxingMeshes[b].position.x, wuxingMeshes[b].position.y, 0);
+      const particles = makeParticleLines(fa, fb, '#ef4444', 25, 0.12);
+      scene.add(particles);
+      objects.push(particles);
+    });
+  }
+
+  // Center sphere
+  const centerGeo = new THREE.SphereGeometry(0.3, 16, 16);
+  const centerMat = new THREE.MeshPhongMaterial({ color: 0x6366f1, emissive: 0x6366f1, emissiveIntensity: 0.2, transparent: true, opacity: 0.5 });
+  const centerMesh = new THREE.Mesh(centerGeo, centerMat);
+  centerMesh.position.set(0, 0, 0);
+  scene.add(centerMesh);
+  objects.push(centerMesh);
+
+  const centerLabel = makeLabel('太极', { color: '#6366f1', fontSize: 0.35 });
+  centerLabel.position.set(0, 0.65, 0);
+  scene.add(centerLabel);
+  objects.push(centerLabel);
+
+  currentScene = objects;
+
+  // Animate
+  function animate() {
+    animationId = requestAnimationFrame(animate);
+    const t = clock.getElapsedTime();
+    genRing.rotation.z = t * 0.15;
+    keRing.rotation.z = -t * 0.1;
+    wuxingMeshes.forEach((m, i) => {
+      m.position.z = Math.sin(t * 0.8 + i * 1.2) * 0.2;
+    });
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+  document.getElementById('sidebar').innerHTML = `
+    <div class="sidebar-title">五行详情</div>
+    <div style="color:var(--muted);font-size:0.7rem">点击3D节点查看详情</div>
+    <div style="margin-top:8px">
+      <div style="color:#f59e0b;font-size:0.65rem">◆ 金色环：相生链</div>
+      <div style="color:#ef4444;font-size:0.65rem">◆ 红色环：相克链</div>
+    </div>
+    ${WUXING.map(e => `<div class="info-row" style="cursor:pointer" onclick="showWuxingDetail('${e.name}')">
+      <span class="label"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${e.color};margin-right:4px"></span>${e.name}</span>
+      <span class="val">${e.dir} · ${e.season}</span>
+    </div>`).join('')}
+  `;
+}
+
+// Expose for onclick
+window.showWuxingDetail = function(name) {
+  const e = WUXING.find(w => w.name === name);
+  if (!e) return;
+  const idx = WUXING.indexOf(e);
+  const shengTo = WUXING[(idx + 1) % 5];
+  const keTo = WUXING[(idx + 2) % 5];
+  document.getElementById('sidebar').innerHTML = `
+    <div class="sidebar-title" style="color:${e.color}">${e.name} 详情</div>
+    <div class="info-row"><span class="label">颜色</span><span class="val">${e.cn}</span></div>
+    <div class="info-row"><span class="label">方位</span><span class="val">${e.dir}</span></div>
+    <div class="info-row"><span class="label">季节</span><span class="val">${e.season}</span></div>
+    <div class="info-row"><span class="label">脏腑</span><span class="val">${e.zang}脏 · ${e.fu}腑</span></div>
+    <div class="info-row"><span class="label">八卦</span><span class="val">${e.tri}</span></div>
+    <div class="info-row"><span class="label">河图数</span><span class="val">${e.hetu}</span></div>
+    <div class="info-row"><span class="label">洛书数</span><span class="val">${e.luo}</span></div>
+    <div style="margin-top:10px;padding:8px;border-radius:6px;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.2);font-size:0.65rem;line-height:1.8">
+      <div style="color:#f59e0b">◆ 相生: ${e.name}→${shengTo.name}</div>
+      <div style="color:#ef4444">◆ 相克: ${e.name}→${keTo.name}</div>
+      <div style="margin-top:4px;color:#8899aa">${SHENG_DESC[e.name+'生'+shengTo.name] || ''}</div>
+    </div>
+  `;
+};
+
+// ═══════════════════════════════════════
+//  TAB 1: 八卦方位 3D
+// ═══════════════════════════════════════
+function buildSceneBagua() {
+  clearScene();
+  const objects = [];
+
+  const createBaguaScene = (order, type) => {
+    const group = new THREE.Group();
+    group.position.x = type === 'xiantian' ? -3.5 : 3.5;
+    const R = 2.8;
+
+    // Ring
+    const ringGeo = new THREE.TorusGeometry(R, 0.05, 8, 120);
+    const ringMat = new THREE.MeshPhongMaterial({ color: 0x6366f1, emissive: 0x6366f1, emissiveIntensity: 0.3, transparent: true, opacity: 0.6 });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.rotation.x = Math.PI / 2;
+    group.add(ring);
+
+    const dirAngles = { '南': -90, '北': 90, '东': 0, '西': 180, '东南': -135, '西南': 135, '西北': 45, '东北': -45 };
+
+    order.forEach((name, i) => {
+      const bg = BAGUA[name];
+      const bgAngle = (dirAngles[bg[type].dir] || i * 45) * Math.PI / 180;
+      const x = Math.cos(bgAngle) * R;
+      const y = Math.sin(bgAngle) * R;
+
+      // Cube for trigram
+      const geo = new THREE.BoxGeometry(0.6, 0.6, 0.6);
+      const mat = new THREE.MeshPhongMaterial({
+        color: new THREE.Color(bg.color),
+        emissive: new THREE.Color(bg.color),
+        emissiveIntensity: glowEnabled ? 0.3 : 0.1,
+        transparent: true,
+        opacity: 0.85
+      });
+      const cube = new THREE.Mesh(geo, mat);
+      cube.position.set(x, y, 0);
+      cube.userData = { type: 'bagua', data: bg, name };
+      group.add(cube);
+      objects.push(cube);
+
+      if (glowEnabled) {
+        const glow = makeGlowMesh(new THREE.BoxGeometry(0.75, 0.75, 0.75), bg.color, 0.4);
+        glow.position.copy(cube.position);
+        group.add(glow);
+        objects.push(glow);
+      }
+
+      // Symbol label
+      const label = makeLabel(bg.sym, { color: '#ffffff', fontSize: 0.45 });
+      label.position.set(x, y, 0.4);
+      group.add(label);
+      objects.push(label);
+
+      // Name label
+      const nameLabel = makeLabel(name, { color: bg.color, fontSize: 0.32 });
+      nameLabel.position.set(x, y - 0.55, 0);
+      group.add(nameLabel);
+      objects.push(label);
+
+      if (particlesEnabled) {
+        // Small orbiting particles
+        const pGeo = new THREE.SphereGeometry(0.04, 4, 4);
+        const pMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(bg.color), transparent: true, opacity: 0.6 });
+        const p = new THREE.Mesh(pGeo, pMat);
+        p.userData.orbit = { radius: R * 0.5, speed: 0.5 + i * 0.1, offset: i * 0.8, center: new THREE.Vector3(x, y, 0) };
+        group.add(p);
+        objects.push(p);
+      }
+    });
+
+    scene.add(group);
+    objects.push(group);
+  };
+
+  createBaguaScene(XIANTIAN_ORDER, 'xiangian');
+  createBaguaScene(HOUTIAN_ORDER, 'houtian');
+
+  currentScene = objects;
+
+  function animate() {
+    animationId = requestAnimationFrame(animate);
+    const t = clock.getElapsedTime();
+    currentScene.forEach(obj => {
+      if (obj.userData && obj.userData.orbit) {
+        const o = obj.userData.orbit;
+        const a = t * o.speed + o.offset;
+        obj.position.x = o.center.x + Math.cos(a) * o.radius;
+        obj.position.y = o.center.y + Math.sin(a) * o.radius;
+      }
+    });
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  document.getElementById('sidebar').innerHTML = `
+    <div class="sidebar-title">八卦详情</div>
+    <div style="color:var(--muted);font-size:0.7rem;margin-bottom:8px">左侧: 先天八卦 | 右侧: 后天八卦</div>
+    ${Object.entries(BAGUA).map(([name, bg]) => `
+      <div class="info-row" style="cursor:pointer" onclick="showBaguaDetail('${name}')">
+        <span class="label"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${bg.color};margin-right:4px"></span>${name}${bg.sym}</span>
+        <span class="val">${bg.nat}</span>
+      </div>
+    `).join('')}
+  `;
+}
+
+window.showBaguaDetail = function(name) {
+  const bg = BAGUA[name];
+  if (!bg) return;
+  document.getElementById('sidebar').innerHTML = `
+    <div class="sidebar-title" style="color:${bg.color}">${name} ${bg.sym}</div>
+    <div class="info-row"><span class="label">自然</span><span class="val">${bg.nat}</span></div>
+    <div class="info-row"><span class="label">家人</span><span class="val">${bg.fam}</span></div>
+    <div class="info-row"><span class="label">五行</span><span class="val">${bg.elem}</span></div>
+    <div class="info-row"><span class="label">先天</span><span class="val">${bg.xiagnian.dir} (第${bg.xiagnian.seq}位)</span></div>
+    <div class="info-row"><span class="label">后天</span><span class="val">${bg.houtian.dir} (第${bg.houtian.seq}位)</span></div>
+    <div class="info-row"><span class="label">身体</span><span class="val">${bg.body}</span></div>
+    <div class="info-row"><span class="label">动物</span><span class="val">${bg.animal}</span></div>
+  `;
+};
+
+// ═══════════════════════════════════════
+//  TAB 2: 天干地支 3D
+// ═══════════════════════════════════════
+function buildSceneTG() {
+  clearScene();
+  const objects = [];
+
+  // Outer ring: 地支 (12)
+  const dzRingR = 4.0;
+  const dzRing = new THREE.TorusGeometry(dzRingR, 0.05, 8, 120);
+  const dzRingMat = new THREE.MeshPhongMaterial({ color: 0xf59e0b, emissive: 0xf59e0b, emissiveIntensity: 0.2, transparent: true, opacity: 0.5 });
+  const dzRingMesh = new THREE.Mesh(dzRing, dzRingMat);
+  dzRingMesh.rotation.x = Math.PI * 0.35; // tilted
+  scene.add(dzRingMesh);
+  objects.push(dzRingMesh);
+
+  // Middle ring: 天干 (10)
+  const tgRingR = 2.8;
+  const tgRing = new THREE.TorusGeometry(tgRingR, 0.04, 8, 100);
+  const tgRingMat = new THREE.MeshPhongMaterial({ color: 0x22d3ee, emissive: 0x22d3ee, emissiveIntensity: 0.2, transparent: true, opacity: 0.5 });
+  const tgRingMesh = new THREE.Mesh(tgRing, tgRingMat);
+  tgRingMesh.rotation.x = Math.PI * 0.35;
+  scene.add(tgRingMesh);
+  objects.push(tgRingMesh);
+
+  const dzMeshes = [];
+  const tgMeshes = [];
+
+  // 地支
+  DZ.forEach((dz, i) => {
+    const angle = (i / 12) * Math.PI * 2;
+    const x = Math.cos(angle) * dzRingR;
+    const y = Math.sin(angle) * dzRingR;
+    const z = 0;
+
+    const geo = new THREE.DodecahedronGeometry(0.35, 0);
+    const elemColor = getElemColor(dz.elem);
+    const mat = new THREE.MeshPhongMaterial({ color: elemColor, emissive: elemColor, emissiveIntensity: glowEnabled ? 0.3 : 0.1, transparent: true, opacity: 0.9 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(x, y, z);
+    mesh.userData = { type: 'dizhi', data: dz };
+    scene.add(mesh);
+    objects.push(mesh);
+    dzMeshes.push(mesh);
+
+    const label = makeLabel(dz.name, { color: '#ffffff', fontSize: 0.4 });
+    label.position.set(x * 1.15, y * 1.15, 0);
+    scene.add(label);
+    objects.push(label);
+  });
+
+  // 天干
+  TG.forEach((tg, i) => {
+    const angle = (i / 10) * Math.PI * 2;
+    const x = Math.cos(angle) * tgRingR;
+    const y = Math.sin(angle) * tgRingR;
+    const z = 0.3;
+
+    const geo = new THREE.IcosahedronGeometry(0.28, 0);
+    const elemColor = getElemColor(tg.elem);
+    const mat = new THREE.MeshPhongMaterial({ color: elemColor, emissive: elemColor, emissiveIntensity: glowEnabled ? 0.35 : 0.1, transparent: true, opacity: 0.9 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(x, y, z);
+    mesh.userData = { type: 'tiangan', data: tg };
+    scene.add(mesh);
+    objects.push(mesh);
+    tgMeshes.push(mesh);
+
+    const label = makeLabel(tg.name, { color: '#ffffff', fontSize: 0.35 });
+    label.position.set(x * 1.15, y * 1.15, z);
+    scene.add(label);
+    objects.push(label);
+  });
+
+  // Particles connecting corresponding elements
+  if (particlesEnabled) {
+    for (let i = 0; i < 80; i++) {
+      const geo = new THREE.SphereGeometry(0.02 + Math.random() * 0.03, 3, 3);
+      const mat = new THREE.MeshBasicMaterial({ color: 0x6366f1, transparent: true, opacity: 0.1 + Math.random() * 0.2 });
+      const p = new THREE.Mesh(geo, mat);
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.random() * Math.PI;
+      const r = 3 + Math.random() * 2;
+      p.position.set(Math.sin(phi) * Math.cos(theta) * r, Math.sin(phi) * Math.sin(theta) * r, Math.cos(phi) * r);
+      scene.add(p);
+      objects.push(p);
+    }
+  }
+
+  currentScene = objects;
+
+  function animate() {
+    animationId = requestAnimationFrame(animate);
+    const t = clock.getElapsedTime();
+    dzRingMesh.rotation.z = t * 0.1;
+    tgRingMesh.rotation.z = -t * 0.15;
+    dzMeshes.forEach((m, i) => {
+      const angle = (i / 12) * Math.PI * 2 + t * 0.1;
+      m.position.x = Math.cos(angle) * dzRingR;
+      m.position.y = Math.sin(angle) * dzRingR;
+    });
+    tgMeshes.forEach((m, i) => {
+      const angle = (i / 10) * Math.PI * 2 - t * 0.15;
+      m.position.x = Math.cos(angle) * tgRingR;
+      m.position.y = Math.sin(angle) * tgRingR;
+    });
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  document.getElementById('sidebar').innerHTML = `
+    <div class="sidebar-title">天干地支</div>
+    <div style="color:var(--muted);font-size:0.7rem;margin-bottom:8px">外环: 地支 | 内环: 天干</div>
+    <div style="margin-bottom:8px">
+      <div style="color:#22d3ee;font-size:0.65rem">◆ 青色: 天干环 (旋转)</div>
+      <div style="color:#f59e0b;font-size:0.65rem">◆ 金色: 地支环 (旋转)</div>
+    </div>
+    ${DZ.map(dz => `
+      <div class="info-row" style="cursor:pointer" onclick="showDzDetail('${dz.name}')">
+        <span class="label"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#${getElemColor(dz.elem).toString(16).padStart(6,'0')};margin-right:4px"></span>${dz.name}</span>
+        <span class="val">${dz.zodiac}</span>
+      </div>
+    `).join('')}
+  `;
+}
+
+window.showDzDetail = function(name) {
+  const dz = DZ.find(d => d.name === name);
+  if (!dz) return;
+  document.getElementById('sidebar').innerHTML = `
+    <div class="sidebar-title">${dz.name} 地支详情</div>
+    <div class="info-row"><span class="label">阴阳</span><span class="val">${dz.yy}</span></div>
+    <div class="info-row"><span class="label">五行</span><span class="val">${dz.elem}</span></div>
+    <div class="info-row"><span class="label">生肖</span><span class="val">${dz.zodiac}</span></div>
+    <div class="info-row"><span class="label">时辰</span><span class="val">${dz.hour}</span></div>
+    <div class="info-row"><span class="label">方位</span><span class="val">${dz.dir}</span></div>
+    <div style="margin-top:8px;font-size:0.65rem">
+      <div style="color:var(--accent);margin-bottom:4px">藏干:</div>
+      ${dz.hs.map(h => `<div style="padding:2px 0"><span style="color:${getElemColor(TG.find(t=>t.name===h.s)?.elem||'').toString(16).padStart(6,'0')}">${h.s}</span> ${h.t} ${h.p}</div>`).join('')}
+    </div>
+  `;
+};
+
+// ═══════════════════════════════════════
+//  TAB 3: 十神图谱 3D
+// ═══════════════════════════════════════
+function buildSceneShiguan() {
+  clearScene();
+  const objects = [];
+
+  const entries = Object.entries(SHIGUAN);
+  const R = 3.5;
+  const shiguanMeshes = [];
+
+  entries.forEach(([name, data], i) => {
+    const angle = (i / entries.length) * Math.PI * 2 - Math.PI / 2;
+    const x = Math.cos(angle) * R;
+    const y = Math.sin(angle) * R;
+
+    const geo = new THREE.OctahedronGeometry(0.42, 0);
+    const mat = new THREE.MeshPhongMaterial({
+      color: new THREE.Color(data.color),
+      emissive: new THREE.Color(data.color),
+      emissiveIntensity: glowEnabled ? 0.4 : 0.1,
+      transparent: true,
+      opacity: 0.9
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(x, y, 0);
+    mesh.userData = { type: 'shiguan', data: { name, ...data } };
+    scene.add(mesh);
+    objects.push(mesh);
+
+    if (glowEnabled) {
+      const glow = makeGlowMesh(new THREE.OctahedronGeometry(0.58, 0), data.color, 0.4);
+      glow.position.copy(mesh.position);
+      scene.add(glow);
+      objects.push(glow);
+    }
+
+    const label = makeLabel(name, { color: '#ffffff', fontSize: 0.35 });
+    label.position.set(x, y + 0.7, 0);
+    scene.add(label);
+    objects.push(label);
+
+    // Category label
+    const catColor = data.cat === '善神' ? '#10b981' : data.cat === '凶神' ? '#ef4444' : '#f59e0b';
+    const catLabel = makeLabel(data.cat, { color: catColor, fontSize: 0.22 });
+    catLabel.position.set(x, y + 1.0, 0);
+    scene.add(catLabel);
+    objects.push(catLabel);
+
+    shiguanMeshes.push(mesh);
+  });
+
+  // Connecting lines between related shiguan
+  if (particlesEnabled) {
+    const relationSet = new Set();
+    entries.forEach(([name, data]) => {
+      data.gen.forEach(g => { relationSet.add([name, g]); relationSet.add([g, name]); });
+      data.res.forEach(r => { relationSet.add([name, r]); relationSet.add([r, name]); });
+    });
+    relationSet.forEach(([a, b]) => {
+      const ai = entries.findIndex(([n]) => n === a);
+      const bi = entries.findIndex(([n]) => n === b);
+      if (ai < 0 || bi < 0) return;
+      const pa = new THREE.Vector3(shiguanMeshes[ai].position.x, shiguanMeshes[ai].position.y, 0);
+      const pb = new THREE.Vector3(shiguanMeshes[bi].position.x, shiguanMeshes[bi].position.y, 0);
+      const line = makeParticleLines(pa, pb, entries[ai][1].color, 15, 0.1);
+      scene.add(line);
+      objects.push(line);
+    });
+  }
+
+  // Center
+  const centerGeo = new THREE.SphereGeometry(0.3, 16, 16);
+  const centerMat = new THREE.MeshPhongMaterial({ color: 0x6366f1, emissive: 0x6366f1, emissiveIntensity: 0.3, transparent: true, opacity: 0.5 });
+  const centerMesh = new THREE.Mesh(centerGeo, centerMat);
+  centerMesh.position.set(0, 0, 0);
+  scene.add(centerMesh);
+  objects.push(centerMesh);
+
+  const centerLabel = makeLabel('十神', { color: '#6366f1', fontSize: 0.4 });
+  centerLabel.position.set(0, 0.7, 0);
+  scene.add(centerLabel);
+  objects.push(centerLabel);
+
+  currentScene = objects;
+
+  function animate() {
+    animationId = requestAnimationFrame(animate);
+    const t = clock.getElapsedTime();
+    shiguanMeshes.forEach((m, i) => {
+      m.rotation.x = t * 0.3 + i * 0.5;
+      m.rotation.y = t * 0.2 + i * 0.3;
+    });
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  document.getElementById('sidebar').innerHTML = `
+    <div class="sidebar-title">十神详情</div>
+    <div style="color:var(--muted);font-size:0.7rem;margin-bottom:8px">十神生克关系网络</div>
+    <div style="margin-bottom:8px;font-size:0.65rem">
+      <div style="color:#10b981">◆ 绿色: 善神</div>
+      <div style="color:#ef4444">◆ 红色: 凶神</div>
+      <div style="color:#f59e0b">◆ 金色: 中性</div>
+    </div>
+    ${entries.map(([name, data]) => `<div class="info-row" style="cursor:pointer" onclick="showShiguanDetail('${name}')">
+      <span class="label"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${data.color};margin-right:4px"></span>${name}</span>
+      <span class="val" style="color:${data.color}">${data.cat}</span>
+    </div>`).join('')}
+  `;
+}
+
+window.showShiguanDetail = function(name) {
+  const data = SHIGUAN[name];
+  if (!data) return;
+  document.getElementById('sidebar').innerHTML = `
+    <div class="sidebar-title" style="color:${data.color}">${name}</div>
+    <div class="info-row"><span class="label">类别</span><span class="val" style="color:${data.color}">${data.cat}</span></div>
+    <div class="info-row"><span class="label">关系</span><span class="val">${data.rel}</span></div>
+    <div class="info-row"><span class="label">六亲</span><span class="val">${data.six}</span></div>
+    <div style="margin-top:8px;font-size:0.65rem">
+      <div style="color:#10b981">生${name}: ${data.gen.join(', ')}</div>
+      <div style="color:#ef4444">克${name}: ${data.res.join(', ')}</div>
+    </div>
+    <div style="margin-top:8px;font-size:0.65rem;color:#8899aa">${data.trait}</div>
+  `;
+};
+
+// ═══════════════════════════════════════
+//  TAB 4: 河图洛书 3D
+// ═══════════════════════════════════════
+function buildSceneHetuLuoshu() {
+  clearScene();
+  const objects = [];
+
+  const createHetu = () => {
+    const group = new THREE.Group();
+    group.position.x = -3.5;
+    const config = [
+      { pos: [-1, 1], gn: 1, cn: 6, elem: '水', color: 0x22d3ee },
+      { pos: [1, 1], gn: 2, cn: 7, elem: '火', color: 0xef4444 },
+      { pos: [-1, -1], gn: 3, cn: 8, elem: '木', color: 0x10b981 },
+      { pos: [1, -1], gn: 4, cn: 9, elem: '金', color: 0xf97316 },
+      { pos: [0, 0], gn: 5, cn: 10, elem: '土', color: 0xf59e0b }
+    ];
+    config.forEach(c => {
+      const geo = new THREE.SphereGeometry(0.4, 16, 16);
+      const mat = new THREE.MeshPhongMaterial({ color: c.color, emissive: c.color, emissiveIntensity: glowEnabled ? 0.4 : 0.1 });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(c.pos[0] * 1.5, c.pos[1] * 1.5, 0);
+      group.add(mesh);
+      objects.push(mesh);
+
+      const lbl = makeLabel(`${c.gn}/${c.cn}`, { color: '#ffffff', fontSize: 0.35 });
+      lbl.position.set(c.pos[0] * 1.5, c.pos[1] * 1.5, 0.5);
+      group.add(lbl);
+      objects.push(lbl);
+    });
+    scene.add(group);
+    objects.push(group);
+  };
+
+  const createLuoshu = () => {
+    const group = new THREE.Group();
+    group.position.x = 3.5;
+    const grid = [[4,9,2],[3,5,7],[8,1,6]];
+    const elemColors = { 9: 0xef4444, 1: 0x22d3ee, 3: 0x10b981, 7: 0xf97316, 2: 0xf59e0b, 4: 0x10b981, 6: 0xf97316, 8: 0xf59e0b, 5: 0xf59e0b };
+    const elems = { 9:'火', 1:'水', 3:'木', 7:'金', 2:'土', 4:'木', 6:'金', 8:'土', 5:'土' };
+    grid.forEach((row, ri) => {
+      row.forEach((num, ci) => {
+        const geo = new THREE.BoxGeometry(0.7, 0.7, 0.2);
+        const mat = new THREE.MeshPhongMaterial({ color: elemColors[num], emissive: elemColors[num], emissiveIntensity: glowEnabled ? 0.3 : 0.1 });
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.set((ci - 1) * 1.2, (1 - ri) * 1.2, 0);
+        mesh.userData = { type: 'luoshu', num, elem: elems[num] };
+        group.add(mesh);
+        objects.push(mesh);
+
+        const lbl = makeLabel(String(num), { color: '#ffffff', fontSize: 0.45 });
+        lbl.position.set((ci - 1) * 1.2, (1 - ri) * 1.2, 0.2);
+        group.add(lbl);
+        objects.push(lbl);
+      });
+    });
+    scene.add(group);
+    objects.push(group);
+  };
+
+  createHetu();
+  createLuoshu();
+
+  // Particles
+  if (particlesEnabled) {
+    for (let i = 0; i < 60; i++) {
+      const geo = new THREE.SphereGeometry(0.02 + Math.random() * 0.03, 3, 3);
+      const mat = new THREE.MeshBasicMaterial({ color: 0x6366f1, transparent: true, opacity: 0.1 + Math.random() * 0.2 });
+      const p = new THREE.Mesh(geo, mat);
+      const theta = Math.random() * Math.PI * 2;
+      const r = 2 + Math.random() * 2;
+      p.position.set(Math.cos(theta) * r, Math.sin(theta) * r, (Math.random() - 0.5) * 2);
+      scene.add(p);
+      objects.push(p);
+    }
+  }
+
+  currentScene = objects;
+
+  function animate() {
+    animationId = requestAnimationFrame(animate);
+    const t = clock.getElapsedTime();
+    objects.forEach(obj => {
+      if (obj.isMesh && obj.userData.type === 'luoshu') {
+        obj.rotation.z = Math.sin(t * 0.5) * 0.1;
+      }
+    });
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  document.getElementById('sidebar').innerHTML = `
+    <div class="sidebar-title">河图洛书</div>
+    <div style="color:var(--muted);font-size:0.7rem;margin-bottom:8px">左侧: 河图 | 右侧: 洛书</div>
+    <div style="margin-bottom:8px;font-size:0.65rem;line-height:1.8">
+      <div style="color:#22d3ee">◆ 天一生水,地六成之 → 北</div>
+      <div style="color:#ef4444">◆ 地二生火,天七成之 → 南</div>
+      <div style="color:#10b981">◆ 天三生木,地八成之 → 东</div>
+      <div style="color:#f97316">◆ 地四生金,天九成之 → 西</div>
+      <div style="color:#f59e0b">◆ 天五生土,地十成之 → 中</div>
+    </div>
+    <div class="sidebar-title" style="margin-top:8px">洛书口诀</div>
+    <div style="font-size:0.65rem;color:#8899aa;line-height:1.8">
+      戴九履一<br>左三右七<br>二四为肩<br>六八为足<br>五居中央
+    </div>
+  `;
+};
+
+// ═══════════════════════════════════════
+//  TAB 5: 综合罗盘 3D
+// ═══════════════════════════════════════
+function buildSceneCompass() {
+  clearScene();
+  const objects = [];
+
+  const layers = [
+    { R: 4.5, color: 0xf59e0b, label: '地支环', opacity: 0.5, count: 12, geoType: 'dodec' },
+    { R: 3.8, color: 0x22d3ee, label: '天干环', opacity: 0.5, count: 10, geoType: 'icosa' },
+    { R: 3.0, color: 0x6366f1, label: '八卦环', opacity: 0.4, count: 8, geoType: 'octa' },
+    { R: 2.2, color: 0xec4899, label: '24山', opacity: 0.3, count: 24, geoType: 'tetra' }
+  ];
+
+  layers.forEach((layer, li) => {
+    const ringGeo = new THREE.TorusGeometry(layer.R, 0.03, 8, 120);
+    const ringMat = new THREE.MeshPhongMaterial({ color: layer.color, emissive: layer.color, emissiveIntensity: 0.2, transparent: true, opacity: layer.opacity });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.rotation.x = Math.PI / 2 + li * 0.05;
+    scene.add(ring);
+    objects.push(ring);
+
+    for (let i = 0; i < layer.count; i++) {
+      const angle = (i / layer.count) * Math.PI * 2;
+      const x = Math.cos(angle) * layer.R;
+      const y = Math.sin(angle) * layer.R;
+      const z = 0.1 * li;
+
+      let geo;
+      if (layer.geoType === 'dodec') geo = new THREE.DodecahedronGeometry(0.25, 0);
+      else if (layer.geoType === 'icosa') geo = new THREE.IcosahedronGeometry(0.22, 0);
+      else if (layer.geoType === 'octa') geo = new THREE.OctahedronGeometry(0.2, 0);
+      else geo = new THREE.TetrahedronGeometry(0.18, 0);
+
+      const mat = new THREE.MeshPhongMaterial({ color: layer.color, emissive: layer.color, emissiveIntensity: glowEnabled ? 0.3 : 0.1, transparent: true, opacity: 0.8 });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(x, y, z);
+      mesh.userData.layerIndex = li;
+      mesh.userData.initialAngle = angle;
+      scene.add(mesh);
+      objects.push(mesh);
+
+      // Label for key positions
+      let labelText = '';
+      if (li === 0 && [0, 3, 6, 9].includes(i)) labelText = DZ[i]?.name || '';
+      if (li === 1 && [0, 2, 4, 6, 8].includes(i)) labelText = TG[i]?.name || '';
+      if (li === 2 && [0, 2, 4, 6].includes(i)) labelText = XIANTIAN_ORDER[i] || '';
+      if (labelText) {
+        const lbl = makeLabel(labelText, { color: '#ffffff', fontSize: 0.3 });
+        lbl.position.set(x * 1.1, y * 1.1, z);
+        scene.add(lbl);
+        objects.push(lbl);
+      }
+    }
+  });
+
+  // Center
+  const centerGeo = new THREE.SphereGeometry(0.35, 16, 16);
+  const centerMat = new THREE.MeshPhongMaterial({ color: 0x6366f1, emissive: 0x6366f1, emissiveIntensity: glowEnabled ? 0.5 : 0.2, transparent: true, opacity: 0.7 });
+  const centerMesh = new THREE.Mesh(centerGeo, centerMat);
+  scene.add(centerMesh);
+  objects.push(centerMesh);
+
+  const centerLabel = makeLabel('☷', { color: '#ffffff', fontSize: 0.5 });
+  centerLabel.position.set(0, 0, 0.4);
+  scene.add(centerLabel);
+  objects.push(centerLabel);
+
+  // Particles
+  if (particlesEnabled) {
+    for (let i = 0; i < 100; i++) {
+      const geo = new THREE.SphereGeometry(0.015 + Math.random() * 0.025, 3, 3);
+      const mat = new THREE.MeshBasicMaterial({ color: 0x6366f1, transparent: true, opacity: 0.05 + Math.random() * 0.15 });
+      const p = new THREE.Mesh(geo, mat);
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.random() * Math.PI;
+      const r = 2 + Math.random() * 3;
+      p.position.set(Math.sin(phi) * Math.cos(theta) * r, Math.sin(phi) * Math.sin(theta) * r, Math.cos(phi) * r);
+      scene.add(p);
+      objects.push(p);
+    }
+  }
+
+  currentScene = objects;
+
+  function animate() {
+    animationId = requestAnimationFrame(animate);
+    const t = clock.getElapsedTime();
+    objects.forEach(obj => {
+      if (obj.isMesh && obj.userData.layerIndex !== undefined) {
+        const li = obj.userData.layerIndex;
+        const R = layers[li].R;
+        const speed = 0.1 - li * 0.02;
+        const angle = obj.userData.initialAngle + t * speed;
+        obj.position.x = Math.cos(angle) * R;
+        obj.position.y = Math.sin(angle) * R;
+      }
+    });
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  document.getElementById('sidebar').innerHTML = `
+    <div class="sidebar-title">综合罗盘</div>
+    <div style="color:var(--muted);font-size:0.7rem;margin-bottom:8px">多层嵌套3D罗盘</div>
+    <div style="font-size:0.65rem;line-height:1.8">
+      <div style="color:#f59e0b">◆ 金色: 地支环 (12)</div>
+      <div style="color:#22d3ee">◆ 青色: 天干环 (10)</div>
+      <div style="color:#6366f1">◆ 紫色: 八卦环 (8)</div>
+      <div style="color:#ec4899">◆ 粉色: 24山 (24)</div>
+    </div>
+  `;
+};
+
+// ═══════════════════════════════════════
+//  TAB 6: 八字排盘 3D
+// ═══════════════════════════════════════
+function buildSceneBazi() {
+  clearScene();
+  const objects = [];
+
+  // Default: 1990-06-15 10:30 male, Beijing
+  const year = parseInt(document.getElementById('bzYear')?.value || '1990') || 1990;
+  const pillars_data = calcPillarsSimple(year, 6, 15, 10, 30);
+
+  const pillarColors = { year: 0xf59e0b, month: 0x10b981, day: 0x6366f1, hour: 0x22d3ee };
+
+  const positions = [
+    { key: 'year', pos: [-3, 1.5, 0] },
+    { key: 'month', pos: [0, 1.5, 0] },
+    { key: 'day', pos: [-3, -1.5, 0] },
+    { key: 'hour', pos: [0, -1.5, 0] }
+  ];
+
+  const pillarMeshes = [];
+  positions.forEach(({ key, pos }) => {
+    const pillar = pillars_data[key];
+    const ganElem = TG.find(t => t.name === pillar[0])?.elem || '土';
+    const zhiElem = DZ.find(d => d.name === pillar[1])?.elem || '土';
+    const color = pillarColors[key];
+
+    const geo = new THREE.BoxGeometry(2.2, 1.2, 0.4);
+    const mat = new THREE.MeshPhongMaterial({ color, emissive: color, emissiveIntensity: glowEnabled ? 0.3 : 0.1, transparent: true, opacity: 0.8 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(...pos);
+    mesh.userData = { type: 'pillar', key, data: pillar, color };
+    scene.add(mesh);
+    objects.push(mesh);
+
+    if (glowEnabled) {
+      const glow = makeGlowMesh(new THREE.BoxGeometry(2.4, 1.4, 0.5), pillarColors[key], 0.4);
+      glow.position.copy(mesh.position);
+      scene.add(glow);
+      objects.push(glow);
+    }
+
+    // 天干
+    const ganLbl = makeLabel(pillar[0], { color: '#ffffff', fontSize: 0.6 });
+    ganLbl.position.set(pos[0] - 0.5, pos[1], 0.3);
+    scene.add(ganLbl);
+    objects.push(ganLbl);
+
+    // 地支
+    const zhiLbl = makeLabel(pillar[1], { color: '#ffffff', fontSize: 0.6 });
+    zhiLbl.position.set(pos[0] + 0.5, pos[1], 0.3);
+    scene.add(zhiLbl);
+    objects.push(zhiLbl);
+
+    // Label below
+    const keyLbl = makeLabel(key === 'day' ? '日柱' : key === 'year' ? '年柱' : key === 'month' ? '月柱' : '时柱', { color: '#8899aa', fontSize: 0.25 });
+    keyLbl.position.set(pos[0], pos[1] - 0.8, 0);
+    scene.add(keyLbl);
+    objects.push(keyLbl);
+
+    pillarMeshes.push(mesh);
+  });
+
+  // Connecting lines between pillars
+  const connectPairs = [[0,1],[2,3],[0,2],[1,3],[1,2]];
+  connectPairs.forEach(([a, b]) => {
+    const pa = pillarMeshes[a].position.clone();
+    const pb = pillarMeshes[b].position.clone();
+    const line = makeParticleLines(pa, pb, 0x6366f1, 20, 0.1);
+    scene.add(line);
+    objects.push(line);
+  });
+
+  // Day master glow
+  const dmGeo = new THREE.SphereGeometry(0.5, 16, 16);
+  const dmMat = new THREE.MeshPhongMaterial({ color: 0x6366f1, emissive: 0x6366f1, emissiveIntensity: glowEnabled ? 0.5 : 0.2, transparent: true, opacity: 0.6 });
+  const dmMesh = new THREE.Mesh(dmGeo, dmMat);
+  dmMesh.position.set(3, 0, 0);
+  scene.add(dmMesh);
+  objects.push(dmMesh);
+
+  const dmLabel = makeLabel(`日主\n${pillars_data.day[0]}`, { color: '#6366f1', fontSize: 0.45 });
+  dmLabel.position.set(3, 0.8, 0);
+  scene.add(dmLabel);
+  objects.push(dmLabel);
+
+  // 大运
+  if (particlesEnabled) {
+    for (let i = 0; i < 40; i++) {
+      const geo = new THREE.SphereGeometry(0.03 + Math.random() * 0.04, 4, 4);
+      const mat = new THREE.MeshBasicMaterial({ color: 0xf59e0b, transparent: true, opacity: 0.05 + Math.random() * 0.15 });
+      const p = new THREE.Mesh(geo, mat);
+      const theta = Math.random() * Math.PI * 2;
+      const r = 2 + Math.random() * 2;
+      p.position.set(Math.cos(theta) * r, Math.sin(theta) * r, (Math.random() - 0.5) * 3);
+      scene.add(p);
+      objects.push(p);
+    }
+  }
+
+  currentScene = objects;
+
+  function animate() {
+    animationId = requestAnimationFrame(animate);
+    const t = clock.getElapsedTime();
+    pillarMeshes.forEach((m, i) => {
+      m.rotation.y = Math.sin(t * 0.4 + i) * 0.15;
+    });
+    dmMesh.rotation.y = t * 0.3;
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  document.getElementById('sidebar').innerHTML = `
+    <div class="sidebar-title">八字排盘 · ${year}年</div>
+    <div style="color:var(--muted);font-size:0.7rem;margin-bottom:8px">${JSON.stringify(pillars_data)}</div>
+    ${Object.entries(pillars_data).map(([k, v]) => `<div class="info-row">
+      <span class="label">${k === 'year' ? '年柱' : k === 'month' ? '月柱' : k === 'day' ? '日柱' : '时柱'}</span>
+      <span class="val">${v}</span>
+    </div>`).join('')}
+  `;
+}
+
+// Simple pillar calculator
+function calcPillarsSimple(year, month, day, hour, minute) {
+  // Very simplified — uses known values for demo
+  // In production, call MCP Server via fetch
+  const tiangan = ['甲','乙','丙','丁','戊','己','庚','辛','壬','癸'];
+  const dizhi = ['子','丑','寅','卯','辰','巳','午','未','申','酉','戌','亥'];
+  const ganIdx = (year - 4) % 10;
+  const zhiIdx = (year - 4) % 12;
+  return {
+    year: tiangan[(ganIdx) % 10] + dizhi[(zhiIdx) % 12],
+    month: tiangan[(month + 1) % 10] + dizhi[(month - 1) % 12],
+    day: tiangan[(day + 5) % 10] + dizhi[(day + 1) % 12],
+    hour: tiangan[(Math.floor(hour / 2) + 1) % 10] + dizhi[(Math.floor(hour / 2)) % 12]
+  };
+}
+
+// ═══════════════════════════════════════
+//  TAB SWITCHING
+// ═══════════════════════════════════════
+const scenes = [buildSceneWuxing, buildSceneBagua, buildSceneTG, buildSceneShiguan, buildSceneHetuLuoshu, buildSceneCompass, buildSceneBazi];
+const hints = [
+  '☯ 五行生克 · 拖拽旋转 | 滚轮缩放 | 右键平移',
+  '☰ 八卦方位 · 左侧先天 · 右侧后天',
+  '⚊ 天干地支 · 双环旋转 · 嵌套结构',
+  '⚝ 十神图谱 · 生克网络 · 悬停查看',
+  '⌂ 河图洛书 · 左图右书 · 数理对应',
+  '◎ 综合罗盘 · 多层嵌套 · 实时旋转',
+  '☷ 八字排盘 · 四柱结构 · 大运流转'
+];
+
+function switchTab3D(i) {
+  if (animationId) cancelAnimationFrame(animationId);
+  currentTab = i;
+  clock = new THREE.Clock();
+  scenes[i]();
+  document.getElementById('tabHint').textContent = hints[i];
+  // Reset camera
+  camera.position.set(0, 0, 12);
+  controls.reset();
+}
+
+// ═══════════════════════════════════════
+//  CONTROLS BAR
+// ═══════════════════════════════════════
+document.querySelectorAll('.ctrl-btn[data-mode]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const mode = btn.dataset.mode;
+    if (mode === 'auto') { controls.autoRotate = true; controls.autoRotateSpeed = 0.5; }
+    else if (mode === 'pause') { controls.autoRotate = false; }
+    else if (mode === 'particles') { particlesEnabled = !particlesEnabled; btn.classList.toggle('on', particlesEnabled); switchTab3D(currentTab); }
+    else if (mode === 'glow') { glowEnabled = !glowEnabled; btn.classList.toggle('on', glowEnabled); switchTab3D(currentTab); }
+    document.querySelectorAll('.ctrl-btn[data-mode]').forEach(b => {
+      if (b.dataset.mode === 'auto' || b.dataset.mode === 'pause') {
+        b.classList.toggle('on', (b.dataset.mode === 'auto' && controls.autoRotate) || (b.dataset.mode === 'pause' && !controls.autoRotate));
+      }
+    });
+  });
+});
+
+// ═══════════════════════════════════════
+//  TAB CLICK HANDLERS
+// ═══════════════════════════════════════
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    switchTab3D(parseInt(btn.dataset.tab));
+  });
+});
+
+// ═══════════════════════════════════════
+//  RAYCASTING FOR CLICK
+// ═══════════════════════════════════════
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+
+renderer.domElement.addEventListener('click', (ev) => {
+  const rect = renderer.domElement.getBoundingClientRect();
+  mouse.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+  mouse.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+  const intersects = raycaster.intersectObjects(currentScene.filter(o => o.isMesh));
+  if (intersects.length > 0) {
+    const obj = intersects[0].object;
+    const ud = obj.userData;
+    if (ud.type === 'wuxing') window.showWuxingDetail(ud.data.name);
+    else if (ud.type === 'bagua') window.showBaguaDetail(ud.name);
+    else if (ud.type === 'dizhi') window.showDzDetail(ud.data.name);
+    else if (ud.type === 'tiangan') window.showDzDetail(ud.data.name); // reuse
+    else if (ud.type === 'shiguan') window.showShiguanDetail(ud.data.name);
+  }
+});
+
+// Tooltip on hover
+renderer.domElement.addEventListener('mousemove', (ev) => {
+  const rect = renderer.domElement.getBoundingClientRect();
+  mouse.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+  mouse.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+  const intersects = raycaster.intersectObjects(currentScene.filter(o => o.isMesh));
+  const tip = document.getElementById('tooltip');
+  if (intersects.length > 0) {
+    const obj = intersects[0].object;
+    const ud = obj.userData;
+    if (ud.type === 'wuxing') {
+      tip.style.display = 'block';
+      tip.style.left = ev.clientX + 15 + 'px';
+      tip.style.top = ev.clientY + 15 + 'px';
+      document.getElementById('tipTitle').textContent = ud.data.name + ' ' + ud.data.cn;
+      document.getElementById('tipBody').innerHTML = `<div class="tip-row"><span class="tip-label">方位:</span><span class="tip-val">${ud.data.dir}</span></div><div class="tip-row"><span class="tip-label">季节:</span><span class="tip-val">${ud.data.season}</span></div><div class="tip-row"><span class="tip-label">脏腑:</span><span class="tip-val">${ud.data.zang}/${ud.data.fu}</span></div>`;
+      return;
+    }
+    if (ud.type === 'bagua') {
+      tip.style.display = 'block';
+      tip.style.left = ev.clientX + 15 + 'px';
+      tip.style.top = ev.clientY + 15 + 'px';
+      document.getElementById('tipTitle').textContent = ud.name + ' ' + ud.data.sym;
+      document.getElementById('tipBody').innerHTML = `<div class="tip-row"><span class="tip-label">自然:</span><span class="tip-val">${ud.data.nat}</span></div><div class="tip-row"><span class="tip-label">家人:</span><span class="tip-val">${ud.data.fam}</span></div><div class="tip-row"><span class="tip-label">身体:</span><span class="tip-val">${ud.data.body}</span></div>`;
+      return;
+    }
+    if (ud.type === 'luoshu') {
+      tip.style.display = 'block';
+      tip.style.left = ev.clientX + 15 + 'px';
+      tip.style.top = ev.clientY + 15 + 'px';
+      document.getElementById('tipTitle').textContent = '洛书 ' + ud.num;
+      document.getElementById('tipBody').innerHTML = `<div class="tip-row"><span class="tip-label">五行:</span><span class="tip-val">${ud.elem}</span></div>`;
+      return;
+    }
+  }
+  tip.style.display = 'none';
+});
+
+// ═══════════════════════════════════════
+//  RESIZE
+// ═══════════════════════════════════════
+window.addEventListener('resize', () => {
+  camera.aspect = container.clientWidth / container.clientHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(container.clientWidth, container.clientHeight);
+});
+
+// ═══════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════
+
+// Fallback: auto-remove loading screen after 5s regardless of Three.js CDN status
+setTimeout(() => {
+  const loading = document.getElementById('loading');
+  if (loading && loading.style.display !== 'none') {
+    loading.style.transition = 'opacity 0.5s';
+    loading.style.opacity = '0';
+    setTimeout(() => { if (loading) loading.style.display = 'none'; }, 500);
+    console.warn('Loading timeout: Three.js CDN may be slow, showing UI anyway');
+  }
+}, 5000);
+
+// INIT
+setTimeout(() => {
+  const loading = document.getElementById('loading');
+  if (loading) {
+    loading.style.transition = 'opacity 0.5s';
+    loading.style.opacity = '0';
+    setTimeout(() => { if (loading) loading.style.display = 'none'; }, 500);
+  }
+  switchTab3D(0);
+}, 800);
+
+</script>
+</body>
+</html>

@@ -1,56 +1,56 @@
-# ═══════════════════════════════════════════════════════════
-# 十神架构 · docker-compose.yml v1.5.0
-# 一键部署：十神 API 服务 + PostgreSQL + 数据持久化
-# ═══════════════════════════════════════════════════════════
-
-version: "3.9"
-
 services:
-  # ─── PostgreSQL 数据库 ───────────────────────────────
-  postgres:
-    image: postgres:15-alpine
-    container_name: tengod-postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: tengod
-      POSTGRES_USER: tengod
-      POSTGRES_PASSWORD: tengod_secret
-    ports:
-      - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U tengod -d tengod"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # ─── 十神 API 服务 ───────────────────────────────────
   tengod:
-    build: .
-    container_name: tengod-api
-    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: Dockerfile
     ports:
       - "8000:8000"
     environment:
-      - TENGOD_DB_BACKEND=postgresql
-      - TENGOD_DB_URL=postgresql://tengod:tengod_secret@postgres:5432/tengod
-      - TENGOD_ENV=production
-      - TENGOD_LOG_LEVEL=INFO
+      - ENV=development
+      - LOG_LEVEL=INFO
+      - CACHE_TYPE=redis
+      - REDIS_HOST=redis
     depends_on:
-      postgres:
+      redis:
         condition: service_healthy
     volumes:
-      - tengod_data:/app/data
-      - tengod_logs:/app/logs
+      - ./data:/app/data
+      - ./logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - tengod-network
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 15s
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - tengod-network
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - tengod-network
 
 volumes:
-  pgdata:
-  tengod_data:
-  tengod_logs:
+  redis-data:
+  prometheus-data:
+
+networks:
+  tengod-network:
+    driver: bridge

@@ -138,7 +138,16 @@ cython_debug/
 *.swp
 *.swo
 *~
-.DS_Store
+
+# Docker
+docker/certs/*.crt
+docker/certs/*.key
+
+# 测试
+.pytest_cache/
+.coverage
+htmlcov/
+.ruff_cache/
 
 # Project specific
 data/raw/*
@@ -174,6 +183,7 @@ data/exports/*
 *~
 
 # OS specific
+.DS_Store
 Thumbs.db
 Desktop.ini
 
@@ -289,16 +299,3 @@ coverage.xml
 # CodeBuddy / WorkBuddy本地配置
 .codebuddy/settings.local.json
 .workbuddy/
-"nul"  
-"nul"  
-"nul"  
-"node_modules/"  
-"atomcode/"  
-"references/"  
-"atomcode/"  
-"node_modules/"  
-"nul"  
-nul  
-references/  
-atomcode/  
-node_modules/  
