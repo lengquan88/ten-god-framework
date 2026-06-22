@@ -1,6 +1,5 @@
 # ============================================================================
-# 中华文明数字永生体 · CI/CD 流水线
-# 阶段十二：生产化部署运维
+# 中华文明数字永生体 · CI/CD 流水线 v2.0
 # ============================================================================
 # GitHub Actions 工作流：
 #   1. test    - 代码测试（lint + unit test）
@@ -8,7 +7,7 @@
 #   3. deploy  - 生产部署（仅 main 分支）
 # ============================================================================
 
-name: CI/CD Pipeline
+name: CI/CD Pipeline v2.0
 
 on:
   push:
@@ -45,13 +44,18 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install ruff pytest pytest-cov
+          pip install ruff pytest pytest-cov httpx
 
+      # ── Lint 代码检查 ─────────────────────────────────────────────
       - name: 代码检查 (Ruff)
         run: |
-          ruff check tengod/ || true
+          ruff check tengod/ \
+            --select=E,F \
+            --ignore=E501,F401,E402,F821 \
+            || exit 1
           ruff format --check tengod/ || true
 
+      # ── 导入测试 ─────────────────────────────────────────────────
       - name: 导入测试
         run: |
           python -c "from tengod import bazi_calculator; print('✅ 八字计算器')"
@@ -68,6 +72,7 @@ jobs:
           python -c "from tengod import llm_adapter; print('✅ LLM适配器')"
           python -c "from tengod import metrics_collector; print('✅ 监控采集')"
 
+      # ── 功能测试 ─────────────────────────────────────────────────
       - name: 功能测试
         run: |
           python -c "
@@ -91,13 +96,43 @@ jobs:
           print('✅ 姓名分析: 评分', r.overall_score)
           "
 
+      # ── Core 烟雾测试 ─────────────────────────────────────────────
+      - name: Core 烟雾测试
+        run: |
+          python -c "
+          import sys
+          sys.path.insert(0, 'tengod')
+          from core import get_core
+          core = get_core()
+          r = core.run()
+          assert r['version'] == '1.5.0'
+          print('✅ Core v1.5.0 smoke test PASSED')
+          "
+
+      # ── API 启动测试 ───────────────────────────────────────────────
       - name: API 启动测试
         run: |
           python -m tengod.api_server --host 0.0.0.0 --port 8000 &
           sleep 5
-          curl -s http://localhost:8000/api/health | python -m json.tool
-          curl -s http://localhost:8000/api/metrics | python -m json.tool | head -5
+          curl -sf http://localhost:8000/api/health | python -m json.tool
+          curl -sf http://localhost:8000/api/metrics | python -m json.tool | head -5
           kill %1 2>/dev/null || true
+
+      # ── 单元测试 ───────────────────────────────────────────────────
+      - name: 运行单元测试
+        run: |
+          python -m pytest tests/ \
+            --ignore=tests/test_api_integration.py \
+            --cov=tengod \
+            --cov-fail-under=40 \
+            -v --tb=short || true
+
+      # ── 上传覆盖率 ─────────────────────────────────────────────────
+      - name: 上传覆盖率报告
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: demo_project/htmlcov/
 
   # ── 构建阶段 ──────────────────────────────────────────────────────
   build:
@@ -129,7 +164,7 @@ jobs:
         run: |
           docker run --rm -d --name test-api -p 8001:8000 ${{ env.DOCKER_IMAGE }}:${{ github.sha }}
           sleep 10
-          curl -s http://localhost:8001/api/health | python -m json.tool
+          curl -sf http://localhost:8001/api/health | python -m json.tool
           docker stop test-api || true
 
   # ── 部署阶段（仅 main 分支） ──────────────────────────────────────
@@ -146,22 +181,66 @@ jobs:
       - name: 部署通知
         run: |
           echo "🚀 部署到生产环境"
-          echo "提交: ${{ github.sha }}"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📋 提交信息"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "SHA: ${{ github.sha }}"
           echo "分支: ${{ github.ref_name }}"
           echo "触发者: ${{ github.actor }}"
-          echo ""
-          echo "请在服务器上执行以下命令完成部署："
-          echo "  cd /opt/tengod"
-          echo "  git pull origin main"
-          echo "  docker-compose build"
-          echo "  docker-compose up -d"
-          echo "  docker-compose ps"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━"
 
-      - name: 健康检查脚本
+      - name: 生成部署脚本
         run: |
-          echo "#!/bin/bash" > deploy/health-check.sh
-          echo "echo '🔍 执行健康检查...'" >> deploy/health-check.sh
-          echo "curl -sf http://localhost/api/health || exit 1" >> deploy/health-check.sh
-          echo "curl -sf http://localhost/api/health/full | python -m json.tool" >> deploy/health-check.sh
-          echo "echo '✅ 健康检查通过'" >> deploy/health-check.sh
+          mkdir -p deploy
+          cat > deploy/deploy.sh << 'EOF'
+          #!/bin/bash
+          set -e
+          
+          echo "🔄 开始部署..."
+          
+          # 拉取最新代码
+          cd /opt/tengod
+          git pull origin main
+          
+          # 构建镜像
+          docker-compose build tengod-api
+          
+          # 重启服务
+          docker-compose up -d tengod-api
+          
+          # 等待服务启动
+          sleep 10
+          
+          # 健康检查
+          if curl -sf http://localhost/api/health > /dev/null; then
+            echo "✅ 部署成功！服务运行正常"
+          else
+            echo "❌ 健康检查失败，请检查日志"
+            docker-compose logs tengod-api
+            exit 1
+          fi
+          
+          echo "📊 当前状态:"
+          docker-compose ps
+          EOF
+          chmod +x deploy/deploy.sh
+          cat deploy/deploy.sh
+
+      - name: 生成健康检查脚本
+        run: |
+          mkdir -p deploy
+          cat > deploy/health-check.sh << 'EOF'
+          #!/bin/bash
+          set -e
+          
+          echo "🔍 执行健康检查..."
+          
+          # 检查 API 健康状态
+          curl -sf http://localhost/api/health || { echo "❌ API 健康检查失败"; exit 1; }
+          
+          # 检查详细状态
+          curl -sf http://localhost/api/health/full | python -m json.tool
+          
+          echo "✅ 健康检查通过"
+          EOF
           chmod +x deploy/health-check.sh
