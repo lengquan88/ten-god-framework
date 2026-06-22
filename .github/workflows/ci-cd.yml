@@ -71,9 +71,9 @@ jobs:
       - name: 功能测试
         run: |
           python -c "
-          from tengod.bazi_calculator import BaziCalculator
-          c = BaziCalculator(2000, 3, 15, 8, 30, 'male')
-          print('✅ 八字排盘:', c.chart.year_gan, c.chart.year_zhi)
+          from tengod.bazi_calculator import BaziChart
+          c = BaziChart(2000, 3, 15, 8, 30)
+          print('✅ 八字排盘:', c.pillars['year'], c.pillars['month'])
           "
           python -c "
           from tengod.ziwei_engine import calc_ziwei
