@@ -287,7 +287,6 @@ class QimenEngine:
         """排八门"""
         # 值使门落宫
         men_order = ["休", "生", "伤", "杜", "景", "死", "惊", "开"]
-        zhi_shi_idx = men_order.index(zhi_shi) if zhi_shi in men_order else 0
         
         hour_zhi_idx = DI_ZHI.index(hour_zhi)
         # 计算值使门落宫（简化）

@@ -229,12 +229,10 @@ class BaziReportGenerator:
         lines.append("  五行分布：")
         for wx in ["木", "火", "土", "金", "水"]:
             score = a['wuxing_score'].get(wx, "-")
-            count = a['wuxing'].get(wx, 0)
             emoji = WUXING_EMOJI.get(wx, "")
             lines.append(f"    {emoji} {wx}：{score}")
 
         # 旺衰判断
-        total = sum(a['wuxing'].values()) or 1
         sorted_wx = sorted(a['wuxing'].items(), key=lambda x: -x[1])
         if sorted_wx:
             top_wx = sorted_wx[0][0]

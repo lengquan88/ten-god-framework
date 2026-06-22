@@ -568,11 +568,9 @@ class VectorStore:
 
         # 找到目标节点
         target_text = None
-        target_type = None
         for node in self._nodes:
             if node["name"] == node_name:
                 target_text = node["text"]
-                target_type = node["type"]
                 break
 
         if target_text is None:
@@ -580,7 +578,6 @@ class VectorStore:
             for node in self._nodes:
                 if node_name in node["name"] or node_name in node.get("name_cn", ""):
                     target_text = node["text"]
-                    target_type = node["type"]
                     break
 
         if target_text is None:

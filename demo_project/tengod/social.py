@@ -534,7 +534,6 @@ class FeedGenerator:
 
     @classmethod
     def get_recommended_for_user(cls, user_id: str, limit: int = 10) -> List[Dict[str, Any]]:
-        profile = UserProfile.get(user_id)
         # 简易推荐：基于用户统计返回的内容
         items = ContentPost.list_popular(limit=limit * 2)
         # 去除用户自己的内容

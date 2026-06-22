@@ -1363,7 +1363,6 @@ class SimpleHttpServer:
         if path == "/api/auth/register" and method == "POST":
             username = data.get("username", "")
             password = data.get("password", "")
-            email = data.get("email", "")
             if not username or not password:
                 return 400, {"code": 400, "message": "username and password required"}
             if username in _DEFAULT_USERS:
@@ -1584,7 +1583,6 @@ class SimpleHttpServer:
         # -------- 创新路由 --------
         if path == "/api/innovate" and method == "POST":
             prompt = data.get("prompt", "")
-            style = data.get("style", "creative")
             if self.core.innovator:
                 items = data.get("items", [prompt]) if data.get("items") else [prompt]
                 self.core.innovator.combine(items)
@@ -1651,7 +1649,6 @@ class SimpleHttpServer:
 
         # -------- 优化路由 --------
         if path == "/api/optimize/search" and method == "POST":
-            param_space = data.get("param_space", {})
             n_trials = int(data.get("n_trials", 3))
             return 200, ApiResponse(
                 code=0, message="ok",
@@ -1659,7 +1656,6 @@ class SimpleHttpServer:
             ).to_dict()
 
         if path == "/api/optimize/submit" and method == "POST":
-            param_space = data.get("param_space", {})
             return 200, ApiResponse(
                 code=0, message="ok",
                 data={"task_id": f"opt-{uuid.uuid4().hex[:8]}", "status": "pending"},

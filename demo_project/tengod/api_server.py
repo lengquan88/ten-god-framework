@@ -3016,7 +3016,7 @@ async def graph_export(request: Request,
     db = get_graph_db()
 
     if labels:
-        label_list = [l.strip() for l in labels.split(",") if l.strip()]
+        label_list = [label.strip() for label in labels.split(",") if label.strip()]
         return db.export_subgraph_by_label(label_list, max_nodes=limit)
     else:
         return db.export_graph(limit=limit)

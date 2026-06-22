@@ -452,7 +452,7 @@ class LiuyaoHexagramDisplay:
         return {
             "type": "changing_hexagram",
             "lines": lines,
-            "changing_count": sum(1 for l in lines if l["is_changing"]),
+            "changing_count": sum(1 for line in lines if line["is_changing"]),
         }
 
     @classmethod
@@ -492,17 +492,6 @@ class QimenBoard:
             board_data = {}
         palaces = []
         # 3x3 grid
-        grid_positions = [
-            (0, 0, 4, "中"),  # 中宫
-            (0, 1, 9, "离"),
-            (0, 2, 2, "坤"),
-            (1, 0, 3, "震"),
-            (1, 1, 5, "中"),
-            (1, 2, 7, "兑"),
-            (2, 0, 8, "艮"),
-            (2, 1, 1, "坎"),
-            (2, 2, 6, "乾"),
-        ]
         # 正确的奇门九宫布局
         layout = [
             (0, 0, 4, "巽"),

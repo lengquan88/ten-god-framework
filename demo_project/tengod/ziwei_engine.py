@@ -408,7 +408,6 @@ class ZiweiEngine:
             # 在上一年农历年内
             prev_year = year - 1
             lunar_year = prev_year
-            prev_days = cls._lunar_year_days(prev_year)
             prev_new_year = cls._LUNAR_NEW_YEAR.get(prev_year, 1)
             prev_doy = cls._day_of_year(prev_year, 12, 31)
             offset = prev_doy - prev_new_year + doy

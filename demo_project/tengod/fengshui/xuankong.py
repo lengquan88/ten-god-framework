@@ -456,7 +456,6 @@ class YangzhaiAnalyzer:
 
         def _dir_judgment(dir_name: str, palace_num: int, key: str) -> str:
             liunian_star = (fengshui_result.liunian_pan or {}).get(palace_num, 5)
-            yun_star = fengshui_result.yun_pan.get(palace_num, 5)
             fortune = STAR_FORTUNE.get(liunian_star, "吉")
             star_name = NINE_STARS.get(liunian_star, str(liunian_star))
             if fortune == "吉":

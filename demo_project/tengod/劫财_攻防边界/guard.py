@@ -426,7 +426,7 @@ class Guard:
 
         # 过滤
         if user_id:
-            all_logs = [l for l in all_logs if l["user_id"] == user_id]
+            all_logs = [log for log in all_logs if log["user_id"] == user_id]
 
         # 按时间排序并限制
         all_logs.sort(key=lambda x: x["timestamp"], reverse=True)

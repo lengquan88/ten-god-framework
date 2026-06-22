@@ -170,7 +170,7 @@ class SearchOptimizer:
             params = self._space.sample()
             try:
                 score = objective(params)
-            except:
+            except Exception:
                 score = float("-inf") if maximize else float("inf")
             history_mu.append(score)
             history_sigma.append(1.0)
@@ -225,7 +225,7 @@ class SearchOptimizer:
 
             try:
                 score = objective(best_candidate)
-            except:
+            except Exception:
                 score = float("-inf") if maximize else float("inf")
 
             history_mu.append(all_mu * 0.9 + score * 0.1)  # EMA 更新
