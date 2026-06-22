@@ -3068,7 +3068,7 @@ def main():
 
     if args.api_key:
         os.environ["TENGOD_API_KEY"] = args.api_key
-        logger.info(f"API Key 鉴权已启用")
+        logger.info("API Key 鉴权已启用")
 
     logger.info(f"启动 API Server: http://{args.host}:{args.port}")
     logger.info(f"Swagger 文档: http://{args.host}:{args.port}/docs")

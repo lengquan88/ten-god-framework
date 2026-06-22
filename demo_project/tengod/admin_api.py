@@ -222,7 +222,7 @@ class AdminService:
                 limit=max(1, int(limit)), offset=max(0, int(offset))
             )
             return [r.to_dict() for r in records]
-        except Exception as e:
+        except Exception:
             return []
 
     def get_record(self, record_id: int) -> Optional[Dict[str, Any]]:

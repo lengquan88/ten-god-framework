@@ -278,7 +278,7 @@ class MockAdapter(BaseLLMAdapter):
             if key in question:
                 return f"关于「{key}」：\n\n{answer}\n\n---\n*本回复由 Mock LLM 模板引擎生成。*"
 
-        return f"关于您的问题：\n\n这是一个很好的命理问题。建议结合具体的八字四柱进行详细分析。您可以提供完整的出生时间（年/月/日/时），以便进行准确的命理推算。\n\n---\n*本回复由 Mock LLM 模板引擎生成。*"
+        return "关于您的问题：\n\n这是一个很好的命理问题。建议结合具体的八字四柱进行详细分析。您可以提供完整的出生时间（年/月/日/时），以便进行准确的命理推算。\n\n---\n*本回复由 Mock LLM 模板引擎生成。*"
 
     def _generate_general(self, context: str) -> str:
         return f"根据您提供的信息，以下是分析：\n\n{context[:500]}\n\n---\n*本回复由 Mock LLM 模板引擎生成。*"
@@ -540,21 +540,21 @@ async def _self_test():
 神煞：天乙贵人(年)、桃花(日)、驿马(月)
 大运：6-15岁 癸未"""
     report = await generate_report(bazi_data, llm)
-    print(f"\n--- 报告生成 ---")
+    print("\n--- 报告生成 ---")
     print(report[:400])
 
     # 问答
     qa = await chat("我的八字喜用神是什么？", bazi_data, llm)
-    print(f"\n--- 问答 ---")
+    print("\n--- 问答 ---")
     print(qa[:400])
 
     # 流式
-    print(f"\n--- 流式输出 ---")
+    print("\n--- 流式输出 ---")
     async for chunk in chat_stream("五行是什么？", llm=llm):
         print(chunk, end="", flush=True)
     print()
 
-    print(f"\n所有测试通过!")
+    print("\n所有测试通过!")
 
 
 if __name__ == "__main__":

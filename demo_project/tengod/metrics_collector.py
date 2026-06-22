@@ -208,19 +208,19 @@ class MetricsCollector:
         lines = []
 
         # 请求指标
-        lines.append(f"# HELP tengod_requests_total Total HTTP requests")
-        lines.append(f"# TYPE tengod_requests_total counter")
+        lines.append("# HELP tengod_requests_total Total HTTP requests")
+        lines.append("# TYPE tengod_requests_total counter")
         lines.append(f"tengod_requests_total {snap['requests']['total']}")
-        lines.append(f"# HELP tengod_request_errors_total Total HTTP errors")
-        lines.append(f"# TYPE tengod_request_errors_total counter")
+        lines.append("# HELP tengod_request_errors_total Total HTTP errors")
+        lines.append("# TYPE tengod_request_errors_total counter")
         lines.append(f"tengod_request_errors_total {snap['requests']['errors']}")
-        lines.append(f"# HELP tengod_request_latency_avg_ms Average request latency in ms")
-        lines.append(f"# TYPE tengod_request_latency_avg_ms gauge")
+        lines.append("# HELP tengod_request_latency_avg_ms Average request latency in ms")
+        lines.append("# TYPE tengod_request_latency_avg_ms gauge")
         lines.append(f"tengod_request_latency_avg_ms {snap['requests']['avg_latency_ms']}")
 
         # 业务指标
-        lines.append(f"# HELP tengod_bazi_calcs_total Total bazi calculations")
-        lines.append(f"# TYPE tengod_bazi_calcs_total counter")
+        lines.append("# HELP tengod_bazi_calcs_total Total bazi calculations")
+        lines.append("# TYPE tengod_bazi_calcs_total counter")
         lines.append(f"tengod_bazi_calcs_total {snap['business']['bazi_calcs']}")
         lines.append(f"tengod_ziwei_calcs_total {snap['business']['ziwei_calcs']}")
         lines.append(f"tengod_liuyao_calcs_total {snap['business']['liuyao_calcs']}")
@@ -228,14 +228,14 @@ class MetricsCollector:
         lines.append(f"tengod_ai_chats_total {snap['business']['ai_chats']}")
 
         # 系统指标
-        lines.append(f"# HELP tengod_cpu_percent CPU usage percent")
-        lines.append(f"# TYPE tengod_cpu_percent gauge")
+        lines.append("# HELP tengod_cpu_percent CPU usage percent")
+        lines.append("# TYPE tengod_cpu_percent gauge")
         lines.append(f"tengod_cpu_percent {snap['system']['cpu_percent']}")
-        lines.append(f"# HELP tengod_memory_percent Memory usage percent")
-        lines.append(f"# TYPE tengod_memory_percent gauge")
+        lines.append("# HELP tengod_memory_percent Memory usage percent")
+        lines.append("# TYPE tengod_memory_percent gauge")
         lines.append(f"tengod_memory_percent {snap['system']['memory_percent']}")
-        lines.append(f"# HELP tengod_uptime_seconds Uptime in seconds")
-        lines.append(f"# TYPE tengod_uptime_seconds gauge")
+        lines.append("# HELP tengod_uptime_seconds Uptime in seconds")
+        lines.append("# TYPE tengod_uptime_seconds gauge")
         lines.append(f"tengod_uptime_seconds {snap['uptime_seconds']}")
 
         return "\n".join(lines) + "\n"

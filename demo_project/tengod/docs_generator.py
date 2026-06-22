@@ -262,7 +262,7 @@ class APIDocsGenerator:
             methods = ", ".join(ep.get("methods", []))
             tags = ", ".join(ep.get("tags", []))
             lines.append(f"### `{methods} {ep['path']}`")
-            lines.append(f"")
+            lines.append("")
             lines.append(f"- 分组: {tags}")
             lines.append(f"- 说明: {ep.get('desc', '')}")
             lines.append("")
@@ -271,7 +271,7 @@ class APIDocsGenerator:
         lines.append("")
         for m in models_data["models"]:
             lines.append(f"### {m['name']}")
-            lines.append(f"")
+            lines.append("")
             lines.append(f"- 模块: `{m['module']}`")
             lines.append("")
             lines.append("| Field | Type |")

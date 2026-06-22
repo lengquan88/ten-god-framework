@@ -1467,7 +1467,7 @@ if __name__ == "__main__":
     print(f"  六十甲子共 {len(table)} 组，前5组：")
     for i, name in table[:5]:
         print(f"    {i:2d}. {name}")
-    print(f"  ...")
+    print("  ...")
     for i, name in table[-5:]:
         print(f"    {i:2d}. {name}")
 
@@ -1487,17 +1487,17 @@ if __name__ == "__main__":
 
     result = analyze_relations("庚", example_gans, example_branches)
     print(f"\n  日干：{result['day_gan']}（{result['day_wuxing']}·{result['day_yinyang']}）")
-    print(f"\n  --- 天干十神 ---")
+    print("\n  --- 天干十神 ---")
     for gs in result["heavenly_stems"]:
         print(f"  {gs['gan']} → {gs['shigan']}({gs['classification']}) — {gs['description']}")
-    print(f"\n  --- 地支藏干十神 ---")
+    print("\n  --- 地支藏干十神 ---")
     for bs in result["earthly_branches"]:
         cg_list = ", ".join(
             f"{v['gan']}({v['shigan']})" for v in bs["canggan"].values()
         )
         print(f"  {bs['branch']}({bs['wuxing']}) → {cg_list}")
 
-    print(f"\n  --- 地支互动 ---")
+    print("\n  --- 地支互动 ---")
     if result["interactions"]["he"]:
         print("  【合】")
         for h in result["interactions"]["he"]:
@@ -1511,11 +1511,11 @@ if __name__ == "__main__":
         for x in result["interactions"]["xing"]:
             print(f"    {x['pair']} — {x['detail']}")
 
-    print(f"\n  --- 统计 ---")
+    print("\n  --- 统计 ---")
     stats = result["statistics"]
     print(f"  十神分布：{stats['shigan_counts']}")
     print(f"  善恶平衡：{stats['balance']}")
 
     print("\n" + "=" * 70)
-    print(f"  全部测试完成 ✓")
+    print("  全部测试完成 ✓")
     print("=" * 70)
