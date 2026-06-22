@@ -1,35 +1,138 @@
-# 中华文明数字永生体 · Git 忽略文件
-
-# 环境变量
-.env
-*.env.local
-
-# Python
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
+
+# C extensions
 *.so
+
+# Distribution / packaging
 .Python
-venv/
-.venv/
-env/
-ENV/
-*.egg-info/
-dist/
 build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+PIPFILE.lock
+MANIFEST
 
-# 数据文件
-data/
-*.db
-*.db-journal
-*.backup.*
-backups/
+# PyInstaller
+*.manifest
+*.spec
 
-# 日志
-logs/
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Translations
+*.mo
+*.pot
+
+# Django stuff:
 *.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
 
-# IDE
+# Flask stuff:
+instance/
+.webassets-cache
+
+# Scrapy stuff:
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+.pybuilder/
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# pipenv
+Pipfile.lock
+
+# poetry
+poetry.lock
+
+# pdm
+.pdm.toml
+
+# PEP 582
+__pypackages__/
+
+# Celery stuff
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# pytype static type analyzer
+.pytype/
+
+# Cython debug symbols
+cython_debug/
+
+# IDEs
 .vscode/
 .idea/
 *.swp
@@ -45,3 +148,154 @@ docker/certs/*.key
 .coverage
 htmlcov/
 .ruff_cache/
+
+# Project specific
+data/raw/*
+data/processed/*
+data/models/*
+data/cache/*
+data/logs/*
+data/exports/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/models/.gitkeep
+!data/cache/.gitkeep
+!data/logs/.gitkeep
+!data/exports/.gitkeep
+
+# Models and large files
+*.pth
+*.pt
+*.ckpt
+*.pkl
+*.h5
+*.pb
+*.onnx
+*.safetensors
+*.bin
+*.gguf
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.swp
+*~
+
+# OS specific
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+logs/
+
+# Secrets
+*.key
+*.pem
+*.crt
+secrets/
+.secrets/
+models.json
+
+# Docker
+.docker/
+
+# Kubernetes
+*.kubeconfig
+
+# Backup files
+*_backup.*
+*_old.*
+
+# Coverage
+htmlcov/
+coverage.xml
+*.cover
+
+# Documentation build
+docs/_build/
+site/
+
+# Package manager
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Misc
+.env.local
+.env.*.local
+
+# ============================================================
+# Claw项目特定排除 (十神框架维护)
+# ============================================================
+
+# 归档与诊断
+archive/
+*.diagnostic
+
+# 数据与导出 (保留目录结构)
+data/test_results/*
+data/reports_json/*
+data/exports/*
+!data/test_results/.gitkeep
+!data/reports_json/.gitkeep
+!data/exports/.gitkeep
+
+# 全息数据库
+*.db
+*.db.bak
+holographic_map.db
+holographic_export_*/
+
+# 服务日志与PID
+logs/
+*.pid
+*_svc*.log
+eval*.log
+service.log
+ws.log
+
+# 模型权重 (保留P446 branch配置)
+models/*.pt
+models/*.pth
+models/*.bin
+!P446_branches/
+
+# 部署包
+*.zip
+!deploy_frontend.zip
+
+# AtomCode二进制
+atomcode-v*.exe
+
+# 扫描报告 (自动生成)
+tengod_scan_report.json
+tengod_scan_report.html
+tengod_omni_map.json
+
+# 前端构建产物
+public/
+src/components/*.css
+src/components/*.js
+!src/components/*.jsx
+
+# 外部参考项目 (太大)
+tilelang-main/
+memory_cosmos/
+trae-mem/
+
+# Coverage工具
+.coverage
+.coveragerc
+coverage.xml
+
+# CodeBuddy / WorkBuddy本地配置
+.codebuddy/settings.local.json
+.workbuddy/

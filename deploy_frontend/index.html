@@ -3,2356 +3,442 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>十神架构 · 八字命理分析系统</title>
+<title>神似评估器 · 对话质量看板 ◉ · Cloud Edition</title>
+<script src="cloud_config.js"></script>
 <style>
-  :root {
-    --bg: #0a0a1a; --bg2: #12122a; --bg3: #1a1a3a;
-    --gold: #d4a843; --gold2: #f5d76e; --accent: #6c5ce7;
-    --text: #c8c8d8; --text2: #8a8aaa; --text3: #5a5a7a;
-    --green: #00d68f; --red: #ff6b6b; --blue: #45a7ff;
-    --radius: 10px; --transition: 0.2s ease;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
-    background: var(--bg); color: var(--text);
-    display: flex; height: 100vh; overflow: hidden;
-  }
-  /* ── Sidebar ── */
-  nav {
-    width: 220px; min-width: 220px; background: var(--bg2);
-    display: flex; flex-direction: column;
-    border-right: 1px solid rgba(255,255,255,0.05);
-    flex-shrink: 0;
-  }
-  nav .logo {
-    padding: 24px 20px; font-size: 18px; font-weight: 700;
-    color: var(--gold2); text-align: center;
-    border-bottom: 1px solid rgba(255,255,255,0.05);
-  }
-  nav .logo span { font-size: 12px; color: var(--text3); display: block; }
-  nav a {
-    display: flex; align-items: center; gap: 10px;
-    padding: 14px 20px; color: var(--text2); text-decoration: none;
-    font-size: 14px; transition: var(--transition);
-    border-left: 3px solid transparent;
-  }
-  nav a:hover { background: var(--bg3); color: var(--text); }
-  nav a.active { 
-    color: var(--gold); background: rgba(212,168,67,0.08);
-    border-left-color: var(--gold);
-  }
-  nav .icon { font-size: 18px; width: 24px; text-align: center; }
-  nav .status { padding: 20px; margin-top: auto; border-top: 1px solid rgba(255,255,255,0.05); }
-  nav .status .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
-  nav .status .dot.online { background: var(--green); }
-  nav .status .dot.offline { background: var(--red); }
-  /* ── Main ── */
-  main {
-    flex: 1; overflow-y: auto; padding: 30px;
-    background: linear-gradient(135deg, var(--bg) 0%, var(--bg2) 100%);
-  }
-  .page { display: none; }
-  .page.active { display: block; }
-  /* ── Components ── */
-  h1 { font-size: 24px; color: var(--gold2); margin-bottom: 6px; }
-  h2 { font-size: 18px; color: var(--gold); margin: 24px 0 12px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.06); }
-  .subtitle { color: var(--text3); font-size: 13px; margin-bottom: 24px; }
-  .card {
-    background: var(--bg2); border-radius: var(--radius);
-    padding: 20px; border: 1px solid rgba(255,255,255,0.05);
-    margin-bottom: 16px;
-  }
-  .card-header { font-size: 15px; font-weight: 600; color: var(--gold); margin-bottom: 12px; }
-  .grid { display: grid; gap: 16px; }
-  .grid2 { grid-template-columns: 1fr 1fr; }
-  .grid3 { grid-template-columns: 1fr 1fr 1fr; }
-  .grid4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
-  /* ── Form ── */
-  .form-row { display: flex; gap: 12px; margin-bottom: 12px; align-items: flex-end; flex-wrap: wrap; }
-  .form-group { display: flex; flex-direction: column; gap: 4px; }
-  .form-group label { font-size: 12px; color: var(--text3); font-weight: 600; }
-  .form-group input, .form-group select {
-    background: var(--bg3); border: 1px solid rgba(255,255,255,0.08);
-    color: var(--text); padding: 10px 14px; border-radius: 8px;
-    font-size: 14px; outline: none; transition: var(--transition);
-    width: 100%; min-width: 80px;
-  }
-  .form-group input:focus { border-color: var(--gold); }
-  .btn {
-    background: linear-gradient(135deg, var(--gold), var(--gold2));
-    color: #1a1a2e; border: none; padding: 10px 24px;
-    border-radius: 8px; font-size: 14px; font-weight: 600;
-    cursor: pointer; transition: var(--transition);
-  }
-  .btn:hover { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(212,168,67,0.3); }
-  .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-  .btn-sm { padding: 6px 14px; font-size: 12px; }
-  .btn-outline {
-    background: transparent; border: 1px solid var(--gold);
-    color: var(--gold);
-  }
-  /* ── Tags ── */
-  .tag {
-    display: inline-block; padding: 3px 10px; border-radius: 20px;
-    font-size: 11px; font-weight: 600;
-  }
-  .tag-ji { background: rgba(0,214,143,0.15); color: var(--green); }
-  .tag-xiong { background: rgba(255,107,107,0.15); color: var(--red); }
-  .tag-ping { background: rgba(255,255,255,0.08); color: var(--text2); }
-  .tag-wx { background: rgba(108,92,231,0.15); color: var(--accent); }
-  /* ── Table ── */
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th { text-align: left; padding: 10px 12px; color: var(--text3); font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06); }
-  td { padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.03); }
-  tr:hover td { background: rgba(255,255,255,0.02); }
-  /* ── Pillars Display ── */
-  .pillars {
-    display: flex; gap: 12px; margin: 16px 0; justify-content: center;
-  }
-  .pillar {
-    text-align: center; padding: 16px 24px; border-radius: var(--radius);
-    background: var(--bg3); border: 1px solid rgba(255,255,255,0.08);
-    min-width: 90px;
-  }
-  .pillar .ganzhi { font-size: 22px; font-weight: 700; color: var(--gold2); }
-  .pillar .label { font-size: 11px; color: var(--text3); margin-top: 6px; }
-  .pillar .shigan { font-size: 12px; color: var(--accent); margin-top: 4px; }
-  /* ── Loading ── */
-  .loading { text-align: center; padding: 40px; color: var(--text3); }
-  .spinner {
-    display: inline-block; width: 30px; height: 30px;
-    border: 3px solid rgba(255,255,255,0.1);
-    border-top-color: var(--gold); border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  /* ── Chat ── */
-  .chat-container {
-    display: flex; flex-direction: column; height: calc(100vh - 180px);
-  }
-  .chat-messages {
-    flex: 1; overflow-y: auto; padding: 12px;
-    display: flex; flex-direction: column; gap: 12px;
-  }
-  .chat-msg {
-    max-width: 80%; padding: 12px 16px; border-radius: 12px;
-    font-size: 14px; line-height: 1.6;
-  }
-  .chat-msg.user {
-    align-self: flex-end; background: var(--accent);
-    color: #fff; border-bottom-right-radius: 4px;
-  }
-  .chat-msg.assistant {
-    align-self: flex-start; background: var(--bg3);
-    color: var(--text); border-bottom-left-radius: 4px;
-  }
-  .chat-input-row {
-    display: flex; gap: 8px; padding: 12px 0;
-    border-top: 1px solid rgba(255,255,255,0.05);
-  }
-  .chat-input-row input {
-    flex: 1; background: var(--bg3); border: 1px solid rgba(255,255,255,0.08);
-    color: var(--text); padding: 12px 16px; border-radius: 8px;
-    font-size: 14px; outline: none;
-  }
-  .chat-input-row input:focus { border-color: var(--gold); }
-  /* ── 3D iframe ── */
-  .iframe-3d {
-    width: 100%; height: calc(100vh - 160px);
-    border: 1px solid rgba(255,255,255,0.05); border-radius: var(--radius);
-  }
-  /* ── Responsive ── */
-  @media (max-width: 768px) {
-    body { flex-direction: column; }
-    nav { width: 100%; min-width: 0; flex-direction: row; overflow-x: auto; padding: 0; }
-    nav .logo { display: none; }
-    nav a { padding: 12px; font-size: 12px; border-left: none; border-bottom: 2px solid transparent; }
-    nav a.active { border-bottom-color: var(--gold); border-left: none; }
-    nav .status { display: none; }
-    main { padding: 16px; }
-    .grid2, .grid3, .grid4 { grid-template-columns: 1fr; }
-    .pillars { flex-wrap: wrap; }
-  }
-  /* ── Misc ── */
-  .text-center { text-align: center; }
-  .text-sm { font-size: 12px; color: var(--text3); }
-  .mt-1 { margin-top: 8px; }
-  .mt-2 { margin-top: 16px; }
-  .mb-1 { margin-bottom: 8px; }
-  .flex-between { display: flex; justify-content: space-between; align-items: center; }
-  .wuxing-bar {
-    height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px;
-    margin: 4px 0; overflow: hidden;
-  }
-  .wuxing-bar-fill { height: 100%; border-radius: 3px; transition: width 0.5s ease; }
-  .cursor-pointer { cursor: pointer; }
-  .pulse { animation: pulse 2s infinite; }
-  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+:root {
+  --bg-primary: #080810;
+  --bg-secondary: #0c0c18;
+  --bg-card: #101022;
+  --accent: #5eead4;
+  --accent-dim: #5eead422;
+  --text-primary: #e0e0f0;
+  --text-secondary: #8080a0;
+  --border: #1e1e3a;
+  --success: #34d399;
+  --warning: #fbbf24;
+  --danger: #f87171;
+  --info: #60a5fa;
+  --purple: #a78bfa;
+  --pink: #f472b6;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body {
+  font-family:'Segoe UI',system-ui,sans-serif;
+  background:var(--bg-primary);color:var(--text-primary);
+  min-height:100vh;overflow-x:hidden;
+}
+body::before{
+  content:'';position:fixed;top:-50%;left:-50%;
+  width:200%;height:200%;
+  background:radial-gradient(ellipse at 30%20%,#5eead408 0%,transparent 50%),
+              radial-gradient(ellipse at 70%80%,#f472b608 0%,transparent 50%);
+  z-index:0;pointer-events:none;
+}
+.dashboard{position:relative;z-index:1;max-width:1400px;margin:0 auto;padding:24px;}
 
-  /* ── 阶段十三：用户认证 UI ── */
-  .user-box {
-    padding: 14px 16px; margin-top: auto;
-    border-top: 1px solid rgba(255,255,255,0.05);
-    font-size: 12px;
-  }
-  .user-box .uname { color: var(--gold2); font-weight: 600; font-size: 13px; }
-  .user-box .urole { color: var(--text3); font-size: 11px; }
-  .user-box .quota-bar {
-    height: 4px; background: var(--bg3); border-radius: 2px;
-    margin: 6px 0 4px; overflow: hidden;
-  }
-  .user-box .quota-fill {
-    height: 100%; background: var(--green); border-radius: 2px;
-    transition: width 0.3s ease;
-  }
-  .user-box .quota-fill.warn { background: var(--gold); }
-  .user-box .quota-fill.danger { background: var(--red); }
-  .user-box .quota-text { color: var(--text3); font-size: 10px; }
-  .user-box .btn-logout {
-    display: block; width: 100%; margin-top: 8px;
-    padding: 6px; background: transparent; color: var(--text3);
-    border: 1px solid rgba(255,255,255,0.08); border-radius: 6px;
-    font-size: 11px; cursor: pointer; transition: var(--transition);
-  }
-  .user-box .btn-logout:hover { color: var(--red); border-color: var(--red); }
-  .btn-login {
-    display: block; width: 100%; padding: 8px;
-    background: var(--gold); color: var(--bg); border: none;
-    border-radius: 6px; font-size: 13px; font-weight: 600;
-    cursor: pointer; transition: var(--transition);
-  }
-  .btn-login:hover { background: var(--gold2); }
+/* Header */
+.header{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:20px 28px;background:var(--bg-card);
+  border:1px solid var(--border);border-radius:16px;margin-bottom:24px;
+}
+.header h1{
+  font-size:1.4rem;font-weight:700;
+  background:linear-gradient(135deg,var(--accent),var(--purple));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+}
+.header .sub{font-size:0.8rem;color:var(--text-secondary);margin-top:4px;}
+.api-status{
+  display:flex;align-items:center;gap:8px;
+  padding:6px 14px;border-radius:20px;font-size:0.8rem;
+  background:var(--bg-primary);border:1px solid var(--border);
+}
+.api-dot{width:8px;height:8px;border-radius:50%;animation:pulse 2s infinite;}
+.api-dot.online{background:var(--success);box-shadow:0 0 6px #34d39988;}
+.api-dot.offline{background:var(--danger);animation:none;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.6}}
 
-  /* ── Modal ── */
-  .modal-overlay {
-    display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0,0,0,0.7); z-index: 1000;
-    justify-content: center; align-items: center;
-  }
-  .modal-overlay.show { display: flex; }
-  .modal {
-    background: var(--bg2); border-radius: 12px; padding: 32px;
-    width: 380px; max-width: 90vw;
-    border: 1px solid rgba(255,255,255,0.08);
-  }
-  .modal h2 { margin: 0 0 6px; border: none; padding: 0; }
-  .modal .subtitle { margin-bottom: 20px; }
-  .modal .tab-row {
-    display: flex; gap: 0; margin-bottom: 20px;
-    border-bottom: 1px solid rgba(255,255,255,0.08);
-  }
-  .modal .tab {
-    flex: 1; padding: 10px; text-align: center; cursor: pointer;
-    color: var(--text3); font-size: 14px; font-weight: 600;
-    border-bottom: 2px solid transparent; transition: var(--transition);
-  }
-  .modal .tab.active { color: var(--gold); border-bottom-color: var(--gold); }
-  .modal .field { margin-bottom: 14px; }
-  .modal .field label { display: block; font-size: 12px; color: var(--text3); margin-bottom: 4px; }
-  .modal .field input {
-    width: 100%; background: var(--bg3); border: 1px solid rgba(255,255,255,0.08);
-    color: var(--text); padding: 10px 14px; border-radius: 8px;
-    font-size: 14px; outline: none;
-  }
-  .modal .field input:focus { border-color: var(--gold); }
-  .modal .btn-submit {
-    width: 100%; padding: 12px; background: var(--gold); color: var(--bg);
-    border: none; border-radius: 8px; font-size: 15px; font-weight: 700;
-    cursor: pointer; transition: var(--transition); margin-top: 8px;
-  }
-  .modal .btn-submit:hover { background: var(--gold2); }
-  .modal .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
-  .modal .error-msg {
-    color: var(--red); font-size: 12px; margin-top: 8px;
-    display: none;
-  }
-  .modal .error-msg.show { display: block; }
-  .modal .close-btn {
-    position: absolute; top: 16px; right: 20px;
-    color: var(--text3); font-size: 24px; cursor: pointer;
-    background: none; border: none;
-  }
+/* Grid */
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+.grid.single{grid-template-columns:1fr}
+.card{
+  background:var(--bg-card);border:1px solid var(--border);
+  border-radius:16px;padding:20px;margin-bottom:20px;
+}
+.card-title{
+  font-size:0.9rem;font-weight:600;margin-bottom:16px;
+  color:var(--accent);display:flex;align-items:center;gap:8px;
+}
+
+/* Input */
+.input-group{display:flex;flex-direction:column;gap:12px;}
+.input-group label{font-size:0.8rem;color:var(--text-secondary);}
+.input-group textarea,.input-group input{
+  background:var(--bg-primary);color:var(--text-primary);
+  border:1px solid var(--border);border-radius:8px;
+  padding:10px 14px;font-size:0.85rem;resize:vertical;
+  transition:border-color 0.2s;
+}
+.input-group textarea:focus,.input-group input:focus{
+  outline:none;border-color:var(--accent);
+}
+.domain-grid{
+  display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;
+}
+.domain-btn{
+  background:var(--bg-primary);color:var(--text-primary);
+  border:1px solid var(--border);border-radius:8px;
+  padding:6px 14px;cursor:pointer;font-size:0.8rem;
+  transition:all 0.2s;
+}
+.domain-btn:hover{border-color:var(--accent);background:var(--accent-dim);}
+.domain-btn.active{border-color:var(--accent);background:var(--accent-dim);color:var(--accent);}
+.eval-btn{
+  background:linear-gradient(135deg,var(--accent),var(--purple));
+  color:var(--bg-primary);border:none;border-radius:8px;
+  padding:10px 24px;cursor:pointer;font-weight:600;font-size:0.9rem;
+  transition:all 0.2s;align-self:flex-start;
+}
+.eval-btn:hover{transform:translateY(-1px);box-shadow:0 4px 20px #5eead444;}
+.eval-btn:disabled{opacity:0.5;cursor:not-allowed;}
+
+/* Results */
+.psi-big{
+  font-size:3.5rem;font-weight:700;text-align:center;
+  background:linear-gradient(135deg,var(--accent),var(--info));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  line-height:1;
+}
+.psi-label{text-align:center;font-size:0.75rem;color:var(--text-secondary);margin-top:4px;}
+.psi-diagnosis{
+  text-align:center;font-size:0.9rem;margin-top:8px;
+  padding:6px 12px;border-radius:8px;display:inline-block;
+}
+.dim-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px;}
+.dim-item{
+  background:var(--bg-primary);border:1px solid var(--border);
+  border-radius:8px;padding:10px;text-align:center;
+}
+.dim-label{font-size:0.65rem;color:var(--text-secondary);}
+.dim-value{font-size:1.2rem;font-weight:600;margin-top:2px;}
+.qi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px;}
+.qi-item{
+  background:var(--bg-primary);border:1px solid var(--border);
+  border-radius:8px;padding:8px;text-align:center;
+}
+.qi-label{font-size:0.65rem;color:var(--text-secondary);}
+.qi-value{font-size:1rem;font-weight:600;margin-top:2px;}
+.qi-bar{
+  height:4px;border-radius:2px;margin-top:6px;
+  background:var(--bg-secondary);overflow:hidden;
+}
+.qi-bar-fill{height:100%;border-radius:2px;transition:width 0.5s;}
+
+/* History chart */
+canvas{margin-top:12px;border-radius:8px;max-height:180px;}
+.history-list{margin-top:12px;max-height:200px;overflow-y:auto;}
+.history-item{
+  display:flex;justify-content:space-between;
+  padding:4px 8px;font-size:0.75rem;color:var(--text-secondary);
+  border-bottom:1px solid var(--border);
+}
+
+/* Nodes */
+.node-list{margin-top:8px;}
+.node-item{
+  padding:8px 12px;margin-bottom:4px;
+  background:var(--bg-primary);border-radius:6px;
+  font-size:0.8rem;border-left:3px solid var(--border);
+  display:flex;justify-content:space-between;align-items:center;
+}
+.node-score{font-size:0.7rem;color:var(--text-secondary);white-space:nowrap;margin-left:8px;}
+
+/* Loading */
+.loading{text-align:center;padding:20px;color:var(--text-secondary);}
+.loading .spinner{
+  width:24px;height:24px;border:2px solid var(--border);
+  border-top-color:var(--accent);border-radius:50%;
+  animation:spin 0.8s linear infinite;margin:0 auto 8px;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+@media(max-width:800px){
+  .grid{grid-template-columns:1fr}
+  .dim-grid{grid-template-columns:repeat(2,1fr)}
+}
 </style>
-<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
 </head>
 <body>
+<div class="dashboard">
 
-<!-- Sidebar -->
-<nav>
-  <div class="logo">十神架构<span>八字命理分析系统</span></div>
-  <a href="#calc" class="active" data-page="calc">
-    <span class="icon">🧮</span> 八字排盘
-  </a>
-  <a href="#report" data-page="report">
-    <span class="icon">📋</span> 命理报告
-  </a>
-  <a href="#knowledge" data-page="knowledge">
-    <span class="icon">📚</span> 知识库
-  </a>
-  <a href="#chat" data-page="chat">
-    <span class="icon">🤖</span> AI 对话
-  </a>
-  <a href="#visual" data-page="visual">
-    <span class="icon">🌐</span> 3D 可视化
-  </a>
-  <a href="#history" data-page="history">
-    <span class="icon">📜</span> 历史记录
-  </a>
-  <a href="#ziwei" data-page="ziwei">
-    <span class="icon">🌟</span> 紫微斗数
-  </a>
-  <a href="#liuyao" data-page="liuyao">
-    <span class="icon">🪙</span> 六爻占卜
-  </a>
-  <a href="#qimen" data-page="qimen">
-    <span class="icon">🏯</span> 奇门遁甲
-  </a>
-  <a href="#name" data-page="name">
-    <span class="icon">📛</span> 姓名分析
-  </a>
-  <a href="#marriage" data-page="marriage">
-    <span class="icon">💑</span> 合婚配对
-  </a>
-  <a href="#graph" data-page="graph">
-    <span class="icon">🕸️</span> 知识图谱
-  </a>
-  <a href="#viz" data-page="viz">
-    <span class="icon">📊</span> 高级图表
-  </a>
-  <!-- 阶段十三：用户状态区域 -->
-  <div class="user-box" id="userBox">
-    <!-- 未登录状态 -->
-    <div id="userLoggedOut" style="display:none;">
-      <button class="btn-login" onclick="showAuthModal()">🔐 登录 / 注册</button>
+  <!-- Header -->
+  <div class="header">
+    <div>
+      <h1>◉ 神似评估器 · 对话质量看板 v1.0</h1>
+      <div class="sub">P444 地支藏干 · P446 容器发散 · 本中余三气评估</div>
     </div>
-    <!-- 已登录状态 -->
-    <div id="userLoggedIn" style="display:none;">
-      <div class="uname" id="userDisplayName">-</div>
-      <div class="urole" id="userRoleName">-</div>
-      <div class="quota-bar"><div class="quota-fill" id="quotaFill" style="width:100%"></div></div>
-      <div class="quota-text" id="quotaText">配额: -/-</div>
-      <button class="btn-logout" onclick="logout()">退出登录</button>
+    <div class="api-status" id="apiStatus">
+      <div class="api-dot offline" id="apiDot"></div>
+      <span id="apiStatusText">检查连接中...</span>
     </div>
   </div>
-  <!-- API 状态 -->
-  <div class="status" style="margin-top:0;border-top:none;padding-top:8px;">
-    <span class="dot" id="apiStatus"></span>
-    <span style="font-size:12px;color:var(--text3)" id="apiStatusText">检测中...</span>
-  </div>
-</nav>
 
-<!-- Main Content -->
-<main id="mainContent">
-
-  <!-- ====== 排盘页 ====== -->
-  <div class="page active" id="page-calc">
-    <h1>八字排盘</h1>
-    <p class="subtitle">输入出生时间，一键推算四柱、大运、流年、神煞、格局</p>
-
+  <div class="grid">
+    <!-- Left Panel: Input + Controls -->
     <div class="card">
-      <div class="card-header">出生信息</div>
-      <div class="form-row">
-        <div class="form-group"><label>年</label><input type="number" id="inYear" value="1990" min="1900" max="2100"></div>
-        <div class="form-group"><label>月</label><input type="number" id="inMonth" value="6" min="1" max="12"></div>
-        <div class="form-group"><label>日</label><input type="number" id="inDay" value="15" min="1" max="31"></div>
-        <div class="form-group"><label>时</label><input type="number" id="inHour" value="10" min="0" max="23"></div>
-        <div class="form-group"><label>分</label><input type="number" id="inMinute" value="30" min="0" max="59"></div>
-        <div class="form-group"><label>性别</label>
-          <select id="inGender"><option value="male">男</option><option value="female">女</option></select>
-        </div>
-        <div class="form-group"><label>经度</label><input type="number" id="inLng" value="116.4" step="0.1" style="width:80px"></div>
-        <div class="form-group">
-          <label>&nbsp;</label>
-          <button class="btn" id="btnCalc" onclick="calcBazi()">开始排盘</button>
-        </div>
+      <div class="card-title">📝 对话输入</div>
+      <div class="domain-grid" id="domainGrid"></div>
+      <div class="input-group">
+        <label>根问题 (Root Question)</label>
+        <input id="rootQuestion" value="零信任安全架构的核心原则是什么?" spellcheck="false">
+      </div>
+      <div class="input-group" style="margin-top:12px;">
+        <label>回答节点 (每行一条)</label>
+        <textarea id="answers" rows="4" spellcheck="false">永不信任始终验证是零信任基石
+最小权限原则限制横向移动
+每项请求都需要身份验证
+微隔离替代传统边界防护</textarea>
+      </div>
+      <div class="input-group" style="margin-top:12px;">
+        <label>Qi 风格</label>
+        <select id="qiStyle" style="background:var(--bg-primary);color:var(--text-primary);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:0.85rem;">
+          <option value="qi_main">qi_main (平衡) [默认]</option>
+          <option value="balanced">balanced (均衡)</option>
+          <option value="qi_aggressive">qi_aggressive (激进)</option>
+          <option value="qi_detail">qi_detail (细节)</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:12px;margin-top:16px;">
+        <button class="eval-btn" id="evalBtn" onclick="evaluate()">◉ 评估</button>
+        <button class="eval-btn" style="background:var(--bg-primary);color:var(--text-primary);border:1px solid var(--border);" onclick="domainSnapshot()">📊 全域快照</button>
       </div>
     </div>
 
-    <div class="loading" id="calcLoading" style="display:none">
-      <div class="spinner"></div><p class="mt-1">正在计算八字、神煞、格局...</p>
-    </div>
-
-    <div id="calcResult" style="display:none">
+    <!-- Right Panel: Results -->
+    <div>
+      <!-- Ψ Score -->
+      <div class="card" id="psiCard">
+        <div class="card-title">Ψ 神似指数</div>
+        <div id="psiResult">
+          <div class="loading"><div class="spinner"></div>等待评估...</div>
+        </div>
+      </div>
+      <!-- History Chart -->
       <div class="card">
-        <div class="flex-between">
-          <div class="card-header">四柱八字</div>
-          <span class="text-sm" id="resultTime"></span>
-        </div>
-        <div class="pillars" id="pillarsDisplay"></div>
-        <div class="text-center text-sm mt-1" id="dayMasterInfo"></div>
-      </div>
-
-      <div class="grid grid2">
-        <div class="card">
-          <div class="card-header">五行分布</div>
-          <div id="wuxingDisplay"></div>
-        </div>
-        <div class="card">
-          <div class="card-header">十神分布</div>
-          <div id="shiganDisplay"></div>
-        </div>
-      </div>
-
-      <div class="grid grid2">
-        <div class="card">
-          <div class="card-header">格局判断</div>
-          <div id="gejuDisplay"></div>
-        </div>
-        <div class="card">
-          <div class="card-header">喜用神 & 调候</div>
-          <div id="yongshenDisplay"></div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-header">神煞总览</div>
-        <div id="shenshaDisplay"></div>
-      </div>
-
-      <div class="card">
-        <div class="card-header">大运流年</div>
-        <div id="dayunDisplay"></div>
-      </div>
-
-      <div class="text-center mt-2">
-        <button class="btn btn-outline" onclick="switchPage('report')">查看完整报告 →</button>
-        <button class="btn btn-sm btn-outline" onclick="saveRecord()" style="margin-left:8px">保存记录</button>
+        <div class="card-title">📈 Ψ 趋势</div>
+        <canvas id="psiChart"></canvas>
       </div>
     </div>
   </div>
 
-  <!-- ====== 报告页 ====== -->
-  <div class="page" id="page-report">
-    <h1>命理报告</h1>
-    <p class="subtitle">完整的八字命理综合分析报告</p>
-    <div id="reportContent" style="white-space:pre-wrap;line-height:2;font-family:'PingFang SC','Microsoft YaHei',monospace;font-size:13px;">
-      <div class="loading"><div class="spinner"></div><p>请先进行八字排盘</p></div>
-    </div>
+  <!-- Node Detail -->
+  <div class="card" id="nodeDetailCard" style="display:none;">
+    <div class="card-title">🔍 节点级分析</div>
+    <div class="node-list" id="nodeDetail"></div>
   </div>
 
-  <!-- ====== 知识库页 ====== -->
-  <div class="page" id="page-knowledge">
-    <h1>知识库</h1>
-    <p class="subtitle">搜索命理知识图谱 · 111个节点</p>
-
-    <div class="card">
-      <div class="form-row">
-        <div class="form-group" style="flex:1">
-          <input type="text" id="kbSearch" placeholder="输入关键词，如：五行、八卦、天干..." onkeydown="if(event.key==='Enter')searchKnowledge()">
-        </div>
-        <div class="form-group">
-          <select id="kbFilter">
-            <option value="">全部类型</option>
-            <option value="element">五行</option>
-            <option value="trigram">八卦</option>
-            <option value="tiangan">天干</option>
-            <option value="dizhi">地支</option>
-            <option value="shigan">十神</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>&nbsp;</label>
-          <button class="btn" onclick="searchKnowledge()">搜索</button>
-        </div>
-      </div>
-    </div>
-
-    <div id="kbResults"></div>
-
-    <div class="grid grid3" id="kbQuickLinks">
-      <div class="card cursor-pointer" onclick="quickSearch('五行')"><div class="card-header">五行</div><span class="text-sm">金木水火土</span></div>
-      <div class="card cursor-pointer" onclick="quickSearch('八卦')"><div class="card-header">八卦</div><span class="text-sm">乾坤震巽坎离艮兑</span></div>
-      <div class="card cursor-pointer" onclick="quickSearch('天干')"><div class="card-header">天干</div><span class="text-sm">甲乙丙丁戊己庚辛壬癸</span></div>
-      <div class="card cursor-pointer" onclick="quickSearch('地支')"><div class="card-header">地支</div><span class="text-sm">子丑寅卯辰巳午未申酉戌亥</span></div>
-      <div class="card cursor-pointer" onclick="quickSearch('十神')"><div class="card-header">十神</div><span class="text-sm">比肩劫财食神伤官...</span></div>
-      <div class="card cursor-pointer" onclick="quickSearch('河图')"><div class="card-header">河图洛书</div><span class="text-sm">上古数理模型</span></div>
-    </div>
-  </div>
-
-  <!-- ====== AI 对话页 ====== -->
-  <div class="page" id="page-chat">
-    <h1>AI 命理对话</h1>
-    <p class="subtitle">结合八字上下文与知识库的智能问答</p>
-    <div class="chat-container">
-      <div class="chat-messages" id="chatMessages">
-        <div class="chat-msg assistant">
-          你好！我是命理顾问。你可以问我关于八字、五行、格局、神煞等问题。如果已排盘，我会结合你的八字进行分析。
-        </div>
-      </div>
-      <div class="chat-input-row">
-        <input type="text" id="chatInput" placeholder="输入你的问题..." onkeydown="if(event.key==='Enter')sendChat()">
-        <button class="btn" onclick="sendChat()">发送</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ====== 3D 可视化页 ====== -->
-  <div class="page" id="page-visual">
-    <h1>3D 可视化</h1>
-    <p class="subtitle">WebGL 3D 交互：五行生克 · 八卦方位 · 天干地支 · 十神图谱 · 河图洛书 · 综合罗盘 · 八字排盘</p>
-    <iframe class="iframe-3d" src="/static/wuxing_3d_holo.html" id="iframe3d"></iframe>
-  </div>
-
-  <!-- ====== 历史记录页 ====== -->
-  <div class="page" id="page-history">
-    <h1>历史记录</h1>
-    <p class="subtitle">已保存的八字排盘记录</p>
-    <div id="historyContent">
-      <div class="loading"><div class="spinner"></div><p>加载中...</p></div>
-    </div>
-  </div>
-
-  <!-- ====== 紫微斗数页 ====== -->
-  <div class="page" id="page-ziwei">
-    <h1>紫微斗数</h1>
-    <p class="subtitle">十二宫 · 星曜分布 · 四化飞星</p>
-    <div class="card">
-      <div class="grid grid3">
-        <div class="form-group">
-          <label>出生年</label>
-          <input type="number" id="zwYear" value="2000" min="1900" max="2100">
-        </div>
-        <div class="form-group">
-          <label>出生月</label>
-          <input type="number" id="zwMonth" value="1" min="1" max="12">
-        </div>
-        <div class="form-group">
-          <label>出生日</label>
-          <input type="number" id="zwDay" value="1" min="1" max="31">
-        </div>
-        <div class="form-group">
-          <label>出生时</label>
-          <input type="number" id="zwHour" value="0" min="0" max="23">
-        </div>
-        <div class="form-group">
-          <label>性别</label>
-          <select id="zwGender"><option value="male">男</option><option value="female">女</option></select>
-        </div>
-        <div class="form-group">
-          <label>&nbsp;</label>
-          <button class="btn" onclick="calcZiwei()">排盘</button>
-        </div>
-      </div>
-    </div>
-    <div id="ziweiResult"></div>
-  </div>
-
-  <!-- ====== 六爻占卜页 ====== -->
-  <div class="page" id="page-liuyao">
-    <h1>六爻占卜</h1>
-    <p class="subtitle">铜钱摇卦 · 六十四卦 · 六亲六神</p>
-    <div class="card" style="text-align:center">
-      <p class="text-sm mb-1">心中默念所求之事，然后点击摇卦</p>
-      <button class="btn" onclick="shakeLiuyao()" style="font-size:18px;padding:16px 40px">🪙 摇卦</button>
-      <div class="mt-1">
-        <label class="text-sm">日干支</label>
-        <input type="text" id="lyDayGanzhi" value="甲子" style="width:80px;text-align:center;margin-left:8px">
-      </div>
-    </div>
-    <div id="liuyaoResult"></div>
-  </div>
-
-  <!-- ====== 奇门遁甲页 ====== -->
-  <div class="page" id="page-qimen">
-    <h1>奇门遁甲</h1>
-    <p class="subtitle">九宫 · 八门 · 九星 · 八神</p>
-    <div class="card">
-      <div class="grid grid3">
-        <div class="form-group">
-          <label>年</label>
-          <input type="number" id="qmYear" value="2024" min="1900" max="2100">
-        </div>
-        <div class="form-group">
-          <label>月</label>
-          <input type="number" id="qmMonth" value="1" min="1" max="12">
-        </div>
-        <div class="form-group">
-          <label>日</label>
-          <input type="number" id="qmDay" value="1" min="1" max="31">
-        </div>
-        <div class="form-group">
-          <label>时</label>
-          <input type="number" id="qmHour" value="0" min="0" max="23">
-        </div>
-        <div class="form-group">
-          <label>&nbsp;</label>
-          <button class="btn" onclick="calcQimen()">排盘</button>
-        </div>
-      </div>
-    </div>
-    <div id="qimenResult"></div>
-  </div>
-
-  <!-- ====== 姓名分析页 ====== -->
-  <div class="page" id="page-name">
-    <h1>姓名学分析</h1>
-    <p class="subtitle">五格剖象 · 三才配置 · 数理吉凶</p>
-    <div class="card">
-      <div class="grid grid2">
-        <div class="form-group">
-          <label>姓氏</label>
-          <input type="text" id="nmSurname" value="张" maxlength="2" style="width:80px">
-        </div>
-        <div class="form-group">
-          <label>名字</label>
-          <input type="text" id="nmGivenName" value="伟明" maxlength="2" style="width:80px">
-        </div>
-      </div>
-      <div class="text-center mt-1">
-        <button class="btn" onclick="analyzeName()">分析</button>
-      </div>
-    </div>
-    <div id="nameResult"></div>
-  </div>
-
-  <!-- ====== 合婚配对页 ====== -->
-  <div class="page" id="page-marriage">
-    <h1>八字合婚</h1>
-    <p class="subtitle">纳音匹配 · 日干五合 · 五行互补 · 生肖配对</p>
-    <div class="card">
-      <p class="text-sm mb-1">请先在排盘页面分别排好双方八字，再点击合婚分析</p>
-      <div class="text-center">
-        <button class="btn" onclick="calcMarriage()">💑 合婚分析</button>
-      </div>
-    </div>
-    <div id="marriageResult"></div>
-  </div>
-
-  <!-- ====== 阶段十四：知识图谱页 ====== -->
-  <div class="page" id="page-graph">
-    <h1>命理知识图谱</h1>
-    <p class="subtitle">五行·天干·地支·八卦·十神·神煞·格局·64卦 关系网络可视化</p>
-
-    <div class="card">
-      <div class="card-header">图谱查询</div>
-      <div class="form-row">
-        <div class="form-group" style="flex:1;">
-          <label>搜索关键词</label>
-          <input type="text" id="graphSearch" placeholder="如：甲、木、财、乾" onkeydown="if(event.key==='Enter')graphSearchNode()">
-        </div>
-        <div class="form-group">
-          <label>&nbsp;</label>
-          <button class="btn" onclick="graphSearchNode()">🔍 搜索</button>
-        </div>
-        <div class="form-group">
-          <label>标签过滤</label>
-          <select id="graphLabelFilter" onchange="loadGraphByLabel()">
-            <option value="">全部</option>
-            <option value="五行">五行</option>
-            <option value="天干">天干</option>
-            <option value="地支">地支</option>
-            <option value="八卦">八卦</option>
-            <option value="十神">十神</option>
-            <option value="神煞">神煞</option>
-            <option value="格局">格局</option>
-            <option value="六十四卦">六十四卦</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>&nbsp;</label>
-          <button class="btn" onclick="loadGraphStats()">📊 统计</button>
-        </div>
-      </div>
-      <div id="graphSearchResult" style="margin-top:8px;"></div>
-    </div>
-
-    <div class="card">
-      <div class="card-header">力导向图可视化 <span style="float:right;font-size:12px;color:var(--text3);font-weight:normal;" id="graphNodeCount"></span></div>
-      <div style="position:relative;background:var(--bg);border-radius:8px;overflow:hidden;">
-        <canvas id="graphCanvas" width="900" height="500" style="display:block;cursor:grab;"></canvas>
-        <div id="graphTooltip" style="position:absolute;display:none;background:var(--bg2);border:1px solid var(--gold);padding:8px 12px;border-radius:6px;font-size:12px;pointer-events:none;max-width:240px;z-index:10;"></div>
-        <div style="position:absolute;top:8px;left:8px;display:flex;gap:6px;">
-          <button class="btn" style="padding:4px 10px;font-size:12px;" onclick="graphZoom(1.2)">+</button>
-          <button class="btn" style="padding:4px 10px;font-size:12px;" onclick="graphZoom(0.8)">−</button>
-          <button class="btn" style="padding:4px 10px;font-size:12px;" onclick="graphReset()">⟳ 重置</button>
-        </div>
-      </div>
-      <div style="margin-top:8px;font-size:12px;color:var(--text3);">
-        拖拽节点 · 滚轮缩放 · 点击节点查看详情 · 不同颜色代表不同标签
-      </div>
-    </div>
-
-    <div class="card" id="graphDetailCard" style="display:none;">
-      <div class="card-header">节点详情 <span id="graphDetailTitle" style="color:var(--gold2);"></span></div>
-      <div id="graphDetailBody"></div>
-      <div style="margin-top:12px;">
-        <strong style="color:var(--gold);font-size:13px;">邻居关系：</strong>
-        <div id="graphNeighbors" style="margin-top:8px;"></div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-header">最短路径查询</div>
-      <div class="form-row">
-        <div class="form-group" style="flex:1;">
-          <label>起点</label>
-          <input type="text" id="pathSource" placeholder="如：甲" value="甲">
-        </div>
-        <div class="form-group" style="flex:1;">
-          <label>终点</label>
-          <input type="text" id="pathTarget" placeholder="如：火" value="火">
-        </div>
-        <div class="form-group">
-          <label>&nbsp;</label>
-          <button class="btn" onclick="findPath()">🔍 查找路径</button>
-        </div>
-      </div>
-      <div id="pathResult" style="margin-top:8px;"></div>
-    </div>
-  </div>
-
-  <!-- ====== 阶段十五：高级图表页 ====== -->
-  <div class="page" id="page-viz">
-    <h1>高级图表分析</h1>
-    <p class="subtitle">D3.js 驱动：五行能量雷达 · 十神分布 · 大运流年时间轴</p>
-
-    <div class="card">
-      <div class="card-header">排盘输入</div>
-      <div class="form-row">
-        <div class="form-group"><label>年</label><input type="number" id="vizYear" value="1990" min="1900" max="2100"></div>
-        <div class="form-group"><label>月</label><input type="number" id="vizMonth" value="6" min="1" max="12"></div>
-        <div class="form-group"><label>日</label><input type="number" id="vizDay" value="15" min="1" max="31"></div>
-        <div class="form-group"><label>时</label><input type="number" id="vizHour" value="10" min="0" max="23"></div>
-        <div class="form-group"><label>分</label><input type="number" id="vizMinute" value="30" min="0" max="59"></div>
-        <div class="form-group"><label>性别</label><select id="vizGender"><option value="male">男</option><option value="female">女</option></select></div>
-        <div class="form-group"><label>&nbsp;</label><button class="btn" onclick="loadVizData()">📊 生成图表</button></div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-header">五行能量雷达图 <span style="float:right;font-size:12px;color:var(--text3);font-weight:normal;">D3.js · 五行旺衰分布</span></div>
-      <div id="radarChart" style="text-align:center;min-height:400px;"></div>
-      <div id="radarLegend" style="display:flex;justify-content:center;gap:16px;margin-top:8px;flex-wrap:wrap;"></div>
-    </div>
-
-    <div class="card">
-      <div class="card-header">十神力量分布 <span style="float:right;font-size:12px;color:var(--text3);font-weight:normal;">D3.js · 十神数量柱状图</span></div>
-      <div id="shiganChart" style="text-align:center;min-height:300px;"></div>
-    </div>
-
-    <div class="card">
-      <div class="card-header">大运流年时间轴 <span style="float:right;font-size:12px;color:var(--text3);font-weight:normal;">D3.js · 人生运势轨迹</span></div>
-      <div id="timelineChart" style="overflow-x:auto;min-height:280px;"></div>
-      <div id="timelineTooltip" style="position:fixed;display:none;background:var(--bg2);border:1px solid var(--gold);padding:10px 14px;border-radius:6px;font-size:12px;pointer-events:none;max-width:280px;z-index:1000;box-shadow:0 4px 12px rgba(0,0,0,0.5);"></div>
-    </div>
-  </div>
-
-</main>
-
-<!-- 阶段十三：登录/注册模态框 -->
-<div class="modal-overlay" id="authModal">
-  <div class="modal" style="position:relative;">
-    <button class="close-btn" onclick="hideAuthModal()">×</button>
-    <h2 id="authTitle">登录</h2>
-    <p class="subtitle">登录后享受更高配额与数据持久化</p>
-    <div class="tab-row">
-      <div class="tab active" id="tabLogin" onclick="switchAuthTab('login')">登录</div>
-      <div class="tab" id="tabRegister" onclick="switchAuthTab('register')">注册</div>
-    </div>
-    <div class="field" id="fieldDisplayName" style="display:none;">
-      <label>显示名（可选）</label>
-      <input type="text" id="authDisplayName" placeholder="您的昵称">
-    </div>
-    <div class="field">
-      <label>用户名</label>
-      <input type="text" id="authUsername" placeholder="3-64 个字符" autocomplete="username">
-    </div>
-    <div class="field">
-      <label>密码</label>
-      <input type="password" id="authPassword" placeholder="至少 6 位" autocomplete="current-password">
-    </div>
-    <div class="error-msg" id="authError"></div>
-    <button class="btn-submit" id="authSubmit" onclick="submitAuth()">登录</button>
-  </div>
 </div>
 
 <script>
-// ====================================================================
-// API 配置
-// ====================================================================
-const API = 'http://127.0.0.1:8000';
-let currentBazi = null;  // 当前排盘结果
-let currentBaziInput = null;  // 当前排盘输入
+// ═══ 配置 ═══
+const API = window.SpiritAPI ? window.SpiritAPI.baseUrl : 'http://localhost:8000';
+const API_KEY = window.SpiritAPI ? window.SpiritAPI.apiKey : 'spirit-p444-dev-key';
 
-// ====================================================================
-// 阶段十三：用户认证 - Token 管理
-// ====================================================================
-let authToken = localStorage.getItem('tengod_token');
-let refreshToken = localStorage.getItem('tengod_refresh');
-let currentUser = null;
+const DOMAINS = {
+  '架构': {q:'如何提升系统架构的可扩展性?',a:['采用微服务架构将功能模块解耦独立部署','引入消息队列降低服务间依赖','实现水平扩展通过负载均衡','使用缓存层减少数据库压力']},
+  '金融': {q:'如何评估量化策略的回测效果?',a:['夏普比率和最大回撤是核心指标','验证策略在牛熊市表现一致性','过拟合检测使用交叉验证','滑点和交易成本是回测实盘差距主因']},
+  '安全': {q:'零信任安全架构的核心原则是什么?',a:['永不信任始终验证是零信任基石','最小权限原则限制横向移动','每项请求都需要身份验证','微隔离替代传统边界防护']},
+  '设计': {q:'如何评估UI设计的一致性原则?',a:['色彩系统和排版体系全局统一','组件库设计规范是一致性基础','交互模式在所有页面保持一致','核心是减少用户认知负担']},
+  '安全深':{q:'渗透测试的方法论和工具链?',a:['信息收集使用Nmap和Shodan资产测绘','漏洞扫描使用Nessus和OpenVAS','利用阶段验证漏洞的可利用性','核心是出具修复建议而非仅报告漏洞']},
+};
 
-/** 统一 API 请求函数（自动携带 token + 401 自动刷新） */
-async function apiFetch(url, options = {}) {
-  if (authToken) {
-    options.headers = options.headers || {};
-    options.headers['Authorization'] = 'Bearer ' + authToken;
-  }
-  let resp = await fetch(url, options);
-  // token 过期，尝试刷新
-  if (resp.status === 401 && refreshToken) {
-    const refreshed = await tryRefreshToken();
-    if (refreshed) {
-      options.headers['Authorization'] = 'Bearer ' + authToken;
-      resp = await fetch(url, options);
-    }
-  }
-  // 未登录访问需要认证的端点，提示登录
-  if (resp.status === 401 && !authToken) {
-    showAuthModal();
-  }
-  return resp;
-}
+let historyData = [];
+let psiChart = null;
 
-/** 尝试刷新 token */
-async function tryRefreshToken() {
+// ═══ 初始化 ═══
+async function init() {
+  // API 状态检查
   try {
-    const r = await fetch(API + '/api/auth/refresh', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refresh_token: refreshToken })
-    });
-    if (!r.ok) { logout(); return false; }
+    const r = await fetch(`${API}/`);
     const d = await r.json();
-    authToken = d.access_token;
-    localStorage.setItem('tengod_token', authToken);
-    return true;
-  } catch { logout(); return false; }
-}
-
-/** 显示认证模态框 */
-function showAuthModal() {
-  document.getElementById('authModal').classList.add('show');
-  switchAuthTab('login');
-}
-
-/** 隐藏认证模态框 */
-function hideAuthModal() {
-  document.getElementById('authModal').classList.remove('show');
-  document.getElementById('authError').classList.remove('show');
-}
-
-/** 切换登录/注册标签 */
-function switchAuthTab(tab) {
-  const isLogin = tab === 'login';
-  document.getElementById('tabLogin').classList.toggle('active', isLogin);
-  document.getElementById('tabRegister').classList.toggle('active', !isLogin);
-  document.getElementById('authTitle').textContent = isLogin ? '登录' : '注册';
-  document.getElementById('authSubmit').textContent = isLogin ? '登录' : '注册';
-  document.getElementById('fieldDisplayName').style.display = isLogin ? 'none' : 'block';
-  document.getElementById('authError').classList.remove('show');
-}
-
-/** 提交登录/注册 */
-async function submitAuth() {
-  const btn = document.getElementById('authSubmit');
-  const errEl = document.getElementById('authError');
-  const username = document.getElementById('authUsername').value.trim();
-  const password = document.getElementById('authPassword').value;
-  const displayName = document.getElementById('authDisplayName').value.trim();
-  const isLogin = document.getElementById('tabLogin').classList.contains('active');
-
-  if (!username || username.length < 3) {
-    errEl.textContent = '用户名至少 3 个字符'; errEl.classList.add('show'); return;
-  }
-  if (!password || password.length < 6) {
-    errEl.textContent = '密码至少 6 位'; errEl.classList.add('show'); return;
+    document.getElementById('apiDot').className = 'api-dot online';
+    document.getElementById('apiStatusText').textContent =
+      `v${d.version} | 在线 | branch=${d.branch_loaded ? '✅' : '❌'}`;
+  } catch(e) {
+    document.getElementById('apiStatusText').textContent = '❌ API 未运行';
   }
 
-  btn.disabled = true; btn.textContent = '处理中...';
-  errEl.classList.remove('show');
-
-  try {
-    const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register';
-    const body = isLogin
-      ? { username, password }
-      : { username, password, display_name: displayName || undefined };
-    const r = await fetch(API + endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    const d = await r.json();
-    if (!r.ok) {
-      errEl.textContent = d.error || d.detail || '操作失败';
-      errEl.classList.add('show');
-      return;
-    }
-    if (d.access_token) {
-      authToken = d.access_token;
-      refreshToken = d.refresh_token;
-      localStorage.setItem('tengod_token', authToken);
-      localStorage.setItem('tengod_refresh', refreshToken);
-      hideAuthModal();
-      await loadUserInfo();
-    } else {
-      // 注册成功，自动切换到登录标签
-      switchAuthTab('login');
-      document.getElementById('authPassword').value = '';
-      errEl.textContent = '注册成功，请登录';
-      errEl.style.color = 'var(--green)';
-      errEl.classList.add('show');
-      setTimeout(() => { errEl.classList.remove('show'); errEl.style.color = ''; }, 2000);
-    }
-  } catch (e) {
-    errEl.textContent = '网络错误: ' + e.message;
-    errEl.classList.add('show');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = isLogin ? '登录' : '注册';
-  }
-}
-
-/** 退出登录 */
-function logout() {
-  authToken = null;
-  refreshToken = null;
-  currentUser = null;
-  localStorage.removeItem('tengod_token');
-  localStorage.removeItem('tengod_refresh');
-  updateUserBox();
-}
-
-/** 加载当前用户信息 */
-async function loadUserInfo() {
-  if (!authToken) { updateUserBox(); return; }
-  try {
-    const r = await apiFetch(API + '/api/auth/me');
-    if (!r.ok) { if (r.status === 401) logout(); return; }
-    currentUser = await r.json();
-    updateUserBox();
-  } catch { /* ignore */ }
-}
-
-/** 更新侧边栏用户状态 */
-function updateUserBox() {
-  const loggedOut = document.getElementById('userLoggedOut');
-  const loggedIn = document.getElementById('userLoggedIn');
-  if (currentUser) {
-    loggedOut.style.display = 'none';
-    loggedIn.style.display = 'block';
-    document.getElementById('userDisplayName').textContent = currentUser.username;
-    document.getElementById('userRoleName').textContent = currentUser.role_name || currentUser.role;
-    const q = currentUser.quota || {};
-    const used = q.used_today || 0;
-    const limit = q.daily_limit || 1;
-    const pct = Math.max(0, Math.min(100, (1 - used / limit) * 100));
-    const fill = document.getElementById('quotaFill');
-    fill.style.width = pct + '%';
-    fill.className = 'quota-fill' + (pct < 20 ? ' danger' : pct < 50 ? ' warn' : '');
-    document.getElementById('quotaText').textContent = `配额: ${limit - used}/${limit}`;
-  } else {
-    loggedOut.style.display = 'block';
-    loggedIn.style.display = 'none';
-  }
-}
-
-// 启动时加载用户信息
-loadUserInfo();
-
-// ====================================================================
-// 页面路由
-// ====================================================================
-function switchPage(name) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('nav a').forEach(a => a.classList.remove('active'));
-  const page = document.getElementById('page-' + name);
-  const link = document.querySelector(`[data-page="${name}"]`);
-  if (page) page.classList.add('active');
-  if (link) link.classList.add('active');
-  if (name === 'history') loadHistory();
-}
-
-document.querySelectorAll('nav a').forEach(a => {
-  a.addEventListener('click', e => {
-    e.preventDefault();
-    switchPage(a.dataset.page);
+  // 域按钮
+  const grid = document.getElementById('domainGrid');
+  Object.keys(DOMAINS).forEach(name => {
+    const btn = document.createElement('button');
+    btn.className = 'domain-btn';
+    btn.textContent = name;
+    btn.onclick = () => {
+      document.querySelectorAll('.domain-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const d = DOMAINS[name];
+      document.getElementById('rootQuestion').value = d.q;
+      document.getElementById('answers').value = d.a.join('\n');
+    };
+    grid.appendChild(btn);
   });
-});
+  // 默认选中
+  const firstBtn = grid.querySelector('.domain-btn');
+  if (firstBtn) { firstBtn.classList.add('active'); }
 
-// ====================================================================
-// API 状态检测
-// ====================================================================
-async function checkApiStatus() {
-  try {
-    const r = await fetch(API + '/api/health');
-    const d = await r.json();
-    document.getElementById('apiStatus').className = 'dot online';
-    document.getElementById('apiStatusText').textContent = 'API 在线';
-  } catch {
-    document.getElementById('apiStatus').className = 'dot offline';
-    document.getElementById('apiStatusText').textContent = 'API 离线';
+  // 图表初始化
+  const canvas = document.getElementById('psiChart');
+  if (canvas && window.Chart) {
+    psiChart = new Chart(canvas, {
+      type: 'line',
+      data: { labels:[], datasets:[{
+        label:'Ψ', data:[], borderColor:'#5eead4', backgroundColor:'#5eead422',
+        tension:0.3, fill:true, pointRadius:3, pointHoverRadius:5
+      }]},
+      options: {
+        responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{display:false}},
+        scales:{
+          x:{display:true, ticks:{color:'#8080a0',maxTicksLimit:8}},
+          y:{min:0,max:1,ticks:{color:'#8080a0',stepSize:0.2}}
+        }
+      }
+    });
   }
+
+  // 自动评估架构域
+  autoEval();
 }
-checkApiStatus();
-setInterval(checkApiStatus, 30000);
 
-// ====================================================================
-// 八字排盘
-// ====================================================================
-async function calcBazi() {
-  const btn = document.getElementById('btnCalc');
-  const loading = document.getElementById('calcLoading');
-  const result = document.getElementById('calcResult');
-
-  btn.disabled = true;
-  loading.style.display = 'block';
-  result.style.display = 'none';
-
-  const input = {
-    year: parseInt(document.getElementById('inYear').value),
-    month: parseInt(document.getElementById('inMonth').value),
-    day: parseInt(document.getElementById('inDay').value),
-    hour: parseInt(document.getElementById('inHour').value),
-    minute: parseInt(document.getElementById('inMinute').value),
-    gender: document.getElementById('inGender').value,
-    longitude: parseFloat(document.getElementById('inLng').value),
-    latitude: 39.9
-  };
-  currentBaziInput = input;
+// ═══ 评估 ═══
+async function evaluate() {
+  const btn = document.getElementById('evalBtn');
+  btn.disabled = true; btn.textContent = '评估中...';
+  const start = performance.now();
 
   try {
-    const r = await apiFetch(API + '/api/bazi/full', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input)
+    const q = document.getElementById('rootQuestion').value.trim();
+    const a = document.getElementById('answers').value.split('\n').filter(s => s.trim());
+    const qi = document.getElementById('qiStyle').value;
+
+    const r = await fetch(`${API}/evaluate`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${API_KEY}`},
+      body: JSON.stringify({root_question:q, answers:a, qi_style:qi, return_explain:true})
     });
     const d = await r.json();
-    currentBazi = d;
-    renderCalcResult(d);
-    loading.style.display = 'none';
-    result.style.display = 'block';
-  } catch (e) {
-    loading.innerHTML = '<p style="color:var(--red)">连接 API 失败，请确认服务已启动</p>';
+    const elapsed = ((performance.now()-start)/1000).toFixed(2);
+
+    if (d.spirit_score !== undefined) displayResult(d, elapsed, a);
+    else throw new Error(d.detail || 'API错误');
+  } catch(e) {
+    document.getElementById('psiResult').innerHTML =
+      `<div style="text-align:center;padding:20px;color:var(--danger);">
+        ❌ 评估失败: ${e.message}<br>
+        <span style="font-size:0.75rem;color:var(--text-secondary);">确保 API 在 ${API} 运行</span>
+      </div>`;
   }
-  btn.disabled = false;
+  btn.disabled = false; btn.textContent = '◉ 评估';
 }
 
-function renderCalcResult(d) {
-  const b = d.bazi;
-  const s = d.shensha;
-  const g = d.geju;
-  const y = d.yongshen;
-  const t = d.tiaohou;
+function displayResult(d, elapsed, answers) {
+  const s = d.spirit_score;
 
-  // 时间
-  document.getElementById('resultTime').textContent = '真太阳时: ' + d.input.true_solar_time;
-
-  // 四柱
-  const pillars = document.getElementById('pillarsDisplay');
-  const labels = ['年柱', '月柱', '日柱', '时柱'];
-  const keys = ['year', 'month', 'day', 'hour'];
-  pillars.innerHTML = keys.map((k, i) => {
-    const shigan = b.shigan_map && b.shigan_map[k + (k === 'day' ? '' : '_gan')] ? b.shigan_map[k + (k === 'day' ? '' : '_gan')] : '';
-    return `<div class="pillar">
-      <div class="ganzhi">${b.pillars[k]}</div>
-      <div class="label">${labels[i]}</div>
-      <div class="shigan">${shigan || '日主'}</div>
-    </div>`;
-  }).join('');
-
-  document.getElementById('dayMasterInfo').textContent = `日主：${b.day_master}  ${b.day_master_info || ''}`;
-
-  // 五行
-  const wx = document.getElementById('wuxingDisplay');
-  const wxC = { '木': '#4CAF50', '火': '#F44336', '土': '#FF9800', '金': '#FFD700', '水': '#2196F3' };
-  wx.innerHTML = ['木', '火', '土', '金', '水'].map(w => {
-    const cnt = b.wuxing[w] || 0;
-    const score = b.wuxing_score[w] || '-';
-    const pct = Math.min(100, Math.max(0, cnt * 20));
-    return `<div class="flex-between mb-1">
-      <span>${w}</span><span class="text-sm">${cnt}个 / ${score}</span>
-      <div class="wuxing-bar" style="flex:1;margin-left:8px;max-width:100px">
-        <div class="wuxing-bar-fill" style="width:${pct}%;background:${wxC[w]}"></div>
-      </div>
-    </div>`;
-  }).join('');
-
-  // 十神
-  const sg = document.getElementById('shiganDisplay');
-  const sgMap = b.shigan_count || {};
-  sg.innerHTML = Object.entries(sgMap).sort((a, b) => b[1] - a[1]).map(([k, v]) =>
-    `<span class="tag tag-wx" style="margin:3px">${k} ×${v}</span>`
-  ).join('') || '<span class="text-sm">无数据</span>';
-
-  // 格局
-  document.getElementById('gejuDisplay').innerHTML = `
-    <p><strong>${g.name}</strong> <span class="tag tag-ping">${g.type}</span></p>
-    <p class="text-sm mt-1">${g.desc}</p>
-    <p class="text-sm mt-1">纯度：${g.score}/100 ${g.is_cong ? '· 从格' : ''} ${g.is_huaqi ? '· 化气格' : ''}</p>
-    <p class="text-sm">适用神：${(g.shiyongshen || []).join(', ') || '无'}</p>
-    <p class="text-sm">忌神：${(g.jishen || []).join(', ') || '无'}</p>
-  `;
-
-  // 喜用神
-  document.getElementById('yongshenDisplay').innerHTML = `
-    <p><strong>日主状态：</strong>${y.wang_shuai}（${y.wang_shuai_level}/100）</p>
-    <p class="mt-1"><strong>用神：</strong>${(y.yong_shen || []).join(', ') || '无'}</p>
-    <p><strong>忌神：</strong>${(y.ji_shen || []).join(', ') || '无'}</p>
-    <p class="text-sm mt-1">${y.desc}</p>
-    <hr style="border-color:rgba(255,255,255,0.05);margin:8px 0">
-    <p><strong>调候：</strong>${t.required ? '需要 (' + t.season + ')' : '不需调候'}</p>
-    <p><strong>调候用神：</strong>${(t.tiaohou_shens || []).join(', ') || '无'}</p>
-    <p class="text-sm">${t.desc || ''}</p>
-  `;
-
-  // 神煞
-  const ss = document.getElementById('shenshaDisplay');
-  const ssDetail = s.detail || {};
-  const ji = Object.entries(ssDetail).filter(([_, v]) => v.cat === '吉神' || v.cat === '吉');
-  const xiong = Object.entries(ssDetail).filter(([_, v]) => v.cat === '凶' || v.cat === '大凶');
-  ss.innerHTML = `
-    <p>共 ${s.total} 种神煞：吉神 ${ji.length} 个 / 凶神 ${xiong.length} 个</p>
-    <div class="mt-1">
-      ${ji.slice(0, 6).map(([k, v]) => `<span class="tag tag-ji" style="margin:2px">${k}</span>`).join('')}
-      ${xiong.slice(0, 6).map(([k, v]) => `<span class="tag tag-xiong" style="margin:2px">${k}</span>`).join('')}
+  // Ψ 大数字
+  document.getElementById('psiResult').innerHTML = `
+    <div class="psi-big" style="color:${s>=0.8?'var(--success)':s>=0.6?'var(--accent)':s>=0.4?'var(--warning)':'var(--danger)'}">${s.toFixed(4)}</div>
+    <div class="psi-label">Ψ 神似指数 · ${elapsed}s</div>
+    ${d.diagnosis ? `<div class="psi-diagnosis" style="background:${s>=0.6?'var(--accent-dim)':'var(--bg-primary)'};color:${s>=0.8?'var(--success)':s>=0.6?'var(--accent)':'var(--warning)'}">${d.diagnosis}</div>` : ''}
+    <div class="dim-grid">
+      ${['intention','coherence','priority','insight'].map(k =>
+        `<div class="dim-item">
+          <div class="dim-label">${k}</div>
+          <div class="dim-value" style="color:${(d.dimensions[k]||0)>=0.7?'var(--success)':'var(--warning)'}">${(d.dimensions[k]||0).toFixed(4)}</div>
+        </div>`
+      ).join('')}
     </div>
-    <p class="text-sm mt-1">${s.summary || ''}</p>
+    <div class="qi-grid">
+      ${d.qi_scores ? ['b','z','y'].map(k => {
+        const label = {b:'本气·核心意图',z:'中气·逻辑连贯',y:'余气·细节洞见'}[k];
+        const pct = ((d.qi_scores[k]||0)/0.5*100).toFixed(0);
+        return `<div class="qi-item">
+          <div class="qi-label">${label}</div>
+          <div class="qi-value">${(d.qi_scores[k]||0).toFixed(4)}</div>
+          <div class="qi-bar"><div class="qi-bar-fill" style="width:${Math.min(pct,100)}%;background:${k==='b'?'var(--accent)':k==='z'?'var(--info)':'var(--purple)'}"></div></div>
+        </div>`;
+      }).join('') : ''}
+    </div>
   `;
 
-  // 大运
-  const du = document.getElementById('dayunDisplay');
-  du.innerHTML = (d.dayun || []).slice(0, 5).map(du =>
-    `<div style="display:inline-block;margin:4px 8px;padding:4px 12px;background:var(--bg3);border-radius:6px;font-size:12px">
-      ${du.age}-${du.age+9}岁 ${du.pillar}
-    </div>`
-  ).join('') + '<br><span class="text-sm">近期流年：' + (d.liunian || []).slice(0, 6).map(l => `${l.year}年 ${l.pillar}`).join(' · ') + '</span>';
+  // 节点级分析
+  if (d.explain && d.explain.nodes) {
+    document.getElementById('nodeDetailCard').style.display = 'block';
+    document.getElementById('nodeDetail').innerHTML = d.explain.nodes.map(n =>
+      `<div class="node-item">
+        <span>#${n.id}: ${n.ans}</span>
+        <span class="node-score">int=${(n.intention||0).toFixed(3)} coh=${(n.coherence||0).toFixed(3)}</span>
+      </div>`
+    ).join('');
+  }
+
+  // 历史记录
+  const label = new Date().toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  historyData.push({label, psi:s, t:Date.now()});
+  if (historyData.length > 30) historyData.shift();
+  updateChart();
 }
 
-// ====================================================================
-// 保存记录
-// ====================================================================
-async function saveRecord() {
-  if (!currentBaziInput) return;
-  try {
-    const r = await apiFetch(API + '/api/records?label=网页排盘', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(currentBaziInput)
-    });
-    const d = await r.json();
-    alert('保存成功！记录 ID: ' + d.id);
-  } catch {
-    alert('保存失败，请确认 API 服务已启动');
-  }
+function updateChart() {
+  if (!psiChart) return;
+  psiChart.data.labels = historyData.map(h => h.label);
+  psiChart.data.datasets[0].data = historyData.map(h => h.psi);
+  psiChart.update('none');
 }
 
-// ====================================================================
-// 知识库搜索
-// ====================================================================
-async function searchKnowledge() {
-  const q = document.getElementById('kbSearch').value.trim();
-  const filter = document.getElementById('kbFilter').value;
-  if (!q) return;
-
-  const res = document.getElementById('kbResults');
-  res.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-
-  try {
-    const body = { query: q, top_k: 10 };
-    if (filter) body.type_filter = filter;
-    const r = await apiFetch(API + '/api/knowledge/search', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    const d = await r.json();
-    const results = d.results || [];
-    res.innerHTML = results.length === 0
-      ? '<div class="card"><p class="text-center text-sm">未找到相关结果</p></div>'
-      : results.map((r, i) => `
-        <div class="card">
-          <div class="flex-between">
-            <span class="card-header">${r.name} <span class="tag tag-ping">${r.type}</span></span>
-            <span class="text-sm">相似度: ${(r.similarity * 100).toFixed(1)}%</span>
-          </div>
-          <p class="text-sm">${r.text || ''}</p>
-        </div>
-      `).join('');
-  } catch {
-    res.innerHTML = '<div class="card"><p class="text-center" style="color:var(--red)">搜索失败</p></div>';
-  }
+// ═══ 自动评估 ═══
+function autoEval() {
+  const q = document.getElementById('rootQuestion').value;
+  const a = document.getElementById('answers').value;
+  if (q && a) evaluate();
 }
 
-function quickSearch(q) {
-  document.getElementById('kbSearch').value = q;
-  searchKnowledge();
-}
-
-// ====================================================================
-// AI 对话
-// ====================================================================
-async function sendChat() {
-  const input = document.getElementById('chatInput');
-  const q = input.value.trim();
-  if (!q) return;
-
-  const msgs = document.getElementById('chatMessages');
-  msgs.innerHTML += `<div class="chat-msg user">${q}</div>`;
-  input.value = '';
-
-  // 添加加载中
-  const loadingId = 'loading-' + Date.now();
-  msgs.innerHTML += `<div class="chat-msg assistant" id="${loadingId}"><span class="spinner" style="width:16px;height:16px"></span></div>`;
-  msgs.scrollTop = msgs.scrollHeight;
-
-  try {
-    const body = { question: q, use_rag: true };
-    if (currentBazi) {
-      body.bazi_json = {
-        pillars: currentBazi.bazi.pillars,
-        day_master: currentBazi.bazi.day_master,
-        input: currentBazi.input
-      };
-    }
-
-    const r = await apiFetch(API + '/api/chat', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    const d = await r.json();
-    document.getElementById(loadingId).textContent = d.answer;
-  } catch {
-    document.getElementById(loadingId).textContent = '对话失败，请确认 API 服务已启动';
-  }
-  msgs.scrollTop = msgs.scrollHeight;
-}
-
-// ====================================================================
-// 历史记录
-// ====================================================================
-async function loadHistory() {
-  const res = document.getElementById('historyContent');
-  try {
-    const r = await apiFetch(API + '/api/records?limit=50');
-    const d = await r.json();
-    const records = d.records || [];
-    res.innerHTML = records.length === 0
-      ? '<div class="card"><p class="text-center text-sm">暂无记录</p></div>'
-      : `<table>
-        <thead><tr><th>ID</th><th>出生时间</th><th>性别</th><th>日主</th><th>标签</th><th>时间</th><th>操作</th></tr></thead>
-        <tbody>${records.map(r => `
-          <tr>
-            <td>${r.id}</td>
-            <td>${r.year}-${r.month.toString().padStart(2, '0')}-${r.day.toString().padStart(2, '0')} ${r.hour.toString().padStart(2, '0')}:00</td>
-            <td>${r.gender === 'male' ? '男' : '女'}</td>
-            <td>${r.day_master || '-'}</td>
-            <td>${r.label || '-'}</td>
-            <td>${(r.created_at || '').substring(0, 10)}</td>
-            <td>
-              <button class="btn btn-sm" onclick="loadRecord(${r.id})">查看</button>
-              <button class="btn btn-sm btn-outline" onclick="deleteRecord(${r.id})">删除</button>
-            </td>
-          </tr>
-        `).join('')}</tbody>
-      </table>`;
-  } catch {
-    res.innerHTML = '<div class="card"><p class="text-center" style="color:var(--red)">加载失败</p></div>';
-  }
-}
-
-async function loadRecord(id) {
-  try {
-    const r = await apiFetch(API + '/api/records/' + id);
-    const d = await r.json();
-    currentBazi = {
-      bazi: { pillars: d.pillars, day_master: d.day_master, day_master_info: '', shigan_map: {}, shigan_count: d.analysis?.shigan_count || {}, wuxing: d.analysis?.wuxing || {}, wuxing_score: d.analysis?.wuxing_score || {}, branch_relations: d.analysis?.branch_relations || {} },
-      shensha: { total: d.shensha?.total || 0, summary: '', detail: d.shensha || {} },
-      geju: d.geju || { name: '-', type: '-', desc: '', score: 0, is_cong: false, is_huaqi: false, shiyongshen: [], jishen: [] },
-      yongshen: d.yongshen || { wang_shuai: '-', wang_shuai_level: 0, yong_shen: [], ji_shen: [], desc: '' },
-      tiaohou: d.tiaohou || { required: false, tiaohou_shens: [], season: '', desc: '' },
-      dayun: d.analysis?.dayuns || [],
-      liunian: d.analysis?.liunians || [],
-      input: { true_solar_time: '', gender: d.gender === 'male' ? '男' : '女' }
-    };
-    // 设置输入
-    document.getElementById('inYear').value = d.year;
-    document.getElementById('inMonth').value = d.month;
-    document.getElementById('inDay').value = d.day;
-    document.getElementById('inHour').value = d.hour;
-    document.getElementById('inMinute').value = d.minute;
-    document.getElementById('inGender').value = d.gender;
-    document.getElementById('inLng').value = d.longitude;
-    currentBaziInput = { year: d.year, month: d.month, day: d.day, hour: d.hour, minute: d.minute, gender: d.gender, longitude: d.longitude, latitude: d.latitude || 39.9 };
-    renderCalcResult(currentBazi);
-    document.getElementById('calcResult').style.display = 'block';
-    switchPage('calc');
-  } catch {
-    alert('加载记录失败');
-  }
-}
-
-async function deleteRecord(id) {
-  if (!confirm('确认删除记录 #' + id + '？')) return;
-  try {
-    await apiFetch(API + '/api/records/' + id, { method: 'DELETE' });
-    loadHistory();
-  } catch {
-    alert('删除失败');
-  }
-}
-
-// ====================================================================
-// 报告页切换时自动加载
-// ====================================================================
-const origSwitchPage = switchPage;
-switchPage = function(name) {
-  origSwitchPage(name);
-  if (name === 'report' && currentBazi) {
-    loadReport();
-  }
-};
-
-async function loadReport() {
-  const res = document.getElementById('reportContent');
-  if (!currentBaziInput) {
-    res.innerHTML = '<div class="loading"><p>请先进行八字排盘</p></div>';
-    return;
-  }
-  res.innerHTML = '<div class="loading"><div class="spinner"></div><p>生成报告中...</p></div>';
-  try {
-    const r = await apiFetch(API + '/api/bazi/report', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        bazi: currentBaziInput,
-        format: 'text',
-        include_shensha: true,
-        include_geju: true,
-        include_yongshen: true
-      })
-    });
-    const d = await r.json();
-    res.textContent = d.report;
-  } catch {
-    res.innerHTML = '<p style="color:var(--red)">报告生成失败</p>';
-  }
-}
-
-// ====================================================================
-// 阶段十一：高级术数功能
-// ====================================================================
-
-// 紫微斗数
-async function calcZiwei() {
-  const res = document.getElementById('ziweiResult');
-  res.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-  try {
-    const r = await apiFetch(API + '/api/ziwei/calc', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        year: +document.getElementById('zwYear').value,
-        month: +document.getElementById('zwMonth').value,
-        day: +document.getElementById('zwDay').value,
-        hour: +document.getElementById('zwHour').value,
-        gender: document.getElementById('zwGender').value
-      })
-    });
-    const d = await r.json();
-    let html = `<div class="card"><span class="card-header">命盘信息</span>`;
-    html += `<p>命宫: ${d.ming_gong.name}(${d.ming_gong.zhi}) | 身宫: ${d.shen_gong.name} | 五行局: ${d.wuxing_ju}</p>`;
-    html += `<p>四化: 禄(${d.sihua.化禄}) 权(${d.sihua.化权}) 科(${d.sihua.化科}) 忌(${d.sihua.化忌})</p>`;
-    html += `<p>命主: ${d.ming_zhu} | 身主: ${d.shen_zhu}</p></div>`;
-    
-    html += '<div class="grid grid2">';
-    for (const g of d.gongs) {
-      const stars = g.main_stars.length ? g.main_stars.join(', ') : '—';
-      const aux = g.aux_stars.length ? g.aux_stars.join(', ') : '';
-      html += `<div class="card">
-        <span class="card-header">${g.name} <span class="tag tag-ping">${g.ganzhi}</span></span>
-        <p class="text-sm">主星: ${stars}${g.sihua ? ' [' + g.sihua + ']' : ''}</p>
-        ${aux ? '<p class="text-sm">辅星: ' + aux + '</p>' : ''}
-      </div>`;
-    }
-    html += '</div>';
-    
-    html += '<div class="card"><span class="card-header">大限</span><div class="flex-wrap">';
-    for (const dx of d.daxian) {
-      html += `<span class="tag tag-ping">${dx.gong_name}: ${dx.age_range}</span>`;
-    }
-    html += '</div></div>';
-    res.innerHTML = html;
-  } catch (e) {
-    res.innerHTML = `<p style="color:var(--red)">排盘失败: ${e.message}</p>`;
-  }
-}
-
-// 六爻摇卦
-async function shakeLiuyao() {
-  const res = document.getElementById('liuyaoResult');
-  res.innerHTML = '<div class="loading"><div class="spinner"></div><p>摇卦中...</p></div>';
-  try {
-    const dayGz = document.getElementById('lyDayGanzhi').value || '甲子';
-    const r = await apiFetch(API + '/api/liuyao/shake', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ day_ganzhi: dayGz })
-    });
-    const d = await r.json();
-    let html = `<div class="card">
-      <span class="card-header">卦象</span>
-      <p>本卦: <b>${d.ben_gua}</b> ${d.ben_symbol}</p>
-      <p>变卦: ${d.bian_gua} ${d.bian_symbol}</p>
-      <p>互卦: ${d.hu_gua} | 卦宫: ${d.gua_gong}</p>
-      ${d.dong_yao.length ? '<p>动爻: 第' + d.dong_yao.join(', ') + '爻</p>' : '<p>静卦</p>'}
-    </div>`;
-    
-    html += '<div class="card"><span class="card-header">六爻详情</span>';
-    for (let i = d.yaos.length - 1; i >= 0; i--) {
-      const y = d.yaos[i];
-      const tags = [y.shi ? '世' : '', y.ying ? '应' : '', y.is_dong ? '动' : ''].filter(Boolean).join(' ');
-      html += `<p class="text-sm">${y.position}爻 ${y.symbol} ${y.liuqin} ${y.zhi} ${y.liushen} ${tags ? '<b>' + tags + '</b>' : ''}</p>`;
-    }
-    html += '</div>';
-    
-    html += `<div class="card"><p>${d.duanci}</p><p class="text-sm mt-1">${d.judgment}</p></div>`;
-    res.innerHTML = html;
-  } catch (e) {
-    res.innerHTML = `<p style="color:var(--red)">摇卦失败: ${e.message}</p>`;
-  }
-}
-
-// 奇门遁甲
-async function calcQimen() {
-  const res = document.getElementById('qimenResult');
-  res.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-  try {
-    const r = await apiFetch(API + '/api/qimen/calc', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        year: +document.getElementById('qmYear').value,
-        month: +document.getElementById('qmMonth').value,
-        day: +document.getElementById('qmDay').value,
-        hour: +document.getElementById('qmHour').value
-      })
-    });
-    const d = await r.json();
-    let html = `<div class="card">
-      <span class="card-header">排盘信息</span>
-      <p>四柱: 年${d.sizhu.year} 月${d.sizhu.month} 日${d.sizhu.day} 时${d.sizhu.hour}</p>
-      <p>局: ${d.ju} | 旬首: ${d.xun_shou} | 值符: ${d.zhi_fu} | 值使: ${d.zhi_shi}</p>
-    </div>`;
-    
-    html += '<div class="grid grid3">';
-    const layout = [[4,9,2],[3,5,7],[8,1,6]];
-    for (const row of layout) {
-      for (const num of row) {
-        const g = d.gongs[num] || {};
-        html += `<div class="card" style="font-size:12px">
-          <span class="card-header">${g.name}宫 ${g.direction}</span>
-          <p>地盘: ${g.di_gan} | 天盘: ${g.tian_gan}</p>
-          <p>门: ${g.men} | 星: ${g.xing}</p>
-          <p>神: ${g.shen}</p>
-        </div>`;
-      }
-    }
-    html += '</div>';
-    res.innerHTML = html;
-  } catch (e) {
-    res.innerHTML = `<p style="color:var(--red)">排盘失败: ${e.message}</p>`;
-  }
-}
-
-// 姓名分析
-async function analyzeName() {
-  const res = document.getElementById('nameResult');
-  res.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-  try {
-    const r = await apiFetch(API + '/api/name/analyze', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        surname: document.getElementById('nmSurname').value,
-        given_name: document.getElementById('nmGivenName').value
-      })
-    });
-    const d = await r.json();
-    let html = `<div class="card">
-      <span class="card-header">${d.surname}${d.given_name} · 综合评分: ${d.overall_score}/100 [${d.overall_grade}]</span>
-      <div class="grid grid2">
-        <div><p>天格: ${d.wuge.tian.value} [${d.wuge.tian.ji}]</p></div>
-        <div><p>人格: ${d.wuge.ren.value} [${d.wuge.ren.ji}] ← 主运</p></div>
-        <div><p>地格: ${d.wuge.di.value} [${d.wuge.di.ji}] ← 前运</p></div>
-        <div><p>外格: ${d.wuge.wai.value} [${d.wuge.wai.ji}] ← 副运</p></div>
-        <div><p>总格: ${d.wuge.zong.value} [${d.wuge.zong.ji}] ← 后运</p></div>
-      </div>
-      <p class="mt-1">三才: ${d.sancai} [${d.sancai_ji}] - ${d.sancai_desc}</p>
-      <p class="text-sm mt-1">${d.suggestions.join('; ')}</p>
-    </div>`;
-    res.innerHTML = html;
-  } catch (e) {
-    res.innerHTML = `<p style="color:var(--red)">分析失败: ${e.message}</p>`;
-  }
-}
-
-// 合婚分析
-let currentBazi2 = null;
-async function calcMarriage() {
-  if (!currentBazi) {
-    alert('请先在排盘页面排好男方八字');
-    return;
-  }
-  const res = document.getElementById('marriageResult');
-  res.innerHTML = '<div class="loading"><div class="spinner"></div><p>合婚分析中...</p></div>';
-  try {
-    // 如果没有currentBazi2，使用当前八字+模拟女方的数据
-    const bazi2 = currentBazi2 || currentBazi;
-    const r = await apiFetch(API + '/api/marriage/analyze', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name1: '男方',
-        bazi1: { input: currentBazi.input, pillars: currentBazi.bazi.pillars, day_master: currentBazi.bazi.day_master, analysis: { wuxing: currentBazi.bazi.wuxing, wuxing_score: currentBazi.bazi.wuxing_score } },
-        name2: '女方',
-        bazi2: { input: currentBazi.input, pillars: currentBazi.bazi.pillars, day_master: currentBazi.bazi.day_master, analysis: { wuxing: currentBazi.bazi.wuxing, wuxing_score: currentBazi.bazi.wuxing_score } }
-      })
-    });
-    const d = await r.json();
-    let html = `<div class="card">
-      <span class="card-header">合婚结果 · 综合: ${d.overall_score}/100 [${d.overall_grade}]</span>
-      <div class="grid grid2">
-        <div><p>纳音: ${d.nayin.match}</p><p class="text-sm">${d.nayin.score}分</p></div>
-        <div><p>日干: ${d.ri_gan.relation}</p><p class="text-sm">${d.ri_gan.score}分</p></div>
-        <div><p>地支: ${d.dizhi.relations.join(', ')}</p><p class="text-sm">${d.dizhi.score}分</p></div>
-        <div><p>五行: ${d.wuxing.analysis}</p><p class="text-sm">${d.wuxing.score}分</p></div>
-        <div><p>生肖: ${d.shengxiao.shengxiao1} vs ${d.shengxiao.shengxiao2}</p><p class="text-sm">${d.shengxiao.score}分</p></div>
-      </div>
-      <p class="mt-1">${d.summary}</p>
-      <p class="text-sm mt-1">${d.suggestions.join('; ')}</p>
-    </div>`;
-    res.innerHTML = html;
-  } catch (e) {
-    res.innerHTML = `<p style="color:var(--red)">分析失败: ${e.message}</p>`;
-  }
-}
-
-// ====================================================================
-// 初始化
-// ====================================================================
-document.getElementById('kbSearch').addEventListener('input', function() {
-  if (this.value.length >= 2) searchKnowledge();
-});
-
-// ====================================================================
-// 阶段十四：知识图谱可视化（力导向图 + Canvas）
-// ====================================================================
-
-// 标签颜色映射
-const GRAPH_LABEL_COLORS = {
-  '五行':     '#d4a843',
-  '天干':     '#45a7ff',
-  '地支':     '#00d68f',
-  '八卦':     '#a78bfa',
-  '十神':     '#f5d76e',
-  '神煞':     '#ff6b6b',
-  '格局':     '#6c5ce7',
-  '六十四卦': '#7dd3fc',
-};
-
-let graphData = { nodes: [], edges: [] };
-let graphNodes = [];  // 带物理属性的节点
-let graphEdges = [];
-let graphCanvas, graphCtx;
-let graphScale = 1;
-let graphOffsetX = 0, graphOffsetY = 0;
-let graphDragging = null;
-let graphDragOffset = { x: 0, y: 0 };
-let graphHoverNode = null;
-let graphAnimationId = null;
-
-/** 初始化图谱画布 */
-function initGraphCanvas() {
-  graphCanvas = document.getElementById('graphCanvas');
-  if (!graphCanvas) return;
-  graphCtx = graphCanvas.getContext('2d');
-
-  // 拖拽
-  graphCanvas.addEventListener('mousedown', e => {
-    const pos = getCanvasPos(e);
-    const node = findNodeAt(pos.x, pos.y);
-    if (node) {
-      graphDragging = node;
-      graphDragOffset = { x: pos.x - node.x, y: pos.y - node.y };
-      graphCanvas.style.cursor = 'grabbing';
-    } else {
-      // 拖拽画布
-      graphDragging = 'canvas';
-      graphDragOffset = { x: pos.x - graphOffsetX, y: pos.y - graphOffsetY };
-      graphCanvas.style.cursor = 'grabbing';
-    }
-  });
-
-  graphCanvas.addEventListener('mousemove', e => {
-    const pos = getCanvasPos(e);
-    if (graphDragging) {
-      if (graphDragging === 'canvas') {
-        graphOffsetX = pos.x - graphDragOffset.x;
-        graphOffsetY = pos.y - graphDragOffset.y;
-      } else {
-        graphDragging.x = pos.x - graphDragOffset.x;
-        graphDragging.y = pos.y - graphDragOffset.y;
-        graphDragging.fx = graphDragging.x;
-        graphDragging.fy = graphDragging.y;
-      }
-    } else {
-      // hover 检测
-      const node = findNodeAt(pos.x, pos.y);
-      const tooltip = document.getElementById('graphTooltip');
-      if (node) {
-        graphHoverNode = node;
-        graphCanvas.style.cursor = 'pointer';
-        tooltip.style.display = 'block';
-        tooltip.style.left = (e.offsetX + 12) + 'px';
-        tooltip.style.top = (e.offsetY + 12) + 'px';
-        tooltip.innerHTML = `<strong style="color:${GRAPH_LABEL_COLORS[node.label] || '#fff'}">${node.label}·${node.name}</strong><br><span style="color:var(--text3)">${formatProps(node.properties)}</span>`;
-      } else {
-        graphHoverNode = null;
-        graphCanvas.style.cursor = 'grab';
-        tooltip.style.display = 'none';
-      }
-    }
-  });
-
-  graphCanvas.addEventListener('mouseup', () => {
-    graphDragging = null;
-    graphCanvas.style.cursor = 'grab';
-  });
-
-  graphCanvas.addEventListener('mouseleave', () => {
-    graphDragging = null;
-    document.getElementById('graphTooltip').style.display = 'none';
-  });
-
-  // 点击节点
-  graphCanvas.addEventListener('click', e => {
-    const pos = getCanvasPos(e);
-    const node = findNodeAt(pos.x, pos.y);
-    if (node) showNodeDetail(node);
-  });
-
-  // 滚轮缩放
-  graphCanvas.addEventListener('wheel', e => {
-    e.preventDefault();
-    const factor = e.deltaY < 0 ? 1.1 : 0.9;
-    graphScale = Math.max(0.2, Math.min(3, graphScale * factor));
-  });
-}
-
-function getCanvasPos(e) {
-  const rect = graphCanvas.getBoundingClientRect();
-  return {
-    x: (e.clientX - rect.left - graphOffsetX) / graphScale,
-    y: (e.clientY - rect.top - graphOffsetY) / graphScale,
-  };
-}
-
-function findNodeAt(x, y) {
-  for (let i = graphNodes.length - 1; i >= 0; i--) {
-    const n = graphNodes[i];
-    const dx = n.x - x, dy = n.y - y;
-    if (dx * dx + dy * dy < (n.r + 2) * (n.r + 2)) return n;
-  }
-  return null;
-}
-
-function formatProps(props) {
-  if (!props) return '';
-  const entries = Object.entries(props).slice(0, 4);
-  return entries.map(([k, v]) => `${k}: ${v}`).join('<br>');
-}
-
-/** 加载图谱数据 */
-async function loadGraphData(labels) {
-  let url = API + '/api/graph/export?limit=200';
-  if (labels && labels.length) {
-    url += '&labels=' + encodeURIComponent(labels.join(','));
-  }
-  try {
-    const r = await apiFetch(url);
-    if (!r.ok) return;
-    const d = await r.json();
-    graphData = d;
-    buildGraphPhysics();
-    document.getElementById('graphNodeCount').textContent = `${d.nodes.length} 节点 / ${d.edges.length} 边`;
-    if (!graphAnimationId) animateGraph();
-  } catch (e) {
-    console.error('加载图谱失败:', e);
-  }
-}
-
-/** 构建物理节点 */
-function buildGraphPhysics() {
-  const cx = graphCanvas.width / 2;
-  const cy = graphCanvas.height / 2;
-  graphNodes = graphData.nodes.map((n, i) => {
-    const angle = (i / graphData.nodes.length) * Math.PI * 2;
-    const r = 150 + Math.random() * 50;
-    return {
-      ...n,
-      x: cx + Math.cos(angle) * r,
-      y: cy + Math.sin(angle) * r,
-      vx: 0, vy: 0,
-      fx: null, fy: null,
-      r: n.label === '五行' ? 16 : n.label === '六十四卦' ? 6 : 10,
-    };
-  });
-  const idMap = {};
-  graphNodes.forEach((n, i) => idMap[n.id] = i);
-  graphEdges = graphData.edges.map(e => ({
-    source: idMap[e.source] !== undefined ? graphNodes[idMap[e.source]] : null,
-    target: idMap[e.target] !== undefined ? graphNodes[idMap[e.target]] : null,
-    relation: e.relation,
-  })).filter(e => e.source && e.target);
-}
-
-/** 力导向模拟 */
-function simulateGraph() {
-  if (!graphNodes.length) return;
-  const cx = graphCanvas.width / 2;
-  const cy = graphCanvas.height / 2;
-
-  // 斥力（库仑定律）
-  for (let i = 0; i < graphNodes.length; i++) {
-    for (let j = i + 1; j < graphNodes.length; j++) {
-      const a = graphNodes[i], b = graphNodes[j];
-      const dx = b.x - a.x, dy = b.y - a.y;
-      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-      const force = 800 / (dist * dist);
-      const fx = (dx / dist) * force;
-      const fy = (dy / dist) * force;
-      a.vx -= fx; a.vy -= fy;
-      b.vx += fx; b.vy += fy;
-    }
-  }
-
-  // 引力（弹簧，边连接）
-  for (const e of graphEdges) {
-    const dx = e.target.x - e.source.x;
-    const dy = e.target.y - e.source.y;
-    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-    const force = (dist - 80) * 0.05;
-    const fx = (dx / dist) * force;
-    const fy = (dy / dist) * force;
-    e.source.vx += fx; e.source.vy += fy;
-    e.target.vx -= fx; e.target.vy -= fy;
-  }
-
-  // 中心引力
-  for (const n of graphNodes) {
-    n.vx += (cx - n.x) * 0.002;
-    n.vy += (cy - n.y) * 0.002;
-  }
-
-  // 更新位置（阻尼）
-  for (const n of graphNodes) {
-    if (n.fx !== null) { n.x = n.fx; n.y = n.fy; continue; }
-    n.vx *= 0.85; n.vy *= 0.85;
-    n.x += n.vx; n.y += n.vy;
-    // 边界
-    n.x = Math.max(20, Math.min(graphCanvas.width - 20, n.x));
-    n.y = Math.max(20, Math.min(graphCanvas.height - 20, n.y));
-  }
-}
-
-/** 渲染图谱 */
-function renderGraph() {
-  if (!graphCtx) return;
-  graphCtx.clearRect(0, 0, graphCanvas.width, graphCanvas.height);
-  graphCtx.save();
-  graphCtx.translate(graphOffsetX, graphOffsetY);
-  graphCtx.scale(graphScale, graphScale);
-
-  // 绘制边
-  for (const e of graphEdges) {
-    graphCtx.beginPath();
-    graphCtx.moveTo(e.source.x, e.source.y);
-    graphCtx.lineTo(e.target.x, e.target.y);
-    const isHighlight = graphHoverNode && (e.source === graphHoverNode || e.target === graphHoverNode);
-    graphCtx.strokeStyle = isHighlight ? 'rgba(245,215,110,0.6)' : 'rgba(200,200,216,0.15)';
-    graphCtx.lineWidth = isHighlight ? 1.5 : 0.5;
-    graphCtx.stroke();
-
-    // 关系标签（仅高亮时）
-    if (isHighlight) {
-      const mx = (e.source.x + e.target.x) / 2;
-      const my = (e.source.y + e.target.y) / 2;
-      graphCtx.fillStyle = 'rgba(245,215,110,0.8)';
-      graphCtx.font = '10px sans-serif';
-      graphCtx.fillText(e.relation, mx, my);
-    }
-  }
-
-  // 绘制节点
-  for (const n of graphNodes) {
-    const color = GRAPH_LABEL_COLORS[n.label] || '#888';
-    const isHover = graphHoverNode === n;
-    graphCtx.beginPath();
-    graphCtx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
-    graphCtx.fillStyle = color;
-    graphCtx.globalAlpha = isHover ? 1 : 0.85;
-    graphCtx.fill();
-    graphCtx.globalAlpha = 1;
-    graphCtx.strokeStyle = isHover ? '#fff' : 'rgba(0,0,0,0.3)';
-    graphCtx.lineWidth = isHover ? 2 : 1;
-    graphCtx.stroke();
-
-    // 名称（仅大节点显示）
-    if (n.r >= 8) {
-      graphCtx.fillStyle = '#fff';
-      graphCtx.font = `${Math.max(9, n.r * 0.7)}px sans-serif`;
-      graphCtx.textAlign = 'center';
-      graphCtx.textBaseline = 'middle';
-      graphCtx.fillText(n.name, n.x, n.y);
-    }
-  }
-
-  graphCtx.restore();
-}
-
-/** 动画循环 */
-function animateGraph() {
-  simulateGraph();
-  renderGraph();
-  graphAnimationId = requestAnimationFrame(animateGraph);
-}
-
-/** 缩放 */
-function graphZoom(factor) {
-  graphScale = Math.max(0.2, Math.min(3, graphScale * factor));
-}
-
-/** 重置视图 */
-function graphReset() {
-  graphScale = 1;
-  graphOffsetX = 0;
-  graphOffsetY = 0;
-  buildGraphPhysics();
-}
-
-/** 搜索节点 */
-async function graphSearchNode() {
-  const keyword = document.getElementById('graphSearch').value.trim();
-  if (!keyword) return;
-  try {
-    const r = await apiFetch(API + '/api/graph/search?keyword=' + encodeURIComponent(keyword) + '&limit=20');
-    const d = await r.json();
-    const el = document.getElementById('graphSearchResult');
-    if (!d.total) {
-      el.innerHTML = '<p style="color:var(--text3);font-size:13px;">未找到匹配节点</p>';
-      return;
-    }
-    el.innerHTML = `<p style="font-size:13px;color:var(--text3);margin-bottom:8px;">找到 ${d.total} 个结果：</p>` +
-      d.nodes.map(n => {
-        const color = GRAPH_LABEL_COLORS[n.label] || '#888';
-        return `<span style="display:inline-block;margin:2px 4px;padding:4px 10px;background:var(--bg3);border-radius:12px;font-size:12px;cursor:pointer;border:1px solid ${color}40;" onclick="focusGraphNode('${n.id}')">
-          <span style="color:${color};">●</span> ${n.label}·${n.name}
-        </span>`;
-      }).join('');
-  } catch (e) {
-    console.error(e);
-  }
-}
-
-/** 聚焦到指定节点 */
-function focusGraphNode(nodeId) {
-  const node = graphNodes.find(n => n.id === nodeId);
-  if (node) {
-    graphOffsetX = graphCanvas.width / 2 - node.x * graphScale;
-    graphOffsetY = graphCanvas.height / 2 - node.y * graphScale;
-    showNodeDetail(node);
-  }
-}
-
-/** 显示节点详情 */
-async function showNodeDetail(node) {
-  document.getElementById('graphDetailCard').style.display = 'block';
-  document.getElementById('graphDetailTitle').textContent = `${node.label}·${node.name}`;
-  const color = GRAPH_LABEL_COLORS[node.label] || '#888';
-  let html = `<div style="display:flex;gap:12px;align-items:flex-start;">
-    <div style="width:40px;height:40px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;font-weight:700;color:#000;flex-shrink:0;">${node.name[0]}</div>
-    <div style="flex:1;">`;
-  if (node.properties) {
-    html += '<table style="font-size:13px;width:100%;">';
-    for (const [k, v] of Object.entries(node.properties)) {
-      html += `<tr><td style="color:var(--text3);padding:2px 8px 2px 0;">${k}</td><td style="color:var(--text);">${v}</td></tr>`;
-    }
-    html += '</table>';
-  }
-  html += '</div></div>';
-  document.getElementById('graphDetailBody').innerHTML = html;
-
-  // 加载邻居
-  try {
-    const r = await apiFetch(API + '/api/graph/node/' + encodeURIComponent(node.name) + '/neighbors?limit=30');
-    const d = await r.json();
-    const neighborsEl = document.getElementById('graphNeighbors');
-    if (!d.total) {
-      neighborsEl.innerHTML = '<p style="color:var(--text3);font-size:12px;">无邻居关系</p>';
-      return;
-    }
-    neighborsEl.innerHTML = d.edges.map(e => {
-      const isOut = e.source === node.id;
-      const other = isOut ? d.neighbors.find(n => n.id === e.target) : d.neighbors.find(n => n.id === e.source);
-      if (!other) return '';
-      const color = GRAPH_LABEL_COLORS[other.label] || '#888';
-      const arrow = isOut ? '→' : '←';
-      return `<div style="display:inline-block;margin:3px 6px 3px 0;padding:3px 10px;background:var(--bg3);border-radius:12px;font-size:12px;cursor:pointer;" onclick="focusGraphNode('${other.id}')">
-        <span style="color:var(--text3);">${arrow} ${e.relation} ${arrow}</span>
-        <span style="color:${color};">●</span> ${other.label}·${other.name}
-      </div>`;
-    }).join('');
-  } catch (e) {
-    console.error(e);
-  }
-}
-
-/** 按标签加载 */
-function loadGraphByLabel() {
-  const label = document.getElementById('graphLabelFilter').value;
-  if (label) {
-    loadGraphData([label]);
-  } else {
-    loadGraphData();
-  }
-}
-
-/** 加载统计 */
-async function loadGraphStats() {
-  try {
-    const r = await apiFetch(API + '/api/graph/stats');
-    const d = await r.json();
-    const el = document.getElementById('graphSearchResult');
-    let html = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-top:8px;">`;
-    html += `<div style="background:var(--bg3);padding:10px;border-radius:8px;text-align:center;">
-      <div style="font-size:24px;color:var(--gold2);font-weight:700;">${d.total_nodes}</div>
-      <div style="font-size:11px;color:var(--text3);">节点总数</div>
-    </div>`;
-    html += `<div style="background:var(--bg3);padding:10px;border-radius:8px;text-align:center;">
-      <div style="font-size:24px;color:var(--gold2);font-weight:700;">${d.total_edges}</div>
-      <div style="font-size:11px;color:var(--text3);">边总数</div>
-    </div>`;
-    for (const [label, count] of Object.entries(d.labels)) {
-      const color = GRAPH_LABEL_COLORS[label] || '#888';
-      html += `<div style="background:var(--bg3);padding:10px;border-radius:8px;text-align:center;cursor:pointer;border:1px solid ${color}30;" onclick="document.getElementById('graphLabelFilter').value='${label}';loadGraphByLabel();">
-        <div style="font-size:18px;color:${color};font-weight:700;">${count}</div>
-        <div style="font-size:11px;color:var(--text3);">${label}</div>
-      </div>`;
-    }
-    html += '</div>';
-    el.innerHTML = html;
-  } catch (e) {
-    console.error(e);
-  }
-}
-
-/** 最短路径查询 */
-async function findPath() {
-  const source = document.getElementById('pathSource').value.trim();
-  const target = document.getElementById('pathTarget').value.trim();
-  if (!source || !target) return;
-  const el = document.getElementById('pathResult');
-  el.innerHTML = '<p style="color:var(--text3);font-size:13px;">查询中...</p>';
-  try {
-    const r = await apiFetch(API + '/api/graph/path?source=' + encodeURIComponent(source) + '&target=' + encodeURIComponent(target));
-    const d = await r.json();
-    if (!d.reachable) {
-      el.innerHTML = `<p style="color:var(--red);font-size:13px;">⚠ ${d.message}</p>`;
-      return;
-    }
-    let html = `<p style="color:var(--green);font-size:13px;margin-bottom:8px;">✓ 可达，路径长度 ${d.length}</p>`;
-    html += '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;">';
-    d.path.forEach((n, i) => {
-      const color = GRAPH_LABEL_COLORS[n.label] || '#888';
-      html += `<span style="padding:4px 10px;background:var(--bg3);border-radius:12px;font-size:12px;border:1px solid ${color}40;cursor:pointer;" onclick="focusGraphNode('${n.id}')">
-        <span style="color:${color};">●</span> ${n.name}
-      </span>`;
-      if (i < d.edges.length) {
-        html += `<span style="color:var(--text3);font-size:11px;">${d.edges[i].relation} →</span>`;
-      }
-    });
-    html += '</div>';
-    el.innerHTML = html;
-  } catch (e) {
-    el.innerHTML = `<p style="color:var(--red);font-size:13px;">查询失败: ${e.message}</p>`;
-  }
-}
-
-// 切换到图谱页时加载数据
-const originalSwitchPage = switchPage;
-switchPage = function(name) {
-  originalSwitchPage(name);
-  if (name === 'graph') {
-    if (!graphCtx) initGraphCanvas();
-    if (!graphNodes.length) loadGraphData();
-  }
-};
-
-// ════════════════════════════════════════════════════════════════
-// 阶段十五：D3.js 高级可视化
-// ════════════════════════════════════════════════════════════════
-
-const WUXING_COLORS = { '木': '#00d68f', '火': '#ff6b6b', '土': '#d4a843', '金': '#c8c8d8', '水': '#45a7ff' };
-const WUXING_ORDER = ['木', '火', '土', '金', '水'];
-const SHIGAN_COLORS = {
-  '比肩': '#00d68f', '劫财': '#5ac85a', '食神': '#f5d76e', '伤官': '#ffa500',
-  '偏财': '#45a7ff', '正财': '#6c5ce7', '七杀': '#ff6b6b', '正官': '#e84393',
-  '偏印': '#a29bfe', '正印': '#74b9ff'
-};
-let vizDataLoaded = false;
-
-// ── 加载八字数据并渲染所有图表 ──────────────────────────────────
-async function loadVizData() {
-  const body = {
-    year: +document.getElementById('vizYear').value,
-    month: +document.getElementById('vizMonth').value,
-    day: +document.getElementById('vizDay').value,
-    hour: +document.getElementById('vizHour').value,
-    minute: +document.getElementById('vizMinute').value,
-    gender: document.getElementById('vizGender').value,
-  };
-  try {
-    const r = await apiFetch(API + '/api/bazi/full', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (!r.ok) { const e = await r.json(); throw new Error(e.detail || e.error || '请求失败'); }
-    const d = await r.json();
-    renderRadarChart(d.bazi.wuxing_score);
-    renderShiganChart(d.bazi.shigan_count, d.bazi.day_master);
-    renderTimeline(d.dayun, d.liunian, d.input.solar);
-    vizDataLoaded = true;
-  } catch (e) {
-    document.getElementById('radarChart').innerHTML = `<p style="color:var(--red);padding:40px;">加载失败: ${e.message}</p>`;
-  }
-}
-
-// ── 五行能量雷达图 ──────────────────────────────────────────────
-function renderRadarChart(wuxingScore) {
-  const container = d3.select('#radarChart');
-  container.html('');
-  const size = 380;
-  const margin = 60;
-  const radius = (size - margin * 2) / 2;
-  const cx = size / 2, cy = size / 2;
-
-  // 解析五行得分
-  const data = WUXING_ORDER.map(name => {
-    const raw = wuxingScore[name] || '0个 (0%) - 未知';
-    const pctMatch = raw.match(/\((\d+)%\)/);
-    const countMatch = raw.match(/^(\d+)个/);
-    const statusMatch = raw.match(/-\s*(.+)$/);
-    return {
-      name,
-      percent: pctMatch ? +pctMatch[1] : 0,
-      count: countMatch ? +countMatch[1] : 0,
-      status: statusMatch ? statusMatch[1].trim() : '未知',
-      raw,
-    };
-  });
-
-  const svg = container.append('svg').attr('width', size).attr('height', size + 20);
-  const g = svg.append('g').attr('transform', `translate(${cx},${cy})`);
-
-  // 背景网格圆
-  const levels = 5;
-  for (let i = 1; i <= levels; i++) {
-    const r = (radius * i) / levels;
-    g.append('circle')
-      .attr('r', r)
-      .attr('fill', 'none')
-      .attr('stroke', 'rgba(255,255,255,0.08)')
-      .attr('stroke-width', 1);
-    g.append('text')
-      .attr('y', -r)
-      .attr('dy', -2)
-      .attr('text-anchor', 'middle')
-      .attr('fill', 'var(--text3)')
-      .attr('font-size', 9)
-      .text(`${i * 20}%`);
-  }
-
-  // 轴线
-  const angle = d3.scalePoint().domain(WUXING_ORDER).range([0, 2 * Math.PI]);
-  WUXING_ORDER.forEach((name, i) => {
-    const a = (i / 5) * 2 * Math.PI - Math.PI / 2;
-    g.append('line')
-      .attr('x1', 0).attr('y1', 0)
-      .attr('x2', radius * Math.cos(a))
-      .attr('y2', radius * Math.sin(a))
-      .attr('stroke', 'rgba(255,255,255,0.1)')
-      .attr('stroke-width', 1);
-    // 轴标签
-    const labelR = radius + 25;
-    g.append('text')
-      .attr('x', labelR * Math.cos(a))
-      .attr('y', labelR * Math.sin(a))
-      .attr('text-anchor', 'middle')
-      .attr('dominant-baseline', 'middle')
-      .attr('fill', WUXING_COLORS[name])
-      .attr('font-size', 16)
-      .attr('font-weight', 'bold')
-      .text(name);
-  });
-
-  // 数据多边形
-  const lineGen = d3.lineRadial()
-    .radius(d => (d.percent / 100) * radius)
-    .angle((d, i) => (i / 5) * 2 * Math.PI - Math.PI / 2)
-    .curve(d3.curveCardinalClosed);
-
-  g.append('path')
-    .datum(data)
-    .attr('d', lineGen)
-    .attr('fill', 'rgba(212,168,67,0.15)')
-    .attr('stroke', 'var(--gold)')
-    .attr('stroke-width', 2)
-    .style('filter', 'drop-shadow(0 0 6px rgba(212,168,67,0.4))');
-
-  // 数据点
-  data.forEach((d, i) => {
-    const a = (i / 5) * 2 * Math.PI - Math.PI / 2;
-    const r = (d.percent / 100) * radius;
-    g.append('circle')
-      .attr('cx', r * Math.cos(a))
-      .attr('cy', r * Math.sin(a))
-      .attr('r', 5)
-      .attr('fill', WUXING_COLORS[d.name])
-      .attr('stroke', 'var(--bg)')
-      .attr('stroke-width', 2)
-      .style('cursor', 'pointer')
-      .append('title')
-      .text(`${d.name}: ${d.raw}`);
-  });
-
-  // 图例
-  const legend = d3.select('#radarLegend');
-  legend.html('');
-  data.forEach(d => {
-    const item = legend.append('div').style('display', 'flex').style('align-items', 'center').style('gap', '6px').style('font-size', '13px');
-    item.append('span').style('width', '12px').style('height', '12px').style('border-radius', '50%').style('background', WUXING_COLORS[d.name]);
-    item.append('span').style('color', 'var(--text2)').text(`${d.name} ${d.percent}% (${d.status})`);
-  });
-}
-
-// ── 十神力量分布柱状图 ──────────────────────────────────────────
-function renderShiganChart(shiganCount, dayMaster) {
-  const container = d3.select('#shiganChart');
-  container.html('');
-  const allShigan = ['比肩', '劫财', '食神', '伤官', '偏财', '正财', '七杀', '正官', '偏印', '正印'];
-  const data = allShigan.map(name => ({
-    name,
-    count: shiganCount[name] || 0,
-  })).filter(d => d.count > 0);
-
-  if (data.length === 0) {
-    container.append('p').style('color', 'var(--text3)').style('padding', '40px').text('暂无十神数据');
-    return;
-  }
-
-  const width = Math.min(700, data.length * 70 + 60);
-  const height = 280;
-  const margin = { top: 20, right: 20, bottom: 50, left: 40 };
-
-  const svg = container.append('svg').attr('width', width).attr('height', height);
-  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
-
-  const x = d3.scaleBand().domain(data.map(d => d.name)).range([0, width - margin.left - margin.right]).padding(0.3);
-  const yMax = d3.max(data, d => d.count) + 1;
-  const y = d3.scaleLinear().domain([0, yMax]).range([height - margin.top - margin.bottom, 0]);
-
-  // 坐标轴
-  g.append('g').attr('transform', `translate(0,${height - margin.top - margin.bottom})`)
-    .call(d3.axisBottom(x).tickSize(0))
-    .selectAll('text').attr('fill', 'var(--text2)').attr('font-size', 12);
-  g.append('g').call(d3.axisLeft(y).ticks(yMax).tickSize(0))
-    .selectAll('text').attr('fill', 'var(--text3)').attr('font-size', 11);
-  g.selectAll('.domain, .tick line').attr('stroke', 'rgba(255,255,255,0.1)');
-
-  // 柱子
-  g.selectAll('.bar')
-    .data(data)
-    .enter()
-    .append('rect')
-    .attr('class', 'bar')
-    .attr('x', d => x(d.name))
-    .attr('width', x.bandwidth())
-    .attr('y', height - margin.top - margin.bottom)
-    .attr('height', 0)
-    .attr('fill', d => SHIGAN_COLORS[d.name] || 'var(--gold)')
-    .attr('rx', 4)
-    .style('filter', d => `drop-shadow(0 0 4px ${SHIGAN_COLORS[d.name] || '#d4a843'}40)`)
-    .transition().duration(800).delay((d, i) => i * 80)
-    .attr('y', d => y(d.count))
-    .attr('height', d => height - margin.top - margin.bottom - y(d.count));
-
-  // 数值标签
-  g.selectAll('.label')
-    .data(data)
-    .enter()
-    .append('text')
-    .attr('class', 'label')
-    .attr('x', d => x(d.name) + x.bandwidth() / 2)
-    .attr('y', d => y(d.count) - 6)
-    .attr('text-anchor', 'middle')
-    .attr('fill', 'var(--gold2)')
-    .attr('font-size', 13)
-    .attr('font-weight', 'bold')
-    .style('opacity', 0)
-    .transition().duration(800).delay((d, i) => i * 80 + 400)
-    .style('opacity', 1)
-    .text(d => d.count);
-
-  // 日主标注
-  if (dayMaster) {
-    svg.append('text')
-      .attr('x', width / 2)
-      .attr('y', 14)
-      .attr('text-anchor', 'middle')
-      .attr('fill', 'var(--gold)')
-      .attr('font-size', 12)
-      .text(`日主: ${dayMaster}`);
-  }
-}
-
-// ── 大运流年时间轴 ──────────────────────────────────────────────
-function renderTimeline(dayun, liunian, solarStr) {
-  const container = d3.select('#timelineChart');
-  container.html('');
-
-  if (!dayun || dayun.length === 0) {
-    container.append('p').style('color', 'var(--text3)').style('padding', '40px').text('暂无大运数据');
-    return;
-  }
-
-  const birthYear = parseInt(solarStr.split('-')[0]);
-  const minYear = birthYear;
-  const maxYear = Math.max(
-    ...dayun.map(d => d.start_year + 10),
-    ...liunian.map(l => l.year + 1)
-  );
-  const yearRange = maxYear - minYear;
-
-  const width = Math.max(800, yearRange * 22);
-  const height = 260;
-  const margin = { top: 30, right: 40, bottom: 40, left: 50 };
-
-  const svg = container.append('svg').attr('width', width).attr('height', height).style('min-width', '100%');
-  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
-
-  const innerW = width - margin.left - margin.right;
-  const innerH = height - margin.top - margin.bottom;
-
-  const x = d3.scaleLinear().domain([minYear, maxYear]).range([0, innerW]);
-
-  // X轴（年份）
-  const xAxis = d3.axisBottom(x).tickFormat(d3.format('d')).ticks(Math.min(yearRange, 15));
-  g.append('g').attr('transform', `translate(0,${innerH})`)
-    .call(xAxis)
-    .selectAll('text').attr('fill', 'var(--text2)').attr('font-size', 11);
-  g.selectAll('.domain, .tick line').attr('stroke', 'rgba(255,255,255,0.1)');
-
-  // 大运轨道（上半部分）
-  const dayunY = innerH * 0.35;
-  const liunianY = innerH * 0.75;
-
-  // 分隔线
-  g.append('line').attr('x1', 0).attr('y1', innerH * 0.55).attr('x2', innerW).attr('y2', innerH * 0.55)
-    .attr('stroke', 'rgba(255,255,255,0.05)').attr('stroke-dasharray', '4,4');
-
-  // 标签
-  g.append('text').attr('x', 0).attr('y', dayunY - 25).attr('fill', 'var(--gold)').attr('font-size', 12).attr('font-weight', 'bold').text('大运');
-  g.append('text').attr('x', 0).attr('y', liunianY - 15).attr('fill', 'var(--accent)').attr('font-size', 12).attr('font-weight', 'bold').text('流年');
-
-  // 大运条
-  const tooltip = d3.select('#timelineTooltip');
-  dayun.forEach((d, i) => {
-    const x1 = x(d.start_year);
-    const x2 = x(d.start_year + 10);
-    const w = Math.max(x2 - x1 - 2, 20);
-    const colors = ['#d4a843', '#6c5ce7', '#00d68f', '#45a7ff', '#ff6b6b', '#f5d76e', '#e84393'];
-    const color = colors[i % colors.length];
-
-    const bar = g.append('rect')
-      .attr('x', x1).attr('y', dayunY - 12).attr('width', w).attr('height', 24)
-      .attr('fill', color).attr('opacity', 0.25).attr('rx', 4)
-      .style('cursor', 'pointer');
-
-    g.append('rect')
-      .attr('x', x1).attr('y', dayunY - 12).attr('width', 3).attr('height', 24)
-      .attr('fill', color).attr('rx', 2);
-
-    g.append('text')
-      .attr('x', x1 + w / 2).attr('y', dayunY + 2).attr('text-anchor', 'middle')
-      .attr('fill', color).attr('font-size', 11).attr('font-weight', 'bold')
-      .text(d.pillar);
-
-    g.append('text')
-      .attr('x', x1 + w / 2).attr('y', dayunY - 18).attr('text-anchor', 'middle')
-      .attr('fill', 'var(--text3)').attr('font-size', 9)
-      .text(`${d.age}岁`);
-
-    bar.on('mouseover', function(e) {
-      d3.select(this).attr('opacity', 0.5);
-      tooltip.style('display', 'block').html(`
-        <div style="color:${color};font-weight:bold;font-size:14px;margin-bottom:4px;">大运 ${d.pillar}</div>
-        <div style="color:var(--text2);">第${d.step}步大运 · ${d.direction}</div>
-        <div style="color:var(--text2);">起运年龄: ${d.age}岁</div>
-        <div style="color:var(--text2);">起运年份: ${d.start_year}年</div>
-        <div style="color:var(--text2);">持续: ${d.start_year} - ${d.start_year + 9}年</div>
-      `);
-    }).on('mousemove', function(e) {
-      tooltip.style('left', (e.clientX + 14) + 'px').style('top', (e.clientY + 14) + 'px');
-    }).on('mouseout', function() {
-      d3.select(this).attr('opacity', 0.25);
-      tooltip.style('display', 'none');
-    });
-  });
-
-  // 流年圆点
-  liunian.forEach(l => {
-    const cx = x(l.year);
-    const hasShigan = l.gan_shigan && l.gan_shigan !== 'None';
-    const dotColor = hasShigan ? (SHIGAN_COLORS[l.gan_shigan] || '#45a7ff') : '#5a5a7a';
-
-    g.append('circle')
-      .attr('cx', cx).attr('cy', liunianY).attr('r', 5)
-      .attr('fill', dotColor).attr('stroke', 'var(--bg)').attr('stroke-width', 1.5)
-      .style('cursor', 'pointer').style('filter', `drop-shadow(0 0 3px ${dotColor}80)`)
-      .on('mouseover', function(e) {
-        d3.select(this).attr('r', 8);
-        const zhiDetail = l.zhi_shigan_detail ? Object.entries(l.zhi_shigan_detail).map(([g, s]) => `${g}(${s})`).join(' ') : '';
-        tooltip.style('display', 'block').html(`
-          <div style="color:${dotColor};font-weight:bold;font-size:14px;margin-bottom:4px;">${l.year}年 ${l.pillar}</div>
-          <div style="color:var(--text2);">天干十神: ${hasShigan ? l.gan_shigan : '—'}</div>
-          ${zhiDetail ? `<div style="color:var(--text2);">地支藏干: ${zhiDetail}</div>` : ''}
-        `);
-      }).on('mousemove', function(e) {
-        tooltip.style('left', (e.clientX + 14) + 'px').style('top', (e.clientY + 14) + 'px');
-      }).on('mouseout', function() {
-        d3.select(this).attr('r', 5);
-        tooltip.style('display', 'none');
+// ═══ 全域快照 ═══
+async function domainSnapshot() {
+  const btn = document.querySelector('.eval-btn:last-child');
+  btn.disabled = true; btn.textContent = '快照中...';
+  const results = [];
+  for (const [name, d] of Object.entries(DOMAINS)) {
+    try {
+      const r = await fetch(`${API}/evaluate`, {
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':`Bearer ${API_KEY}`},
+        body: JSON.stringify({root_question:d.q, answers:d.a, qi_style:'qi_main', return_explain:false})
       });
+      const data = await r.json();
+      results.push({name, psi:data.spirit_score});
+      historyData.push({label:`${name}`, psi:data.spirit_score, t:Date.now()});
+    } catch(e) { results.push({name, psi:0}); }
+  }
+  if (historyData.length > 30) historyData = historyData.slice(-30);
+  updateChart();
 
-    // 年份标签（每隔几年显示）
-    if (l.year % 2 === 0 || l.year === birthYear) {
-      g.append('text')
-        .attr('x', cx).attr('y', liunianY + 20).attr('text-anchor', 'middle')
-        .attr('fill', 'var(--text3)').attr('font-size', 9)
-        .text(l.year);
-    }
-  });
-
-  // 出生线
-  g.append('line')
-    .attr('x1', x(birthYear)).attr('y1', 0).attr('x2', x(birthYear)).attr('y2', innerH)
-    .attr('stroke', 'var(--red)').attr('stroke-width', 1).attr('stroke-dasharray', '3,3').attr('opacity', 0.5);
-  g.append('text')
-    .attr('x', x(birthYear)).attr('y', -8).attr('text-anchor', 'middle')
-    .attr('fill', 'var(--red)').attr('font-size', 10).text('出生');
+  document.getElementById('psiResult').innerHTML = `
+    <div class="psi-label" style="margin-bottom:8px;">全域快照 (${new Date().toLocaleTimeString()})</div>
+    ${results.map(r => `
+      <div style="display:flex;justify-content:space-between;padding:4px 8px;border-bottom:1px solid var(--border);font-size:0.85rem;">
+        <span>${r.name}</span>
+        <span style="color:${r.psi>=0.6?'var(--success)':'var(--warning)'};font-weight:600;">Ψ=${r.psi.toFixed(4)}</span>
+      </div>
+    `).join('')}
+  `;
+  btn.disabled = false; btn.textContent = '📊 全域快照';
 }
 
-// 切换到高级图表页时自动加载
-const vizSwitchPage = switchPage;
-switchPage = function(name) {
-  vizSwitchPage(name);
-  if (name === 'viz' && !vizDataLoaded) {
-    loadVizData();
-  }
-};
+// ═══ 启动 ═══
+document.addEventListener('DOMContentLoaded', init);
 </script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 </body>
 </html>

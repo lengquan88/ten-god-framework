@@ -1,78 +1,21 @@
 {
-  "name": "十神架构 · 中华文明数字永生体",
-  "short_name": "十神",
-  "description": "中华文明数字永生体 · 十神架构 PWA 控制台，支持八字排盘、命例案例库、知识图谱、离线使用",
-  "start_url": "/app/index.html",
-  "scope": "/app/",
+  "name": "TenGod Web Console",
+  "short_name": "TenGod",
+  "description": "Chinese Fortune Telling System - Web Console",
+  "start_url": "/index.html",
   "display": "standalone",
-  "display_override": ["standalone", "minimal-ui", "browser"],
-  "background_color": "#0a0a0f",
-  "theme_color": "#c9a96e",
-  "orientation": "any",
-  "lang": "zh-CN",
-  "dir": "ltr",
-  "categories": ["utilities", "productivity", "lifestyle"],
+  "background_color": "#0a0a0a",
+  "theme_color": "#0a0a0a",
+  "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/app/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/app/icon-512.png",
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect fill='%230a0a0a' width='512' height='512' rx='64'/><text x='256' y='340' font-size='280' text-anchor='middle' fill='%23e8d5b7'>易</text></svg>",
       "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/app/icon-512-maskable.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
     }
   ],
-  "screenshots": [
-    {
-      "src": "/app/screenshot-mobile.png",
-      "sizes": "1080x1920",
-      "type": "image/png",
-      "form_factor": "narrow",
-      "label": "移动端总览"
-    },
-    {
-      "src": "/app/screenshot-desktop.png",
-      "sizes": "1920x1080",
-      "type": "image/png",
-      "form_factor": "wide",
-      "label": "桌面端总览"
-    }
-  ],
-  "shortcuts": [
-    {
-      "name": "八字排盘",
-      "short_name": "排盘",
-      "url": "/app/index.html#bazi",
-      "description": "八字排盘与命理分析"
-    },
-    {
-      "name": "命例案例库",
-      "short_name": "案例",
-      "url": "/app/index.html#cases",
-      "description": "浏览命例案例"
-    },
-    {
-      "name": "知识图谱",
-      "short_name": "图谱",
-      "url": "/app/index.html#knowledge",
-      "description": "查看知识图谱"
-    },
-    {
-      "name": "推背图",
-      "short_name": "推背",
-      "url": "/app/index.html#oracle",
-      "description": "咨询 Oracle"
-    }
-  ],
-  "prefer_related_applications": false
+  "categories": ["utilities", "lifestyle"],
+  "lang": "zh-CN",
+  "dir": "ltr"
 }
