@@ -3526,6 +3526,182 @@ async def v2_knowledge_list(
 
 
 # ============================================================================
+# v2.7: 六爻卦象 API
+# ============================================================================
+
+from pydantic import BaseModel, Field
+
+class LiuyaoCastRequest(BaseModel):
+    date: Optional[str] = Field(None, description="日期 (YYYY-MM-DD)，默认今天")
+    question: Optional[str] = Field(None, description="所问之事")
+    method: str = Field("random", description="起卦方式: random(随机) / manual(手动)")
+
+class LiuyaoCastResponse(BaseModel):
+    ben_gua_name: str
+    bian_gua_name: str = ""
+    hu_gua_name: str = ""
+    shang_gua: str = ""
+    xia_gua: str = ""
+    gua_gong: str = ""
+    yaos: List[Dict[str, Any]] = []
+    overall_judgment: str = ""
+    day_ganzhi: str = ""
+
+
+@app.post("/api/liuyao/cast", response_model=LiuyaoCastResponse, tags=["v2.7 六爻"])
+async def cast_liuyao(request: LiuyaoCastRequest):
+    """六爻起卦"""
+    try:
+        from tengod.liuyao_engine import LiuyaoEngine
+        engine = LiuyaoEngine()
+        result = engine.calc_gua(day_ganzhi=request.date)
+        yaos = [
+            {
+                "position": y.position,
+                "yao_type": str(y.yao_type),
+                "is_dong": y.is_dong,
+                "zhi": y.zhi,
+                "liuqin": y.liuqin,
+                "liushen": y.liushen,
+                "shi": y.shi,
+                "ying": y.ying,
+            }
+            for y in result.yaos
+        ]
+        return LiuyaoCastResponse(
+            ben_gua_name=result.ben_gua_name,
+            bian_gua_name=result.bian_gua_name,
+            hu_gua_name=result.hu_gua_name,
+            shang_gua=result.shang_gua,
+            xia_gua=result.xia_gua,
+            gua_gong=result.gua_gong,
+            yaos=yaos,
+            overall_judgment=result.overall_judgment,
+            day_ganzhi=result.day_ganzhi,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/liuyao/chart", tags=["v2.7 六爻"])
+async def liuyao_chart(date: Optional[str] = None, question: Optional[str] = None):
+    """六爻卦象 HTML 可视化"""
+    try:
+        from tengod.liuyao_engine import LiuyaoEngine
+        from tengod.chart_visualizer import visualize_liuyao
+        engine = LiuyaoEngine()
+        result = engine.calc_gua(day_ganzhi=date)
+        html = visualize_liuyao(result)
+        return HTMLResponse(content=html)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# v2.7: SSE 流式解读端点
+# ============================================================================
+
+from starlette.responses import StreamingResponse
+
+@app.post("/api/v2/ai/stream-interpret", tags=["v2.7 AI 流式"])
+async def stream_ai_interpret(request: Request):
+    """SSE 流式 AI 解读"""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+
+    bazi_context = body.get("bazi_context", "")
+    question = body.get("question", "请分析命盘")
+    system = body.get("system", "bazi")
+
+    async def generate():
+        try:
+            from tengod.llm_adapter import get_llm_adapter
+            llm = get_llm_adapter()
+
+            if system == "bazi":
+                from tengod.ai_interpreter import BAZI_INTERPRET_PROMPT
+                prompt = BAZI_INTERPRET_PROMPT
+            elif system == "liuyao":
+                prompt = "你是一位精通六爻的占卜师，请根据卦象进行解读。"
+            else:
+                prompt = "你是一位精通命理的顾问，请进行专业分析。"
+
+            messages = [
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": f"{question}\n\n{bazi_context}"},
+            ]
+
+            response = await llm.chat_stream(messages)
+            async for chunk in response:
+                content = getattr(chunk, "content", "") if hasattr(chunk, "content") else str(chunk)
+                if content:
+                    yield f"data: {json.dumps({'content': content}, ensure_ascii=False)}\n\n"
+            yield "data: [DONE]\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'error': str(e)}, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
+
+
+# ============================================================================
+# v2.7: 异步任务端点
+# ============================================================================
+
+_task_store: Dict[str, Dict[str, Any]] = {}
+_task_counter = 0
+_task_lock = __import__("threading").Lock()
+
+@app.post("/api/tasks", tags=["v2.7 异步任务"])
+async def create_task(request: Request):
+    """创建异步任务"""
+    global _task_counter
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+
+    task_type = body.get("type", "generic")
+    params = body.get("params", {})
+
+    with _task_lock:
+        _task_counter += 1
+        task_id = f"task_{_task_counter}"
+        _task_store[task_id] = {
+            "id": task_id,
+            "type": task_type,
+            "status": "pending",
+            "progress": 0,
+            "result": None,
+            "error": None,
+            "created_at": __import__("datetime").datetime.now().isoformat(),
+        }
+
+    return {"task_id": task_id, "status": "pending"}
+
+
+@app.get("/api/tasks/{task_id}", tags=["v2.7 异步任务"])
+async def get_task_status(task_id: str):
+    """获取任务状态"""
+    task = _task_store.get(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    return task
+
+
+@app.post("/api/tasks/{task_id}/progress", tags=["v2.7 异步任务"])
+async def update_task_progress(task_id: str, progress: int = 0, status: str = "running"):
+    """更新任务进度（内部使用）"""
+    task = _task_store.get(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    task["progress"] = progress
+    task["status"] = status
+    return task
+
+
+# ============================================================================
 # 启动入口
 # ============================================================================
 

@@ -28,7 +28,7 @@ FROM python:3.11-slim
 # 镜像元数据
 LABEL org.opencontainers.image.title="TenGod Framework" \
       org.opencontainers.image.description="中华文明数字永生体 · 命理智能分析系统" \
-      org.opencontainers.image.version="2.6.0" \
+      org.opencontainers.image.version="2.7.0" \
       org.opencontainers.image.authors="TenGod Team" \
       org.opencontainers.image.licenses="MIT"
 

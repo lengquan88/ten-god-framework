@@ -1,5 +1,75 @@
 # Release Notes
 
+## v2.7.0 — 六爻可视化 + 流式API + 异步任务
+
+> 发布日期: 2026-06-23
+
+### Highlights
+
+- **六爻卦象可视化**: 本卦/变卦/互卦+六爻+世应+六亲+六神，HTML/SVG双格式
+- **SSE 流式 API**: `/api/v2/ai/stream-interpret` 流式解读输出
+- **六爻 REST API**: `/api/liuyao/cast` 起卦 + `/api/liuyao/chart` 可视化
+- **异步任务系统**: 创建/查询/更新进度端点 + 内存任务存储
+
+### 新增功能
+
+#### 1. 六爻卦象可视化 (`LiuyaoChartVisualizer`)
+- 六爻卦象图（初爻→上爻），阳爻/阴爻区分显示
+- 六亲颜色映射：父母(蓝)/兄弟(金)/妻财(绿)/官鬼(红)/子孙(紫)
+- 六神标签：青龙/朱雀/勾陈/螣蛇/白虎/玄武
+- 世应标记：世爻(红圆点)/应爻(绿方点)
+- 动爻高亮（红色左边框 + 动爻标记）
+- 卦名展示：本卦/变卦/互卦
+- 断辞展示区域
+- 暗色主题 + hover 动画 + 移动端响应式
+- SVG 矢量输出（爻线+世应标记+六亲标签）
+- 便捷函数：`visualize_liuyao()` / `visualize_liuyao_svg()`
+
+#### 2. 六爻 API 端点
+- `POST /api/liuyao/cast` — 起卦（支持随机/手动，返回完整卦象JSON）
+- `GET /api/liuyao/chart` — 卦象 HTML 可视化（可直接嵌入 iframe）
+
+#### 3. SSE 流式解读
+- `POST /api/v2/ai/stream-interpret` — SSE 流式输出
+- 支持 bazi/liuyao 两套提示词
+- 标准 SSE 格式 (`text/event-stream`)
+
+#### 4. 异步任务系统
+- `POST /api/tasks` — 创建异步任务
+- `GET /api/tasks/{task_id}` — 查询任务状态
+- `POST /api/tasks/{task_id}/progress` — 更新任务进度
+- 状态：pending → running → done/failed
+- 内存存储（生产环境可换 Redis）
+
+### 测试覆盖
+- 26 个 v2.7 新增测试用例
+- 六爻可视化测试（14）：初始化/HTML(dict+dataclass)/爻信息/六亲/六神/世应/动爻/SVG/便捷函数/颜色映射
+- 六爻引擎集成测试（6）：起卦/日干/六亲/六神/世应/断辞
+- 异步任务测试（1）：任务存储状态流转
+- 回归测试（5）：导入/v2.6/v2.5/v2.4兼容
+
+### 全量测试
+```bash
+# 174 passed (26 v2.7 + 30 v2.6 + 40 v2.5 + 25 v2.4 + 34 v2.3 + 30 chart_visualizer)
+python -m pytest tests/test_v23_i18n.py tests/test_v24_visualization.py \
+     tests/test_v25_fusion.py tests/test_v26_visualization.py \
+     tests/test_v27_liuyao.py tests/test_chart_visualizer.py -v -k "not async"
+```
+
+### 升级说明
+```bash
+git pull origin main
+pip install -r requirements.txt
+python -m pytest tests/test_v27_liuyao.py -v
+```
+
+### 兼容性
+- 向下兼容 v2.6.x 所有 API
+- 六爻可视化器与现有 `chart_visualizer.py` 共享暗色主题风格
+- 异步任务为独立端点，不影响现有同步 API
+
+---
+
 ## v2.6.0 — 术数可视化完善 + 缓存系统
 
 > 发布日期: 2026-06-23

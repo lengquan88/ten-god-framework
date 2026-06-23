@@ -1724,12 +1724,337 @@ def visualize_fengshui_svg(fengshui_data: Dict) -> str:
     return viz.generate_svg(fengshui_data)
 
 
+class LiuyaoChartVisualizer:
+    """六爻卦象可视化器 v2.7"""
+
+    # 六亲颜色
+    LIUQIN_COLORS = {
+        "父母": "#58a6ff", "兄弟": "#d4a853", "官鬼": "#f85149",
+        "妻财": "#3fb950", "子孙": "#d2a8ff",
+    }
+    # 六神颜色
+    LIUSHEN_COLORS = {
+        "青龙": "#3fb950", "朱雀": "#f85149", "勾陈": "#d4a853",
+        "螣蛇": "#ffa657", "白虎": "#8b949e", "玄武": "#58a6ff",
+    }
+    # 五行颜色
+    WUXING_COLORS = {"金": "#ffa657", "木": "#3fb950", "水": "#58a6ff",
+                     "火": "#f85149", "土": "#d4a853"}
+
+    def __init__(self, config: Optional[VisualizationConfig] = None):
+        self.config = config or VisualizationConfig()
+
+    def generate_html(self, liuyao_result) -> str:
+        """生成六爻卦象HTML"""
+        # 支持 dict 和 dataclass 两种格式
+        if isinstance(liuyao_result, dict):
+            ben = liuyao_result.get("ben_gua_name", "")
+            bian = liuyao_result.get("bian_gua_name", "")
+            hu = liuyao_result.get("hu_gua_name", "")
+            yaos = liuyao_result.get("yaos", [])
+            judgment = liuyao_result.get("overall_judgment", "")
+            day_ganzhi = liuyao_result.get("day_ganzhi", "")
+            gua_gong = liuyao_result.get("gua_gong", "")
+        else:
+            ben = getattr(liuyao_result, "ben_gua_name", "")
+            bian = getattr(liuyao_result, "bian_gua_name", "")
+            hu = getattr(liuyao_result, "hu_gua_name", "")
+            yaos = getattr(liuyao_result, "yaos", [])
+            judgment = getattr(liuyao_result, "overall_judgment", "")
+            day_ganzhi = getattr(liuyao_result, "day_ganzhi", "")
+            gua_gong = getattr(liuyao_result, "gua_gong", "")
+
+        yao_rows = []
+        for i, yao in enumerate(reversed(yaos)):
+            if isinstance(yao, dict):
+                pos = yao.get("position", 6 - i)
+                yao_type = yao.get("yao_type", "")
+                is_dong = yao.get("is_dong", False)
+                liuqin = yao.get("liuqin", "")
+                liushen = yao.get("liushen", "")
+                shi = yao.get("shi", False)
+                ying = yao.get("ying", False)
+                zhi = yao.get("zhi", "")
+            else:
+                pos = getattr(yao, "position", 6 - i)
+                yao_type = str(getattr(yao, "yao_type", ""))
+                is_dong = getattr(yao, "is_dong", False)
+                liuqin = getattr(yao, "liuqin", "")
+                liushen = getattr(yao, "liushen", "")
+                shi = getattr(yao, "shi", False)
+                ying = getattr(yao, "ying", False)
+                zhi = getattr(yao, "zhi", "")
+
+            liuqin_color = self.LIUQIN_COLORS.get(liuqin, "#8b949e")
+            liushen_color = self.LIUSHEN_COLORS.get(liushen, "#8b949e")
+
+            is_yang = "YANG" in str(yao_type).upper() or "阳" in str(yao_type)
+            dong_class = "dong" if is_dong else ""
+            yao_line = "—————" if is_yang else "—— —"
+            yao_line_class = "yang" if is_yang else "yin"
+
+            badges = []
+            if shi:
+                badges.append('<span class="badge shi">世</span>')
+            if ying:
+                badges.append('<span class="badge ying">应</span>')
+            if is_dong:
+                badges.append('<span class="badge dong">动</span>')
+            badges_html = " ".join(badges)
+
+            yao_rows.append(f"""<div class="yao-row {dong_class}" style="--liuqin-color:{liuqin_color};--liushen-color:{liushen_color}">
+                <div class="yao-meta">
+                    <span class="yao-pos">{['', '初','二','三','四','五','上'][pos]}</span>
+                    <span class="yao-liuqin" style="color:{liuqin_color}">{liuqin}</span>
+                    <span class="yao-zhi">{zhi}</span>
+                </div>
+                <div class="yao-line {yao_line_class}">{yao_line}</div>
+                <div class="yao-badges">{badges_html}</div>
+                <div class="yao-liushen" style="color:{liushen_color}">{liushen}</div>
+            </div>""")
+
+        gua_list = []
+        for name in [ben, bian, hu]:
+            if name:
+                gua_list.append(f'<span class="gua-tag">{name}</span>')
+
+        return f"""<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>六爻卦象 - TenGod v2.7</title>
+    <style>
+        :root {{
+            --ly-bg: #0d1117;
+            --ly-card: #161b22;
+            --ly-accent: #d4a853;
+            --ly-text: #c9d1d9;
+            --ly-muted: #8b949e;
+        }}
+        * {{ margin:0; padding:0; box-sizing:border-box; }}
+        body {{
+            font-family: 'Microsoft YaHei','PingFang SC',sans-serif;
+            background: var(--ly-bg);
+            color: var(--ly-text);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            padding: 20px;
+        }}
+        .liuyao-container {{
+            max-width: 600px;
+            width: 100%;
+        }}
+        .liuyao-header {{
+            text-align: center;
+            margin-bottom: 20px;
+        }}
+        .liuyao-header h1 {{
+            color: var(--ly-accent);
+            font-size: 1.8em;
+            margin-bottom: 4px;
+        }}
+        .liuyao-info {{
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }}
+        .gua-tag {{
+            background: var(--ly-card);
+            border: 1px solid var(--ly-accent);
+            color: var(--ly-accent);
+            padding: 4px 14px;
+            border-radius: 16px;
+            font-size: 0.9em;
+        }}
+        .yao-card {{
+            background: var(--ly-card);
+            border: 1px solid #30363d;
+            border-radius: 12px;
+            padding: 16px 20px;
+            margin-bottom: 16px;
+        }}
+        .yao-row {{
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 8px;
+            border-bottom: 1px solid #21262d;
+            transition: all 0.3s;
+            border-radius: 8px;
+        }}
+        .yao-row:last-child {{ border-bottom: none; }}
+        .yao-row:hover {{
+            background: #1a1f2e;
+        }}
+        .yao-row.dong {{
+            background: linear-gradient(90deg, rgba(248,81,73,0.08), transparent);
+            border-left: 3px solid #f85149;
+        }}
+        .yao-meta {{
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 120px;
+            font-size: 0.85em;
+        }}
+        .yao-pos {{
+            color: var(--ly-muted);
+            font-weight: bold;
+            width: 24px;
+        }}
+        .yao-zhi {{
+            color: var(--ly-muted);
+            font-size: 0.8em;
+        }}
+        .yao-line {{
+            flex: 1;
+            text-align: center;
+            font-size: 1.6em;
+            font-weight: bold;
+            letter-spacing: 4px;
+            padding: 4px 0;
+        }}
+        .yao-line.yang {{ color: #ffa657; }}
+        .yao-line.yin {{ color: #58a6ff; }}
+        .yao-badges {{
+            display: flex;
+            gap: 4px;
+            min-width: 50px;
+        }}
+        .badge {{
+            font-size: 0.7em;
+            padding: 1px 8px;
+            border-radius: 8px;
+            font-weight: bold;
+        }}
+        .badge.shi {{ background: #3a1a1a; color: #f85149; }}
+        .badge.ying {{ background: #1a3a1a; color: #3fb950; }}
+        .badge.dong {{ background: #3a1a2a; color: #ffa657; }}
+        .yao-liushen {{
+            font-size: 0.8em;
+            min-width: 40px;
+            text-align: right;
+        }}
+        .judgment {{
+            background: var(--ly-card);
+            border: 1px solid #30363d;
+            border-radius: 10px;
+            padding: 16px;
+            margin-top: 16px;
+        }}
+        .judgment h3 {{
+            color: var(--ly-accent);
+            margin-bottom: 8px;
+        }}
+        .judgment p {{
+            color: var(--ly-muted);
+            font-size: 0.9em;
+            line-height: 1.6;
+        }}
+        @media (max-width: 480px) {{
+            .yao-meta {{ min-width: 90px; font-size: 0.75em; }}
+            .yao-line {{ font-size: 1.2em; }}
+        }}
+    </style>
+</head>
+<body>
+    <div class="liuyao-container">
+        <div class="liuyao-header">
+            <h1>六爻卦象</h1>
+            <div class="liuyao-info">{''.join(gua_list)}</div>
+            <div style="color:var(--ly-muted);font-size:0.8em">{day_ganzhi} · {gua_gong}宫</div>
+        </div>
+        <div class="yao-card">
+            {''.join(yao_rows)}
+        </div>
+        <div class="judgment">
+            <h3>断辞</h3>
+            <p>{_esc(judgment) if judgment else '暂无断辞'}</p>
+        </div>
+    </div>
+</body>
+</html>"""
+
+    def generate_svg(self, liuyao_result) -> str:
+        """生成六爻卦象SVG"""
+        if isinstance(liuyao_result, dict):
+            ben = liuyao_result.get("ben_gua_name", "")
+            yaos = liuyao_result.get("yaos", [])
+        else:
+            ben = getattr(liuyao_result, "ben_gua_name", "")
+            yaos = getattr(liuyao_result, "yaos", [])
+
+        w, h = 500, 420
+        parts = [
+            f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}">',
+            f'<rect width="{w}" height="{h}" fill="#0d1117"/>',
+            f'<text x="{w/2}" y="30" text-anchor="middle" fill="#d4a853" font-size="18" font-weight="bold">{_esc(ben)}</text>',
+        ]
+
+        y = 60
+        for i, yao in enumerate(reversed(list(yaos))):
+            if isinstance(yao, dict):
+                is_yang = "YANG" in str(yao.get("yao_type", "")).upper() or "阳" in str(yao.get("yao_type", ""))
+                is_dong = yao.get("is_dong", False)
+                liuqin = yao.get("liuqin", "")
+                shi = yao.get("shi", False)
+                pos = yao.get("position", 6 - i)
+            else:
+                is_yang = "YANG" in str(getattr(yao, "yao_type", "")).upper() or "阳" in str(getattr(yao, "yao_type", ""))
+                is_dong = getattr(yao, "is_dong", False)
+                liuqin = getattr(yao, "liuqin", "")
+                shi = getattr(yao, "shi", False)
+                pos = getattr(yao, "position", 6 - i)
+
+            color = self.LIUQIN_COLORS.get(liuqin, "#8b949e")
+            stroke_color = "#f85149" if is_dong else color
+
+            cx = w / 2
+            parts.append(f'<text x="{cx - 140}" y="{y + 12}" text-anchor="end" fill="{color}" font-size="11">{liuqin}</text>')
+            parts.append(f'<text x="{cx - 95}" y="{y + 12}" text-anchor="end" fill="#8b949e" font-size="10">{["","初","二","三","四","五","上"][pos]}</text>')
+
+            if is_yang:
+                parts.append(f'<line x1="{cx - 60}" y1="{y}" x2="{cx + 60}" y2="{y}" stroke="{stroke_color}" stroke-width="3" stroke-linecap="round"/>')
+            else:
+                parts.append(f'<line x1="{cx - 40}" y1="{y}" x2="{cx + 60}" y2="{y}" stroke="{stroke_color}" stroke-width="2" stroke-linecap="round"/>')
+                parts.append(f'<line x1="{cx - 40}" y1="{y}" x2="{cx - 40}" y2="{y + 12}" stroke="transparent" stroke-width="0"/>')
+
+            if shi:
+                parts.append(f'<circle cx="{cx + 85}" cy="{y + 6}" r="6" fill="none" stroke="#f85149" stroke-width="2"/>')
+                parts.append(f'<text x="{cx + 85}" y="{y + 10}" text-anchor="middle" fill="#f85149" font-size="8">世</text>')
+
+            if is_dong:
+                parts.append(f'<circle cx="{cx + 105}" cy="{y + 6}" r="5" fill="#f85149" opacity="0.5"/>')
+
+            y += 30
+
+        parts.append('</svg>')
+        return "\n".join(parts)
+
+
+def visualize_liuyao(liuyao_result) -> str:
+    """快速生成六爻HTML"""
+    viz = LiuyaoChartVisualizer()
+    return viz.generate_html(liuyao_result)
+
+
+def visualize_liuyao_svg(liuyao_result) -> str:
+    """快速生成六爻SVG"""
+    viz = LiuyaoChartVisualizer()
+    return viz.generate_svg(liuyao_result)
+
+
 __all__ = [
     "BaziChartVisualizer",
     "ZiweiChartVisualizer",
     "TrajectoryTimeline",
     "QimenChartVisualizer",
     "FengshuiVisualizer",
+    "LiuyaoChartVisualizer",
     "VisualizationConfig",
     "visualize_bazi",
     "visualize_ziwei",
@@ -1740,4 +2065,6 @@ __all__ = [
     "visualize_qimen_svg",
     "visualize_fengshui",
     "visualize_fengshui_svg",
+    "visualize_liuyao",
+    "visualize_liuyao_svg",
 ]
