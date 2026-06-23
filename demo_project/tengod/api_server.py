@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-api_server.py — 十神架构 · REST API 服务 v2.2.0
+api_server.py — 十神架构 · REST API 服务 v2.3.0
 
 FastAPI-based HTTP REST API，将全部六阶段能力服务化。
 
@@ -57,6 +57,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from fastapi import FastAPI, HTTPException, Request, Depends, Query, Header
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
@@ -339,6 +340,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Gzip 压缩（移动端流量优化 v2.3）
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 
 # 鉴权（API Key）
 app.add_middleware(AuthMiddleware)
@@ -3390,6 +3394,135 @@ async def v2_ai_stream(req: AIStreamRequest, request: Request):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AI 流式分析失败: {e}")
+
+
+# ============================================================================
+# v2.3 新增：国际化端点
+# ============================================================================
+
+@app.get("/api/v2/i18n/languages", tags=["v2.3 国际化"])
+async def v2_i18n_languages(request: Request):
+    """获取可用语言列表"""
+    from tengod.auth import authorize
+    authorize(request, "public", consume_quota=False)
+    from tengod.i18n import get_i18n_engine
+    engine = get_i18n_engine()
+    return {"languages": engine.get_available_langs(), "default": "zh-CN"}
+
+
+@app.post("/api/v2/i18n/translate", tags=["v2.3 国际化"])
+async def v2_i18n_translate(request: Request):
+    """批量翻译接口：传入文本数组和目标语言，返回翻译结果"""
+    from tengod.auth import authorize
+    authorize(request, "public", consume_quota=False)
+    try:
+        body = await request.json()
+        texts = body.get("texts", [])
+        lang = body.get("lang", "en")
+        from tengod.i18n import get_i18n_engine
+        engine = get_i18n_engine()
+        result = {text: engine.translate(text, lang) for text in texts}
+        return {"lang": lang, "translations": result}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# ============================================================================
+# v2.3 新增：移动端轻量端点 + 分页
+# ============================================================================
+
+@app.get("/api/v2/mobile/bazi/quick", tags=["v2.3 移动端"])
+async def v2_mobile_bazi_quick(
+    request: Request,
+    year: int, month: int, day: int, hour: int,
+    minute: int = 0, gender: str = "male",
+    longitude: float = 116.4, latitude: float = 39.9,
+    lang: str = "zh-CN",
+):
+    """移动端轻量八字排盘：只返回核心数据，减少 payload"""
+    from tengod.auth import authorize
+    authorize(request, "bazi:calc")
+    try:
+        from tengod.bazi_analyzer import BaziAnalyzer
+        is_male = gender == "male"
+        analyzer = BaziAnalyzer(year, month, day, hour, minute,
+                                is_male=is_male, longitude=longitude, latitude=latitude)
+        a = analyzer.analysis
+        pillars = a["pillars"]
+
+        # 统计五行
+        wuxing_count = {"木": 0, "火": 0, "土": 0, "金": 0, "水": 0}
+        wuxing_map = {'甲': '木', '乙': '木', '丙': '火', '丁': '火',
+                       '戊': '土', '己': '土', '庚': '金', '辛': '金',
+                       '壬': '水', '癸': '水'}
+        for pillar in pillars.values():
+            for char in pillar:
+                if char in wuxing_map:
+                    wuxing_count[wuxing_map[char]] += 1
+
+        # 翻译
+        result = {
+            "p": pillars,
+            "d": a["day_master"],
+            "w": wuxing_count,
+            "t": a.get("total_score", 0),
+        }
+
+        if lang != "zh-CN":
+            from tengod.i18n import translate_bazi, translate_wuxing
+            result["p"] = translate_bazi(pillars, lang=lang)
+            result["w"] = translate_wuxing(wuxing_count, lang=lang)
+
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v2/knowledge/list", tags=["v2.3 移动端"])
+async def v2_knowledge_list(
+    request: Request,
+    page: int = 1,
+    page_size: int = 20,
+    category: Optional[str] = None,
+    lang: str = "zh-CN",
+):
+    """知识图谱列表：支持分页、分类过滤、多语言"""
+    from tengod.auth import authorize
+    authorize(request, "knowledge:read", consume_quota=False)
+    try:
+        from tengod.graph_engine import get_graph_db
+        graph_db = get_graph_db()
+        nodes = list(graph_db._nodes.values())
+
+        # 分类过滤
+        if category:
+            nodes = [n for n in nodes if n.label == category]
+
+        total = len(nodes)
+        start = (page - 1) * page_size
+        end = start + page_size
+        page_nodes = nodes[start:end]
+
+        # 翻译
+        if lang != "zh-CN":
+            from tengod.i18n import t as ti18n
+            result_nodes = []
+            for n in page_nodes:
+                d = n.to_dict()
+                d["name"] = ti18n(d["name"], lang)
+                result_nodes.append(d)
+        else:
+            result_nodes = [n.to_dict() for n in page_nodes]
+
+        return {
+            "items": result_nodes,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": (total + page_size - 1) // page_size,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ============================================================================
