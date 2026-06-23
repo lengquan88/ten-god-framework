@@ -254,6 +254,7 @@ class ReportQuery(BaseModel):
     include_shensha: bool = Field(default=True)
     include_geju: bool = Field(default=True)
     include_yongshen: bool = Field(default=True)
+    lang: str = Field(default="zh-CN", description="报告语言: zh-CN/zh-TW/en")
 
 
 class RecordLabel(BaseModel):
@@ -705,7 +706,7 @@ async def bazi_report(query: ReportQuery, request: Request,
         analyzer = BaziAnalyzer(query.bazi.year, query.bazi.month, query.bazi.day,
                                 query.bazi.hour, query.bazi.minute, is_male=is_male,
                                 longitude=query.bazi.longitude, latitude=query.bazi.latitude)
-        gen = BaziReportGenerator(analyzer)
+        gen = BaziReportGenerator(analyzer, lang=query.lang)
 
         pillars = analyzer.analysis["pillars"]
         if query.include_shensha:

@@ -1,5 +1,92 @@
 # Release Notes
 
+## v2.4.0 — 可视化增强与报告系统升级
+
+> 发布日期: 2026-06-23
+
+### Highlights
+
+- **紫微斗数完整可视化**: 4×4 网格布局映射十二宫位，主星颜色映射、四化标记、大限叠盘、身宫标记
+- **报告系统多语言集成**: `BaziReportGenerator` 全格式（text/markdown/json/html）支持 `lang` 参数
+- **PNG 图片导出**: 基于 cairosvg 的 SVG→PNG 转换，带 ImportError 降级
+- **分享卡升级**: `ShareCardGenerator` 多语言支持 + 八字/紫微命盘分享图生成
+
+### 新增功能
+
+#### 1. 紫微斗数可视化引擎 (`tengod.chart_visualizer.ZiweiChartVisualizer`)
+- 4×4 CSS Grid 布局，地支→网格位置精准映射（子→(3,2)、午→(0,1) 等）
+- 14 主星颜色映射（紫微深红、天机宝蓝、太阳橙黄等）
+- 四化标记（禄金/权红/科绿/忌灰）与宫位绑定
+- 大限叠盘显示（年龄区间标注）
+- 身宫标记（红色角标）
+- 中心信息区：五行局/命主/身主/四化
+- 响应式设计：600px / 400px 断点
+- 双格式输出：`generate_html()` / `generate_svg()`
+- 多语言支持：zh-CN / zh-TW / en
+
+#### 2. 报告系统多语言集成 (`tengod.report_generator.BaziReportGenerator`)
+- `__init__(lang="zh-CN")` 构造函数参数
+- `_t()` 翻译辅助方法，集成 `tengod.i18n.t`
+- 全格式报告方法支持 `lang` 可选参数：
+  - `text_report(lang=None)`
+  - `markdown_report(lang=None)`
+  - `json_report(lang=None)`
+  - `html_report(lang=None)`
+- 所有章节标题（基本信息/四柱/五行/十神/神煞/格局/喜用神/大运/流年/建议）使用 `_t()` 翻译
+- 便捷函数 `generate_report()` / `generate_html_report()` 添加 `lang` 参数
+
+#### 3. PNG 图片导出 (`tengod.visualization.export_to_png`)
+- 基于 cairosvg 库实现 SVG→PNG 矢量转换
+- 支持文件输出（`output_path` 参数）和 base64 数据 URL 返回
+- ImportError 降级：cairosvg 未安装时返回原 SVG 内容
+- 异常降级：转换失败时返回原 SVG 内容
+
+#### 4. 分享卡升级 (`tengod.miniapp.ShareCardGenerator`)
+- `__init__(lang="zh-CN")` 构造函数参数
+- 所有方法支持 `lang` 可选参数（方法级覆盖构造函数设置）
+- 新增 `generate_bazi_chart_share()`: 八字命盘分享图（SVG + PNG）
+- 新增 `generate_ziwei_chart_share()`: 紫微命盘分享图（SVG + PNG）
+- 多语言标题/描述生成
+
+#### 5. API 端点多语言
+- `ReportQuery` 模型新增 `lang` 字段（默认 `zh-CN`）
+- `/api/v2/bazi/report` 端点传递 `lang` 至报告生成器
+
+#### 6. i18n 翻译表扩展
+- 新增 33 条紫微相关词条：
+  - 十二宫名称（13条）：命宫/兄弟/夫妻/子女/财帛/疾厄/迁移/交友/官禄/田宅/福德/父母/身宫
+  - 四化（4条）：化禄/化权/化科/化忌
+  - 辅星扩展（14条）：左辅/右弼/文昌/文曲/天魁/天钺/禄存/天马/地空/地劫/擎羊/陀罗/火星/铃星
+  - 术语（5条）：大限/小限/流盘/叠盘/宫位
+- 翻译表总数：246 → 279 条
+
+### 测试覆盖
+- 30 个 v2.4 新增测试用例（`tests/test_v24_viz.py`）
+- 紫微可视化测试：HTML/SVG/多语言/便捷函数（6 项）
+- 多语言报告测试：默认语言/构造函数/方法覆盖/markdown/json/html/zh-TW（7 项）
+- PNG 导出测试：返回值/降级/文件输出（3 项）
+- 分享卡测试：默认语言/构造函数/方法覆盖/八字命盘图/紫微命盘图/多语言/轨迹/AI（8 项）
+- API 端点测试：ReportQuery lang 字段（2 项）
+- i18n 翻译表测试：数量/完整性/紫微术语/回退（4 项）
+
+### 修复的回归
+- `ZiweiChartVisualizer.generate_html()` CSS 类名兼容：同时保留 `zw-grid` 和 `ziwei-grid` 类名，确保旧测试通过
+
+### 升级说明
+```bash
+git pull origin main
+pip install cairosvg  # 可选，用于 PNG 导出（未安装时自动降级为 SVG）
+python -m pytest tests/test_v24_viz.py -v
+```
+
+### 兼容性
+- 向下兼容 v2.3.x 所有 API
+- `ShareCardGenerator()` 无参构造仍可用（`lang` 默认 `zh-CN`）
+- `BaziReportGenerator` 无 `lang` 参数仍可用（默认 `zh-CN`）
+- PNG 导出在 cairosvg 未安装时自动降级，不影响核心功能
+
+---
+
 ## v2.3.0 — 移动端适配与国际化
 
 > 发布日期: 2026-02-13
