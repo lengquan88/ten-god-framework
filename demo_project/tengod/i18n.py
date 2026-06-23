@@ -331,47 +331,6 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
     "破太岁": {"zh-CN": "破太岁", "zh-TW": "破太歲", "en": "Breaking TaiSui"},
     "刑太岁": {"zh-CN": "刑太岁", "zh-TW": "刑太歲", "en": "Punishing TaiSui"},
     "合太岁": {"zh-CN": "合太岁", "zh-TW": "合太歲", "en": "Combining TaiSui"},
-
-    # ── 紫微十二宫名称 ──────────────────────────────────────────────────
-    "命宫": {"zh-CN": "命宫", "zh-TW": "命宮", "en": "Life Palace"},
-    "兄弟": {"zh-CN": "兄弟", "zh-TW": "兄弟", "en": "Siblings"},
-    "夫妻": {"zh-CN": "夫妻", "zh-TW": "夫妻", "en": "Spouse"},
-    "子女": {"zh-CN": "子女", "zh-TW": "子女", "en": "Children"},
-    "财帛": {"zh-CN": "财帛", "zh-TW": "財帛", "en": "Wealth"},
-    "疾厄": {"zh-CN": "疾厄", "zh-TW": "疾厄", "en": "Health"},
-    "迁移": {"zh-CN": "迁移", "zh-TW": "遷移", "en": "Travel"},
-    "交友": {"zh-CN": "交友", "zh-TW": "交友", "en": "Friends"},
-    "官禄": {"zh-CN": "官禄", "zh-TW": "官祿", "en": "Career"},
-    "田宅": {"zh-CN": "田宅", "zh-TW": "田宅", "en": "Property"},
-    "福德": {"zh-CN": "福德", "zh-TW": "福德", "en": "Fortune"},
-    "父母": {"zh-CN": "父母", "zh-TW": "父母", "en": "Parents"},
-    "身宫": {"zh-CN": "身宫", "zh-TW": "身宮", "en": "Body Palace"},
-
-    # ── 紫微四化 ────────────────────────────────────────────────────────
-    "化禄": {"zh-CN": "化禄", "zh-TW": "化祿", "en": "HuaLu (Prosperity)"},
-    "化权": {"zh-CN": "化权", "zh-TW": "化權", "en": "HuaQuan (Authority)"},
-    "化科": {"zh-CN": "化科", "zh-TW": "化科", "en": "HuaKe (Fame)"},
-    "化忌": {"zh-CN": "化忌", "zh-TW": "化忌", "en": "HuaJi (Obstacle)"},
-
-    # ── 紫微辅星扩展 ────────────────────────────────────────────────────
-    "左辅": {"zh-CN": "左辅", "zh-TW": "左輔", "en": "ZuoFu (Left Assistant)"},
-    "右弼": {"zh-CN": "右弼", "zh-TW": "右弼", "en": "YouBi (Right Assistant)"},
-    "文昌": {"zh-CN": "文昌", "zh-TW": "文昌", "en": "WenChang (Literary Star)"},
-    "文曲": {"zh-CN": "文曲", "zh-TW": "文曲", "en": "WenQu (Musical Star)"},
-    "天魁": {"zh-CN": "天魁", "zh-TW": "天魁", "en": "TianKui (Nobleman)"},
-    "天钺": {"zh-CN": "天钺", "zh-TW": "天鉞", "en": "TianYue (Jade Noble)"},
-    "禄存": {"zh-CN": "禄存", "zh-TW": "祿存", "en": "LuCun (Prosperity Star)"},
-    "擎羊": {"zh-CN": "擎羊", "zh-TW": "擎羊", "en": "QingYang (Blade)"},
-    "陀罗": {"zh-CN": "陀罗", "zh-TW": "陀羅", "en": "TuoLuo (Halberd)"},
-    "火星": {"zh-CN": "火星", "zh-TW": "火星", "en": "HuoXing (Fire Star)"},
-    "铃星": {"zh-CN": "铃星", "zh-TW": "鈴星", "en": "LingXing (Bell Star)"},
-    "地空": {"zh-CN": "地空", "zh-TW": "地空", "en": "DiKong (Earth Void)"},
-    "地劫": {"zh-CN": "地劫", "zh-TW": "地劫", "en": "DiJie (Earth Robbery)"},
-    "天马": {"zh-CN": "天马", "zh-TW": "天馬", "en": "TianMa (Sky Horse)"},
-    "命主": {"zh-CN": "命主", "zh-TW": "命主", "en": "Life Ruler"},
-    "身主": {"zh-CN": "身主", "zh-TW": "身主", "en": "Body Ruler"},
-    "五行局": {"zh-CN": "五行局", "zh-TW": "五行局", "en": "Element Phase"},
-    "大限": {"zh-CN": "大限", "zh-TW": "大限", "en": "Decade"},
 }
 
 

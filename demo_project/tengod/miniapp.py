@@ -438,21 +438,7 @@ class MiniappClient:
 # ShareCardGenerator
 # ---------------------------------------------------------------------------
 class ShareCardGenerator:
-    """WeChat share card utilities.
-
-    支持多语言（zh-CN/zh-TW/en）和命盘分享图生成（PNG）。
-    """
-
-    def __init__(self, lang: str = "zh-CN") -> None:
-        self._lang = lang
-
-    def _t(self, text: str) -> str:
-        """翻译辅助方法"""
-        try:
-            from tengod.i18n import t
-            return t(text, self._lang)
-        except Exception:
-            return text
+    """WeChat share card utilities."""
 
     def generate_bazi_share(
         self,
@@ -460,40 +446,27 @@ class ShareCardGenerator:
         day_master: str,
         geju: str,
         score: float,
-        lang: Optional[str] = None,
     ) -> Dict[str, Any]:
-        if lang:
-            self._lang = lang
-        pillar_names = [
-            self._t("年柱"), self._t("月柱"), self._t("日柱"), self._t("时柱")
-        ]
         pillar_text = ""
         if isinstance(pillars, list):
+            names = ["年柱", "月柱", "日柱", "时柱"]
             parts = []
             for i, p in enumerate(pillars[:4]):
                 if isinstance(p, dict):
                     gan = p.get("gan", "") or p.get("stem", "") or ""
                     zhi = p.get("zhi", "") or p.get("branch", "") or ""
-                    parts.append(f"{pillar_names[i]} {gan}{zhi}")
+                    parts.append(f"{names[i]} {gan}{zhi}")
                 else:
                     parts.append(str(p))
             pillar_text = " · ".join(parts)
         else:
             pillar_text = str(pillars)
-        title = (
-            f"{self._t('命盘')} · {self._t('日主')} {self._t(day_master)}"
-            if day_master else self._t("命盘分析")
+        title = f"命盘 · 日主 {day_master}" if day_master else "命盘分析"
+        description = (
+            f"格局 {geju or '未知'}，得分 {score:.1f}。{pillar_text}"
+            if isinstance(score, (int, float))
+            else f"格局 {geju or '未知'}。{pillar_text}"
         )
-        if isinstance(score, (int, float)):
-            description = (
-                f"{self._t('格局')} {self._t(geju) if geju else self._t('未知')}，"
-                f"{self._t('得分')} {score:.1f}。{pillar_text}"
-            )
-        else:
-            description = (
-                f"{self._t('格局')} {self._t(geju) if geju else self._t('未知')}。"
-                f"{pillar_text}"
-            )
         raw = base64.b64encode(
             json.dumps({"title": title, "description": description}, ensure_ascii=False).encode("utf-8")
         ).decode("ascii")
@@ -506,138 +479,20 @@ class ShareCardGenerator:
             "day_master": day_master,
             "geju": geju,
             "score": score,
-            "lang": self._lang,
-        }
-
-    def generate_bazi_chart_share(
-        self,
-        pillars: Dict[str, str],
-        day_master: str = "",
-        geju: Optional[Dict[str, Any]] = None,
-        analysis: Optional[Dict[str, Any]] = None,
-        lang: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        """生成八字命盘分享图（SVG + PNG）
-
-        Args:
-            pillars: 四柱字典 {"year": "甲子", "month": ..., "day": ..., "hour": ...}
-            day_master: 日主天干
-            geju: 格局信息（可选）
-            analysis: 分析数据（可选）
-            lang: 语言（zh-CN/zh-TW/en）
-
-        Returns:
-            Dict 包含 title/description/svg/png/path
-        """
-        if lang:
-            self._lang = lang
-        try:
-            from tengod.visualization import BaziChartRenderer, export_to_png
-        except ImportError:
-            return {
-                "title": self._t("八字命盘"),
-                "description": "",
-                "svg": "",
-                "png": "",
-                "path": "/pages/share/bazi_chart",
-                "lang": self._lang,
-                "error": "visualization module unavailable",
-            }
-        svg = BaziChartRenderer.render_svg(
-            pillars, day_master=day_master, geju=geju, analysis=analysis
-        )
-        png = export_to_png(svg)
-        title = (
-            f"{self._t('八字命盘')} · {self._t('日主')} {self._t(day_master)}"
-            if day_master else self._t("八字命盘")
-        )
-        pillar_str = " ".join(pillars.values()) if isinstance(pillars, dict) else str(pillars)
-        description = f"{self._t('四柱')}：{pillar_str}"
-        return {
-            "title": title,
-            "description": description,
-            "svg": svg,
-            "png": png,
-            "path": "/pages/share/bazi_chart",
-            "pillars": pillars,
-            "day_master": day_master,
-            "lang": self._lang,
-        }
-
-    def generate_ziwei_chart_share(
-        self,
-        ziwei_data: Dict[str, Any],
-        lang: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        """生成紫微斗数命盘分享图（SVG + PNG）
-
-        Args:
-            ziwei_data: 紫微命盘数据（ZiweiEngine.to_dict() 输出）
-            lang: 语言（zh-CN/zh-TW/en）
-
-        Returns:
-            Dict 包含 title/description/svg/png/path
-        """
-        if lang:
-            self._lang = lang
-        try:
-            from tengod.chart_visualizer import ZiweiChartVisualizer
-            from tengod.visualization import export_to_png
-        except ImportError:
-            return {
-                "title": self._t("紫微斗数命盘"),
-                "description": "",
-                "svg": "",
-                "png": "",
-                "path": "/pages/share/ziwei_chart",
-                "lang": self._lang,
-                "error": "chart_visualizer module unavailable",
-            }
-        viz = ZiweiChartVisualizer()
-        svg = viz.generate_svg(ziwei_data, lang=self._lang)
-        png = export_to_png(svg)
-        input_info = ziwei_data.get("input", {}) if isinstance(ziwei_data, dict) else {}
-        gender = input_info.get("gender", "") if isinstance(input_info, dict) else ""
-        solar = input_info.get("solar", "") if isinstance(input_info, dict) else ""
-        ming_gong = ziwei_data.get("ming_gong", {}) if isinstance(ziwei_data, dict) else {}
-        ming_name = ming_gong.get("name", "") if isinstance(ming_gong, dict) else ""
-        title = self._t("紫微斗数命盘")
-        if ming_name:
-            title = f"{self._t('紫微斗数命盘')} · {self._t('命宫')}{self._t(ming_name)}"
-        desc_parts = []
-        if gender:
-            desc_parts.append(gender)
-        if solar:
-            desc_parts.append(f"{self._t('出生')}: {solar}")
-        description = " ".join(desc_parts) if desc_parts else self._t("紫微斗数命盘分析")
-        return {
-            "title": title,
-            "description": description,
-            "svg": svg,
-            "png": png,
-            "path": "/pages/share/ziwei_chart",
-            "ziwei_data": ziwei_data,
-            "lang": self._lang,
         }
 
     def generate_trajectory_share(
         self,
         trajectory_summary: Any,
-        lang: Optional[str] = None,
     ) -> Dict[str, Any]:
-        if lang:
-            self._lang = lang
         if isinstance(trajectory_summary, dict):
             day_master = trajectory_summary.get("day_master", "")
             dayun = trajectory_summary.get("dayun", [])
-            title = (
-                f"{self._t('命运轨迹')} · {self._t(day_master)}"
-                if day_master else self._t("命运轨迹分析")
-            )
+            title = f"命运轨迹 · {day_master}" if day_master else "命运轨迹分析"
             years = ", ".join(str(x.get("age_start", "")) for x in dayun[:3] if isinstance(x, dict))
-            description = f"{self._t('大运起运阶段')}：{years or self._t('未知')}。"
+            description = f"大运起运阶段：{years or '未知'}。"
         else:
-            title = self._t("命运轨迹")
+            title = "命运轨迹"
             description = str(trajectory_summary)
         raw = base64.b64encode(description.encode("utf-8")).decode("ascii")
         return {
@@ -645,26 +500,21 @@ class ShareCardGenerator:
             "description": description,
             "image_data": f"data:image/png;base64,{raw}",
             "path": "/pages/share/trajectory",
-            "lang": self._lang,
         }
 
     def generate_ai_share(
         self,
         ai_interpretation: str,
         first_line: str,
-        lang: Optional[str] = None,
     ) -> Dict[str, Any]:
-        if lang:
-            self._lang = lang
-        title = first_line or self._t("AI 解读")
-        description = ai_interpretation[:80] if ai_interpretation else self._t("查看完整解读...")
+        title = first_line or "AI 解读"
+        description = ai_interpretation[:80] if ai_interpretation else "查看完整解读..."
         raw = base64.b64encode(ai_interpretation.encode("utf-8")).decode("ascii")
         return {
             "title": title,
             "description": description,
             "image_data": f"data:image/png;base64,{raw}",
             "path": "/pages/share/ai",
-            "lang": self._lang,
         }
 
 
