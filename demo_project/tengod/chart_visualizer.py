@@ -1,10 +1,11 @@
 """
-交互式命盘可视化器 v2.1
+交互式命盘可视化器 v2.4
 ======================
 中华文明数字永生体 · 用户体验优化
 
 功能：
 - 交互式命盘展示
+- 紫微斗数完整12宫位可视化
 - 实时数据更新
 - 响应式设计支持
 """
@@ -20,10 +21,48 @@ def _esc(value: Any) -> str:
     return escape(str(value)) if value is not None else ""
 
 
+# ── 紫微斗数基础数据 ──────────────────────────────────────────────────────
+
+# 12宫位名称（从寅宫开始顺时针）
+GONG_NAMES_12 = ["命宫", "兄弟", "夫妻", "子女", "财帛", "疾厄", "迁移", "交友", "官禄", "田宅", "福德", "父母"]
+GONG_EN_12 = ["Life", "Siblings", "Spouse", "Children", "Wealth", "Health", "Travel", "Friends", "Career", "Property", "Fortune", "Parents"]
+
+# 地支（从寅开始顺时针）
+DI_ZHI_12 = ["寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥", "子", "丑"]
+
+# 主星显示颜色
+STAR_COLORS = {
+    "紫微": "#9b59b6", "天机": "#2ecc71", "太阳": "#e74c3c", "武曲": "#f39c12",
+    "天同": "#3498db", "廉贞": "#e67e22", "天府": "#1abc9c", "太阴": "#8e44ad",
+    "贪狼": "#d35400", "巨门": "#7f8c8d", "天相": "#27ae60", "天梁": "#2980b9",
+    "七杀": "#c0392b", "破军": "#16a085",
+}
+
+# 四化星颜色
+SIHUA_COLORS = {
+    "化禄": "#27ae60", "化权": "#e74c3c", "化科": "#3498db", "化忌": "#7f8c8d",
+}
+
+# 辅星颜色
+AUX_STAR_COLORS = {
+    "文昌": "#3498db", "文曲": "#2980b9", "左辅": "#2ecc71", "右弼": "#27ae60",
+    "天魁": "#e74c3c", "天钺": "#c0392b", "禄存": "#f39c12", "天马": "#16a085",
+    "擎羊": "#e74c3c", "陀罗": "#c0392b", "火星": "#d35400", "铃星": "#e67e22",
+    "地空": "#7f8c8d", "地劫": "#95a5a6", "天刑": "#34495e", "天姚": "#8e44ad",
+}
+
+# 宫位背景色
+GONG_BG_COLORS = {
+    "命宫": "#fdf2e9", "兄弟": "#eaf2f8", "夫妻": "#fdedec", "子女": "#e8f8f5",
+    "财帛": "#fef9e7", "疾厄": "#f4ecf7", "迁移": "#ebf5fb", "交友": "#f5eef8",
+    "官禄": "#fdebd0", "田宅": "#eafaf1", "福德": "#f9ebea", "父母": "#e8f6f3",
+}
+
+
 @dataclass
 class VisualizationConfig:
     """可视化配置"""
-    theme: str = "classic"  # classic/modern/minimal
+    theme: str = "classic"  # classic/modern/minimal/dark
     show_shensha: bool = True
     show_wuxing: bool = True
     show_geju: bool = True
@@ -58,7 +97,7 @@ class BaziChartVisualizer:
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>八字命盘 - TenGod v2.1</title>
+    <title>八字命盘 - TenGod v2.4</title>
     <style>
         :root {{
             --primary-color: #8B4513;
@@ -182,7 +221,7 @@ class BaziChartVisualizer:
     <div class="container">
         <div class="header">
             <h1>八字命盘</h1>
-            <p>TenGod Framework v2.1</p>
+            <p>TenGod Framework v2.4</p>
         </div>
         
         <div class="pillars">
@@ -276,37 +315,463 @@ class BaziChartVisualizer:
 
 
 class ZiweiChartVisualizer:
-    """紫微斗数可视化器"""
+    """紫微斗数可视化器 v2.4 — 完整12宫位渲染"""
+
+    # 12宫位标准布局（从寅宫开始顺时针，4x4 网格）
+    # 网格位置映射：
+    #   巳(0,0)  午(0,1)  未(0,2)  申(0,3)
+    #   辰(1,0)  [中心]    [中心]   酉(1,3)
+    #   卯(2,0)  [中心]    [中心]   戌(2,3)
+    #   寅(3,0)  丑(3,1)  子(3,2)  亥(3,3)
+    GRID_POSITIONS = [
+        # (row, col)  — 从寅宫(index=0)开始顺时针
+        (3, 0),  # 0 寅 = 命宫
+        (2, 0),  # 1 卯 = 兄弟
+        (1, 0),  # 2 辰 = 夫妻
+        (0, 0),  # 3 巳 = 子女
+        (0, 1),  # 4 午 = 财帛
+        (0, 2),  # 5 未 = 疾厄
+        (0, 3),  # 6 申 = 迁移
+        (1, 3),  # 7 酉 = 交友
+        (2, 3),  # 8 戌 = 官禄
+        (3, 3),  # 9 亥 = 田宅
+        (3, 2),  # 10 子 = 福德
+        (3, 1),  # 11 丑 = 父母
+    ]
+
+    def __init__(self, config: Optional[VisualizationConfig] = None):
+        self.config = config or VisualizationConfig()
 
     def generate_html(self, ziwei_data: Dict[str, Any]) -> str:
-        """生成紫微命盘HTML"""
-        # 简化实现
-        return f"""
-<!DOCTYPE html>
-<html>
+        """
+        生成完整紫微斗数命盘HTML
+
+        Args:
+            ziwei_data: 紫微斗数数据（ZiweiEngine.to_dict() 输出）
+
+        Returns:
+            str: HTML内容
+        """
+        gongs = ziwei_data.get("gongs", [])
+        ming_gong = ziwei_data.get("ming_gong", {})
+        shen_gong = ziwei_data.get("shen_gong", {})
+        sihua = ziwei_data.get("sihua", {})
+        daxian = ziwei_data.get("daxian", [])
+        info = ziwei_data.get("input", {})
+        wuxing_ju = ziwei_data.get("wuxing_ju", "")
+        ming_zhu = ziwei_data.get("ming_zhu", "")
+        shen_zhu = ziwei_data.get("shen_zhu", "")
+
+        # 构建宫位网格（12宫位按地支顺序排列）
+        palaces_html = self._generate_palaces_grid(gongs, ming_gong, shen_gong, daxian)
+
+        # 四化星标签
+        sihua_tags = "".join([
+            f'<span class="sihua-tag" style="background:{SIHUA_COLORS.get(k, "#888")}">{k}({v})</span>'
+            for k, v in sihua.items() if v
+        ])
+
+        return f"""<!DOCTYPE html>
+<html lang="zh-CN">
 <head>
-    <title>紫微斗数命盘</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>紫微斗数命盘 - TenGod v2.4</title>
     <style>
+        :root {{
+            --ziwei-bg: #1a1a2e;
+            --ziwei-card: #16213e;
+            --ziwei-accent: #e2c498;
+            --ziwei-text: #e0d6c2;
+            --ziwei-gold: #d4a853;
+            --ziwei-red: #c0392b;
+            --ziwei-blue: #2980b9;
+            --ziwei-green: #27ae60;
+        }}
+        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+        body {{
+            font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+            background: var(--ziwei-bg);
+            color: var(--ziwei-text);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }}
+        .ziwei-container {{
+            max-width: 900px;
+            width: 100%;
+            background: var(--ziwei-card);
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            border: 1px solid #333;
+        }}
+        .ziwei-header {{
+            text-align: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--ziwei-gold);
+        }}
+        .ziwei-header h1 {{ color: var(--ziwei-accent); font-size: 1.8em; margin-bottom: 8px; }}
+        .ziwei-header .info-row {{ font-size: 0.9em; color: #999; display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; }}
+        .ziwei-header .info-row span {{ color: var(--ziwei-accent); }}
+        .sihua-bar {{
+            display: flex; justify-content: center; gap: 12px; margin: 15px 0;
+            flex-wrap: wrap;
+        }}
+        .sihua-tag {{
+            padding: 4px 14px; border-radius: 20px; font-size: 0.85em; color: #fff; font-weight: bold;
+        }}
         .ziwei-grid {{
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
+            grid-template-columns: repeat(4, 1fr);
+            grid-template-rows: repeat(4, 1fr);
+            gap: 8px;
+            margin: 20px 0;
+            min-height: 0;
         }}
-        .palace {{
-            border: 1px solid #8B4513;
-            padding: 10px;
-            text-align: center;
+        .ziwei-palace {{
+            border: 1px solid #444;
+            border-radius: 8px;
+            padding: 10px 8px;
+            min-height: 120px;
+            position: relative;
+            transition: all 0.3s;
+            cursor: pointer;
+        }}
+        .ziwei-palace:hover {{
+            border-color: var(--ziwei-gold);
+            box-shadow: 0 0 12px rgba(212,168,83,0.3);
+            transform: translateY(-2px);
+        }}
+        .ziwei-palace.ming-gong {{
+            border-color: var(--ziwei-red);
+            border-width: 2px;
+            box-shadow: 0 0 8px rgba(192,57,43,0.3);
+        }}
+        .ziwei-palace.shen-gong {{
+            border-color: var(--ziwei-blue);
+            border-width: 2px;
+        }}
+        .palace-header {{
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 6px; font-size: 0.8em; color: #888;
+        }}
+        .palace-name {{
+            font-weight: bold; font-size: 1.05em; color: var(--ziwei-accent);
+        }}
+        .palace-ganzhi {{ color: #777; font-size: 0.8em; }}
+        .palace-stars {{
+            display: flex; flex-wrap: wrap; gap: 3px; margin: 4px 0;
+        }}
+        .star-tag {{
+            font-size: 0.7em; padding: 2px 6px; border-radius: 10px;
+            color: #fff; white-space: nowrap; font-weight: bold;
+        }}
+        .star-tag.aux {{
+            font-size: 0.65em; opacity: 0.85; padding: 1px 5px;
+        }}
+        .star-tag.sihua-star {{
+            border: 1px dashed rgba(255,255,255,0.5);
+        }}
+        .palace-dayun {{
+            font-size: 0.65em; color: #666; margin-top: 4px;
+            border-top: 1px dotted #333; padding-top: 4px;
+        }}
+        .dayun-age {{ color: var(--ziwei-accent); }}
+        .center-panel {{
+            grid-column: 2 / 4; grid-row: 2 / 4;
+            display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+            border: 1px dashed #444; border-radius: 8px;
+            padding: 15px;
+        }}
+        .center-panel h3 {{ color: var(--ziwei-gold); font-size: 1em; }}
+        .center-panel p {{ font-size: 0.75em; color: #777; margin: 3px 0; }}
+        @media (max-width: 768px) {{
+            .ziwei-grid {{ grid-template-columns: repeat(4, 1fr); gap: 4px; }}
+            .ziwei-palace {{ padding: 6px 4px; min-height: 90px; }}
+            .palace-name {{ font-size: 0.85em; }}
+            .star-tag {{ font-size: 0.6em; }}
+            .ziwei-container {{ padding: 15px; }}
+        }}
+        @media (max-width: 480px) {{
+            .ziwei-grid {{ grid-template-columns: repeat(3, 1fr); grid-template-rows: auto; }}
+            .center-panel {{ grid-column: 1 / 4; grid-row: auto; }}
+            .ziwei-palace {{ min-height: 80px; }}
         }}
     </style>
 </head>
 <body>
-    <h1>紫微斗数命盘</h1>
-    <div class="ziwei-grid">
-        <!-- 12宫位 -->
+    <div class="ziwei-container">
+        <div class="ziwei-header">
+            <h1>紫微斗数命盘</h1>
+            <div class="info-row">
+                <span>{_esc(info.get('solar', '--'))}</span>
+                <span>{_esc(info.get('lunar', '--'))}</span>
+                <span>{_esc(info.get('year_ganzhi', '--'))}年</span>
+                <span>{_esc(info.get('gender', '--'))}</span>
+            </div>
+            <div class="info-row" style="margin-top:6px;">
+                <span>命宫: {_esc(ming_gong.get('name', '--'))}</span>
+                <span>身宫: {_esc(shen_gong.get('name', '--'))}</span>
+                <span>{_esc(wuxing_ju)}</span>
+                <span>命主: {_esc(ming_zhu)}</span>
+                <span>身主: {_esc(shen_zhu)}</span>
+            </div>
+            <div class="sihua-bar">{sihua_tags}</div>
+        </div>
+        <div class="ziwei-grid">
+            {palaces_html}
+        </div>
     </div>
 </body>
-</html>
-"""
+</html>"""
+
+    def _generate_palaces_grid(self, gongs: List[Dict], ming_gong: Dict,
+                                shen_gong: Dict, daxian: List[Dict]) -> str:
+        """生成12宫位网格HTML"""
+        if not gongs or len(gongs) < 12:
+            return '<div class="center-panel"><h3>暂无数据</h3></div>'
+
+        # 构建 4x3 网格
+        grid_cells = [""] * 12  # 0=寅 ... 11=丑
+
+        # 命宫在12宫中的索引（用于定位地支位置）
+        ming_gong_zhi = ming_gong.get("zhi", "寅")
+        ming_offset = DI_ZHI_12.index(ming_gong_zhi) if ming_gong_zhi in DI_ZHI_12 else 0
+
+        # 按地支顺序排列宫位（从寅开始）
+        for i, gong in enumerate(gongs[:12]):
+            zhi = gong.get("ganzhi", "")[-1:] if len(gong.get("ganzhi", "")) >= 2 else ""
+            # 计算该宫对应的地支索引
+            zhi_idx = DI_ZHI_12.index(zhi) if zhi in DI_ZHI_12 else i
+            grid_cells[i] = self._render_palace(gong, zhi_idx, ming_gong, shen_gong, daxian)
+
+        # 构建 4列 x 4行 网格（标准紫微命盘布局）
+        # 地支位置映射到网格坐标：
+        #   巳(0,0)  午(0,1)  未(0,2)  申(0,3)
+        #   辰(1,0)  [中心]    [中心]   酉(1,3)
+        #   卯(2,0)  [中心]    [中心]   戌(2,3)
+        #   寅(3,0)  丑(3,1)  子(3,2)  亥(3,3)
+        # 索引: 0寅, 1卯, 2辰, 3巳, 4午, 5未, 6申, 7酉, 8戌, 9亥, 10子, 11丑
+        ROW_MAP = [3, 2, 1, 0, 0, 0, 0, 1, 2, 3, 3, 3]  # 行
+        COL_MAP = [0, 0, 0, 0, 1, 2, 3, 3, 3, 3, 2, 1]  # 列
+
+        # 构建 4x4 网格 (row 0-3, col 0-3)
+        grid = [[None for _ in range(4)] for _ in range(4)]
+        for i in range(12):
+            r, c = ROW_MAP[i], COL_MAP[i]
+            grid[r][c] = grid_cells[i]
+
+        # 在 (1,1) 到 (2,2) 位置插入中心面板（跨越 rows 1-2, cols 1-2）
+        center_html = f"""<div class="center-panel">
+            <h3>紫微斗数</h3>
+            <p>命宫: {_esc(ming_gong.get('name', '--'))}</p>
+            <p>身宫: {_esc(shen_gong.get('name', '--'))}</p>
+            <p>TenGod v2.4</p>
+        </div>"""
+
+        # 渲染网格
+        rows_html = []
+        for row_idx in range(4):
+            cells = []
+            for col_idx in range(4):
+                if row_idx >= 1 and row_idx <= 2 and col_idx >= 1 and col_idx <= 2:
+                    if row_idx == 1 and col_idx == 1:
+                        cells.append(center_html)
+                    continue
+                if grid[row_idx][col_idx] is not None:
+                    cells.append(grid[row_idx][col_idx])
+                else:
+                    cells.append('<div class="ziwei-palace" style="opacity:0.3"><div class="palace-name">空</div></div>')
+            rows_html.extend(cells)
+
+        return "\n".join(rows_html)
+
+    def _render_palace(self, gong: Dict, zhi_idx: int, ming_gong: Dict,
+                        shen_gong: Dict, daxian: List[Dict]) -> str:
+        """渲染单个宫位"""
+        name = gong.get("name", "--")
+        ganzhi = gong.get("ganzhi", "--")
+        main_stars = gong.get("main_stars", [])
+        aux_stars = gong.get("aux_stars", [])
+        sihua_star = gong.get("sihua", "")
+
+        # 标记命宫/身宫
+        extra_classes = []
+        if name == ming_gong.get("name", ""):
+            extra_classes.append("ming-gong")
+        if name == shen_gong.get("name", ""):
+            extra_classes.append("shen-gong")
+
+        # 主星标签
+        star_tags = []
+        for star in main_stars:
+            if not star:
+                continue
+            color = STAR_COLORS.get(star, "#888")
+            cls = "star-tag"
+            if star == sihua_star:
+                cls += " sihua-star"
+                color = SIHUA_COLORS.get(sihua_star, color)
+            star_tags.append(f'<span class="{cls}" style="background:{color}">{_esc(star)}</span>')
+
+        # 辅星标签
+        for star in aux_stars:
+            if not star:
+                continue
+            color = AUX_STAR_COLORS.get(star, "#666")
+            star_tags.append(f'<span class="star-tag aux" style="background:{color}">{_esc(star)}</span>')
+
+        # 大运信息
+        dayun_html = ""
+        for dx in daxian:
+            if dx.get("gong_name") == name:
+                dayun_html = f'<div class="palace-dayun">大限: <span class="dayun-age">{_esc(dx.get("age_range", ""))}</span></div>'
+                break
+
+        bg = GONG_BG_COLORS.get(name, "#1a1a2e")
+
+        return f"""<div class="ziwei-palace {' '.join(extra_classes)}" style="background:{bg}11">
+            <div class="palace-header">
+                <span class="palace-name">{_esc(name)}</span>
+                <span class="palace-ganzhi">{_esc(ganzhi)}</span>
+            </div>
+            <div class="palace-stars">{''.join(star_tags) if star_tags else '<span style="font-size:0.7em;color:#555">—</span>'}</div>
+            {dayun_html}
+        </div>"""
+
+    def generate_svg(self, ziwei_data: Dict[str, Any]) -> str:
+        """
+        生成紫微命盘SVG
+
+        Args:
+            ziwei_data: 紫微斗数数据
+
+        Returns:
+            str: SVG内容
+        """
+        gongs = ziwei_data.get("gongs", [])
+        if not gongs or len(gongs) < 12:
+            return '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><text x="10" y="30" fill="#999">No data</text></svg>'
+
+        ming_gong = ziwei_data.get("ming_gong", {})
+        shen_gong = ziwei_data.get("shen_gong", {})
+        sihua = ziwei_data.get("sihua", {})
+        daxian = ziwei_data.get("daxian", [])
+
+        # SVG 布局参数
+        width, height = 800, 640
+        cx, cy = width // 2, height // 2
+        outer_r = 260
+        inner_r = 130
+        palace_r = (outer_r + inner_r) / 2  # 宫位标签半径
+
+        svg_parts = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">']
+        svg_parts.append(f'<rect width="{width}" height="{height}" fill="#1a1a2e"/>')
+        svg_parts.append(f'<text x="{cx}" y="30" text-anchor="middle" fill="#e2c498" font-size="22" font-weight="bold">紫微斗数命盘</text>')
+
+        # 绘制12宫位扇形
+        for i, gong in enumerate(gongs[:12]):
+            angle = -90 + i * 30  # 从顶部顺时针
+            rad = angle * 3.14159 / 180
+            next_rad = (angle + 30) * 3.14159 / 180
+
+            name = gong.get("name", "--")
+            main_stars = gong.get("main_stars", [])
+            aux_stars = gong.get("aux_stars", [])
+
+            # 扇形路径
+            x1 = cx + outer_r * 3.14159 / 180 * (angle + 15) * 0  # 简化
+            # 使用多边形近似扇形
+            pts = []
+            for a in [angle, angle + 30]:
+                ar = a * 3.14159 / 180
+                pts.append(f"{cx + inner_r * 3.14159 / 180 * (90 - a) * 0}")
+
+            # 简化为使用圆环 + 文字
+            mid_angle = (angle + 15) * 3.14159 / 180
+            tx = cx + palace_r * 3.14159 / 180 * (angle + 15) * 0  # 太复杂，改用简单布局
+
+            # 改用简单的网格布局SVG
+            pass
+
+        # 使用简单网格布局的SVG
+        svg_parts.append(self._generate_svg_grid(gongs, ming_gong, shen_gong, sihua, daxian))
+        svg_parts.append('</svg>')
+        return "\n".join(svg_parts)
+
+    def _generate_svg_grid(self, gongs: List[Dict], ming_gong: Dict,
+                            shen_gong: Dict, sihua: Dict, daxian: List[Dict]) -> str:
+        """生成SVG网格布局紫微命盘"""
+        parts = []
+        # 4x4 网格参数
+        cell_w, cell_h = 180, 130
+        start_x, start_y = 40, 80
+        gap = 10
+
+        # 地支位置映射（4x4 网格）
+        ROW_MAP = [3, 2, 1, 0, 0, 0, 0, 1, 2, 3, 3, 3]
+        COL_MAP = [0, 0, 0, 0, 1, 2, 3, 3, 3, 3, 2, 1]
+
+        for i, gong in enumerate(gongs[:12]):
+            r, c = ROW_MAP[i], COL_MAP[i]
+            x = start_x + c * (cell_w + gap)
+            y = start_y + r * (cell_h + gap)
+
+            name = gong.get("name", "--")
+            ganzhi = gong.get("ganzhi", "--")
+            main_stars = gong.get("main_stars", [])
+            aux_stars = gong.get("aux_stars", [])
+            sihua_star = gong.get("sihua", "")
+
+            # 边框颜色
+            stroke = "#444"
+            stroke_w = 1
+            if name == ming_gong.get("name", ""):
+                stroke = "#c0392b"
+                stroke_w = 2
+            elif name == shen_gong.get("name", ""):
+                stroke = "#2980b9"
+                stroke_w = 2
+
+            parts.append(f'<rect x="{x}" y="{y}" width="{cell_w}" height="{cell_h}" rx="8" fill="#16213e" stroke="{stroke}" stroke-width="{stroke_w}"/>')
+            # 宫位名称
+            parts.append(f'<text x="{x + cell_w/2}" y="{y + 22}" text-anchor="middle" fill="#e2c498" font-size="14" font-weight="bold">{_esc(name)}</text>')
+            # 干支
+            parts.append(f'<text x="{x + cell_w/2}" y="{y + 40}" text-anchor="middle" fill="#777" font-size="11">{_esc(ganzhi)}</text>')
+
+            # 主星
+            star_y = y + 58
+            for star in main_stars:
+                if not star:
+                    continue
+                color = STAR_COLORS.get(star, "#888")
+                parts.append(f'<rect x="{x + 8}" y="{star_y - 10}" width="64" height="16" rx="8" fill="{color}"/>')
+                parts.append(f'<text x="{x + 40}" y="{star_y + 2}" text-anchor="middle" fill="#fff" font-size="9">{_esc(star)}</text>')
+                star_y += 18
+
+            # 辅星
+            for star in aux_stars[:3]:  # 最多显示3个辅星
+                if not star:
+                    continue
+                color = AUX_STAR_COLORS.get(star, "#666")
+                parts.append(f'<text x="{x + 8}" y="{star_y + 2}" fill="{color}" font-size="9">{_esc(star)}</text>')
+                star_y += 12
+
+        # 中心面板（跨越 rows 1-2, cols 1-2）
+        cx_center = start_x + 1 * (cell_w + gap)
+        cy_center = start_y + 1 * (cell_h + gap)
+        center_w = 2 * cell_w + gap
+        center_h = 2 * cell_h + gap
+        parts.append(f'<rect x="{cx_center}" y="{cy_center}" width="{center_w}" height="{center_h}" rx="8" fill="none" stroke="#555" stroke-dasharray="5,5"/>')
+        parts.append(f'<text x="{cx_center + center_w/2}" y="{cy_center + center_h/2 - 10}" text-anchor="middle" fill="#d4a853" font-size="16">紫微斗数</text>')
+        parts.append(f'<text x="{cx_center + center_w/2}" y="{cy_center + center_h/2 + 15}" text-anchor="middle" fill="#777" font-size="11">TenGod v2.4</text>')
+
+        return "\n".join(parts)
 
 
 # ── 便捷函数 ──────────────────────────────────────────────────────────────
@@ -332,10 +797,17 @@ def visualize_ziwei(ziwei_data: Dict[str, Any]) -> str:
     return viz.generate_html(ziwei_data)
 
 
+def visualize_ziwei_svg(ziwei_data: Dict[str, Any]) -> str:
+    """快速生成紫微命盘SVG"""
+    viz = ZiweiChartVisualizer()
+    return viz.generate_svg(ziwei_data)
+
+
 __all__ = [
     "BaziChartVisualizer",
     "ZiweiChartVisualizer",
     "VisualizationConfig",
     "visualize_bazi",
     "visualize_ziwei",
+    "visualize_ziwei_svg",
 ]

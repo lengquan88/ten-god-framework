@@ -705,7 +705,7 @@ async def bazi_report(query: ReportQuery, request: Request,
         analyzer = BaziAnalyzer(query.bazi.year, query.bazi.month, query.bazi.day,
                                 query.bazi.hour, query.bazi.minute, is_male=is_male,
                                 longitude=query.bazi.longitude, latitude=query.bazi.latitude)
-        gen = BaziReportGenerator(analyzer)
+        gen = BaziReportGenerator(analyzer, lang=getattr(query, 'lang', 'zh-CN'))
 
         pillars = analyzer.analysis["pillars"]
         if query.include_shensha:

@@ -249,6 +249,10 @@ class TestI18nAPI:
     @pytest.mark.asyncio
     async def test_knowledge_list_category_filter(self, mock_auth):
         from tengod.api_server import v2_knowledge_list, Request
+        from tengod.knowledge_fusion import get_fusion_engine, init_base_knowledge
+        engine = get_fusion_engine()
+        init_base_knowledge(engine)
+
         mock_request = MagicMock(spec=Request)
         result = await v2_knowledge_list(page=1, page_size=20, category="element",
                                          lang="zh-CN", request=mock_request)
@@ -257,6 +261,10 @@ class TestI18nAPI:
     @pytest.mark.asyncio
     async def test_knowledge_list_with_lang(self, mock_auth):
         from tengod.api_server import v2_knowledge_list, Request
+        from tengod.knowledge_fusion import get_fusion_engine, init_base_knowledge
+        engine = get_fusion_engine()
+        init_base_knowledge(engine)
+
         mock_request = MagicMock(spec=Request)
         result = await v2_knowledge_list(page=1, page_size=5, category="element",
                                          lang="en", request=mock_request)

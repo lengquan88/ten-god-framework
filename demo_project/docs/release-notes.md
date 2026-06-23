@@ -1,5 +1,80 @@
 # Release Notes
 
+## v2.4.0 — 可视化增强与报告系统升级
+
+> 发布日期: 2026-06-23
+
+### Highlights
+
+- **紫微斗数可视化引擎**: 完整12宫位渲染（HTML/SVG），星曜颜色映射，大运叠盘叠加
+- **报告系统多语言集成**: BaziReportGenerator 和 ComprehensiveReportGenerator 全面支持 lang 参数
+- **PNG 导出**: 基于 cairosvg 的真实 SVG→PNG 转换，含回退机制
+- **分享卡多语言**: ShareCardGenerator 三个方法均支持 lang 参数
+
+### 新增功能
+
+#### 1. 紫微斗数可视化器 (`tengod.chart_visualizer.ZiweiChartVisualizer`)
+- 12宫位标准4x4网格布局，消除宫位冲突
+- 主星/辅星/四化星颜色映射（14主星 + 16辅星 + 4四化星）
+- 大运叠盘信息展示（年龄范围标注）
+- 命宫/身宫特殊边框标记（红色/蓝色）
+- 响应式设计：768px/480px 断点适配
+- hover 动画效果（金色边框 + 阴影 + 微位移）
+- 暗色主题（`#1a1a2e` 背景）
+- SVG 矢量输出（`generate_svg()` / `_generate_svg_grid()`）
+- 便捷函数：`visualize_ziwei()` / `visualize_ziwei_svg()`
+
+#### 2. 报告系统多语言集成 (`tengod.report_generator`)
+- `BaziReportGenerator.__init__()` 新增 `lang` 参数，默认 `zh-CN`
+- 所有章节标题和关键标签通过 `_t()` 翻译
+- 支持的方法：`text_report()`, `markdown_report()`, `json_report()`, `html_report()`
+- JSON 报告新增 `"lang"` 字段
+- HTML 模板 `<html lang="{lang}">` 动态语言标记
+- `ComprehensiveReportGenerator` 同样支持 `lang` 参数
+- `generate_report()` / `generate_html_report()` 便捷函数新增 `lang` 参数
+
+#### 3. PNG 导出 (`tengod.visualization`)
+- `export_to_png()` 使用 cairosvg 库实现真实 SVG→PNG 转换
+- cairosvg 未安装时自动回退 SVG 输出
+- 支持输出到文件路径
+
+#### 4. 分享卡多语言 (`tengod.miniapp`)
+- `ShareCardGenerator` 新增 `_t()` 翻译辅助方法
+- `generate_bazi_share()` 支持 `lang` 参数
+- `generate_trajectory_share()` 支持 `lang` 参数
+- `generate_ai_share()` 支持 `lang` 参数
+
+#### 5. API 层更新 (`tengod.api_server`)
+- 报告生成端点支持 `lang` 参数透传
+
+### 测试覆盖
+- 25 个 v2.4 新增测试用例
+- 紫微斗数可视化测试（9）：HTML/SVG/星曜/四化/大运/命宫身宫/边界/便捷函数
+- 报告多语言测试（5）：简中/英文/Markdown/JSON/HTML
+- PNG 导出测试（2）：回退机制/文件路径
+- 分享卡多语言测试（4）：八字/轨迹/AI 三种卡片的简中/英文
+- 全量回归测试（5）：导入验证/签名检查
+
+### 升级说明
+```bash
+git pull origin main
+pip install -r requirements.txt
+pip install cairosvg
+python -m pytest tests/test_v24_visualization.py tests/test_v23_i18n.py tests/test_chart_visualizer.py -v
+```
+
+### 兼容性
+- 向下兼容 v2.3.x 所有 API
+- 新增 `lang` 参数默认为 `zh-CN`，不影响现有调用
+- 紫微斗数可视化器为全新模块，不影响现有八字可视化
+- PNG 导出 cairosvg 为可选依赖，未安装时自动回退
+
+### 问题修复
+- 修复紫微斗数 3x4 网格布局宫位冲突（寅/丑、亥/子 映射到同一单元格）
+- 升级为 4x4 标准紫微命盘布局
+
+---
+
 ## v2.3.0 — 移动端适配与国际化
 
 > 发布日期: 2026-02-13
