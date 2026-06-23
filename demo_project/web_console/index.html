@@ -305,6 +305,164 @@ const MODULES = [
   { name: '元辰', role: '本源定位', key: 'exception_tracking' },
 ];
 
+// ─── AI 分析 ────────────────────────────────────────────
+function AIAnalysis({ state }) {
+  const [bazi, setBazi] = useState({ year: 1990, month: 6, day: 15, hour: 12, minute: 0, gender: 'male', longitude: 116.4 });
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [analysisType, setAnalysisType] = useState('basic');
+  const [chartHtml, setChartHtml] = useState(null);
+  const [solarTime, setSolarTime] = useState(null);
+  const [wuxingStrength, setWuxingStrength] = useState(null);
+
+  const handleBaziChange = (field, val) => setBazi(prev => ({ ...prev, [field]: val }));
+
+  const calcSolarTime = async () => {
+    try {
+      const r = await fetch(API + '/v2/solar-time', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(bazi) });
+      const d = await r.json();
+      setSolarTime(d);
+    } catch (e) { console.error(e); }
+  };
+
+  const calcWuxing = async () => {
+    try {
+      const r = await fetch(API + '/v2/wuxing/strength', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ month: bazi.month }) });
+      const d = await r.json();
+      setWuxingStrength(d);
+    } catch (e) { console.error(e); }
+  };
+
+  const genChart = async () => {
+    try {
+      const r = await fetch(API + '/v2/chart/bazi?format=html', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bazi, theme: 'classic' }) });
+      const html = await r.text();
+      setChartHtml(html);
+    } catch (e) { setChartHtml('<p style="color:red">命盘生成失败</p>'); }
+  };
+
+  const runAI = async () => {
+    setLoading(true); setResult(null);
+    try {
+      const r = await fetch(API + '/v2/ai/analyze', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bazi, analysis_type: analysisType, focus: '综合' }) });
+      const d = await r.json();
+      setResult(d);
+    } catch (e) { setResult({ error: 'AI 分析失败: ' + e.message }); }
+    setLoading(false);
+  };
+
+  return (
+    <div>
+      <div className="grid-2" style={{ marginBottom: 20 }}>
+        <div className="card">
+          <div className="card-title">八字排盘</div>
+          <div className="grid-2" style={{ gap: 10 }}>
+            {[{k:'year',l:'年',min:1900,max:2100},{k:'month',l:'月',min:1,max:12},{k:'day',l:'日',min:1,max:31},
+              {k:'hour',l:'时',min:0,max:23},{k:'minute',l:'分',min:0,max:59},{k:'longitude',l:'经度',min:70,max:140}].map(f => (
+              <div key={f.k}>
+                <label style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{f.l}</label>
+                <input type="number" value={bazi[f.k]} onChange={e => handleBaziChange(f.k, Number(e.target.value))}
+                  style={{ width: '100%', padding: '8px 10px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', marginTop: 4 }} />
+              </div>
+            ))}
+            <div>
+              <label style={{ fontSize: 11, color: 'var(--text-secondary)' }}>性别</label>
+              <select value={bazi.gender} onChange={e => handleBaziChange('gender', e.target.value)}
+                style={{ width: '100%', padding: '8px 10px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', marginTop: 4 }}>
+                <option value="male">男</option><option value="female">女</option>
+              </select>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 10, marginTop: 16, flexWrap: 'wrap' }}>
+            <button className="nav-btn active" style={{ fontSize: 12 }} onClick={() => { calcSolarTime(); calcWuxing(); genChart(); }}>排盘</button>
+            <button className="nav-btn" style={{ fontSize: 12 }} onClick={calcSolarTime}>真太阳时</button>
+            <button className="nav-btn" style={{ fontSize: 12 }} onClick={calcWuxing}>五行旺衰</button>
+            <button className="nav-btn" style={{ fontSize: 12 }} onClick={genChart}>命盘可视化</button>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card-title">AI 智能分析</div>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+            {[{k:'basic',l:'基础解读'},{k:'career',l:'事业财运'},{k:'year',l:'流年运势'},{k:'marriage',l:'合婚匹配'},{k:'full',l:'综合分析'}].map(t => (
+              <button key={t.k} className={`nav-btn ${analysisType === t.k ? 'active' : ''}`}
+                style={{ fontSize: 11, padding: '6px 12px' }} onClick={() => setAnalysisType(t.k)}>{t.l}</button>
+            ))}
+          </div>
+          <button className="nav-btn active" style={{ width: '100%', padding: '12px', fontSize: 14, marginTop: 8 }}
+            onClick={runAI} disabled={loading}>
+            {loading ? '⏳ AI 分析中...' : '🔮 开始 AI 智能分析'}
+          </button>
+        </div>
+      </div>
+
+      {solarTime && (
+        <div className="card" style={{ marginBottom: 20 }}>
+          <div className="card-title">真太阳时</div>
+          <div className="grid-4">
+            <div className="stat-card"><div className="stat-value" style={{ fontSize: 22 }}>{solarTime.solar_time}</div><div className="stat-label">真太阳时</div></div>
+            <div className="stat-card"><div className="stat-value" style={{ fontSize: 22 }}>{solarTime.shichen}</div><div className="stat-label">时辰</div></div>
+            <div className="stat-card"><div className="stat-value" style={{ fontSize: 22 }}>{solarTime.time_correction_minutes}分</div><div className="stat-label">修正值</div></div>
+            <div className="stat-card"><div className="stat-value" style={{ fontSize: 22 }}>{solarTime.shichen_range?.start}-{solarTime.shichen_range?.end}时</div><div className="stat-label">时辰范围</div></div>
+          </div>
+        </div>
+      )}
+
+      {wuxingStrength && (
+        <div className="card" style={{ marginBottom: 20 }}>
+          <div className="card-title">五行旺衰 · {wuxingStrength.season}季</div>
+          <div className="grid-2" style={{ gap: 10 }}>
+            {wuxingStrength.strengths && Object.entries(wuxingStrength.strengths).map(([k, v]) => (
+              <div key={k} className="feature-badge on" style={{ padding: '12px 16px' }}>
+                <span style={{ fontFamily: 'var(--font-display)', fontSize: 16 }}>{k}</span>
+                <span style={{ marginLeft: 'auto', fontSize: 13, fontWeight: 600 }}>{v.status}</span>
+                <span style={{ color: 'var(--gold-bright)', fontSize: 14 }}>{v.strength}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {chartHtml && (
+        <div className="card" style={{ marginBottom: 20 }}>
+          <div className="card-title">八字命盘</div>
+          <div dangerouslySetInnerHTML={{ __html: chartHtml }} style={{ maxHeight: 600, overflow: 'auto' }} />
+        </div>
+      )}
+
+      {result && (
+        <div className="card">
+          <div className="card-title">AI 分析结果 · {result.analysis_type}</div>
+          {result.error ? (
+            <div style={{ color: 'var(--cinnabar-bright)' }}>{result.error}</div>
+          ) : (
+            <div>
+              {result.results && Object.entries(result.results).map(([k, v]) => (
+                <div key={k} style={{ marginBottom: 16 }}>
+                  <div style={{ fontFamily: 'var(--font-display)', fontSize: 15, color: 'var(--gold-bright)', marginBottom: 8 }}>
+                    {v.title} · 评分: {v.score}
+                  </div>
+                  <div style={{ fontSize: 13, lineHeight: 1.8, color: 'var(--text-secondary)' }}>{v.content}</div>
+                  {v.tags && v.tags.length > 0 && (
+                    <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+                      {v.tags.map(tag => <span key={tag} style={{ padding: '2px 8px', borderRadius: 10, background: 'var(--bg-card)', border: '1px solid var(--border)', fontSize: 11 }}>{tag}</span>)}
+                    </div>
+                  )}
+                  {v.recommendations && v.recommendations.length > 0 && (
+                    <div style={{ marginTop: 8 }}>
+                      {v.recommendations.map((rec, i) => <div key={i} style={{ fontSize: 12, color: 'var(--jade-bright)', padding: '2px 0' }}>💡 {rec}</div>)}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Dashboard ──────────────────────────────────────────
 function Dashboard({ state }) {
   const features = state?.features || {};
@@ -313,7 +471,7 @@ function Dashboard({ state }) {
     <div>
       <div className="grid-4" style={{ marginBottom: 24 }}>
         <div className="stat-card">
-          <div className="stat-value">{state?.version || '1.5.0'}</div>
+          <div className="stat-value">{state?.version || '2.2.0'}</div>
           <div className="stat-label">版本</div>
         </div>
         <div className="stat-card">
@@ -668,6 +826,7 @@ function App() {
 
   const tabs = [
     { id: 'dashboard', label: '总览', icon: '▣' },
+    { id: 'ai', label: 'AI 分析', icon: '🔮' },
     { id: 'knowledge', label: '知识图谱', icon: '◈' },
     { id: 'oracle', label: '推背图', icon: '☯' },
     { id: 'tasks', label: '任务', icon: '⚙' },
@@ -687,7 +846,7 @@ function App() {
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <span className="header-version">v{state?.version || '1.5.0'}</span>
+          <span className="header-version">v{state?.version || '2.2.0'}</span>
           <div className={`header-status ${error ? 'error' : ''}`}>
             <span className="header-status-dot"></span>
             {error ? '离线' : '运行中'}
@@ -712,6 +871,7 @@ function App() {
           </div>
         )}
         {tab === 'dashboard' && state && <Dashboard state={state} />}
+        {tab === 'ai' && <AIAnalysis state={state} />}
         {tab === 'knowledge' && <KnowledgeGraph state={state} />}
         {tab === 'oracle' && <Oracle />}
         {tab === 'tasks' && <Tasks />}

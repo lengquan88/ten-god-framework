@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-api_server.py — 十神架构 · REST API 服务 v1.0.0
+api_server.py — 十神架构 · REST API 服务 v2.2.0
 
 FastAPI-based HTTP REST API，将全部六阶段能力服务化。
 
@@ -20,7 +20,15 @@ FastAPI-based HTTP REST API，将全部六阶段能力服务化。
   /api/knowledge/bagua/{trigram}  — 八卦查询
   /api/knowledge/shigan           — 十神推演
   /api/knowledge/dizhi            — 地支分析
-
+  
+  v2.2 新增端点:
+  /api/v2/solar-time   — 真太阳时计算
+  /api/v2/jieqi        — 节气查询
+  /api/v2/wuxing/strength — 五行旺衰量化
+  /api/v2/chart/bazi   — 八字命盘 HTML 可视化
+  /api/v2/ai/analyze   — Deepseek AI 智能分析
+  /api/v2/ai/stream    — AI 流式响应
+        
 用法:
     python -m tengod.api_server                          # 启动 (默认 8000)
     python -m tengod.api_server --port 8080              # 指定端口
@@ -303,20 +311,21 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="十神架构 · API Server",
     description="""
-## 中华文明数字永生体 · REST API
+## 中华文明数字永生体 · REST API v2.2
 
 提供八字排盘、神煞推算、格局判断、喜用神分析、调候分析、
-语义搜索、知识关联推荐等全部能力。
+语义搜索、知识关联推荐、真太阳时、五行旺衰、AI 智能分析等全部能力。
 
 ### 功能分组
 - **/api/bazi/*** — 八字排盘与命理分析
 - **/api/knowledge/*** — 知识查询与语义搜索
+- **/api/v2/** — v2.2 新增：真太阳时、节气、五行旺衰、命盘可视化、Deepseek AI
 - **/api/health** — 服务健康检查
 
 ### 鉴权
 通过 `X-API-Key` 请求头传递 API Key（若启动时启用了鉴权）。
 """,
-    version="1.0.0",
+    version="2.2.0",
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",
@@ -3049,6 +3058,338 @@ async def general_exception_handler(request: Request, exc: Exception):
             "timestamp": datetime.now(timezone.utc).isoformat(),
         },
     )
+
+
+# ============================================================================
+# v2.2 新增端点：真太阳时、节气、五行旺衰、命盘可视化、Deepseek AI
+# ============================================================================
+
+# ─── v2.2 请求模型 ─────────────────────────────────────────────────────────
+
+class SolarTimeRequest(BaseModel):
+    """真太阳时计算请求"""
+    year: int = Field(..., ge=1900, le=2100, description="年")
+    month: int = Field(..., ge=1, le=12, description="月")
+    day: int = Field(..., ge=1, le=31, description="日")
+    hour: int = Field(default=12, ge=0, le=23, description="时")
+    minute: int = Field(default=0, ge=0, le=59, description="分")
+    longitude: float = Field(default=120.0, description="经度")
+
+
+class JieqiRequest(BaseModel):
+    """节气查询请求"""
+    year: int = Field(..., ge=1900, le=2100, description="年")
+    month: int = Field(..., ge=1, le=12, description="月")
+    day: int = Field(..., ge=1, le=31, description="日")
+
+
+class WuxingStrengthRequest(BaseModel):
+    """五行旺衰查询请求"""
+    month: int = Field(..., ge=1, le=12, description="月份")
+    element: Optional[str] = Field(default=None, description="指定五行: 木/火/土/金/水")
+
+
+class ChartBaziRequest(BaseModel):
+    """命盘可视化请求"""
+    bazi: BaziInput = Field(..., description="八字输入")
+    theme: str = Field(default="classic", description="主题: classic/modern/minimal")
+    format: str = Field(default="html", description="输出格式: html/json")
+
+
+class AIAnalyzeRequest(BaseModel):
+    """AI 智能分析请求"""
+    bazi: BaziInput = Field(..., description="八字输入")
+    analysis_type: str = Field(default="basic", description="分析类型: basic/career/year/marriage/full")
+    focus: str = Field(default="综合", description="分析焦点")
+    target_year: Optional[int] = Field(default=None, ge=1900, le=2200, description="流年分析年份")
+    age: Optional[int] = Field(default=None, ge=0, le=120, description="事业分析年龄")
+    partner_bazi: Optional[BaziInput] = Field(default=None, description="合婚对方八字")
+
+
+class AIStreamRequest(BaseModel):
+    """AI 流式分析请求"""
+    bazi: BaziInput = Field(..., description="八字输入")
+    question: str = Field(default="", description="用户问题")
+    analysis_type: str = Field(default="basic", description="分析类型")
+
+
+# ─── v2.2 API 端点 ─────────────────────────────────────────────────────────
+
+@app.post("/api/v2/solar-time", tags=["v2.2 真太阳时"])
+async def v2_solar_time(req: SolarTimeRequest, request: Request):
+    """真太阳时计算：经度修正 + 均时差 + 时辰映射"""
+    from tengod.auth import authorize
+    authorize(request, "bazi:calc")
+    try:
+        from tengod.solar_time import SolarTimeCalculator
+        from datetime import datetime
+        calc = SolarTimeCalculator(longitude=req.longitude)
+        local = datetime(req.year, req.month, req.day, req.hour, req.minute)
+        result = calc.calculate(local)
+        shichen = calc.get_shichen(result.true_hour)
+        return {
+            "input": {"datetime": f"{req.year}-{req.month:02d}-{req.day:02d} {req.hour:02d}:{req.minute:02d}",
+                      "longitude": req.longitude},
+            "solar_time": f"{result.true_hour:02d}:{result.true_minute:02d}",
+            "time_correction_minutes": round(result.time_correction, 2),
+            "shichen": shichen,
+            "shichen_range": {"start": calc.get_shichen_range(shichen)[0],
+                              "end": calc.get_shichen_range(shichen)[1]},
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"真太阳时计算失败: {e}")
+
+
+@app.post("/api/v2/jieqi", tags=["v2.2 节气"])
+async def v2_jieqi(req: JieqiRequest, request: Request):
+    """节气查询：当前节气 + 下一节气 + 节气日判断"""
+    from tengod.auth import authorize
+    authorize(request, "bazi:calc", consume_quota=False)
+    try:
+        from tengod.solar_time import JieqiCalculator
+        calc = JieqiCalculator()
+        info = calc.get_jieqi(req.year, req.month, req.day)
+        is_jieqi = calc.is_jieqi_day(req.month, req.day)
+        return {
+            "date": f"{req.year}-{req.month:02d}-{req.day:02d}",
+            "current_jieqi": info.get("current"),
+            "next_jieqi": info.get("next"),
+            "is_jieqi_day": is_jieqi,
+            "month": info.get("month"),
+            "day": info.get("day"),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"节气查询失败: {e}")
+
+
+@app.post("/api/v2/wuxing/strength", tags=["v2.2 五行旺衰"])
+async def v2_wuxing_strength(req: WuxingStrengthRequest, request: Request):
+    """五行旺衰量化：旺/相/休/囚/死 五级量化"""
+    from tengod.auth import authorize
+    authorize(request, "bazi:calc", consume_quota=False)
+    try:
+        from tengod.solar_time import WuxingStrengthCalculator
+        calc = WuxingStrengthCalculator()
+        if req.element:
+            result = calc.calculate_strength(req.element, req.month)
+            return {
+                "month": req.month,
+                "season": calc.get_season(req.month),
+                "element": req.element,
+                "status": result["status"],
+                "strength": result["strength"],
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+        all_strengths = calc.calculate_all(req.month)
+        return {
+            "month": req.month,
+            "season": calc.get_season(req.month),
+            "strengths": all_strengths,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"五行旺衰计算失败: {e}")
+
+
+@app.post("/api/v2/chart/bazi", tags=["v2.2 命盘可视化"])
+async def v2_chart_bazi(req: ChartBaziRequest, request: Request):
+    """八字命盘可视化：生成交互式 HTML 命盘或 JSON 数据"""
+    from tengod.auth import authorize
+    authorize(request, "bazi:calc")
+    try:
+        from tengod.chart_visualizer import BaziChartVisualizer, VisualizationConfig, visualize_bazi
+        from tengod.bazi_analyzer import BaziAnalyzer
+        from tengod.shensha_engine import calc_all_shensha
+        from tengod.geju_engine import calc_geju
+
+        is_male = req.bazi.gender == "male"
+        analyzer = BaziAnalyzer(req.bazi.year, req.bazi.month, req.bazi.day,
+                                req.bazi.hour, req.bazi.minute, is_male=is_male,
+                                longitude=req.bazi.longitude, latitude=req.bazi.latitude)
+        a = analyzer.analysis
+        pillars = a["pillars"]
+
+        # 统计五行
+        wuxing_count = {"木": 0, "火": 0, "土": 0, "金": 0, "水": 0}
+        wuxing_map = {'甲': '木', '乙': '木', '丙': '火', '丁': '火',
+                       '戊': '土', '己': '土', '庚': '金', '辛': '金',
+                       '壬': '水', '癸': '水'}
+        for pillar in pillars.values():
+            for char in pillar:
+                if char in wuxing_map:
+                    wuxing_count[wuxing_map[char]] += 1
+
+        # 神煞
+        shensha_result = calc_all_shensha(pillars)
+        shensha_names = [v["name"] for v in shensha_result.all_shensha.values()][:10]
+
+        geju_result = calc_geju(pillars)
+
+        chart_data = {
+            "pillars": pillars,
+            "wuxing": wuxing_count,
+            "geju": geju_result.geju_name,
+            "shensha": shensha_names,
+        }
+
+        if req.format == "json":
+            viz = BaziChartVisualizer()
+            return {"json": json.loads(viz.generate_json(chart_data)),
+                    "timestamp": datetime.now(timezone.utc).isoformat()}
+
+        cfg = VisualizationConfig(theme=req.theme)
+        viz = BaziChartVisualizer(cfg)
+        html = viz.generate_html(chart_data)
+        return HTMLResponse(content=html)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"命盘可视化生成失败: {e}")
+
+
+@app.post("/api/v2/ai/analyze", tags=["v2.2 AI 分析"])
+async def v2_ai_analyze(req: AIAnalyzeRequest, request: Request):
+    """Deepseek AI 智能命理分析：八字解读/流年/合婚/事业/综合"""
+    from tengod.auth import authorize
+    authorize(request, "ai:interpret")
+    from tengod.metrics_collector import metrics
+    metrics.record_ai_chat()
+    try:
+        from tengod.intelligent_analysis import IntelligentAnalysisEngine, get_engine
+        from tengod.bazi_analyzer import BaziAnalyzer
+        from tengod.shensha_engine import calc_all_shensha
+        from tengod.geju_engine import calc_geju
+
+        is_male = req.bazi.gender == "male"
+        analyzer = BaziAnalyzer(req.bazi.year, req.bazi.month, req.bazi.day,
+                                req.bazi.hour, req.bazi.minute, is_male=is_male,
+                                longitude=req.bazi.longitude, latitude=req.bazi.latitude)
+        a = analyzer.analysis
+        pillars = a["pillars"]
+
+        wuxing_count = {"木": 0, "火": 0, "土": 0, "金": 0, "水": 0}
+        wuxing_map = {'甲': '木', '乙': '木', '丙': '火', '丁': '火',
+                       '戊': '土', '己': '土', '庚': '金', '辛': '金',
+                       '壬': '水', '癸': '水'}
+        for pillar in pillars.values():
+            for char in pillar:
+                if char in wuxing_map:
+                    wuxing_count[wuxing_map[char]] += 1
+
+        shensha_result = calc_all_shensha(pillars)
+        shensha_names = [v["name"] for v in shensha_result.all_shensha.values()][:10]
+        geju_result = calc_geju(pillars)
+
+        bazi_data = {
+            "pillars": pillars,
+            "wuxing": wuxing_count,
+            "geju": geju_result.geju_name,
+            "shensha": shensha_names,
+        }
+
+        engine = get_engine()
+        options = {}
+
+        if req.analysis_type in ("career", "full"):
+            options["career"] = True
+            options["age"] = req.age or 30
+        if req.analysis_type in ("year", "full"):
+            options["year"] = req.target_year or 2026
+        if req.analysis_type == "marriage" and req.partner_bazi:
+            from tengod.bazi_analyzer import BaziAnalyzer as BA2
+            p = req.partner_bazi
+            partner_analyzer = BA2(p.year, p.month, p.day, p.hour, p.minute,
+                                   is_male=(p.gender != req.bazi.gender),
+                                   longitude=p.longitude, latitude=p.latitude)
+            partner_pillars = partner_analyzer.analysis["pillars"]
+            options["marriage"] = True
+            options["partner_bazi"] = {"pillars": partner_pillars}
+
+        result = await engine.full_analysis(bazi_data, options=options)
+
+        response = {
+            "analysis_type": req.analysis_type,
+            "focus": req.focus,
+            "results": {},
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+        for key, val in result.items():
+            if hasattr(val, "__dict__"):
+                response["results"][key] = {
+                    "title": val.title,
+                    "content": val.content if len(val.content) < 500 else val.content[:500] + "...",
+                    "score": val.score,
+                    "tags": val.tags,
+                    "recommendations": val.recommendations[:3],
+                }
+            else:
+                response["results"][key] = str(val)[:500]
+
+        return response
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI 智能分析失败: {e}")
+
+
+@app.post("/api/v2/ai/stream", tags=["v2.2 AI 分析"])
+async def v2_ai_stream(req: AIStreamRequest, request: Request):
+    """Deepseek AI 流式分析：SSE 实时推送分析结果"""
+    from tengod.auth import authorize
+    authorize(request, "ai:interpret:stream")
+    from tengod.metrics_collector import metrics
+    metrics.record_ai_chat()
+    try:
+        from tengod.deepseek_adapter import DeepseekClient, DeepseekConfig, Message, BAZI_SYSTEM_PROMPT
+        from tengod.bazi_analyzer import BaziAnalyzer
+        from tengod.shensha_engine import calc_all_shensha
+        from tengod.geju_engine import calc_geju
+        from fastapi.responses import StreamingResponse
+
+        is_male = req.bazi.gender == "male"
+        analyzer = BaziAnalyzer(req.bazi.year, req.bazi.month, req.bazi.day,
+                                req.bazi.hour, req.bazi.minute, is_male=is_male,
+                                longitude=req.bazi.longitude, latitude=req.bazi.latitude)
+        a = analyzer.analysis
+        pillars = a["pillars"]
+
+        shensha_result = calc_all_shensha(pillars)
+        shensha_names = [v["name"] for v in shensha_result.all_shensha.values()][:10]
+        geju_result = calc_geju(pillars)
+
+        context = (
+            f"八字：年柱{pillars['year']} 月柱{pillars['month']} 日柱{pillars['day']} 时柱{pillars['hour']}\n"
+            f"日主：{a['day_master']}\n"
+            f"格局：{geju_result.geju_name}\n"
+            f"神煞：{','.join(shensha_names)}\n"
+            f"五行：{a.get('wuxing', '')}\n"
+            f"问题：{req.question or '请综合分析此命盘'}"
+        )
+
+        api_key = os.environ.get("DEEPSEEK_API_KEY", "")
+        if not api_key:
+            raise HTTPException(status_code=503, detail="DEEPSEEK_API_KEY 未配置")
+
+        async def generate():
+            client = DeepseekClient(DeepseekConfig(api_key=api_key))
+            try:
+                async for chunk in client.stream_chat(
+                    [Message(role="user", content=context)],
+                    system_prompt=BAZI_SYSTEM_PROMPT[:500],
+                ):
+                    yield f"data: {json.dumps({'chunk': chunk}, ensure_ascii=False)}\n\n"
+                yield "data: [DONE]\n\n"
+            finally:
+                await client.close()
+
+        return StreamingResponse(
+            generate(),
+            media_type="text/event-stream",
+            headers={"X-Backend": "deepseek-chat", "X-API-Version": "2.2.0"},
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI 流式分析失败: {e}")
 
 
 # ============================================================================

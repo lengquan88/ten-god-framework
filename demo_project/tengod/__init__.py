@@ -1,5 +1,5 @@
 """
-TenGod - Chinese Fortune Telling System v2.1
+TenGod - Chinese Fortune Telling System v2.2
 ============================================
 中华文明数字永生体 · 命理智能分析系统
 
@@ -11,11 +11,12 @@ TenGod - Chinese Fortune Telling System v2.1
 - AI 智能分析 (deepseek_adapter, intelligent_analysis)
 - 真太阳时计算 (solar_time)
 - 交互式可视化 (chart_visualizer)
+- 知识图谱融合 (knowledge_graph_engine)
 
-版本: 2.1.0
+版本: 2.2.0
 """
 
-__version__ = "2.1.0"
+__version__ = "2.2.0"
 __author__ = "TenGod Team"
 
 from .core import get_core, create_app
