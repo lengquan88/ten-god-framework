@@ -1,5 +1,77 @@
 # Release Notes
 
+## v2.5.0 — 智能分析与命运轨迹
+
+> 发布日期: 2026-06-23
+
+### Highlights
+
+- **三体系融合分析引擎**: 八字+紫微+奇门加权交叉验证，综合评分+置信度
+- **命运轨迹时间线**: 大运/流年可视化，HTML/SVG双格式，评分柱状图
+- **AI 深度解读增强**: 上下文感知+个性化建议+对话记忆
+- **案例对比分析**: 向量相似度检索+对比报告+历史验证
+
+### 新增功能
+
+#### 1. 融合分析引擎 (`tengod.fusion_analyzer.FusionAnalyzer`)
+- 三体系独立分析：`_analyze_bazi()`, `_analyze_ziwei()`, `_analyze_qimen()`
+- 交叉验证：喜用神一致性、评分一致性、吉凶方向一致性，产出置信度
+- 加权综合评分：八字45%+紫微35%+奇门20%，交叉验证修正
+- 关键事件提取：大运/大限/流年节点自动标注
+- 个性化建议：五行调补+运势时机+用户目标
+- 融合报告：文本格式结构化输出
+- 便捷函数：`quick_fusion()`
+- 常量导出：`SYSTEM_WEIGHTS`, `AGREEMENT_LEVELS`, `FORTUNE_LEVELS`
+
+#### 2. 命运轨迹时间线 (`tengod.chart_visualizer.TrajectoryTimeline`)
+- 左右交替时间线布局，大运（金色节点）+ 流年（蓝色节点）分层
+- 流年运势评分柱状图（绿/金/红三色渐变）
+- 暗色主题 + hover 动画 + 移动端响应式
+- SVG 矢量输出（`generate_svg()`）
+- 便捷函数：`visualize_trajectory()` / `visualize_trajectory_svg()`
+
+#### 3. AI 深度解读增强 (`tengod.ai_interpreter`)
+- 上下文感知解读：`interpret_bazi_contextual()` — 注入历史对话+用户目标
+- 个性化建议生成：`generate_personalized_recommendations()` — 五行调补库（颜色/方位/行业/数字/行动）
+- 对话记忆：`init_conversation()`, `add_to_conversation()`, `get_conversation_history()`, `clear_conversation()`
+- 带记忆对话：`chat_with_memory()` — 多轮对话，LUI 一致性
+
+#### 4. 案例对比分析 (`tengod.case_comparator.CaseComparator`)
+- 向量相似度检索（余弦相似度）
+- 向量存储对接（可选，回退到规则计算）
+- 对比报告：相似度统计+共同模式+差异分析
+- 5例模拟案例库（含验证标记）
+- 便捷函数：`quick_compare()`
+
+### 测试覆盖
+- 40 个 v2.5 新增测试用例
+- 融合分析测试（14）：初始化/三体系分析/交叉验证/序列化/权重/等级
+- 轨迹时间线测试（9）：HTML/SVG/大运/流年/评分/空数据/便捷函数
+- AI增强测试（7）：建议生成/吉凶运/目标/对话记忆/五行完整性
+- 案例对比测试（6）：初始化/查找/对比/快速对比/空案例/序列化
+- 回归测试（4）：导入/现有模块兼容性
+
+### 全量测试
+```bash
+# 129 tests passed (40 v2.5 + 25 v2.4 + 34 v2.3 + 30 chart_visualizer)
+python -m pytest tests/test_v23_i18n.py tests/test_v24_visualization.py \
+     tests/test_v25_fusion.py tests/test_chart_visualizer.py -v
+```
+
+### 升级说明
+```bash
+git pull origin main
+pip install -r requirements.txt
+python -m pytest tests/test_v25_fusion.py -v
+```
+
+### 兼容性
+- 向下兼容 v2.4.x 所有 API
+- 新增模块均为独立文件，不影响现有代码
+- 案例对比器向量搜索失败时自动回退规则计算
+
+---
+
 ## v2.4.0 — 可视化增强与报告系统升级
 
 > 发布日期: 2026-06-23

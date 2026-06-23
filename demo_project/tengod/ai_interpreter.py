@@ -867,6 +867,299 @@ def _build_rag_context(keywords: List[str], top_k: int = 5) -> str:
 
 
 # ============================================================================
+# v2.5: 上下文感知 + 个性化建议 + 对话记忆
+# ============================================================================
+
+# 对话记忆存储（简单内存实现，生产环境应换用 Redis/DB）
+_conversation_memory: Dict[str, List[Dict[str, str]]] = {}
+
+CONTEXT_AWARE_PROMPT = """你是一位精通命理的资深顾问，能够结合用户的历史问题和命盘全局信息，
+提供上下文感知的深度解读。
+
+分析时请注意：
+1. 结合用户之前询问过的问题，理解其关注重点
+2. 基于命盘全局信息（不仅是当前流年），给出连贯一致的建议
+3. 如果用户之前问过类似问题，本次回答应深化或补充，而非简单重复
+4. 保持回答的个性化，避免套话模板"""
+
+PERSONALIZED_RECOMMENDATION_PROMPT = """你是一位命理规划师，善于根据命盘五行喜忌、当前运势和用户目标，
+提供可操作的个性化建议。
+
+请基于以下信息生成建议：
+1. 五行喜忌：用户需要补什么五行、避什么五行
+2. 当前运势：当前处于什么运势阶段
+3. 用户目标：用户特别关心什么方面
+
+建议应包含：
+- 五行调补方案（颜色、方位、行业、数字等）
+- 行动时机建议（最佳时间窗口）
+- 注意事项（需要规避的风险）
+- 每条建议应具体、可操作，避免空泛"""
+
+
+def init_conversation(session_id: str) -> None:
+    """初始化对话会话"""
+    _conversation_memory[session_id] = []
+
+
+def add_to_conversation(session_id: str, role: str, content: str) -> None:
+    """添加消息到对话记忆"""
+    if session_id not in _conversation_memory:
+        _conversation_memory[session_id] = []
+    _conversation_memory[session_id].append({
+        "role": role,
+        "content": content[:500],  # 截断长消息
+        "timestamp": __import__("datetime").datetime.now().isoformat(),
+    })
+
+
+def get_conversation_history(session_id: str, max_turns: int = 5) -> str:
+    """获取对话历史摘要"""
+    if session_id not in _conversation_memory:
+        return ""
+
+    history = _conversation_memory[session_id]
+    recent = history[-max_turns * 2:]  # 最近 N 轮（每轮有 user + assistant）
+
+    lines = ["【用户历史对话】"]
+    for msg in recent:
+        role_label = "用户" if msg["role"] == "user" else "顾问"
+        lines.append(f"{role_label}：{msg['content'][:200]}")
+    return "\n".join(lines)
+
+
+def clear_conversation(session_id: str) -> None:
+    """清除对话记忆"""
+    _conversation_memory.pop(session_id, None)
+
+
+async def interpret_bazi_contextual(
+    bazi_context: str,
+    session_id: str = "",
+    user_goal: str = "",
+    llm: Optional[BaseLLMAdapter] = None,
+    question: str = "",
+) -> str:
+    """上下文感知的八字深度解读 v2.5
+
+    Args:
+        bazi_context: 八字结构化上下文
+        session_id: 会话ID（用于追踪历史对话）
+        user_goal: 用户目标（如"事业发展"、"感情婚姻"）
+        llm: LLM 适配器
+        question: 当前问题
+
+    Returns:
+        AI 生成的上下文感知解读
+    """
+    if llm is None:
+        llm = get_llm()
+
+    messages = [ChatMessage(role="system", content=BAZI_INTERPRET_PROMPT)]
+
+    # 注入上下文感知提示
+    messages.append(ChatMessage(role="system", content=CONTEXT_AWARE_PROMPT))
+
+    # 注入对话历史
+    if session_id:
+        history = get_conversation_history(session_id)
+        if history:
+            messages.append(ChatMessage(role="system", content=history))
+
+    # 注入用户目标
+    if user_goal:
+        messages.append(ChatMessage(
+            role="system",
+            content=f"用户当前关注目标：{user_goal}。请围绕此目标进行重点分析。",
+        ))
+
+    user_content = f"请根据以下八字数据生成命理分析报告：\n\n{bazi_context}"
+    if question:
+        user_content += f"\n\n用户当前问题：{question}"
+    messages.append(ChatMessage(role="user", content=user_content))
+
+    response = await llm.chat(messages)
+
+    # 记录对话
+    if session_id:
+        add_to_conversation(session_id, "user", question or "请分析命盘")
+        add_to_conversation(session_id, "assistant", response.content[:300])
+
+    return response.content
+
+
+def generate_personalized_recommendations(
+    yongshen: List[str],
+    jishen: List[str],
+    current_fortune: str = "平",
+    user_goal: str = "综合",
+) -> List[Dict[str, str]]:
+    """生成个性化建议 v2.5
+
+    基于五行喜忌和当前运势，生成可操作的具体建议。
+
+    Args:
+        yongshen: 喜用神五行列表
+        jishen: 忌神五行列表
+        current_fortune: 当前运势等级
+        user_goal: 用户目标
+
+    Returns:
+        建议列表，每条包含 category/title/detail/action
+    """
+    # 五行对应建议库
+    WUXING_ADVICE = {
+        "木": {
+            "colors": ["绿色", "青色"],
+            "directions": ["东方", "东南"],
+            "industries": ["教育", "文化", "医疗", "园林", "出版"],
+            "actions": ["种植绿植", "晨练", "阅读学习"],
+            "numbers": [3, 8],
+        },
+        "火": {
+            "colors": ["红色", "紫色", "橙色"],
+            "directions": ["南方"],
+            "industries": ["能源", "餐饮", "传媒", "互联网", "演艺"],
+            "actions": ["增加社交", "创意活动", "适度运动"],
+            "numbers": [2, 7],
+        },
+        "土": {
+            "colors": ["黄色", "棕色", "咖啡色"],
+            "directions": ["中央", "西南", "东北"],
+            "industries": ["房地产", "建筑", "农业", "金融", "咨询"],
+            "actions": ["稳定投资", "储蓄计划", "土地相关"],
+            "numbers": [5, 0],
+        },
+        "金": {
+            "colors": ["白色", "金色", "银色"],
+            "directions": ["西方", "西北"],
+            "industries": ["金融", "法律", "机械", "珠宝", "汽车"],
+            "actions": ["理财规划", "技能提升", "金属饰品"],
+            "numbers": [4, 9],
+        },
+        "水": {
+            "colors": ["黑色", "蓝色", "灰色"],
+            "directions": ["北方"],
+            "industries": ["物流", "贸易", "旅游", "渔业", "咨询"],
+            "actions": ["游泳", "旅行", "冥想", "静心"],
+            "numbers": [1, 6],
+        },
+    }
+
+    recommendations = []
+
+    # 五行补益建议
+    for wx in yongshen[:2]:
+        advice = WUXING_ADVICE.get(wx)
+        if advice:
+            recommendations.append({
+                "category": "五行调补",
+                "title": f"补{wx}行运",
+                "detail": f"宜用{', '.join(advice['colors'])}色系，"
+                         f"关注{', '.join(advice['directions'][:2])}方向，"
+                         f"适合{', '.join(advice['industries'][:2])}等行业",
+                "action": f"日常可{advice['actions'][0]}",
+            })
+
+    # 忌神规避
+    for wx in jishen[:1]:
+        advice = WUXING_ADVICE.get(wx)
+        if advice:
+            recommendations.append({
+                "category": "风险规避",
+                "title": f"避{ wx }过旺",
+                "detail": f"减少{', '.join(advice['colors'])}色系使用，"
+                         f"慎选{', '.join(advice['industries'][:2])}等行业",
+                "action": f"避免过度{advice['actions'][0] if advice['actions'] else ''}",
+            })
+
+    # 基于运势的建议
+    if current_fortune in ("大吉", "吉"):
+        recommendations.append({
+            "category": "时机把握",
+            "title": "运势向好，积极进取",
+            "detail": "当前运势处于上升期，适合开拓新领域、启动新项目",
+            "action": "把握未来3-6个月的黄金窗口期",
+        })
+    elif current_fortune in ("凶", "大凶"):
+        recommendations.append({
+            "category": "风险提示",
+            "title": "运势低迷，以守为攻",
+            "detail": "当前运势处于低谷期，建议保守行事，避免重大决策",
+            "action": "宜静不宜动，修身养性，积蓄力量",
+        })
+
+    # 基于目标的建议
+    goal_advice = {
+        "事业": {"category": "事业发展", "title": "事业方向建议",
+                 "detail": "结合五行喜忌选择适合的行业方向", "action": "制定职业发展规划"},
+        "财运": {"category": "财富管理", "title": "财运管理建议",
+                 "detail": "根据运势周期合理安排投资节奏", "action": "分散投资，稳健为主"},
+        "感情": {"category": "感情经营", "title": "感情运势建议",
+                 "detail": "把握感情运势周期，适时调整相处方式", "action": "多沟通，增进理解"},
+        "健康": {"category": "健康养生", "title": "健康调理建议",
+                 "detail": "根据五行偏颇调理身体，注意相应脏腑", "action": "规律作息，适度运动"},
+    }
+
+    if user_goal in goal_advice:
+        recommendations.append(goal_advice[user_goal])
+
+    return recommendations[:5]
+
+
+async def chat_with_memory(
+    bazi_context: str,
+    question: str,
+    session_id: str,
+    llm: Optional[BaseLLMAdapter] = None,
+) -> str:
+    """带记忆的命理对话 v2.5
+
+    支持多轮对话，AI 能记住之前的问答上下文。
+
+    Args:
+        bazi_context: 八字结构化上下文
+        question: 当前问题
+        session_id: 会话ID
+        llm: LLM 适配器
+
+    Returns:
+        AI 回复
+    """
+    if llm is None:
+        llm = get_llm()
+
+    messages = [
+        ChatMessage(role="system", content=BAZI_INTERPRET_PROMPT),
+        ChatMessage(role="system", content="你是一位命理顾问，正在进行多轮对话。"
+                    "请结合之前的对话历史，给出连贯、有针对性的回答。"
+                    "如果用户切换话题，请自然过渡。"),
+    ]
+
+    # 注入命盘上下文
+    messages.append(ChatMessage(
+        role="system",
+        content=f"当前用户的命盘信息：\n{bazi_context[:800]}",
+    ))
+
+    # 注入对话历史
+    history = get_conversation_history(session_id, max_turns=3)
+    if history:
+        messages.append(ChatMessage(role="system", content=history))
+
+    # 当前问题
+    messages.append(ChatMessage(role="user", content=question))
+
+    response = await llm.chat(messages)
+
+    # 记录对话
+    add_to_conversation(session_id, "user", question)
+    add_to_conversation(session_id, "assistant", response.content[:300])
+
+    return response.content
+
+
+# ============================================================================
 # 自测
 # ============================================================================
 

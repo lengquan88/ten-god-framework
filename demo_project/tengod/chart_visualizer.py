@@ -803,11 +803,416 @@ def visualize_ziwei_svg(ziwei_data: Dict[str, Any]) -> str:
     return viz.generate_svg(ziwei_data)
 
 
+class TrajectoryTimeline:
+    """命运轨迹时间线可视化器 v2.5"""
+
+    def __init__(self, config: Optional[VisualizationConfig] = None):
+        self.config = config or VisualizationConfig()
+
+    def generate_html(
+        self,
+        dayuns: List[Dict],
+        liunians: List[Dict],
+        birth_year: int = 1990,
+        title: str = "命运轨迹时间线",
+    ) -> str:
+        """
+        生成命运轨迹时间线HTML
+
+        Args:
+            dayuns: 大运列表 [{"age": 4, "start_year": 1994, "pillar": "癸未"}, ...]
+            liunians: 流年列表 [{"year": 2024, "pillar": "甲辰", "gan_shigan": "偏印"}, ...]
+            birth_year: 出生年份
+            title: 图表标题
+
+        Returns:
+            str: HTML内容
+        """
+        # 构建时间线数据
+        events_json = json.dumps(self._build_timeline(dayuns, liunians, birth_year),
+                                 ensure_ascii=False)
+
+        return f"""<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{_esc(title)} - TenGod v2.5</title>
+    <style>
+        :root {{
+            --timeline-bg: #0d1117;
+            --timeline-card: #161b22;
+            --timeline-accent: #58a6ff;
+            --timeline-gold: #d4a853;
+            --timeline-green: #3fb950;
+            --timeline-red: #f85149;
+            --timeline-text: #c9d1d9;
+            --timeline-muted: #8b949e;
+        }}
+        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+        body {{
+            font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+            background: var(--timeline-bg);
+            color: var(--timeline-text);
+            min-height: 100vh;
+            padding: 30px;
+        }}
+        .timeline-container {{
+            max-width: 1000px;
+            margin: 0 auto;
+        }}
+        .timeline-header {{
+            text-align: center;
+            margin-bottom: 40px;
+        }}
+        .timeline-header h1 {{
+            color: var(--timeline-accent);
+            font-size: 2em;
+            margin-bottom: 8px;
+        }}
+        .timeline-header p {{ color: var(--timeline-muted); }}
+        .timeline {{ position: relative; padding: 20px 0; }}
+        .timeline::before {{
+            content: '';
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 3px;
+            height: 100%;
+            background: linear-gradient(to bottom, var(--timeline-gold), var(--timeline-accent), var(--timeline-green));
+            border-radius: 2px;
+        }}
+        .timeline-event {{
+            position: relative;
+            width: 50%;
+            padding: 20px 40px;
+            margin-bottom: 20px;
+        }}
+        .timeline-event.left {{ left: 0; text-align: right; }}
+        .timeline-event.right {{ left: 50%; text-align: left; }}
+        .timeline-event::before {{
+            content: '';
+            position: absolute;
+            top: 30px;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            border: 3px solid var(--timeline-gold);
+            background: var(--timeline-bg);
+            z-index: 2;
+        }}
+        .timeline-event.left::before {{ right: -7px; }}
+        .timeline-event.right::before {{ left: -7px; }}
+        .timeline-event.major::before {{
+            background: var(--timeline-gold);
+            box-shadow: 0 0 10px rgba(212,168,83,0.5);
+        }}
+        .timeline-event.yearly::before {{
+            border-color: var(--timeline-accent);
+            width: 10px; height: 10px;
+        }}
+        .timeline-event.yearly.left::before {{ right: -5px; }}
+        .timeline-event.yearly.right::before {{ left: -5px; }}
+        .event-card {{
+            background: var(--timeline-card);
+            border: 1px solid #30363d;
+            border-radius: 10px;
+            padding: 18px;
+            transition: all 0.3s;
+        }}
+        .event-card:hover {{
+            border-color: var(--timeline-gold);
+            box-shadow: 0 0 16px rgba(212,168,83,0.15);
+            transform: translateY(-2px);
+        }}
+        .event-type {{
+            font-size: 0.75em;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 6px;
+        }}
+        .event-type.major {{ color: var(--timeline-gold); }}
+        .event-type.yearly {{ color: var(--timeline-accent); }}
+        .event-type.monthly {{ color: var(--timeline-green); }}
+        .event-pillar {{
+            font-size: 1.4em;
+            font-weight: bold;
+            color: var(--timeline-text);
+            margin: 4px 0;
+        }}
+        .event-period {{
+            font-size: 0.85em;
+            color: var(--timeline-muted);
+        }}
+        .event-score {{
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            margin-top: 6px;
+        }}
+        .event-score.good {{ background: #1a3a2a; color: var(--timeline-green); }}
+        .event-score.neutral {{ background: #2a2a1a; color: var(--timeline-gold); }}
+        .event-score.bad {{ background: #3a1a1a; color: var(--timeline-red); }}
+        .legend {{
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin: 30px 0;
+            flex-wrap: wrap;
+        }}
+        .legend-item {{
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85em;
+            color: var(--timeline-muted);
+        }}
+        .legend-dot {{
+            width: 12px; height: 12px;
+            border-radius: 50%;
+        }}
+        .legend-dot.major {{ background: var(--timeline-gold); }}
+        .legend-dot.yearly {{ border: 2px solid var(--timeline-accent); }}
+        .legend-dot.monthly {{ border: 2px solid var(--timeline-green); }}
+
+        .score-bar {{
+            margin: 30px 0;
+            padding: 20px;
+            background: var(--timeline-card);
+            border-radius: 10px;
+            border: 1px solid #30363d;
+        }}
+        .score-bar h3 {{ color: var(--timeline-accent); margin-bottom: 15px; }}
+        .score-row {{
+            display: flex;
+            align-items: center;
+            margin: 8px 0;
+            gap: 10px;
+        }}
+        .score-label {{
+            width: 80px;
+            text-align: right;
+            font-size: 0.85em;
+            color: var(--timeline-muted);
+        }}
+        .score-track {{
+            flex: 1;
+            height: 20px;
+            background: #21262d;
+            border-radius: 10px;
+            overflow: hidden;
+        }}
+        .score-fill {{
+            height: 100%;
+            border-radius: 10px;
+            transition: width 0.8s ease;
+        }}
+        .score-fill.good {{ background: linear-gradient(90deg, #238636, #3fb950); }}
+        .score-fill.neutral {{ background: linear-gradient(90deg, #9e6a03, #d4a853); }}
+        .score-fill.bad {{ background: linear-gradient(90deg, #da3633, #f85149); }}
+        .score-value {{
+            width: 40px;
+            font-size: 0.85em;
+            font-weight: bold;
+        }}
+
+        @media (max-width: 768px) {{
+            .timeline::before {{ left: 20px; }}
+            .timeline-event {{ width: 100%; left: 0 !important; padding-left: 50px; text-align: left !important; }}
+            .timeline-event::before {{ left: 13px !important; right: auto !important; }}
+        }}
+    </style>
+</head>
+<body>
+    <div class="timeline-container">
+        <div class="timeline-header">
+            <h1>{_esc(title)}</h1>
+            <p>TenGod Framework v2.5 · 命运轨迹全维度可视化</p>
+        </div>
+        <div class="legend">
+            <div class="legend-item"><div class="legend-dot major"></div> 大运（10年周期）</div>
+            <div class="legend-item"><div class="legend-dot yearly"></div> 流年（年度）</div>
+            <div class="legend-item"><div class="legend-dot monthly"></div> 流月</div>
+        </div>
+        {self._generate_score_bars(dayuns, liunians)}
+        <div class="timeline" id="timeline">
+            {self._generate_timeline_events(dayuns, liunians, birth_year)}
+        </div>
+    </div>
+    <script>
+        const events = {events_json};
+        document.querySelectorAll('.event-card').forEach(card => {{
+            card.addEventListener('click', function() {{
+                const idx = this.dataset.index;
+                if (idx !== undefined && events[idx]) {{
+                    const ev = events[idx];
+                    alert(ev.type + ': ' + ev.label + '\\n' + (ev.detail || ''));
+                }}
+            }});
+        }});
+    </script>
+</body>
+</html>"""
+
+    def _build_timeline(
+        self, dayuns: List[Dict], liunians: List[Dict], birth_year: int
+    ) -> List[Dict]:
+        """构建时间线数据"""
+        events = []
+        for dx in dayuns:
+            if isinstance(dx, dict):
+                age = dx.get("age", 0)
+                events.append({
+                    "type": "大运",
+                    "css_class": "major",
+                    "label": f"大运 {dx.get('pillar', '')}",
+                    "period": f"{age}-{age + 9}岁（{birth_year + age}年 - {birth_year + age + 9}年）",
+                    "detail": f"大运干支：{dx.get('pillar', '')}",
+                    "side": "left" if age % 2 == 0 else "right",
+                })
+        for ln in liunians:
+            if isinstance(ln, dict):
+                year = ln.get("year", 0)
+                score = ln.get("score", ln.get("judgment_score", 50))
+                score_class = "good" if score >= 70 else ("bad" if score < 45 else "neutral")
+                events.append({
+                    "type": "流年",
+                    "css_class": "yearly",
+                    "label": f"{year}年 {ln.get('pillar', '')}",
+                    "period": f"{year}年",
+                    "detail": f"十神：{ln.get('gan_shigan', '')}，评分：{score}",
+                    "score": score,
+                    "score_class": score_class,
+                    "side": "left" if year % 2 == 0 else "right",
+                })
+        events.sort(key=lambda e: str(e.get("period", "")))
+        return events
+
+    def _generate_score_bars(self, dayuns: List[Dict], liunians: List[Dict]) -> str:
+        """生成评分柱状图"""
+        if not liunians:
+            return ""
+
+        max_score = 100
+        bars = []
+        for ln in liunians[:8]:
+            if not isinstance(ln, dict):
+                continue
+            score = ln.get("score", ln.get("judgment_score", 50))
+            score_class = "good" if score >= 70 else ("bad" if score < 45 else "neutral")
+            year = ln.get("year", "")
+            bars.append(f"""<div class="score-row">
+                <span class="score-label">{year}</span>
+                <div class="score-track">
+                    <div class="score-fill {score_class}" style="width:{score}%"></div>
+                </div>
+                <span class="score-value">{score}</span>
+            </div>""")
+
+        return f"""<div class="score-bar">
+            <h3>流年运势趋势</h3>
+            {''.join(bars) if bars else '<p style="color:var(--timeline-muted)">暂无数据</p>'}
+        </div>"""
+
+    def _generate_timeline_events(
+        self, dayuns: List[Dict], liunians: List[Dict], birth_year: int
+    ) -> str:
+        """生成时间线事件HTML"""
+        events = self._build_timeline(dayuns, liunians, birth_year)
+        html_parts = []
+        for i, ev in enumerate(events):
+            css_class = ev.get("css_class", "yearly")
+            side = ev.get("side", "left")
+            score_html = ""
+            if ev.get("score") is not None:
+                score_html = f'<span class="event-score {ev["score_class"]}">{ev["score"]}分</span>'
+            html_parts.append(f"""<div class="timeline-event {side} {css_class}">
+                <div class="event-card" data-index="{i}">
+                    <div class="event-type {css_class}">{ev['type']}</div>
+                    <div class="event-pillar">{_esc(ev['label'])}</div>
+                    <div class="event-period">{_esc(ev['period'])}</div>
+                    {score_html}
+                </div>
+            </div>""")
+        return "\n".join(html_parts)
+
+    def generate_svg(
+        self,
+        dayuns: List[Dict],
+        liunians: List[Dict],
+        birth_year: int = 1990,
+        title: str = "命运轨迹",
+    ) -> str:
+        """生成SVG时间线"""
+        width, height = 900, 120 + max(len(dayuns) * 60, len(liunians) * 30, 300)
+        parts = [
+            f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">',
+            f'<rect width="{width}" height="{height}" fill="#0d1117"/>',
+            f'<text x="{width/2}" y="35" text-anchor="middle" fill="#58a6ff" font-size="20" font-weight="bold">{_esc(title)}</text>',
+            f'<line x1="{width/2}" y1="60" x2="{width/2}" y2="{height - 20}" stroke="#30363d" stroke-width="2"/>',
+        ]
+
+        y = 80
+        # 大运节点
+        for dx in dayuns:
+            if not isinstance(dx, dict):
+                continue
+            age = dx.get("age", 0)
+            pillar = dx.get("pillar", "")
+            parts.append(f'<circle cx="{width/2}" cy="{y}" r="8" fill="#d4a853" stroke="#0d1117" stroke-width="2"/>')
+            parts.append(f'<text x="{width/2 - 20}" y="{y + 4}" text-anchor="end" fill="#d4a853" font-size="12">大运 {pillar}</text>')
+            parts.append(f'<text x="{width/2 + 20}" y="{y + 4}" text-anchor="start" fill="#8b949e" font-size="10">{age}-{age+9}岁</text>')
+            y += 60
+
+        # 流年节点
+        y += 20
+        for ln in liunians[:10]:
+            if not isinstance(ln, dict):
+                continue
+            year = ln.get("year", "")
+            pillar = ln.get("pillar", "")
+            score = ln.get("score", ln.get("judgment_score", 50))
+            color = "#3fb950" if score >= 70 else ("#f85149" if score < 45 else "#d4a853")
+            parts.append(f'<circle cx="{width/2}" cy="{y}" r="4" fill="{color}"/>')
+            parts.append(f'<text x="{width/2 - 15}" y="{y + 4}" text-anchor="end" fill="#c9d1d9" font-size="10">{year}</text>')
+            parts.append(f'<text x="{width/2 + 15}" y="{y + 4}" text-anchor="start" fill="#8b949e" font-size="10">{pillar} ({score})</text>')
+            y += 25
+
+        parts.append('</svg>')
+        return "\n".join(parts)
+
+
+def visualize_trajectory(
+    dayuns: List[Dict],
+    liunians: List[Dict],
+    birth_year: int = 1990,
+    title: str = "命运轨迹时间线",
+) -> str:
+    """快速生成命运轨迹HTML"""
+    viz = TrajectoryTimeline()
+    return viz.generate_html(dayuns, liunians, birth_year, title)
+
+
+def visualize_trajectory_svg(
+    dayuns: List[Dict],
+    liunians: List[Dict],
+    birth_year: int = 1990,
+) -> str:
+    """快速生成命运轨迹SVG"""
+    viz = TrajectoryTimeline()
+    return viz.generate_svg(dayuns, liunians, birth_year)
+
+
 __all__ = [
     "BaziChartVisualizer",
     "ZiweiChartVisualizer",
+    "TrajectoryTimeline",
     "VisualizationConfig",
     "visualize_bazi",
     "visualize_ziwei",
     "visualize_ziwei_svg",
+    "visualize_trajectory",
+    "visualize_trajectory_svg",
 ]
