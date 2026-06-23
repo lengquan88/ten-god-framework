@@ -1668,7 +1668,7 @@ class CaseLinkRequest(BaseModel):
 class WebhookSubscribeRequest(BaseModel):
     """Webhook 订阅请求"""
     url: str = Field(..., min_length=1, max_length=512, description="回调 URL")
-    events: List[str] = Field(..., min_items=1, description="订阅事件列表，支持 * 通配")
+    events: List[str] = Field(..., min_length=1, description="订阅事件列表，支持 * 通配")
     secret: Optional[str] = Field(default="", max_length=256, description="HMAC 签名密钥")
     description: Optional[str] = Field(default="", max_length=256)
 
@@ -2099,7 +2099,7 @@ async def plugin_stats(request: Request):
 
 class BatchBaziRequest(BaseModel):
     """批量排盘请求"""
-    inputs: List[Dict[str, Any]] = Field(..., min_items=1, max_items=100)
+    inputs: List[Dict[str, Any]] = Field(..., min_length=1, max_length=100)
 
 
 class CompareCasesRequest(BaseModel):

@@ -264,6 +264,78 @@ class TestI18nAPI:
         assert "Wood" in names
 
 
+# ════════════════════════════════════════
+# 5. 移动端轻量端点测试
+# ════════════════════════════════════════
+
+class TestMobileBaziQuick:
+    """移动端轻量八字端点 /api/v2/mobile/bazi/quick"""
+
+    @pytest.mark.asyncio
+    async def test_quick_bazi_basic(self, mock_auth):
+        """基础排盘：返回精简字段 p/d/w/t"""
+        from tengod.api_server import v2_mobile_bazi_quick, Request
+        mock_request = MagicMock(spec=Request)
+        result = await v2_mobile_bazi_quick(
+            request=mock_request, year=1990, month=6, day=15, hour=10,
+        )
+        assert "p" in result       # pillars
+        assert "d" in result       # day_master
+        assert "w" in result       # wuxing_count
+        assert "t" in result       # total_score
+        # 四柱齐全
+        assert "year" in result["p"]
+        assert "month" in result["p"]
+        assert "day" in result["p"]
+        assert "hour" in result["p"]
+
+    @pytest.mark.asyncio
+    async def test_quick_bazi_wuxing_count(self, mock_auth):
+        """五行计数：五个元素且值为整数"""
+        from tengod.api_server import v2_mobile_bazi_quick, Request
+        mock_request = MagicMock(spec=Request)
+        result = await v2_mobile_bazi_quick(
+            request=mock_request, year=1990, month=6, day=15, hour=10,
+        )
+        assert len(result["w"]) == 5
+        for val in result["w"].values():
+            assert isinstance(val, int)
+
+    @pytest.mark.asyncio
+    async def test_quick_bazi_with_lang_en(self, mock_auth):
+        """英文翻译：五行 key 应为英文"""
+        from tengod.api_server import v2_mobile_bazi_quick, Request
+        mock_request = MagicMock(spec=Request)
+        result = await v2_mobile_bazi_quick(
+            request=mock_request, year=1990, month=6, day=15, hour=10,
+            lang="en",
+        )
+        assert "Wood" in result["w"] or "Fire" in result["w"]
+
+    @pytest.mark.asyncio
+    async def test_quick_bazi_female(self, mock_auth):
+        """女性排盘：gender 参数生效"""
+        from tengod.api_server import v2_mobile_bazi_quick, Request
+        mock_request = MagicMock(spec=Request)
+        result = await v2_mobile_bazi_quick(
+            request=mock_request, year=1990, month=6, day=15, hour=10,
+            gender="female",
+        )
+        assert "p" in result
+        assert result["p"]["year"]  # 有年柱
+
+    @pytest.mark.asyncio
+    async def test_quick_bazi_custom_location(self, mock_auth):
+        """自定义经纬度：不报错并返回结果"""
+        from tengod.api_server import v2_mobile_bazi_quick, Request
+        mock_request = MagicMock(spec=Request)
+        result = await v2_mobile_bazi_quick(
+            request=mock_request, year=1990, month=6, day=15, hour=10,
+            longitude=121.5, latitude=31.2,
+        )
+        assert "p" in result
+
+
 @pytest.fixture
 def mock_auth():
     yield

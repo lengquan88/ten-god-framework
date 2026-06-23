@@ -9,11 +9,11 @@ const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
 // 预缓存静态资源
 const STATIC_ASSETS = [
-    '/',
-    '/index.html',
-    '/manifest.json',
-    '/icons/icon-192.svg',
-    '/icons/icon-512.svg',
+    '/app/',
+    '/app/index.html',
+    '/app/manifest.json',
+    '/app/icons/icon-192.svg',
+    '/app/icons/icon-512.svg',
 ];
 
 // 安装：预缓存静态资源
