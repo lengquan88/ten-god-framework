@@ -1205,14 +1205,539 @@ def visualize_trajectory_svg(
     return viz.generate_svg(dayuns, liunians, birth_year)
 
 
+class QimenChartVisualizer:
+    """奇门遁甲可视化器 v2.6"""
+
+    # 九宫洛书布局：row 0-2, col 0-2
+    # 4巽  9离  2坤
+    # 3震  5中  7兑
+    # 8艮  1坎  6乾
+    GONG_LAYOUT = {4: (0, 0), 9: (0, 1), 2: (0, 2),
+                   3: (1, 0), 5: (1, 1), 7: (1, 2),
+                   8: (2, 0), 1: (2, 1), 6: (2, 2)}
+
+    MEN_COLORS = {"休": "#3fb950", "生": "#3fb950", "开": "#3fb950",
+                  "死": "#f85149", "惊": "#f85149", "伤": "#f85149",
+                  "杜": "#d4a853", "景": "#d4a853", "中": "#8b949e"}
+
+    def __init__(self, config: Optional[VisualizationConfig] = None):
+        self.config = config or VisualizationConfig()
+
+    def generate_html(self, qimen_data: Dict) -> str:
+        """生成奇门遁甲HTML盘面"""
+        chart = qimen_data.get("chart", qimen_data)
+        gongs = chart.get("gongs", {})
+        yin_yang = chart.get("yin_yang", "阳")
+        ju_num = chart.get("ju_num", 1)
+        sizhu = chart.get("sizhu", {})
+        xun_shou = chart.get("xun_shou", "")
+        zhi_fu = chart.get("zhi_fu", "")
+        zhi_shi = chart.get("zhi_shi", "")
+
+        grid_cells = [""] * 9
+        for num in range(1, 10):
+            gong = gongs.get(str(num), gongs.get(num, {}))
+            if isinstance(gong, dict):
+                name = gong.get("name", "?")
+                di_gan = gong.get("di_gan", "?")
+                tian_gan = gong.get("tian_gan", "?")
+                men = gong.get("men", "?")
+                xing = gong.get("xing", "?")
+                shen = gong.get("shen", "?")
+                wuxing = gong.get("wuxing", "?")
+                men_color = self.MEN_COLORS.get(men, "#8b949e")
+                cell = f"""<div class="qimen-gong" style="border-color:{men_color}">
+                    <div class="gong-name">{name}宫</div>
+                    <div class="gong-stars">
+                        <span class="star-xing">{xing}</span>
+                        <span class="star-shen">{shen}</span>
+                    </div>
+                    <div class="gong-gans">
+                        <span class="gan-tian">{tian_gan}</span>
+                        <span class="gan-di">{di_gan}</span>
+                    </div>
+                    <div class="gong-men">{men}</div>
+                    <div class="gong-wx">{wuxing}</div>
+                </div>"""
+                row, col = self.GONG_LAYOUT.get(num, (1, 1))
+                grid_cells[row * 3 + col] = cell
+
+        year_str = f"{sizhu.get('year', '')} {sizhu.get('month', '')} {sizhu.get('day', '')} {sizhu.get('hour', '')}"
+
+        return f"""<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>奇门遁甲 - TenGod v2.6</title>
+    <style>
+        :root {{
+            --qm-bg: #0d1117;
+            --qm-card: #161b22;
+            --qm-accent: #d4a853;
+            --qm-text: #c9d1d9;
+            --qm-muted: #8b949e;
+        }}
+        * {{ margin:0; padding:0; box-sizing:border-box; }}
+        body {{
+            font-family: 'Microsoft YaHei','PingFang SC',sans-serif;
+            background: var(--qm-bg);
+            color: var(--qm-text);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }}
+        .qimen-container {{
+            max-width: 700px;
+            width: 100%;
+        }}
+        .qimen-header {{
+            text-align: center;
+            margin-bottom: 20px;
+        }}
+        .qimen-header h1 {{
+            color: var(--qm-accent);
+            font-size: 1.8em;
+            margin-bottom: 4px;
+        }}
+        .qimen-info {{
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+            font-size: 0.9em;
+            color: var(--qm-muted);
+        }}
+        .qimen-info span {{ color: var(--qm-accent); }}
+        .qimen-grid {{
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            gap: 8px;
+            aspect-ratio: 1;
+        }}
+        .qimen-gong {{
+            background: var(--qm-card);
+            border: 2px solid #30363d;
+            border-radius: 10px;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            transition: all 0.3s;
+            cursor: pointer;
+        }}
+        .qimen-gong:hover {{
+            border-color: var(--qm-accent);
+            box-shadow: 0 0 12px rgba(212,168,83,0.2);
+            transform: scale(1.02);
+        }}
+        .gong-name {{
+            font-size: 0.8em;
+            color: var(--qm-muted);
+            font-weight: bold;
+        }}
+        .gong-stars {{
+            display: flex;
+            gap: 6px;
+            font-size: 0.75em;
+        }}
+        .star-xing {{ color: #58a6ff; }}
+        .star-shen {{ color: #d2a8ff; }}
+        .gong-gans {{
+            display: flex;
+            gap: 8px;
+            font-size: 1.2em;
+            font-weight: bold;
+        }}
+        .gan-tian {{ color: #ffa657; }}
+        .gan-di {{ color: var(--qm-text); }}
+        .gong-men {{
+            font-size: 1.1em;
+            font-weight: bold;
+            padding: 1px 12px;
+            border-radius: 10px;
+        }}
+        .gong-wx {{
+            font-size: 0.7em;
+            color: var(--qm-muted);
+        }}
+        @media (max-width: 480px) {{
+            .qimen-grid {{ gap: 4px; }}
+            .qimen-gong {{ padding: 6px; }}
+            .gong-gans {{ font-size: 1em; }}
+        }}
+    </style>
+</head>
+<body>
+    <div class="qimen-container">
+        <div class="qimen-header">
+            <h1>奇门遁甲</h1>
+            <div class="qimen-info">
+                <span>{yin_yang}遁{ju_num}局</span>
+                <span>旬首：{xun_shou}</span>
+                <span>值符：{zhi_fu}</span>
+                <span>值使：{zhi_shi}</span>
+            </div>
+            <div class="qimen-info" style="font-size:0.8em">{year_str}</div>
+        </div>
+        <div class="qimen-grid">
+            {''.join(grid_cells)}
+        </div>
+    </div>
+</body>
+</html>"""
+
+    def generate_svg(self, qimen_data: Dict) -> str:
+        """生成奇门遁甲SVG"""
+        chart = qimen_data.get("chart", qimen_data)
+        gongs = chart.get("gongs", {})
+        yin_yang = chart.get("yin_yang", "阳")
+        ju_num = chart.get("ju_num", 1)
+
+        w, h = 600, 640
+        cell_s = 160
+        gap = 6
+        start_x = (w - 3 * cell_s - 2 * gap) // 2
+        start_y = 100
+
+        parts = [
+            f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}">',
+            f'<rect width="{w}" height="{h}" fill="#0d1117"/>',
+            f'<text x="{w/2}" y="35" text-anchor="middle" fill="#d4a853" font-size="20" font-weight="bold">奇门遁甲</text>',
+            f'<text x="{w/2}" y="60" text-anchor="middle" fill="#8b949e" font-size="13">{yin_yang}遁{ju_num}局</text>',
+        ]
+
+        for num in range(1, 10):
+            gong = gongs.get(str(num), gongs.get(num, {}))
+            if not isinstance(gong, dict):
+                continue
+            row, col = self.GONG_LAYOUT.get(num, (1, 1))
+            x = start_x + col * (cell_s + gap)
+            y = start_y + row * (cell_s + gap)
+            name = gong.get("name", "?")
+            men = gong.get("men", "?")
+            men_color = self.MEN_COLORS.get(men, "#8b949e")
+
+            parts.append(f'<rect x="{x}" y="{y}" width="{cell_s}" height="{cell_s}" rx="8" '
+                         f'fill="#161b22" stroke="{men_color}" stroke-width="2"/>')
+            parts.append(f'<text x="{x + cell_s/2}" y="{y + 25}" text-anchor="middle" '
+                         f'fill="#8b949e" font-size="12">{name}宫</text>')
+            parts.append(f'<text x="{x + cell_s/2}" y="{y + 55}" text-anchor="middle" '
+                         f'fill="#58a6ff" font-size="12">{gong.get("xing", "?")}</text>')
+            parts.append(f'<text x="{x + cell_s/2}" y="{y + 75}" text-anchor="middle" '
+                         f'fill="#d2a8ff" font-size="11">{gong.get("shen", "?")}</text>')
+            parts.append(f'<text x="{x + cell_s/2}" y="{y + 105}" text-anchor="middle" '
+                         f'fill="#ffa657" font-size="18" font-weight="bold">{gong.get("tian_gan", "?")}</text>')
+            parts.append(f'<text x="{x + cell_s/2}" y="{y + 128}" text-anchor="middle" '
+                         f'fill="#c9d1d9" font-size="14">{gong.get("di_gan", "?")}</text>')
+            parts.append(f'<text x="{x + cell_s/2}" y="{y + 150}" text-anchor="middle" '
+                         f'fill="{men_color}" font-size="16" font-weight="bold">{men}</text>')
+
+        parts.append('</svg>')
+        return "\n".join(parts)
+
+
+class FengshuiVisualizer:
+    """风水可视化器 v2.6 — 玄空飞星+罗盘"""
+
+    # 九宫布局（上南下北）
+    GONG_LAYOUT = {4: (0, 0), 9: (0, 1), 2: (0, 2),
+                   3: (1, 0), 5: (1, 1), 7: (1, 2),
+                   8: (2, 0), 1: (2, 1), 6: (2, 2)}
+
+    STAR_NAMES = {1: "一白", 2: "二黑", 3: "三碧", 4: "四绿",
+                  5: "五黄", 6: "六白", 7: "七赤", 8: "八白", 9: "九紫"}
+    STAR_FORTUNE = {1: "吉", 2: "凶", 3: "凶", 4: "吉", 5: "大凶",
+                    6: "吉", 7: "吉", 8: "吉", 9: "吉"}
+    STAR_COLORS = {1: "#3fb950", 2: "#f85149", 3: "#f85149", 4: "#3fb950",
+                   5: "#ff0000", 6: "#3fb950", 7: "#3fb950", 8: "#3fb950", 9: "#3fb950"}
+    PALACE_NAMES = {1: "坎(北)", 2: "坤(西南)", 3: "震(东)", 4: "巽(东南)",
+                    5: "中宫", 6: "乾(西北)", 7: "兑(西)", 8: "艮(东北)", 9: "离(南)"}
+
+    def __init__(self, config: Optional[VisualizationConfig] = None):
+        self.config = config or VisualizationConfig()
+
+    def generate_html(self, fengshui_data: Dict) -> str:
+        """生成玄空飞星HTML"""
+        yun = fengshui_data.get("yun", 9)
+        yun_name = fengshui_data.get("yun_name", "")
+        direction = fengshui_data.get("direction", "")
+        yun_pan = fengshui_data.get("yun_pan", {})
+        shan_pan = fengshui_data.get("shan_pan", {})
+        xiang_pan = fengshui_data.get("xiang_pan", {})
+        liunian_pan = fengshui_data.get("liunian_pan", {})
+        judgments = fengshui_data.get("judgments", [])
+
+        def _label_to_num(label: str) -> int:
+            try:
+                parts = label.split("(")
+                return int(parts[0]) if parts[0].isdigit() else 5
+            except Exception:
+                return 5
+
+        # 构建简单的 dict[int,int] 如果传入的是标签格式
+        if yun_pan and isinstance(next(iter(yun_pan.values())), str):
+            yun_pan = {_label_to_num(k): _label_to_num(v.split("(")[0]) if "(" in v else v
+                       for k, v in yun_pan.items()}
+
+        grid_cells = []
+        for num in range(1, 10):
+            row, col = self.GONG_LAYOUT.get(num, (1, 1))
+            yun_s = yun_pan.get(num, yun_pan.get(str(num), 5)) if isinstance(yun_pan, dict) else 5
+            shan_s = shan_pan.get(num, shan_pan.get(str(num), 5)) if isinstance(shan_pan, dict) else 5
+            xiang_s = xiang_pan.get(num, xiang_pan.get(str(num), 5)) if isinstance(xiang_pan, dict) else 5
+            ln_s = liunian_pan.get(num, liunian_pan.get(str(num), 5)) if isinstance(liunian_pan, dict) else 5
+
+            if isinstance(yun_s, str):
+                yun_s = 5
+            if isinstance(shan_s, str):
+                shan_s = 5
+            if isinstance(xiang_s, str):
+                xiang_s = 5
+            if isinstance(ln_s, str):
+                ln_s = 5
+
+            ln_color = self.STAR_COLORS.get(ln_s, "#8b949e")
+            fortune = self.STAR_FORTUNE.get(ln_s, "吉")
+
+            cell = f"""<div class="fs-gong" style="border-color:{ln_color}">
+                <div class="fs-palace">{self.PALACE_NAMES.get(num, str(num))}</div>
+                <div class="fs-stars">
+                    <span class="fs-star yun">运{self.STAR_NAMES.get(yun_s, str(yun_s))}</span>
+                    <span class="fs-star shan">山{self.STAR_NAMES.get(shan_s, str(shan_s))}</span>
+                    <span class="fs-star xiang">向{self.STAR_NAMES.get(xiang_s, str(xiang_s))}</span>
+                </div>
+                <div class="fs-liunian">流年{self.STAR_NAMES.get(ln_s, str(ln_s))}</div>
+                <div class="fs-fortune">{fortune}</div>
+            </div>"""
+            grid_cells.append(cell)
+
+        judgment_html = "".join(f'<li>{_esc(j)}</li>' for j in judgments[:5])
+
+        return f"""<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>玄空飞星风水 - TenGod v2.6</title>
+    <style>
+        :root {{
+            --fs-bg: #0d1117;
+            --fs-card: #161b22;
+            --fs-accent: #d4a853;
+            --fs-text: #c9d1d9;
+            --fs-muted: #8b949e;
+        }}
+        * {{ margin:0; padding:0; box-sizing:border-box; }}
+        body {{
+            font-family: 'Microsoft YaHei','PingFang SC',sans-serif;
+            background: var(--fs-bg);
+            color: var(--fs-text);
+            min-height: 100vh;
+            padding: 20px;
+        }}
+        .fs-container {{
+            max-width: 750px;
+            margin: 0 auto;
+        }}
+        .fs-header {{
+            text-align: center;
+            margin-bottom: 20px;
+        }}
+        .fs-header h1 {{
+            color: var(--fs-accent);
+            font-size: 1.8em;
+            margin-bottom: 4px;
+        }}
+        .fs-info {{
+            color: var(--fs-muted);
+            font-size: 0.9em;
+        }}
+        .fs-info span {{ color: var(--fs-accent); }}
+        .fs-grid {{
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            gap: 8px;
+            aspect-ratio: 1;
+            margin-bottom: 20px;
+        }}
+        .fs-gong {{
+            background: var(--fs-card);
+            border: 2px solid #30363d;
+            border-radius: 10px;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            transition: all 0.3s;
+            cursor: pointer;
+        }}
+        .fs-gong:hover {{
+            border-color: var(--fs-accent);
+            box-shadow: 0 0 12px rgba(212,168,83,0.2);
+            transform: scale(1.02);
+        }}
+        .fs-palace {{
+            font-size: 0.8em;
+            color: var(--fs-muted);
+        }}
+        .fs-stars {{
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }}
+        .fs-star {{
+            font-size: 0.7em;
+            padding: 1px 6px;
+            border-radius: 8px;
+        }}
+        .fs-star.yun {{ background: #1a3a2a; color: #3fb950; }}
+        .fs-star.shan {{ background: #2a1a3a; color: #d2a8ff; }}
+        .fs-star.xiang {{ background: #3a2a1a; color: #ffa657; }}
+        .fs-liunian {{
+            font-size: 1em;
+            font-weight: bold;
+            margin-top: 2px;
+        }}
+        .fs-fortune {{
+            font-size: 0.7em;
+            padding: 1px 8px;
+            border-radius: 8px;
+        }}
+        .fs-judgments {{
+            background: var(--fs-card);
+            border: 1px solid #30363d;
+            border-radius: 10px;
+            padding: 16px;
+        }}
+        .fs-judgments h3 {{
+            color: var(--fs-accent);
+            margin-bottom: 10px;
+        }}
+        .fs-judgments li {{
+            margin: 6px 0 6px 20px;
+            font-size: 0.9em;
+            color: var(--fs-muted);
+        }}
+        @media (max-width: 480px) {{
+            .fs-grid {{ gap: 4px; }}
+            .fs-gong {{ padding: 6px; }}
+        }}
+    </style>
+</head>
+<body>
+    <div class="fs-container">
+        <div class="fs-header">
+            <h1>玄空飞星风水</h1>
+            <div class="fs-info">
+                <span>{yun_name}</span> · {direction}
+            </div>
+        </div>
+        <div class="fs-grid">
+            {''.join(grid_cells)}
+        </div>
+        <div class="fs-judgments">
+            <h3>风水断语</h3>
+            <ul>{judgment_html}</ul>
+        </div>
+    </div>
+</body>
+</html>"""
+
+    def generate_svg(self, fengshui_data: Dict) -> str:
+        """生成玄空飞星SVG"""
+        yun_name = fengshui_data.get("yun_name", "")
+        direction = fengshui_data.get("direction", "")
+        yun_pan = fengshui_data.get("yun_pan", {})
+        liunian_pan = fengshui_data.get("liunian_pan", {})
+
+        w, h = 600, 620
+        cell_s = 160
+        gap = 6
+        start_x = (w - 3 * cell_s - 2 * gap) // 2
+        start_y = 80
+
+        parts = [
+            f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}">',
+            f'<rect width="{w}" height="{h}" fill="#0d1117"/>',
+            f'<text x="{w/2}" y="35" text-anchor="middle" fill="#d4a853" font-size="20" font-weight="bold">玄空飞星 {yun_name}</text>',
+            f'<text x="{w/2}" y="60" text-anchor="middle" fill="#8b949e" font-size="13">{direction}</text>',
+        ]
+
+        for num in range(1, 10):
+            row, col = self.GONG_LAYOUT.get(num, (1, 1))
+            x = start_x + col * (cell_s + gap)
+            y = start_y + row * (cell_s + gap)
+            palace = self.PALACE_NAMES.get(num, str(num))
+
+            ln_s = liunian_pan.get(num, liunian_pan.get(str(num), 5)) if isinstance(liunian_pan, dict) else 5
+            if isinstance(ln_s, str):
+                ln_s = 5
+            ln_color = self.STAR_COLORS.get(ln_s, "#8b949e")
+
+            parts.append(f'<rect x="{x}" y="{y}" width="{cell_s}" height="{cell_s}" rx="8" '
+                         f'fill="#161b22" stroke="{ln_color}" stroke-width="2"/>')
+            parts.append(f'<text x="{x + cell_s/2}" y="{y + 30}" text-anchor="middle" '
+                         f'fill="#8b949e" font-size="13">{palace}</text>')
+            parts.append(f'<text x="{x + cell_s/2}" y="{y + 70}" text-anchor="middle" '
+                         f'fill="#3fb950" font-size="12">运 {self.STAR_NAMES.get(yun_pan.get(num, yun_pan.get(str(num), 5)) if isinstance(yun_pan, dict) else 5, "?")}</text>')
+            parts.append(f'<text x="{x + cell_s/2}" y="{y + 110}" text-anchor="middle" '
+                         f'fill="{ln_color}" font-size="22" font-weight="bold">{self.STAR_NAMES.get(ln_s, str(ln_s))}</text>')
+            parts.append(f'<text x="{x + cell_s/2}" y="{y + 140}" text-anchor="middle" '
+                         f'fill="{ln_color}" font-size="13">{self.STAR_FORTUNE.get(ln_s, "吉")}</text>')
+
+        parts.append('</svg>')
+        return "\n".join(parts)
+
+
+def visualize_qimen(qimen_data: Dict) -> str:
+    """快速生成奇门遁甲HTML"""
+    viz = QimenChartVisualizer()
+    return viz.generate_html(qimen_data)
+
+
+def visualize_qimen_svg(qimen_data: Dict) -> str:
+    """快速生成奇门遁甲SVG"""
+    viz = QimenChartVisualizer()
+    return viz.generate_svg(qimen_data)
+
+
+def visualize_fengshui(fengshui_data: Dict) -> str:
+    """快速生成风水HTML"""
+    viz = FengshuiVisualizer()
+    return viz.generate_html(fengshui_data)
+
+
+def visualize_fengshui_svg(fengshui_data: Dict) -> str:
+    """快速生成风水SVG"""
+    viz = FengshuiVisualizer()
+    return viz.generate_svg(fengshui_data)
+
+
 __all__ = [
     "BaziChartVisualizer",
     "ZiweiChartVisualizer",
     "TrajectoryTimeline",
+    "QimenChartVisualizer",
+    "FengshuiVisualizer",
     "VisualizationConfig",
     "visualize_bazi",
     "visualize_ziwei",
     "visualize_ziwei_svg",
     "visualize_trajectory",
     "visualize_trajectory_svg",
+    "visualize_qimen",
+    "visualize_qimen_svg",
+    "visualize_fengshui",
+    "visualize_fengshui_svg",
 ]

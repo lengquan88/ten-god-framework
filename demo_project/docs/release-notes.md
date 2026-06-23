@@ -1,5 +1,70 @@
 # Release Notes
 
+## v2.6.0 — 术数可视化完善 + 缓存系统
+
+> 发布日期: 2026-06-23
+
+### Highlights
+
+- **奇门遁甲可视化**: 九宫格+八门+九星+八神+天地盘，HTML/SVG双格式
+- **风水可视化**: 玄空飞星九宫+运星/山星/向星/流年星四层叠加+风水断语
+- **引擎缓存系统**: 装饰器模式+TTL策略+命中率统计
+- **全术数可视化覆盖**: 八字→紫微→奇门→风水→轨迹→六爻(引擎已有)
+
+### 新增功能
+
+#### 1. 奇门遁甲可视化 (`QimenChartVisualizer`)
+- 洛书九宫布局（坎一/坤二/震三/巽四/中五/乾六/兑七/艮八/离九）
+- 每宫六层信息：宫名+九星+八神+天盘干+地盘干+八门
+- 八门颜色映射：吉门(绿)/凶门(红)/中平(金)
+- 暗色主题 + hover 动画 + 移动端响应式
+- SVG 矢量输出
+- 便捷函数：`visualize_qimen()` / `visualize_qimen_svg()`
+
+#### 2. 风水可视化 (`FengshuiVisualizer`)
+- 玄空飞星九宫格：运星/山星/向星/流年星四层叠加
+- 九星名称映射：一白至九紫 + 吉凶标注
+- 九星颜色映射：吉(绿)/凶(红)/大凶(深红)
+- 风水断语展示（可从 `xuankong.py` 计算输出）
+- HTML + SVG 双格式
+- 便捷函数：`visualize_fengshui()` / `visualize_fengshui_svg()`
+
+#### 3. 引擎缓存系统 (`cache_manager.py`)
+- `EngineCacheStats` 类：命中/未命中计数 + 命中率统计
+- `cached_engine()` 装饰器：自动 TTL + 命中率追踪
+- 引擎专用装饰器：`cached_bazi`/`cached_ziwei`/`cached_qimen`/`cached_fengshui`/`cached_fusion`
+- TTL 策略：八字 24h / 紫微 24h / 奇门 1h / 风水 1h / 融合 30min / 报告 10min
+- `get_engine_cache_stats()` 全局统计 API
+
+### 测试覆盖
+- 30 个 v2.6 新增测试用例
+- 奇门可视化测试（8）：初始化/HTML/SVG/九宫/八门/便捷函数/空数据
+- 风水可视化测试（9）：初始化/HTML/SVG/星名/断语/山向/便捷函数/空数据
+- 引擎缓存测试（9）：TTL默认值/统计记录/命中率/重置/装饰器
+- 回归测试（4）：导入/v2.5兼容/缓存管理器
+
+### 全量测试
+```bash
+# 149 passed (30 v2.6 + 40 v2.5 + 25 v2.4 + 34 v2.3 + 30 chart_visualizer)
+python -m pytest tests/test_v23_i18n.py tests/test_v24_visualization.py \
+     tests/test_v25_fusion.py tests/test_v26_visualization.py \
+     tests/test_chart_visualizer.py -v -k "not async"
+```
+
+### 升级说明
+```bash
+git pull origin main
+pip install -r requirements.txt
+python -m pytest tests/test_v26_visualization.py -v
+```
+
+### 兼容性
+- 向下兼容 v2.5.x 所有 API
+- 新可视化器与现有 `chart_visualizer.py` 共享暗色主题风格
+- 缓存装饰器可选使用，不影响现有代码路径
+
+---
+
 ## v2.5.0 — 智能分析与命运轨迹
 
 > 发布日期: 2026-06-23
