@@ -504,3 +504,90 @@ def translate_shier(shichen: str, lang: str = "en") -> str:
         key = shichen + "时"
         return engine.translate(key, lang)
     return engine.translate(shichen, lang)
+
+
+# ============================================================================
+# 兼容性别名（v2.16.1 —— 向后兼容旧版 API）
+# ============================================================================
+
+# I18nManager 兼容包装器（旧版名称，映射到 I18nEngine）
+class I18nManager:
+    """国际化管理器（兼容性别名，映射到 I18nEngine）"""
+
+    def __init__(self, default_locale: str = "zh-CN"):
+        self._engine = I18nEngine(default_lang=default_locale)
+        self._locale = default_locale
+
+    def get_locale(self) -> str:
+        return self._locale
+
+    def set_locale(self, locale: str) -> None:
+        self._locale = locale
+        self._engine.set_lang(locale)
+
+    def translate(self, text: str) -> str:
+        return self._engine.translate(text, self._locale)
+
+    def bulk_translate(self, texts: List[str]) -> List[str]:
+        return [self.translate(t) for t in texts]
+
+    def get_all_locales(self) -> List[str]:
+        return ["zh-CN", "zh-TW", "en", "ja", "ko", "vi"]
+
+    def translate_bazi_result(self, result: Dict[str, Any]) -> Dict[str, Any]:
+        out = {}
+        for key, val in result.items():
+            if isinstance(val, str):
+                out[key] = self.translate(val)
+            elif isinstance(val, list):
+                out[key] = [self.translate(v) if isinstance(v, str) else v for v in val]
+            else:
+                out[key] = val
+        return out
+
+    def format_number(self, n: float) -> str:
+        if self._locale == "en":
+            return f"{n:,.1f}"
+        return str(n)
+
+    def format_date(self, date: Any) -> str:
+        return date.isoformat() if hasattr(date, "isoformat") else str(date)
+
+    def merge_custom_translations(self, locale: str, translations: Dict[str, str]) -> None:
+        for key, val in translations.items():
+            self._engine.add_custom(key, {locale: val})
+
+    def get_ui_label(self, label: str) -> str:
+        return self.translate(label)
+
+    def get_locale_for_market(self, market: str) -> str:
+        mapping = {
+            "CN": "zh-CN", "TW": "zh-TW", "HK": "zh-TW",
+            "US": "en", "GB": "en", "JP": "ja", "KR": "ko", "VN": "vi",
+        }
+        return mapping.get(market, "zh-CN")
+
+
+def detect_locale_from_text(text: str) -> str:
+    """从文本检测语言（兼容性函数）"""
+    # 简单的 Unicode 范围检测
+    hiragana = sum(1 for c in text if "\u3040" <= c <= "\u309f")
+    katakana = sum(1 for c in text if "\u30a0" <= c <= "\u30ff")
+    hangul = sum(1 for c in text if "\uac00" <= c <= "\ud7af")
+    latin_vn = sum(1 for c in text if c in "àáảãạăắằẳẵặâấầẩẫậđêếềểễệôốồổỗộơớờởỡợưứừửữự")
+    cjk = sum(1 for c in text if "\u4e00" <= c <= "\u9fff")
+
+    if hiragana + katakana > 0:
+        return "ja"
+    if hangul > 0:
+        return "ko"
+    if latin_vn > 0:
+        return "vi"
+    if cjk > 0:
+        return "zh-CN"
+    return "en"
+
+
+def get_i18n_manager() -> I18nManager:
+    """获取 I18nManager 单例（兼容性别名）"""
+    return I18nManager()
