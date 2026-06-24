@@ -4547,6 +4547,134 @@ async def liunian_single_year(
 
 
 # ============================================================================
+# v2.14: 天眼门禁 API
+# ============================================================================
+
+from tengod.tiangan_gate import get_tianmen
+from tengod.xiuzhen_realms import get_evaluator, NINE_REALMS
+from tengod.self_correction import get_daemon
+from tengod.hundun_sea import get_hundun_sea
+from tengod.huigu_scheduler import get_huigu_scheduler
+
+
+@app.get("/api/v2/gate/stats", tags=["v2.14 天眼门禁"])
+async def gate_stats():
+    """天眼门禁统计"""
+    tianmen = get_tianmen()
+    return tianmen.get_stats()
+
+
+@app.get("/api/v2/gate/verdict", tags=["v2.14 天眼门禁"])
+async def gate_verdict(
+    output: str = "",
+    confidence: float = 0.5,
+    entropy: float = 0.5,
+    variance: float = 0.1,
+):
+    """知止判定测试"""
+    tianmen = get_tianmen()
+    guarded, verdict = tianmen.guard(
+        output,
+        confidence_scores={"overall": confidence},
+        feature_entropies={"output": entropy},
+    )
+    return {
+        "passed": verdict.passed,
+        "confidence": round(verdict.confidence, 3),
+        "cultivation_qi": round(verdict.cultivation_qi, 3),
+        "should_retreat": verdict.should_retreat,
+        "reason": verdict.retreat_reason,
+        "guarded_output": guarded,
+    }
+
+
+@app.get("/api/v2/realms/status", tags=["v2.14 修真九境"])
+async def realms_status():
+    """修真九境修行状态"""
+    evaluator = get_evaluator()
+    return evaluator.get_realm_progress()
+
+
+@app.get("/api/v2/realms/all", tags=["v2.14 修真九境"])
+async def realms_all():
+    """九境全览"""
+    return [
+        {
+            "index": r.index,
+            "name": r.name,
+            "description": r.description,
+            "threshold": r.pass_threshold,
+        }
+        for r in NINE_REALMS
+    ]
+
+
+@app.post("/api/v2/realms/evaluate", tags=["v2.14 修真九境"])
+async def realms_evaluate(request: Request):
+    """心魔劫评测"""
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="请求体须为JSON")
+    scores = body.get("scores", {})
+    evaluator = get_evaluator()
+    return evaluator.evaluate(scores, body.get("test_name", "心魔劫"))
+
+
+@app.post("/api/v2/correct", tags=["v2.14 自修正"])
+async def self_correct(request: Request):
+    """七步自修正流程"""
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="请求体须为JSON")
+    daemon = get_daemon()
+    state, report = daemon.correct(
+        current_state=body.get("state", {}),
+        expected_output=body.get("expected"),
+        physical_constraints=body.get("constraints"),
+        memory_store=body.get("memory"),
+        enable_gate=body.get("enable_gate", True),
+    )
+    return {
+        "corrected_state": state,
+        "report": report.to_dict(),
+    }
+
+
+@app.get("/api/v2/correct/stats", tags=["v2.14 自修正"])
+async def correction_stats():
+    """自修正统计"""
+    daemon = get_daemon()
+    return daemon.get_stats()
+
+
+@app.get("/api/v2/hundun/stats", tags=["v2.14 混沌海"])
+async def hundun_stats():
+    """混沌海统计"""
+    sea = get_hundun_sea()
+    return sea.get_stats()
+
+
+@app.get("/api/v2/hundun/foams", tags=["v2.14 混沌海"])
+async def hundun_foams(status: str = "floating"):
+    """浮沫坐标列表"""
+    sea = get_hundun_sea()
+    if status == "verified":
+        foams = sea.get_verified_foams()
+    else:
+        foams = sea.get_floating_foams()
+    return [f.to_dict() for f in foams[:20]]
+
+
+@app.get("/api/v2/huigu/stats", tags=["v2.14 回头看"])
+async def huigu_stats():
+    """回头看调度器统计"""
+    scheduler = get_huigu_scheduler()
+    return scheduler.get_stats()
+
+
+# ============================================================================
 # 启动入口
 # ============================================================================
 
