@@ -1,4 +1,4 @@
-# TenGod Framework v2.12 — 生产部署 docker-compose
+# TenGod Framework v2.0 — 生产部署 docker-compose
 #
 # 启动:
 #   docker-compose up -d
@@ -8,6 +8,11 @@
 #
 # 停止:
 #   docker-compose down
+#
+# v2.0 升级:
+#   - 内在小孩健康检查端点
+#   - 环境变量支持 v2.16.1 参数
+#   - 镜像标签统一为 v2.16.1
 
 version: "3.9"
 
@@ -17,6 +22,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: tengod:v2.16.1
     container_name: tengod-api
     restart: unless-stopped
     ports:
@@ -29,6 +35,12 @@ services:
       - API_KEY=${API_KEY:-}
       - MAX_REQUESTS_PER_MINUTE=${MAX_REQUESTS_PER_MINUTE:-100}
       - ENABLE_CORS=${ENABLE_CORS:-true}
+      # v2.16.1 内在小孩参数
+      - INNER_CHILD_ALERTNESS=${INNER_CHILD_ALERTNESS:-32.0}
+      - INNER_CHILD_PHI_LIMIT=${INNER_CHILD_PHI_LIMIT:-0.8}
+      - INNER_CHILD_BETA_LIMIT=${INNER_CHILD_BETA_LIMIT:-0.7}
+      - INNER_CHILD_LAMBDA=${INNER_CHILD_LAMBDA:-0.4}
+      - INNER_CHILD_GAMMA=${INNER_CHILD_GAMMA:-0.2}
     volumes:
       - tengod_data:/data
       - ./logs:/app/logs

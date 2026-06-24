@@ -1,12 +1,12 @@
 # =============================================================================
-# TenGod Framework Docker 镜像构建 v2.9
+# TenGod Framework Docker 镜像构建 v2.0
 # =============================================================================
-# 中华文明数字永生体 · 生产环境部署
-# 优化：多阶段构建、层缓存、最小镜像、非root用户
+# 中华文明数字永生体 · v2.16.1「内在小孩·知止不殆」
+# 升级：Python 3.14、多阶段构建、内在小孩健康检查、非root用户
 # =============================================================================
 
 # ── 第一阶段：构建依赖 ────────────────────────────────────────────────────
-FROM python:3.11-slim AS builder
+FROM python:3.14-slim AS builder
 
 WORKDIR /build
 
@@ -23,12 +23,12 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --user -r requirements.txt
 
 # ── 第二阶段：运行时 ──────────────────────────────────────────────────────
-FROM python:3.11-slim
+FROM python:3.14-slim
 
 # 镜像元数据
 LABEL org.opencontainers.image.title="TenGod Framework" \
-      org.opencontainers.image.description="中华文明数字永生体 · 命理智能分析系统" \
-      org.opencontainers.image.version="2.13.0" \
+      org.opencontainers.image.description="中华文明数字永生体 · 命理智能分析系统 v2.16.1" \
+      org.opencontainers.image.version="2.16.1" \
       org.opencontainers.image.authors="TenGod Team" \
       org.opencontainers.image.licenses="MIT"
 
@@ -52,7 +52,10 @@ ENV PATH=/home/app/.local/bin:$PATH \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app \
-    ENV=production
+    ENV=production \
+    INNER_CHILD_ALERTNESS=32.0 \
+    INNER_CHILD_PHI_LIMIT=0.8 \
+    INNER_CHILD_BETA_LIMIT=0.7
 
 # 切换非 root 用户
 USER app
@@ -60,7 +63,7 @@ USER app
 # 暴露端口
 EXPOSE 8000
 
-# 健康检查
+# 健康检查（含内在小孩状态）
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:8000/api/health || exit 1
 

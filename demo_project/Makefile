@@ -1,20 +1,25 @@
 # =============================================================================
-# 中华文明数字永生体 · Makefile v2.13
+# 中华文明数字永生体 · Makefile v2.0
 # =============================================================================
-# 轻量门禁策略：一键执行全量质量检查
+# v2.0 升级：
+#   - 移除 --ignore，使用 xfail 模式
+#   - 新增 inner-child-check 门禁
+#   - 新增 deploy 部署阶段
+#   - 版本统一为 v2.16.1
 # 用法：
-#   make all       - 全量门禁（lint + 测试 + 覆盖率 + 安全检查）
-#   make lint      - 代码规范检查
-#   make test      - 运行测试
-#   make test-fast - 快速测试（跳过缓慢测试）
-#   make coverage  - 生成覆盖率报告
-#   make security  - 安全扫描
-#   make build     - 构建 Docker 镜像
-#   make clean     - 清理临时文件
-#   make lock      - 生成依赖锁定文件
+#   make all              - 全量门禁（lint + test + inner-child + coverage + security）
+#   make lint             - 代码规范检查
+#   make test             - 运行测试（xfail 模式）
+#   make inner-child-check - 内在小孩门禁（正交性 + 对抗 + 回退）
+#   make coverage         - 生成覆盖率报告
+#   make security         - 安全扫描
+#   make build            - 构建 Docker 镜像
+#   make deploy           - 部署到生产环境
+#   make clean            - 清理临时文件
+#   make lock             - 生成依赖锁定文件
 # =============================================================================
 
-PYTHON := python3
+PYTHON := PYTHONPATH=. python3
 PIP := pip
 RUFF := ruff
 PYTEST := pytest
@@ -26,66 +31,61 @@ YELLOW := \033[1;33m
 RED    := \033[0;31m
 NC     := \033[0m
 
-.PHONY: all lint test test-fast coverage security build deploy clean lock help
+.PHONY: all lint test inner-child-check coverage security build deploy clean lock help
 
 # ── 全量门禁（默认） ──────────────────────────────────────────────────────
-all: lint test coverage security
-	@echo "$(GREEN)✓ 全量门禁通过$(NC)"
+all: lint test inner-child-check coverage security
+	@echo "$(GREEN)✓ 全量门禁 v2.0 通过$(NC)"
 
 # ── 代码规范 ──────────────────────────────────────────────────────────────
 lint:
-	@echo "$(YELLOW)[1/4] 代码规范检查...$(NC)"
+	@echo "$(YELLOW)[1/5] 代码规范检查...$(NC)"
 	$(RUFF) check tengod/ tests/ --select=E,F --ignore=E501,F401,E402,F821
 	$(RUFF) format --check tengod/ tests/ || true
 	@echo "$(GREEN)  ✓ lint 完成$(NC)"
 
-# ── 测试 ──────────────────────────────────────────────────────────────────
+# ── 测试（v2.0：xfail 模式，无 --ignore）─────────────────────────────────
 test:
-	@echo "$(YELLOW)[2/4] 运行测试...$(NC)"
+	@echo "$(YELLOW)[2/5] 运行测试（xfail 模式）...$(NC)"
 	$(PYTEST) tests/ \
-		--ignore=tests/test_ai_interpreter.py \
-		--ignore=tests/test_bazi_api.py \
-		--ignore=tests/test_case_library.py \
-		--ignore=tests/test_phase20.py \
-		--ignore=tests/test_phase22.py \
-		--ignore=tests/test_phase24_25.py \
-		--ignore=tests/test_pwa.py \
-		--ignore=tests/test_api_integration.py \
-		--tb=short -q || $(PYTEST) tests/ \
-			--ignore=tests/test_ai_interpreter.py \
-			--ignore=tests/test_bazi_api.py \
-			--ignore=tests/test_case_library.py \
-			--ignore=tests/test_phase20.py \
-			--ignore=tests/test_phase22.py \
-			--ignore=tests/test_phase24_25.py \
-			--ignore=tests/test_pwa.py \
-			--ignore=tests/test_api_integration.py \
-			--tb=line -q
-	@echo "$(GREEN)  ✓ 测试完成$(NC)"
+		--tb=short -q \
+		-p no:warnings || \
+	$(PYTEST) tests/ \
+		--tb=line -q \
+		-p no:warnings
+	@echo "$(GREEN)  ✓ 测试完成（xfail 标记的预存失败不计入）$(NC)"
 
-test-fast:
-	@echo "$(YELLOW)[2/4] 快速测试...$(NC)"
-	$(PYTEST) tests/test_v29_agent.py tests/test_v29_integration.py tests/test_v212_data_api.py -q --tb=short
-	@echo "$(GREEN)  ✓ 快速测试完成$(NC)"
+# ── 内在小孩门禁（v2.16.1 新增） ──────────────────────────────────────────
+inner-child-check:
+	@echo "$(YELLOW)[3/5] 内在小孩门禁...$(NC)"
+	@echo "  正交性检验..."
+	@$(PYTHON) -c "from tengod.inner_child import get_inner_child_sm; \
+		sm = get_inner_child_sm(); \
+		ortho = sm.check_orthogonality(); \
+		assert ortho['all_orthogonal'], '正交性失败!'; \
+		print('    ✅ 正交性: {}对全正交'.format(len(ortho['pairs'])))"
+	@echo "  对抗测试..."
+	$(PYTHON) scripts/inner_child_adversarial_test.py
+	@echo "  回退测试..."
+	@$(PYTHON) -c "from tengod.inner_child import InnerChildStateMachine, _PROTOTYPE_VECTORS; \
+		h = list(_PROTOTYPE_VECTORS[0]); \
+		sm = InnerChildStateMachine(alertness=32.0, phi_limit=0.8, lambda_=0.0, gamma=0.0); \
+		r = sm.process(h, auto_correct=True); \
+		assert r['safety_fallback'], '应触发safety_fallback!'; \
+		print('    ✅ 回退测试通过')"
+	@echo "$(GREEN)  ✓ 内在小孩门禁通过$(NC)"
 
 # ── 覆盖率 ────────────────────────────────────────────────────────────────
 coverage:
-	@echo "$(YELLOW)[3/4] 生成覆盖率报告...$(NC)"
+	@echo "$(YELLOW)[4/5] 生成覆盖率报告...$(NC)"
 	$(PYTEST) tests/ \
-		--ignore=tests/test_ai_interpreter.py \
-		--ignore=tests/test_bazi_api.py \
-		--ignore=tests/test_case_library.py \
-		--ignore=tests/test_phase20.py \
-		--ignore=tests/test_phase22.py \
-		--ignore=tests/test_phase24_25.py \
-		--ignore=tests/test_pwa.py \
-		--ignore=tests/test_api_integration.py \
-		--cov=tengod --cov-report=html --cov-report=term -q || true
+		--cov=tengod --cov-report=html --cov-report=term -q \
+		-p no:warnings || true
 	@echo "$(GREEN)  ✓ 覆盖率报告已生成: htmlcov/index.html$(NC)"
 
 # ── 安全扫描 ──────────────────────────────────────────────────────────────
 security:
-	@echo "$(YELLOW)[4/4] 安全扫描...$(NC)"
+	@echo "$(YELLOW)[5/5] 安全扫描...$(NC)"
 	@$(PIP) install bandit pip-audit 2>/dev/null
 	bandit -r tengod/ -ll -q || true
 	pip-audit -r requirements.txt --disable-pip || true
@@ -93,7 +93,14 @@ security:
 
 # ── Docker 构建 ───────────────────────────────────────────────────────────
 build:
-	$(DOCKER) build -t tengod:v2.13 .
+	$(DOCKER) build -t tengod:v2.16.1 .
+
+# ── 部署（v2.0 新增）──────────────────────────────────────────────────────
+deploy:
+	@echo "$(YELLOW)部署到生产环境...$(NC)"
+	$(DOCKER) compose -f docker-compose.yml up -d --force-recreate
+	@sleep 5
+	@curl -sf http://localhost:8000/api/health >/dev/null && echo "$(GREEN)  ✓ 部署成功 — 健康检查通过$(NC)" || echo "$(RED)  ✗ 健康检查失败$(NC)"
 
 # ── 清理 ──────────────────────────────────────────────────────────────────
 clean:
@@ -111,15 +118,16 @@ lock:
 
 # ── 帮助 ──────────────────────────────────────────────────────────────────
 help:
-	@echo "中华文明数字永生体 · Makefile 命令"
-	@echo "===================================="
-	@echo "  make all       - 全量门禁（lint + 测试 + 覆盖率 + 安全）"
-	@echo "  make lint      - 代码规范检查（ruff）"
-	@echo "  make test      - 运行全量测试"
-	@echo "  make test-fast - 快速核心测试"
-	@echo "  make coverage  - 生成覆盖率报告"
-	@echo "  make security  - 安全扫描（bandit + pip-audit）"
-	@echo "  make build     - 构建 Docker 镜像"
-	@echo "  make clean     - 清理临时文件"
-	@echo "  make lock      - 锁定依赖版本"
-	@echo "  make help      - 显示此帮助"
+	@echo "中华文明数字永生体 · Makefile v2.0"
+	@echo "========================================"
+	@echo "  make all              - 全量门禁"
+	@echo "  make lint             - 代码规范检查"
+	@echo "  make test             - 运行测试（xfail 模式）"
+	@echo "  make inner-child-check - 内在小孩门禁（正交性+对抗+回退）"
+	@echo "  make coverage         - 生成覆盖率报告"
+	@echo "  make security         - 安全扫描"
+	@echo "  make build            - 构建 Docker 镜像"
+	@echo "  make deploy           - 部署到生产环境"
+	@echo "  make clean            - 清理临时文件"
+	@echo "  make lock             - 锁定依赖版本"
+	@echo "  make help             - 显示此帮助"
