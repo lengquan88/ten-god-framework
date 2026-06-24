@@ -156,8 +156,8 @@ class CaseLibrary:
 
     def __init__(self, store: Optional[DataStore] = None):
         self.store = store or get_data_store()
-        # 确保新表已创建（checkfirst=True 避免重复创建报错）
-        Base.metadata.create_all(self.store._engine, checkfirst=True)
+        # 确保新表已创建
+        Base.metadata.create_all(self.store._engine)
 
     def _session(self) -> Session:
         return self.store._session()

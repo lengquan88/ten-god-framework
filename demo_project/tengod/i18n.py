@@ -1,593 +1,613 @@
-#!/usr/bin/env python3
-"""
-i18n.py — 命理系统国际化模块 v2.3.0
-第一阶段：多语言翻译层
+"""Stage 25: i18n / l10n subsystem for tengod.
 
-支持语言：
-  - zh-CN 简体中文（默认）
-  - zh-TW 繁体中文
-  - en    English
-
-翻译范围：
-  - 天干地支、五行、十神、神煞、格局
-  - 二十四节气、十二时辰
-  - 紫微斗数星曜、六爻卦名
-  - API 响应描述、UI 文案
-
-用法：
-    from tengod.i18n import t, set_lang, get_lang, translate_bazi
-
-    set_lang("en")
-    print(t("甲木"))     # "Jia Wood"
-    print(translate_bazi(pillars, lang="en"))
+Provides translation dictionaries covering 天干地支 / 五行 / 十神 /
+格局 / 生肖 / UI 标签 / 通用短语 / 错误消息 in zh-CN, zh-TW,
+en, ja, ko and vi.
 """
 
 from __future__ import annotations
 
+import datetime as _dt
 import json
-from typing import Any, Dict, List, Optional, Tuple
+import locale as _locale_module
+import re
+from typing import Any, Dict, List, Optional
 
-__all__ = [
-    "t",
-    "set_lang",
-    "get_lang",
-    "translate_bazi",
-    "translate_wuxing",
-    "translate_shier",
-    "I18nEngine",
-    "get_i18n_engine",
-]
+# ---------------------------------------------------------------------------
+# Translation dictionary
+# ---------------------------------------------------------------------------
 
-_current_lang = "zh-CN"
+# zh-CN is the canonical term list. All other locales provide a
+# term -> translation mapping. Unknown terms fall back to zh-CN.
 
-_i18n_engine: Optional["I18nEngine"] = None
+_TRANSLATIONS: Dict[str, Dict[str, str]] = {
+    "zh-CN": {
+        # 天干
+        "甲": "甲", "乙": "乙", "丙": "丙", "丁": "丁",
+        "戊": "戊", "己": "己", "庚": "庚", "辛": "辛",
+        "壬": "壬", "癸": "癸",
+        # 地支
+        "子": "子", "丑": "丑", "寅": "寅", "卯": "卯",
+        "辰": "辰", "巳": "巳", "午": "午", "未": "未",
+        "申": "申", "酉": "酉", "戌": "戌", "亥": "亥",
+        # 五行
+        "金": "金", "木": "木", "水": "水", "火": "火", "土": "土",
+        # 十神
+        "比肩": "比肩", "劫财": "劫财",
+        "食神": "食神", "伤官": "伤官",
+        "偏财": "偏财", "正财": "正财",
+        "七杀": "七杀", "正官": "正官",
+        "偏印": "偏印", "正印": "正印",
+        # 格局
+        "伤官格": "伤官格", "正官格": "正官格", "偏财格": "偏财格",
+        "正印格": "正印格", "偏印格": "偏印格", "食神格": "食神格",
+        "建禄格": "建禄格", "专旺格": "专旺格", "从格": "从格",
+        # 生肖
+        "鼠": "鼠", "牛": "牛", "虎": "虎", "兔": "兔",
+        "龙": "龙", "蛇": "蛇", "马": "马", "羊": "羊",
+        "猴": "猴", "鸡": "鸡", "狗": "狗", "猪": "猪",
+        # 星座
+        "白羊": "白羊", "金牛": "金牛", "双子": "双子", "巨蟹": "巨蟹",
+        "狮子": "狮子", "处女": "处女", "天秤": "天秤", "天蝎": "天蝎",
+        "射手": "射手", "摩羯": "摩羯", "水瓶": "水瓶", "双鱼": "双鱼",
+        # UI 标签
+        "命盘": "命盘", "排盘": "排盘", "分析": "分析", "报告": "报告",
+        "大运": "大运", "流年": "流年", "日柱": "日柱", "日主": "日主",
+        "年柱": "年柱", "月柱": "月柱", "时柱": "时柱",
+        "男": "男", "女": "女",
+        "生": "生", "克": "克", "合": "合", "冲": "冲",
+        # 通用短语
+        "吉": "吉", "平": "平", "凶": "凶",
+        "有利": "有利", "不利": "不利", "注意": "注意",
+        "好运": "好运", "坏运": "坏运",
+        # 错误 / 提示
+        "error.invalid_date": "无效的出生日期",
+        "error.invalid_hour": "无效的时辰",
+        "error.network": "网络异常，请重试",
+        "error.token_expired": "登录已过期，请重新登录",
+        "error.generic": "系统繁忙，请稍后再试",
+        # 常用
+        "yes": "是", "no": "否",
+        "login": "登录", "share": "分享", "report": "报告",
+        "chart": "命盘", "analyze": "分析",
+    },
+    "zh-TW": {
+        "甲": "甲", "乙": "乙", "丙": "丙", "丁": "丁",
+        "戊": "戊", "己": "己", "庚": "庚", "辛": "辛",
+        "壬": "壬", "癸": "癸",
+        "子": "子", "丑": "丑", "寅": "寅", "卯": "卯",
+        "辰": "辰", "巳": "巳", "午": "午", "未": "未",
+        "申": "申", "酉": "酉", "戌": "戌", "亥": "亥",
+        "金": "金", "木": "木", "水": "水", "火": "火", "土": "土",
+        "比肩": "比肩", "劫财": "劫財",
+        "食神": "食神", "伤官": "傷官",
+        "偏财": "偏財", "正财": "正財",
+        "七杀": "七殺", "正官": "正官",
+        "偏印": "偏印", "正印": "正印",
+        "伤官格": "傷官格", "正官格": "正官格", "偏财格": "偏財格",
+        "正印格": "正印格", "偏印格": "偏印格", "食神格": "食神格",
+        "建禄格": "建祿格", "专旺格": "專旺格", "从格": "從格",
+        "鼠": "鼠", "牛": "牛", "虎": "虎", "兔": "兔",
+        "龙": "龍", "蛇": "蛇", "马": "馬", "羊": "羊",
+        "猴": "猴", "鸡": "雞", "狗": "狗", "猪": "豬",
+        "白羊": "牡羊", "金牛": "金牛", "双子": "雙子", "巨蟹": "巨蟹",
+        "狮子": "獅子", "处女": "處女", "天秤": "天秤", "天蝎": "天蠍",
+        "射手": "射手", "摩羯": "摩羯", "水瓶": "水瓶", "双鱼": "雙魚",
+        "命盘": "命盤", "排盘": "排盤", "分析": "分析", "报告": "報告",
+        "大运": "大運", "流年": "流年", "日柱": "日柱", "日主": "日主",
+        "年柱": "年柱", "月柱": "月柱", "时柱": "時柱",
+        "男": "男", "女": "女",
+        "生": "生", "克": "剋", "合": "合", "冲": "沖",
+        "吉": "吉", "平": "平", "凶": "凶",
+        "有利": "有利", "不利": "不利", "注意": "注意",
+        "好运": "好運", "坏运": "壞運",
+        "error.invalid_date": "無效的出生日期",
+        "error.invalid_hour": "無效的時辰",
+        "error.network": "網路異常，請重試",
+        "error.token_expired": "登入已過期，請重新登入",
+        "error.generic": "系統繁忙，請稍後再試",
+        "yes": "是", "no": "否",
+        "login": "登入", "share": "分享", "report": "報告",
+        "chart": "命盤", "analyze": "分析",
+    },
+    "en": {
+        "甲": "Jia", "乙": "Yi", "丙": "Bing", "丁": "Ding",
+        "戊": "Wu", "己": "Ji", "庚": "Geng", "辛": "Xin",
+        "壬": "Ren", "癸": "Gui",
+        "子": "Zi", "丑": "Chou", "寅": "Yin", "卯": "Mao",
+        "辰": "Chen", "巳": "Si", "午": "Wu", "未": "Wei",
+        "申": "Shen", "酉": "You", "戌": "Xu", "亥": "Hai",
+        "金": "Metal", "木": "Wood", "水": "Water",
+        "火": "Fire", "土": "Earth",
+        "比肩": "Bi Jian (Peer)", "劫财": "Jie Cai (Robber)",
+        "食神": "Shi Shen (Food God)", "伤官": "Shang Guan (Hurting Officer)",
+        "偏财": "Pian Cai (Indirect Wealth)", "正财": "Zheng Cai (Direct Wealth)",
+        "七杀": "Qi Sha (Seven Killings)", "正官": "Zheng Guan (Direct Officer)",
+        "偏印": "Pian Yin (Indirect Resource)", "正印": "Zheng Yin (Direct Resource)",
+        "伤官格": "Hurting Officer Pattern", "正官格": "Direct Officer Pattern",
+        "偏财格": "Indirect Wealth Pattern", "正印格": "Direct Resource Pattern",
+        "偏印格": "Indirect Resource Pattern", "食神格": "Food God Pattern",
+        "建禄格": "Jian Lu Pattern", "专旺格": "Special Strong Pattern",
+        "从格": "Follower Pattern",
+        "鼠": "Rat", "牛": "Ox", "虎": "Tiger", "兔": "Rabbit",
+        "龙": "Dragon", "蛇": "Snake", "马": "Horse", "羊": "Goat",
+        "猴": "Monkey", "鸡": "Rooster", "狗": "Dog", "猪": "Pig",
+        "白羊": "Aries", "金牛": "Taurus", "双子": "Gemini", "巨蟹": "Cancer",
+        "狮子": "Leo", "处女": "Virgo", "天秤": "Libra", "天蝎": "Scorpio",
+        "射手": "Sagittarius", "摩羯": "Capricorn", "水瓶": "Aquarius", "双鱼": "Pisces",
+        "命盘": "Chart", "排盘": "Arrange Chart", "分析": "Analysis",
+        "报告": "Report", "大运": "Major Fortune", "流年": "Annual Fortune",
+        "日柱": "Day Pillar", "日主": "Day Master",
+        "年柱": "Year Pillar", "月柱": "Month Pillar", "时柱": "Hour Pillar",
+        "男": "Male", "女": "Female",
+        "生": "Engender", "克": "Control", "合": "Combine", "冲": "Clash",
+        "吉": "Auspicious", "平": "Neutral", "凶": "Inauspicious",
+        "有利": "Favorable", "不利": "Unfavorable", "注意": "Attention",
+        "好运": "Good Fortune", "坏运": "Bad Fortune",
+        "error.invalid_date": "Invalid birth date",
+        "error.invalid_hour": "Invalid hour",
+        "error.network": "Network error, please retry",
+        "error.token_expired": "Session expired, please login again",
+        "error.generic": "System busy, please try later",
+        "yes": "Yes", "no": "No",
+        "login": "Login", "share": "Share", "report": "Report",
+        "chart": "Chart", "analyze": "Analyze",
+    },
+    "ja": {
+        "甲": "甲（きのえ）", "乙": "乙（きのと）",
+        "丙": "丙（ひのえ）", "丁": "丁（ひのと）",
+        "戊": "戊（つちのえ）", "己": "己（つちのと）",
+        "庚": "庚（かのえ）", "辛": "辛（かのと）",
+        "壬": "壬（みずのえ）", "癸": "癸（みずのと）",
+        "子": "子（ね）", "丑": "丑（うし）", "寅": "寅（とら）",
+        "卯": "卯（う）", "辰": "辰（たつ）", "巳": "巳（み）",
+        "午": "午（うま）", "未": "未（ひつじ）",
+        "申": "申（さる）", "酉": "酉（とり）",
+        "戌": "戌（いぬ）", "亥": "亥（い）",
+        "金": "金", "木": "木", "水": "水", "火": "火", "土": "土",
+        "比肩": "比肩（ひけん）", "劫财": "劫財（ごうざい）",
+        "食神": "食神（しょくじん）", "伤官": "傷官（しょうかん）",
+        "偏财": "偏財（へんざい）", "正财": "正財（せいざい）",
+        "七杀": "七殺（しちさつ）", "正官": "正官（せいかん）",
+        "偏印": "偏印（へんいん）", "正印": "正印（せいいん）",
+        "伤官格": "傷官格", "正官格": "正官格", "偏财格": "偏財格",
+        "正印格": "正印格", "偏印格": "偏印格", "食神格": "食神格",
+        "建禄格": "建禄格", "专旺格": "専旺格", "从格": "従格",
+        "鼠": "鼠（ねずみ）", "牛": "牛（うし）",
+        "虎": "虎（とら）", "兔": "兔（うさぎ）",
+        "龙": "龍（たつ）", "蛇": "蛇（へび）",
+        "马": "馬（うま）", "羊": "羊（ひつじ）",
+        "猴": "猿（さる）", "鸡": "鶏（にわとり）",
+        "狗": "犬（いぬ）", "猪": "猪（いのしし）",
+        "白羊": "牡羊座", "金牛": "牡牛座", "双子": "双子座", "巨蟹": "蟹座",
+        "狮子": "獅子座", "处女": "乙女座", "天秤": "天秤座", "天蝎": "蠍座",
+        "射手": "射手座", "摩羯": "山羊座", "水瓶": "水瓶座", "双鱼": "魚座",
+        "命盘": "命盤（めいばん）", "排盘": "排盤（はいばん）",
+        "分析": "分析", "报告": "レポート",
+        "大运": "大運（たいうん）", "流年": "流年（りゅうねん）",
+        "日柱": "日柱（にっちゅう）", "日主": "日主（にっしゅ）",
+        "年柱": "年柱（ねんちゅう）", "月柱": "月柱（げっちゅう）",
+        "时柱": "時柱（じちゅう）",
+        "男": "男", "女": "女",
+        "生": "生ずる", "克": "剋す", "合": "合", "冲": "冲",
+        "吉": "吉", "平": "平", "凶": "凶",
+        "有利": "有利", "不利": "不利", "注意": "注意",
+        "好运": "好運", "坏运": "悪運",
+        "error.invalid_date": "無効な生年月日です",
+        "error.invalid_hour": "無効な時辰です",
+        "error.network": "ネットワークエラー、再試行してください",
+        "error.token_expired": "セッションの有効期限が切れました。再ログインしてください",
+        "error.generic": "システムが混雑しています。後でもう一度お試しください",
+        "yes": "はい", "no": "いいえ",
+        "login": "ログイン", "share": "共有", "report": "レポート",
+        "chart": "チャート", "analyze": "分析",
+    },
+    "ko": {
+        "甲": "갑", "乙": "을", "丙": "병", "丁": "정",
+        "戊": "무", "己": "기", "庚": "경", "辛": "신",
+        "壬": "임", "癸": "계",
+        "子": "자", "丑": "축", "寅": "인", "卯": "묘",
+        "辰": "진", "巳": "사", "午": "오", "未": "미",
+        "申": "신", "酉": "유", "戌": "술", "亥": "해",
+        "金": "금", "木": "목", "水": "수", "火": "화", "土": "토",
+        "比肩": "비견", "劫财": "겁재",
+        "食神": "식신", "伤官": "상관",
+        "偏财": "편재", "正财": "정재",
+        "七杀": "칠살", "正官": "정관",
+        "偏印": "편인", "正印": "정인",
+        "伤官格": "상관격", "正官格": "정관격", "偏财格": "편재격",
+        "正印格": "정인격", "偏印格": "편인격", "食神格": "식신격",
+        "建禄格": "건록격", "专旺格": "전왕격", "从格": "종격",
+        "鼠": "쥐", "牛": "소", "虎": "호랑이", "兔": "토끼",
+        "龙": "용", "蛇": "뱀", "马": "말", "羊": "양",
+        "猴": "원숭이", "鸡": "닭", "狗": "개", "猪": "돼지",
+        "白羊": "양자리", "金牛": "황소자리", "双子": "쌍둥이자리",
+        "巨蟹": "게자리", "狮子": "사자자리", "处女": "처녀자리",
+        "天秤": "천칭자리", "天蝎": "전갈자리",
+        "射手": "궁수자리", "摩羯": "염소자리",
+        "水瓶": "물병자리", "双鱼": "물고기자리",
+        "命盘": "명반", "排盘": "배반", "分析": "분석", "报告": "보고서",
+        "大运": "대운", "流年": "유년", "日柱": "일주", "日主": "일주",
+        "年柱": "년주", "月柱": "월주", "时柱": "시주",
+        "男": "남", "女": "여",
+        "生": "생", "克": "극", "合": "합", "冲": "충",
+        "吉": "길", "平": "평", "凶": "흉",
+        "有利": "유리", "不利": "불리", "注意": "주의",
+        "好运": "좋은 운", "坏运": "나쁜 운",
+        "error.invalid_date": "잘못된 생년월일입니다",
+        "error.invalid_hour": "잘못된 시진입니다",
+        "error.network": "네트워크 오류, 다시 시도해 주세요",
+        "error.token_expired": "세션이 만료되었습니다. 다시 로그인해 주세요",
+        "error.generic": "시스템이 바쁩니다. 나중에 다시 시도해 주세요",
+        "yes": "예", "no": "아니오",
+        "login": "로그인", "share": "공유", "report": "보고서",
+        "chart": "차트", "analyze": "분석",
+    },
+    "vi": {
+        "甲": "Giáp", "乙": "Ất", "丙": "Bính", "丁": "Đinh",
+        "戊": "Mậu", "己": "Kỷ", "庚": "Canh", "辛": "Tân",
+        "壬": "Nhâm", "癸": "Quý",
+        "子": "Tý", "丑": "Sửu", "寅": "Dần", "卯": "Mão",
+        "辰": "Thìn", "巳": "Tỵ", "午": "Ngọ", "未": "Mùi",
+        "申": "Thân", "酉": "Dậu", "戌": "Tuất", "亥": "Hợi",
+        "金": "Kim", "木": "Mộc", "水": "Thủy", "火": "Hỏa", "土": "Thổ",
+        "比肩": "Tỷ Kiên", "劫财": "Kiếp Tài",
+        "食神": "Thực Thần", "伤官": "Thương Quan",
+        "偏财": "Thiên Tài", "正财": "Chính Tài",
+        "七杀": "Thất Sát", "正官": "Chính Quan",
+        "偏印": "Thiên Ấn", "正印": "Chính Ấn",
+        "伤官格": "Cách Thương Quan", "正官格": "Cách Chính Quan",
+        "偏财格": "Cách Thiên Tài", "正印格": "Cách Chính Ấn",
+        "偏印格": "Cách Thiên Ấn", "食神格": "Cách Thực Thần",
+        "建禄格": "Cách Kiến Lộc", "专旺格": "Cách Chuyên Vượng",
+        "从格": "Cách Tòng",
+        "鼠": "Chuột", "牛": "Trâu", "虎": "Hổ", "兔": "Mèo",
+        "龙": "Rồng", "蛇": "Rắn", "马": "Ngựa", "羊": "Dê",
+        "猴": "Khỉ", "鸡": "Gà", "狗": "Chó", "猪": "Heo",
+        "白羊": "Bạch Dương", "金牛": "Kim Ngưu", "双子": "Song Tử",
+        "巨蟹": "Cự Giải", "狮子": "Sư Tử", "处女": "Xử Nữ",
+        "天秤": "Thiên Bình", "天蝎": "Thiên Yết",
+        "射手": "Nhân Mã", "摩羯": "Ma Kết",
+        "水瓶": "Bảo Bình", "双鱼": "Song Ngư",
+        "命盘": "Bảng mệnh", "排盘": "Sắp xếp mệnh",
+        "分析": "Phân tích", "报告": "Báo cáo",
+        "大运": "Đại vận", "流年": "Lưu niên",
+        "日柱": "Nhật trụ", "日主": "Nhật chủ",
+        "年柱": "Niên trụ", "月柱": "Nguyệt trụ", "时柱": "Thời trụ",
+        "男": "Nam", "女": "Nữ",
+        "生": "Sinh", "克": "Khắc", "合": "Hợp", "冲": "Xung",
+        "吉": "Cát", "平": "Bình", "凶": "Hung",
+        "有利": "Lợi", "不利": "Bất lợi", "注意": "Lưu ý",
+        "好运": "Vận tốt", "坏运": "Vận xấu",
+        "error.invalid_date": "Ngày sinh không hợp lệ",
+        "error.invalid_hour": "Giờ không hợp lệ",
+        "error.network": "Lỗi mạng, vui lòng thử lại",
+        "error.token_expired": "Phiên đã hết hạn, vui lòng đăng nhập lại",
+        "error.generic": "Hệ thống đang bận, vui lòng thử lại sau",
+        "yes": "Có", "no": "Không",
+        "login": "Đăng nhập", "share": "Chia sẻ", "report": "Báo cáo",
+        "chart": "Biểu đồ", "analyze": "Phân tích",
+    },
+}
 
+_LOCALE_NAMES: Dict[str, str] = {
+    "zh-CN": "简体中文",
+    "zh-TW": "繁體中文",
+    "en": "English",
+    "ja": "日本語",
+    "ko": "한국어",
+    "vi": "Tiếng Việt",
+}
 
-# ============================================================================
-# 翻译表
-# ============================================================================
-
-TRANSLATIONS: Dict[str, Dict[str, str]] = {
-    # ── 天干 ─────────────────────────────────────────────────────────────
-    "甲": {"zh-CN": "甲", "zh-TW": "甲", "en": "Jia"},
-    "乙": {"zh-CN": "乙", "zh-TW": "乙", "en": "Yi"},
-    "丙": {"zh-CN": "丙", "zh-TW": "丙", "en": "Bing"},
-    "丁": {"zh-CN": "丁", "zh-TW": "丁", "en": "Ding"},
-    "戊": {"zh-CN": "戊", "zh-TW": "戊", "en": "Wu"},
-    "己": {"zh-CN": "己", "zh-TW": "己", "en": "Ji"},
-    "庚": {"zh-CN": "庚", "zh-TW": "庚", "en": "Geng"},
-    "辛": {"zh-CN": "辛", "zh-TW": "辛", "en": "Xin"},
-    "壬": {"zh-CN": "壬", "zh-TW": "壬", "en": "Ren"},
-    "癸": {"zh-CN": "癸", "zh-TW": "癸", "en": "Gui"},
-
-    # ── 地支 ─────────────────────────────────────────────────────────────
-    "子": {"zh-CN": "子", "zh-TW": "子", "en": "Zi"},
-    "丑": {"zh-CN": "丑", "zh-TW": "醜", "en": "Chou"},
-    "寅": {"zh-CN": "寅", "zh-TW": "寅", "en": "Yin"},
-    "卯": {"zh-CN": "卯", "zh-TW": "卯", "en": "Mao"},
-    "辰": {"zh-CN": "辰", "zh-TW": "辰", "en": "Chen"},
-    "巳": {"zh-CN": "巳", "zh-TW": "巳", "en": "Si"},
-    "午": {"zh-CN": "午", "zh-TW": "午", "en": "Wu"},
-    "未": {"zh-CN": "未", "zh-TW": "未", "en": "Wei"},
-    "申": {"zh-CN": "申", "zh-TW": "申", "en": "Shen"},
-    "酉": {"zh-CN": "酉", "zh-TW": "酉", "en": "You"},
-    "戌": {"zh-CN": "戌", "zh-TW": "戌", "en": "Xu"},
-    "亥": {"zh-CN": "亥", "zh-TW": "亥", "en": "Hai"},
-
-    # ── 五行 ─────────────────────────────────────────────────────────────
-    "木": {"zh-CN": "木", "zh-TW": "木", "en": "Wood"},
-    "火": {"zh-CN": "火", "zh-TW": "火", "en": "Fire"},
-    "土": {"zh-CN": "土", "zh-TW": "土", "en": "Earth"},
-    "金": {"zh-CN": "金", "zh-TW": "金", "en": "Metal"},
-    "水": {"zh-CN": "水", "zh-TW": "水", "en": "Water"},
-
-    # ── 五行状态 ────────────────────────────────────────────────────────
-    "旺": {"zh-CN": "旺", "zh-TW": "旺", "en": "Prosperous"},
-    "相": {"zh-CN": "相", "zh-TW": "相", "en": "Supporting"},
-    "休": {"zh-CN": "休", "zh-TW": "休", "en": "Resting"},
-    "囚": {"zh-CN": "囚", "zh-TW": "囚", "en": "Imprisoned"},
-    "死": {"zh-CN": "死", "zh-TW": "死", "en": "Dead"},
-
-    # ── 十神 ─────────────────────────────────────────────────────────────
-    "比肩": {"zh-CN": "比肩", "zh-TW": "比肩", "en": "BiJian (Equal Companion)"},
-    "劫财": {"zh-CN": "劫财", "zh-TW": "劫財", "en": "JieCai (Rob Wealth)"},
-    "食神": {"zh-CN": "食神", "zh-TW": "食神", "en": "ShiShen (Eating God)"},
-    "伤官": {"zh-CN": "伤官", "zh-TW": "傷官", "en": "ShangGuan (Hurting Officer)"},
-    "偏财": {"zh-CN": "偏财", "zh-TW": "偏財", "en": "PianCai (Indirect Wealth)"},
-    "正财": {"zh-CN": "正财", "zh-TW": "正財", "en": "ZhengCai (Direct Wealth)"},
-    "七杀": {"zh-CN": "七杀", "zh-TW": "七殺", "en": "QiSha (Seven Killings)"},
-    "正官": {"zh-CN": "正官", "zh-TW": "正官", "en": "ZhengGuan (Direct Officer)"},
-    "偏印": {"zh-CN": "偏印", "zh-TW": "偏印", "en": "PianYin (Indirect Resource)"},
-    "正印": {"zh-CN": "正印", "zh-TW": "正印", "en": "ZhengYin (Direct Resource)"},
-
-    # ── 神煞 ─────────────────────────────────────────────────────────────
-    "天乙贵人": {"zh-CN": "天乙贵人", "zh-TW": "天乙貴人", "en": "TianYi Nobleman"},
-    "文昌": {"zh-CN": "文昌", "zh-TW": "文昌", "en": "WenChang"},
-    "驿马": {"zh-CN": "驿马", "zh-TW": "驛馬", "en": "YiMa (Post Horse)"},
-    "桃花": {"zh-CN": "桃花", "zh-TW": "桃花", "en": "Peach Blossom"},
-    "将星": {"zh-CN": "将星", "zh-TW": "將星", "en": "JiangXing (General Star)"},
-    "华盖": {"zh-CN": "华盖", "zh-TW": "華蓋", "en": "HuaGai (Canopy)"},
-    "羊刃": {"zh-CN": "羊刃", "zh-TW": "羊刃", "en": "YangRen (Yang Blade)"},
-    "亡神": {"zh-CN": "亡神", "zh-TW": "亡神", "en": "WangShen (Death God)"},
-    "劫煞": {"zh-CN": "劫煞", "zh-TW": "劫煞", "en": "JieSha (Robbery Sha)"},
-    "灾煞": {"zh-CN": "灾煞", "zh-TW": "災煞", "en": "ZaiSha (Calamity Sha)"},
-    "天喜": {"zh-CN": "天喜", "zh-TW": "天喜", "en": "TianXi (Heavenly Joy)"},
-    "红鸾": {"zh-CN": "红鸾", "zh-TW": "紅鸞", "en": "HongLuan (Red Phoenix)"},
-    "天德贵人": {"zh-CN": "天德贵人", "zh-TW": "天德貴人", "en": "TianDe Nobleman"},
-    "月德贵人": {"zh-CN": "月德贵人", "zh-TW": "月德貴人", "en": "YueDe Nobleman"},
-    "天罗地网": {"zh-CN": "天罗地网", "zh-TW": "天羅地網", "en": "Net of Heaven and Earth"},
-    "空亡": {"zh-CN": "空亡", "zh-TW": "空亡", "en": "KongWang (Void)"},
-    "金舆": {"zh-CN": "金舆", "zh-TW": "金輿", "en": "JinYu (Golden Carriage)"},
-    "国印": {"zh-CN": "国印", "zh-TW": "國印", "en": "GuoYin (National Seal)"},
-    "三奇贵人": {"zh-CN": "三奇贵人", "zh-TW": "三奇貴人", "en": "SanQi Nobleman"},
-    "天赦": {"zh-CN": "天赦", "zh-TW": "天赦", "en": "TianShe (Heavenly Pardon)"},
-
-    # ── 格局 ─────────────────────────────────────────────────────────────
-    "正官格": {"zh-CN": "正官格", "zh-TW": "正官格", "en": "Direct Officer Pattern"},
-    "七杀格": {"zh-CN": "七杀格", "zh-TW": "七殺格", "en": "Seven Killings Pattern"},
-    "正印格": {"zh-CN": "正印格", "zh-TW": "正印格", "en": "Direct Resource Pattern"},
-    "偏印格": {"zh-CN": "偏印格", "zh-TW": "偏印格", "en": "Indirect Resource Pattern"},
-    "正财格": {"zh-CN": "正财格", "zh-TW": "正財格", "en": "Direct Wealth Pattern"},
-    "偏财格": {"zh-CN": "偏财格", "zh-TW": "偏財格", "en": "Indirect Wealth Pattern"},
-    "食神格": {"zh-CN": "食神格", "zh-TW": "食神格", "en": "Eating God Pattern"},
-    "伤官格": {"zh-CN": "伤官格", "zh-TW": "傷官格", "en": "Hurting Officer Pattern"},
-    "建禄格": {"zh-CN": "建禄格", "zh-TW": "建祿格", "en": "JianLu Pattern"},
-    "月刃格": {"zh-CN": "月刃格", "zh-TW": "月刃格", "en": "YueRen Pattern"},
-    "从财格": {"zh-CN": "从财格", "zh-TW": "從財格", "en": "CongCai (Follow Wealth)"},
-    "从官格": {"zh-CN": "从官格", "zh-TW": "從官格", "en": "CongGuan (Follow Officer)"},
-    "从杀格": {"zh-CN": "从杀格", "zh-TW": "從殺格", "en": "CongSha (Follow Killings)"},
-    "从儿格": {"zh-CN": "从儿格", "zh-TW": "從兒格", "en": "CongEr (Follow Output)"},
-    "从势格": {"zh-CN": "从势格", "zh-TW": "從勢格", "en": "CongShi (Follow Momentum)"},
-    "化气格": {"zh-CN": "化气格", "zh-TW": "化氣格", "en": "HuaQi (Transforming Qi)"},
-
-    # ── 二十四节气 ──────────────────────────────────────────────────────
-    "立春": {"zh-CN": "立春", "zh-TW": "立春", "en": "Lichun"},
-    "雨水": {"zh-CN": "雨水", "zh-TW": "雨水", "en": "Yushui"},
-    "惊蛰": {"zh-CN": "惊蛰", "zh-TW": "驚蟄", "en": "Jingzhe"},
-    "春分": {"zh-CN": "春分", "zh-TW": "春分", "en": "Chunfen"},
-    "清明": {"zh-CN": "清明", "zh-TW": "清明", "en": "Qingming"},
-    "谷雨": {"zh-CN": "谷雨", "zh-TW": "穀雨", "en": "Guyu"},
-    "立夏": {"zh-CN": "立夏", "zh-TW": "立夏", "en": "Lixia"},
-    "小满": {"zh-CN": "小满", "zh-TW": "小滿", "en": "Xiaoman"},
-    "芒种": {"zh-CN": "芒种", "zh-TW": "芒種", "en": "Mangzhong"},
-    "夏至": {"zh-CN": "夏至", "zh-TW": "夏至", "en": "Xiazhi"},
-    "小暑": {"zh-CN": "小暑", "zh-TW": "小暑", "en": "Xiaoshu"},
-    "大暑": {"zh-CN": "大暑", "zh-TW": "大暑", "en": "Dashu"},
-    "立秋": {"zh-CN": "立秋", "zh-TW": "立秋", "en": "Liqiu"},
-    "处暑": {"zh-CN": "处暑", "zh-TW": "處暑", "en": "Chushu"},
-    "白露": {"zh-CN": "白露", "zh-TW": "白露", "en": "Bailu"},
-    "秋分": {"zh-CN": "秋分", "zh-TW": "秋分", "en": "Qiufen"},
-    "寒露": {"zh-CN": "寒露", "zh-TW": "寒露", "en": "Hanlu"},
-    "霜降": {"zh-CN": "霜降", "zh-TW": "霜降", "en": "Shuangjiang"},
-    "立冬": {"zh-CN": "立冬", "zh-TW": "立冬", "en": "Lidong"},
-    "小雪": {"zh-CN": "小雪", "zh-TW": "小雪", "en": "Xiaoxue"},
-    "大雪": {"zh-CN": "大雪", "zh-TW": "大雪", "en": "Daxue"},
-    "冬至": {"zh-CN": "冬至", "zh-TW": "冬至", "en": "Dongzhi"},
-    "小寒": {"zh-CN": "小寒", "zh-TW": "小寒", "en": "Xiaohan"},
-    "大寒": {"zh-CN": "大寒", "zh-TW": "大寒", "en": "Dahan"},
-
-    # ── 十二时辰 ────────────────────────────────────────────────────────
-    "子时": {"zh-CN": "子时", "zh-TW": "子時", "en": "Zi Hour (23-01)"},
-    "丑时": {"zh-CN": "丑时", "zh-TW": "丑時", "en": "Chou Hour (01-03)"},
-    "寅时": {"zh-CN": "寅时", "zh-TW": "寅時", "en": "Yin Hour (03-05)"},
-    "卯时": {"zh-CN": "卯时", "zh-TW": "卯時", "en": "Mao Hour (05-07)"},
-    "辰时": {"zh-CN": "辰时", "zh-TW": "辰時", "en": "Chen Hour (07-09)"},
-    "巳时": {"zh-CN": "巳时", "zh-TW": "巳時", "en": "Si Hour (09-11)"},
-    "午时": {"zh-CN": "午时", "zh-TW": "午時", "en": "Wu Hour (11-13)"},
-    "未时": {"zh-CN": "未时", "zh-TW": "未時", "en": "Wei Hour (13-15)"},
-    "申时": {"zh-CN": "申时", "zh-TW": "申時", "en": "Shen Hour (15-17)"},
-    "酉时": {"zh-CN": "酉时", "zh-TW": "酉時", "en": "You Hour (17-19)"},
-    "戌时": {"zh-CN": "戌时", "zh-TW": "戌時", "en": "Xu Hour (19-21)"},
-    "亥时": {"zh-CN": "亥时", "zh-TW": "亥時", "en": "Hai Hour (21-23)"},
-
-    # ── 六爻卦名 ────────────────────────────────────────────────────────
-    "乾为天": {"zh-CN": "乾为天", "zh-TW": "乾為天", "en": "Qian (Heaven)"},
-    "坤为地": {"zh-CN": "坤为地", "zh-TW": "坤為地", "en": "Kun (Earth)"},
-    "震为雷": {"zh-CN": "震为雷", "zh-TW": "震為雷", "en": "Zhen (Thunder)"},
-    "巽为风": {"zh-CN": "巽为风", "zh-TW": "巽為風", "en": "Xun (Wind)"},
-    "坎为水": {"zh-CN": "坎为水", "zh-TW": "坎為水", "en": "Kan (Water)"},
-    "离为火": {"zh-CN": "离为火", "zh-TW": "離為火", "en": "Li (Fire)"},
-    "艮为山": {"zh-CN": "艮为山", "zh-TW": "艮為山", "en": "Gen (Mountain)"},
-    "兑为泽": {"zh-CN": "兑为泽", "zh-TW": "兌為澤", "en": "Dui (Lake)"},
-
-    # ── 紫微斗数主星 ────────────────────────────────────────────────────
-    "紫微": {"zh-CN": "紫微", "zh-TW": "紫微", "en": "ZiWei (Purple Star)"},
-    "天机": {"zh-CN": "天机", "zh-TW": "天機", "en": "TianJi (Heavenly Secret)"},
-    "太阳": {"zh-CN": "太阳", "zh-TW": "太陽", "en": "TaiYang (Sun)"},
-    "武曲": {"zh-CN": "武曲", "zh-TW": "武曲", "en": "WuQu (Martial Song)"},
-    "天同": {"zh-CN": "天同", "zh-TW": "天同", "en": "TianTong (Heavenly Union)"},
-    "廉贞": {"zh-CN": "廉贞", "zh-TW": "廉貞", "en": "LianZhen (Integrity)"},
-    "天府": {"zh-CN": "天府", "zh-TW": "天府", "en": "TianFu (Heavenly Treasury)"},
-    "太阴": {"zh-CN": "太阴", "zh-TW": "太陰", "en": "TaiYin (Moon)"},
-    "贪狼": {"zh-CN": "贪狼", "zh-TW": "貪狼", "en": "TanLang (Greedy Wolf)"},
-    "巨门": {"zh-CN": "巨门", "zh-TW": "巨門", "en": "JuMen (Huge Gate)"},
-    "天相": {"zh-CN": "天相", "zh-TW": "天相", "en": "TianXiang (Heavenly Minister)"},
-    "天梁": {"zh-CN": "天梁", "zh-TW": "天梁", "en": "TianLiang (Heavenly Ridge)"},
-    "七杀": {"zh-CN": "七杀", "zh-TW": "七殺", "en": "QiSha (Seven Killings)"},
-    "破军": {"zh-CN": "破军", "zh-TW": "破軍", "en": "PoJun (Victory Army)"},
-
-    # ── 八字四柱 ────────────────────────────────────────────────────────
-    "年柱": {"zh-CN": "年柱", "zh-TW": "年柱", "en": "Year Pillar"},
-    "月柱": {"zh-CN": "月柱", "zh-TW": "月柱", "en": "Month Pillar"},
-    "日柱": {"zh-CN": "日柱", "zh-TW": "日柱", "en": "Day Pillar"},
-    "时柱": {"zh-CN": "时柱", "zh-TW": "時柱", "en": "Hour Pillar"},
-    "命宫": {"zh-CN": "命宫", "zh-TW": "命宮", "en": "Life Palace"},
-    "身宫": {"zh-CN": "身宫", "zh-TW": "身宮", "en": "Body Palace"},
-    "日主": {"zh-CN": "日主", "zh-TW": "日主", "en": "Day Master"},
-    "大运": {"zh-CN": "大运", "zh-TW": "大運", "en": "Major Fortune"},
-    "流年": {"zh-CN": "流年", "zh-TW": "流年", "en": "Fleeting Year"},
-    "小运": {"zh-CN": "小运", "zh-TW": "小運", "en": "Minor Fortune"},
-
-    # ── 常见术语 ────────────────────────────────────────────────────────
-    "天干": {"zh-CN": "天干", "zh-TW": "天干", "en": "Heavenly Stem"},
-    "地支": {"zh-CN": "地支", "zh-TW": "地支", "en": "Earthly Branch"},
-    "八字": {"zh-CN": "八字", "zh-TW": "八字", "en": "Bazi / Four Pillars"},
-    "五行": {"zh-CN": "五行", "zh-TW": "五行", "en": "Five Elements"},
-    "十神": {"zh-CN": "十神", "zh-TW": "十神", "en": "Ten Gods"},
-    "神煞": {"zh-CN": "神煞", "zh-TW": "神煞", "en": "ShenSha"},
-    "格局": {"zh-CN": "格局", "zh-TW": "格局", "en": "Pattern"},
-    "喜用神": {"zh-CN": "喜用神", "zh-TW": "喜用神", "en": "Favorable God"},
-    "调候": {"zh-CN": "调候", "zh-TW": "調候", "en": "Adjustment"},
-    "月令": {"zh-CN": "月令", "zh-TW": "月令", "en": "Month Commander"},
-    "天干地支": {"zh-CN": "天干地支", "zh-TW": "天干地支", "en": "Stems and Branches"},
-    "相生": {"zh-CN": "相生", "zh-TW": "相生", "en": "Generates"},
-    "相克": {"zh-CN": "相克", "zh-TW": "相克", "en": "Overcomes"},
-    "相合": {"zh-CN": "相合", "zh-TW": "相合", "en": "Combines"},
-    "相冲": {"zh-CN": "相冲", "zh-TW": "相沖", "en": "Clashes"},
-    "相害": {"zh-CN": "相害", "zh-TW": "相害", "en": "Harms"},
-    "相刑": {"zh-CN": "相刑", "zh-TW": "相刑", "en": "Punishes"},
-
-    # ── UI 文案 ────────────────────────────────────────────────────────
-    "命盘": {"zh-CN": "命盘", "zh-TW": "命盤", "en": "Chart"},
-    "排盘": {"zh-CN": "排盘", "zh-TW": "排盤", "en": "Calculation"},
-    "分析": {"zh-CN": "分析", "zh-TW": "分析", "en": "Analysis"},
-    "综合": {"zh-CN": "综合", "zh-TW": "綜合", "en": "Comprehensive"},
-    "事业": {"zh-CN": "事业", "zh-TW": "事業", "en": "Career"},
-    "财运": {"zh-CN": "财运", "zh-TW": "財運", "en": "Wealth"},
-    "婚姻": {"zh-CN": "婚姻", "zh-TW": "婚姻", "en": "Marriage"},
-    "健康": {"zh-CN": "健康", "zh-TW": "健康", "en": "Health"},
-    "感情": {"zh-CN": "感情", "zh-TW": "感情", "en": "Relationship"},
-    "基础": {"zh-CN": "基础", "zh-TW": "基礎", "en": "Basic"},
-    "智能分析": {"zh-CN": "智能分析", "zh-TW": "智慧分析", "en": "AI Analysis"},
-    "命盘可视化": {"zh-CN": "命盘可视化", "zh-TW": "命盤可視化", "en": "Chart Visualization"},
-    "真太阳时": {"zh-CN": "真太阳时", "zh-TW": "真太陽時", "en": "True Solar Time"},
-    "五行旺衰": {"zh-CN": "五行旺衰", "zh-TW": "五行旺衰", "en": "Element Strength"},
-    "知识图谱": {"zh-CN": "知识图谱", "zh-TW": "知識圖譜", "en": "Knowledge Graph"},
-    "总览": {"zh-CN": "总览", "zh-TW": "總覽", "en": "Dashboard"},
-    "任务": {"zh-CN": "任务", "zh-TW": "任務", "en": "Tasks"},
-    "指标": {"zh-CN": "指标", "zh-TW": "指標", "en": "Metrics"},
-    "设置": {"zh-CN": "设置", "zh-TW": "設定", "en": "Settings"},
-
-    # ── 十二长生 ────────────────────────────────────────────────────────
-    "长生": {"zh-CN": "长生", "zh-TW": "長生", "en": "ChangSheng (Birth)"},
-    "沐浴": {"zh-CN": "沐浴", "zh-TW": "沐浴", "en": "MuYu (Bathing)"},
-    "冠带": {"zh-CN": "冠带", "zh-TW": "冠帶", "en": "GuanDai (Capping)"},
-    "临官": {"zh-CN": "临官", "zh-TW": "臨官", "en": "LinGuan (Official)"},
-    "帝旺": {"zh-CN": "帝旺", "zh-TW": "帝旺", "en": "DiWang (Emperor)"},
-    "衰": {"zh-CN": "衰", "zh-TW": "衰", "en": "Shuai (Decline)"},
-    "病": {"zh-CN": "病", "zh-TW": "病", "en": "Bing (Sickness)"},
-    "死": {"zh-CN": "死", "zh-TW": "死", "en": "Si (Death)"},
-    "墓": {"zh-CN": "墓", "zh-TW": "墓", "en": "Mu (Grave)"},
-    "绝": {"zh-CN": "绝", "zh-TW": "絕", "en": "Jue (Extinction)"},
-    "胎": {"zh-CN": "胎", "zh-TW": "胎", "en": "Tai (Embryo)"},
-    "养": {"zh-CN": "养", "zh-TW": "養", "en": "Yang (Nurture)"},
-
-    # ── 纳音五行 ────────────────────────────────────────────────────────
-    "海中金": {"zh-CN": "海中金", "zh-TW": "海中金", "en": "Gold in the Sea"},
-    "炉中火": {"zh-CN": "炉中火", "zh-TW": "爐中火", "en": "Fire in the Furnace"},
-    "大林木": {"zh-CN": "大林木", "zh-TW": "大林木", "en": "Wood of the Great Forest"},
-    "路旁土": {"zh-CN": "路旁土", "zh-TW": "路旁土", "en": "Earth by the Road"},
-    "剑锋金": {"zh-CN": "剑锋金", "zh-TW": "劍鋒金", "en": "Sword Edge Gold"},
-    "山头火": {"zh-CN": "山头火", "zh-TW": "山頭火", "en": "Fire on the Mountain"},
-    "涧下水": {"zh-CN": "涧下水", "zh-TW": "澗下水", "en": "Water in the Valley"},
-    "城墙土": {"zh-CN": "城墙土", "zh-TW": "城牆土", "en": "City Wall Earth"},
-    "白蜡金": {"zh-CN": "白蜡金", "zh-TW": "白蠟金", "en": "White Wax Gold"},
-    "杨柳木": {"zh-CN": "杨柳木", "zh-TW": "楊柳木", "en": "Willow Wood"},
-    "泉中水": {"zh-CN": "泉中水", "zh-TW": "泉中水", "en": "Water in the Spring"},
-    "屋上土": {"zh-CN": "屋上土", "zh-TW": "屋上土", "en": "Earth on the Roof"},
-    "霹雳火": {"zh-CN": "霹雳火", "zh-TW": "霹靂火", "en": "Thunderbolt Fire"},
-    "松柏木": {"zh-CN": "松柏木", "zh-TW": "松柏木", "en": "Pine and Cypress Wood"},
-    "长流水": {"zh-CN": "长流水", "zh-TW": "長流水", "en": "Long Flowing Water"},
-    "沙中金": {"zh-CN": "沙中金", "zh-TW": "沙中金", "en": "Gold in the Sand"},
-    "山下火": {"zh-CN": "山下火", "zh-TW": "山下火", "en": "Fire at the Foot of the Mountain"},
-    "平地木": {"zh-CN": "平地木", "zh-TW": "平地木", "en": "Wood on the Plain"},
-    "壁上土": {"zh-CN": "壁上土", "zh-TW": "壁上土", "en": "Earth on the Wall"},
-    "金箔金": {"zh-CN": "金箔金", "zh-TW": "金箔金", "en": "Gold Foil"},
-    "覆灯火": {"zh-CN": "覆灯火", "zh-TW": "覆燈火", "en": "Lamp Fire"},
-    "天河水": {"zh-CN": "天河水", "zh-TW": "天河水", "en": "Heavenly River Water"},
-    "大驿土": {"zh-CN": "大驿土", "zh-TW": "大驛土", "en": "Great Post Earth"},
-    "钗钏金": {"zh-CN": "钗钏金", "zh-TW": "釵釧金", "en": "Hairpin Gold"},
-    "桑柘木": {"zh-CN": "桑柘木", "zh-TW": "桑柘木", "en": "Mulberry Wood"},
-    "大溪水": {"zh-CN": "大溪水", "zh-TW": "大溪水", "en": "Great Stream Water"},
-    "沙中土": {"zh-CN": "沙中土", "zh-TW": "沙中土", "en": "Earth in the Sand"},
-    "天上火": {"zh-CN": "天上火", "zh-TW": "天上火", "en": "Fire in the Sky"},
-    "石榴木": {"zh-CN": "石榴木", "zh-TW": "石榴木", "en": "Pomegranate Wood"},
-    "大海水": {"zh-CN": "大海水", "zh-TW": "大海水", "en": "Ocean Water"},
-
-    # ── 神煞扩展 ────────────────────────────────────────────────────────
-    "太极贵人": {"zh-CN": "太极贵人", "zh-TW": "太極貴人", "en": "TaiJi Nobleman"},
-    "学堂": {"zh-CN": "学堂", "zh-TW": "學堂", "en": "XueTang (School)"},
-    "词馆": {"zh-CN": "词馆", "zh-TW": "詞館", "en": "CiGuan (Academy)"},
-    "禄神": {"zh-CN": "禄神", "zh-TW": "祿神", "en": "LuShen (Prosperity God)"},
-    "魁罡": {"zh-CN": "魁罡", "zh-TW": "魁罡", "en": "KuiGang"},
-    "孤辰": {"zh-CN": "孤辰", "zh-TW": "孤辰", "en": "GuChen (Lonely Star)"},
-    "寡宿": {"zh-CN": "寡宿", "zh-TW": "寡宿", "en": "GuaSu (Widow Star)"},
-    "元辰": {"zh-CN": "元辰", "zh-TW": "元辰", "en": "YuanChen (Origin Star)"},
-    "暗禄": {"zh-CN": "暗禄", "zh-TW": "暗祿", "en": "AnLu (Hidden Prosperity)"},
-    "天医": {"zh-CN": "天医", "zh-TW": "天醫", "en": "TianYi (Heavenly Doctor)"},
-    "地网": {"zh-CN": "地网", "zh-TW": "地網", "en": "DiWang (Earth Net)"},
-    "天罗": {"zh-CN": "天罗", "zh-TW": "天羅", "en": "TianLuo (Heaven Net)"},
-    "血刃": {"zh-CN": "血刃", "zh-TW": "血刃", "en": "XueRen (Blood Blade)"},
-    "流霞": {"zh-CN": "流霞", "zh-TW": "流霞", "en": "LiuXia (Flowing Glow)"},
-
-    # ── 流年流月术语 ────────────────────────────────────────────────────
-    "流月": {"zh-CN": "流月", "zh-TW": "流月", "en": "Fleeting Month"},
-    "流日": {"zh-CN": "流日", "zh-TW": "流日", "en": "Fleeting Day"},
-    "流时": {"zh-CN": "流时", "zh-TW": "流時", "en": "Fleeting Hour"},
-    "太岁": {"zh-CN": "太岁", "zh-TW": "太歲", "en": "TaiSui (Grand Duke)"},
-    "值太岁": {"zh-CN": "值太岁", "zh-TW": "值太歲", "en": "Offending TaiSui"},
-    "冲太岁": {"zh-CN": "冲太岁", "zh-TW": "沖太歲", "en": "Clashing TaiSui"},
-    "害太岁": {"zh-CN": "害太岁", "zh-TW": "害太歲", "en": "Harming TaiSui"},
-    "破太岁": {"zh-CN": "破太岁", "zh-TW": "破太歲", "en": "Breaking TaiSui"},
-    "刑太岁": {"zh-CN": "刑太岁", "zh-TW": "刑太歲", "en": "Punishing TaiSui"},
-    "合太岁": {"zh-CN": "合太岁", "zh-TW": "合太歲", "en": "Combining TaiSui"},
+# Ganzhi normalization maps between traditional / simplified Chinese forms.
+# Most ganzhi look identical between zh-CN / zh-TW, but we still support an
+# explicit mapping table for regional variants (e.g. 丑/丑, etc.)
+_GANZHI_NORMALIZE: Dict[str, Dict[str, str]] = {
+    "zh-TW": {
+        "丑": "丑", "戌": "戌", "龙": "龍", "马": "馬",
+    },
 }
 
 
-# ============================================================================
-# I18n 引擎
-# ============================================================================
+# ---------------------------------------------------------------------------
+# I18nManager
+# ---------------------------------------------------------------------------
 
-class I18nEngine:
-    """国际化引擎"""
+class I18nManager:
+    """Central i18n manager for tengod."""
 
-    def __init__(self, default_lang: str = "zh-CN"):
-        self.default_lang = default_lang
-        self.lang = default_lang
-        self.translations = TRANSLATIONS
+    def __init__(self, default_locale: str = "zh-CN") -> None:
+        if default_locale not in _TRANSLATIONS:
+            default_locale = "zh-CN"
+        self._locale: str = default_locale
         self._custom: Dict[str, Dict[str, str]] = {}
 
-    def set_lang(self, lang: str) -> None:
-        """设置当前语言"""
-        self.lang = lang if lang in ("zh-CN", "zh-TW", "en") else "zh-CN"
-
-    def get_lang(self) -> str:
-        """获取当前语言"""
-        return self.lang
-
-    def translate(self, text: str, lang: Optional[str] = None) -> str:
-        """翻译单个词条
-
-        若找不到翻译，返回原文。
-        """
-        target = lang or self.lang
-        if target == "zh-CN":
-            return text
-        if text in self._custom and target in self._custom[text]:
-            return self._custom[text][target]
-        if text in self.translations and target in self.translations[text]:
-            return self.translations[text][target]
-        return text
-
-    def translate_dict(
-        self,
-        data: Dict[str, Any],
-        keys: Optional[List[str]] = None,
-        lang: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        """翻译字典中指定的 key
-
-        Args:
-            data: 原字典
-            keys: 需要翻译的 key 列表，None 表示翻译所有值
-            lang: 目标语言
-        """
-        result = dict(data)
-        for key, val in data.items():
-            if keys and key not in keys:
-                continue
-            if isinstance(val, str):
-                result[key] = self.translate(val, lang)
-            elif isinstance(val, dict):
-                result[key] = self.translate_dict(val, lang=lang)
-            elif isinstance(val, list):
-                result[key] = [
-                    self.translate(item, lang) if isinstance(item, str) else item
-                    for item in val
-                ]
-        return result
-
-    def add_custom(self, key: str, translations: Dict[str, str]) -> None:
-        """添加自定义翻译"""
-        self._custom[key] = translations
-
-    def has_translation(self, text: str, lang: Optional[str] = None) -> bool:
-        """检查是否有翻译"""
-        target = lang or self.lang
-        if text in self._custom and target in self._custom[text]:
-            return True
-        if text in self.translations and target in self.translations[text]:
-            return True
-        return False
-
-    def get_available_langs(self) -> List[Dict[str, str]]:
-        """获取可用语言列表"""
-        return [
-            {"code": "zh-CN", "name": "简体中文"},
-            {"code": "zh-TW", "name": "繁體中文"},
-            {"code": "en", "name": "English"},
-        ]
-
-
-# ============================================================================
-# 便捷函数
-# ============================================================================
-
-def t(text: str, lang: Optional[str] = None) -> str:
-    """翻译便捷函数"""
-    engine = get_i18n_engine()
-    return engine.translate(text, lang)
-
-
-def set_lang(lang: str) -> None:
-    """设置全局语言"""
-    global _current_lang
-    _current_lang = lang
-    engine = get_i18n_engine()
-    engine.set_lang(lang)
-
-
-def get_lang() -> str:
-    """获取当前语言"""
-    return _current_lang
-
-
-def get_i18n_engine() -> I18nEngine:
-    """获取 i18n 引擎单例"""
-    global _i18n_engine
-    if _i18n_engine is None:
-        _i18n_engine = I18nEngine()
-    return _i18n_engine
-
-
-def translate_bazi(pillars: Dict[str, str], lang: str = "en") -> Dict[str, str]:
-    """翻译八字四柱
-
-    Args:
-        pillars: {"year": "甲子", "month": "丙寅", ...}
-        lang: 目标语言
-
-    Returns:
-        翻译后的四柱字典
-    """
-    engine = get_i18n_engine()
-    result = {}
-    for pillar, ganzhi in pillars.items():
-        if len(ganzhi) == 2:
-            gan, zhi = ganzhi[0], ganzhi[1]
-            result[pillar] = f"{engine.translate(gan, lang)} {engine.translate(zhi, lang)}"
-        else:
-            result[pillar] = engine.translate(ganzhi, lang)
-    return result
-
-
-def translate_wuxing(wuxing_data: Dict[str, Any], lang: str = "en") -> Dict[str, Any]:
-    """翻译五行数据
-
-    Args:
-        wuxing_data: {"木": 3, "火": 2, ...} 或 {"木": {"status": "旺", "strength": 100}, ...}
-        lang: 目标语言
-    """
-    engine = get_i18n_engine()
-    result = {}
-    for element, val in wuxing_data.items():
-        key = engine.translate(element, lang)
-        if isinstance(val, dict):
-            val_copy = dict(val)
-            if "status" in val_copy:
-                val_copy["status"] = engine.translate(val_copy["status"], lang)
-            result[key] = val_copy
-        else:
-            result[key] = val
-    return result
-
-
-def translate_shier(shichen: str, lang: str = "en") -> str:
-    """翻译时辰
-
-    Args:
-        shichen: "子", "丑", ... 或 "子时", "丑时", ...
-        lang: 目标语言
-    """
-    engine = get_i18n_engine()
-    if len(shichen) == 1:
-        key = shichen + "时"
-        return engine.translate(key, lang)
-    return engine.translate(shichen, lang)
-
-
-# ============================================================================
-# 兼容性别名（v2.16.1 —— 向后兼容旧版 API）
-# ============================================================================
-
-# I18nManager 兼容包装器（旧版名称，映射到 I18nEngine）
-class I18nManager:
-    """国际化管理器（兼容性别名，映射到 I18nEngine）"""
-
-    def __init__(self, default_locale: str = "zh-CN"):
-        self._engine = I18nEngine(default_lang=default_locale)
-        self._locale = default_locale
+    # ---- Locale management -----------------------------------------------
+    def set_locale(self, locale: str) -> str:
+        if locale in _TRANSLATIONS:
+            self._locale = locale
+        return self._locale
 
     def get_locale(self) -> str:
         return self._locale
 
-    def set_locale(self, locale: str) -> None:
-        self._locale = locale
-        self._engine.set_lang(locale)
-
-    def translate(self, text: str) -> str:
-        return self._engine.translate(text, self._locale)
-
-    def bulk_translate(self, texts: List[str]) -> List[str]:
-        return [self.translate(t) for t in texts]
-
     def get_all_locales(self) -> List[str]:
-        return ["zh-CN", "zh-TW", "en", "ja", "ko", "vi"]
+        return sorted(_TRANSLATIONS.keys())
 
-    def translate_bazi_result(self, result: Dict[str, Any]) -> Dict[str, Any]:
-        out = {}
-        for key, val in result.items():
-            if isinstance(val, str):
-                out[key] = self.translate(val)
-            elif isinstance(val, list):
-                out[key] = [self.translate(v) if isinstance(v, str) else v for v in val]
-            else:
-                out[key] = val
+    def get_locale_name(self, locale: Optional[str] = None) -> str:
+        locale = locale or self._locale
+        return _LOCALE_NAMES.get(locale, locale)
+
+    # ---- Translation primitives ------------------------------------------
+    def translate(self, term: Any, locale: Optional[str] = None) -> str:
+        if term is None:
+            return ""
+        text = str(term)
+        locale = locale or self._locale
+        locale_map = _TRANSLATIONS.get(locale, {})
+        if text in locale_map:
+            return locale_map[text]
+        # Fall back to custom overrides for this locale
+        custom = self._custom.get(locale, {})
+        if text in custom:
+            return custom[text]
+        # zh-CN is considered the canonical source: if zh-CN has the term
+        # but the target locale doesn't, return the zh-CN term.
+        zh_cn = _TRANSLATIONS.get("zh-CN", {})
+        if text in zh_cn:
+            return zh_cn[text]
+        return text
+
+    def bulk_translate(self, terms: List[Any], locale: Optional[str] = None) -> List[str]:
+        return [self.translate(term, locale) for term in terms]
+
+    def translate_dict(
+        self,
+        d: Dict[str, Any],
+        keys_to_translate: List[str],
+        locale: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        result = dict(d)
+        for key in keys_to_translate:
+            if key in result:
+                value = result[key]
+                if isinstance(value, list):
+                    result[key] = [
+                        self.translate(item, locale) if isinstance(item, str) else item
+                        for item in value
+                    ]
+                else:
+                    result[key] = self.translate(value, locale)
+        return result
+
+    def translate_bazi_result(
+        self,
+        result: Dict[str, Any],
+        locale: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        default_keys = [
+            "day_master", "geju", "dayun", "liunian",
+            "wuxing", "analysis", "relation", "element",
+            "gan", "zhi", "ganzhi",
+        ]
+        return self._translate_recursive(result, default_keys, locale)
+
+    def translate_trajectory(
+        self,
+        trajectory: Dict[str, Any],
+        locale: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        default_keys = [
+            "day_master", "element", "relation", "gan", "zhi",
+            "ganzhi", "wuxing",
+        ]
+        return self._translate_recursive(trajectory, default_keys, locale)
+
+    def translate_report(self, report_text: str, locale: Optional[str] = None) -> str:
+        if not isinstance(report_text, str):
+            return str(report_text)
+        # Replace known term tokens with their translated forms.
+        mapping = _TRANSLATIONS.get(locale or self._locale, {})
+        zh_cn = _TRANSLATIONS.get("zh-CN", {})
+        # Longer tokens first to avoid partial collisions
+        terms_sorted = sorted(
+            (k for k in zh_cn.keys() if len(k) >= 1), key=len, reverse=True
+        )
+        out = report_text
+        for term in terms_sorted:
+            if term in mapping and mapping[term] != term:
+                # Escape regex special characters in Chinese terms (rare but safe)
+                safe = re.escape(term)
+                out = re.sub(safe, mapping[term], out)
         return out
 
-    def format_number(self, n: float) -> str:
-        if self._locale == "en":
-            return f"{n:,.1f}"
-        return str(n)
+    # ---- Formatting ------------------------------------------------------
+    def format_number(self, num: Any, locale: Optional[str] = None) -> str:
+        try:
+            value = float(num)
+        except (TypeError, ValueError):
+            return str(num)
+        loc = locale or self._locale
+        try:
+            if loc == "en":
+                return f"{value:,.2f}"
+            if loc == "ja":
+                return f"{value:,.2f}"
+            if loc == "ko":
+                return f"{value:,.2f}"
+            if loc == "vi":
+                # Space-separated thousands, comma for decimals is common
+                parts = f"{value:,.2f}".split(".")
+                int_part = parts[0].replace(",", ".")
+                return f"{int_part},{parts[1]}" if len(parts) == 2 else int_part
+            # zh-CN / zh-TW: use comma thousands separator
+            return f"{value:,.2f}"
+        except Exception:
+            return str(num)
 
-    def format_date(self, date: Any) -> str:
-        return date.isoformat() if hasattr(date, "isoformat") else str(date)
+    def format_date(self, dt: Any, locale: Optional[str] = None) -> str:
+        if dt is None:
+            return ""
+        if isinstance(dt, (int, float)):
+            try:
+                dt = _dt.datetime.fromtimestamp(dt)
+            except (OSError, ValueError, OverflowError):
+                return str(dt)
+        if not isinstance(dt, (_dt.date, _dt.datetime)):
+            parsed = self._parse_date_soft(str(dt))
+            if parsed is not None:
+                dt = parsed
+            else:
+                return str(dt)
+        loc = locale or self._locale
+        formats = {
+            "zh-CN": "%Y年%m月%d日",
+            "zh-TW": "%Y年%m月%d日",
+            "en": "%d/%m/%Y",
+            "ja": "%Y年%m月%d日",
+            "ko": "%Y년 %m월 %d일",
+            "vi": "%d/%m/%Y",
+        }
+        try:
+            return dt.strftime(formats.get(loc, "%Y-%m-%d"))
+        except Exception:
+            return str(dt)
 
-    def merge_custom_translations(self, locale: str, translations: Dict[str, str]) -> None:
-        for key, val in translations.items():
-            self._engine.add_custom(key, {locale: val})
+    # ---- UI labels -------------------------------------------------------
+    def get_ui_label(self, key: str, locale: Optional[str] = None) -> str:
+        return self.translate(key, locale)
 
-    def get_ui_label(self, label: str) -> str:
-        return self.translate(label)
+    # ---- Custom translations ---------------------------------------------
+    def merge_custom_translations(self, locale: str, translation_dict: Dict[str, str]) -> None:
+        if locale not in _TRANSLATIONS:
+            # Still accept custom mappings for unsupported locales so that users
+            # can extend without waiting on library updates.
+            pass
+        self._custom.setdefault(locale, {}).update(translation_dict or {})
+
+    # ---- Regional helpers ------------------------------------------------
+    def get_compatibility_notes(self, locale: Optional[str] = None) -> Dict[str, str]:
+        loc = locale or self._locale
+        notes = {
+            "zh-CN": "中国大陆使用简体中文；部分术语与港台地区存在差异。",
+            "zh-TW": "台湾/港澳地区使用繁体中文；部分术语写法与简体不同。",
+            "en": "Chinese metaphysical terms are transliterated / translated. Some regional nuance is lost.",
+            "ja": "日本式の術語は中国本土と異なる場合があります。",
+            "ko": "한국어 명리 용어는 중국어 본래 용어와 약간 다를 수 있습니다.",
+            "vi": "Một số thuật ngữ có sự khác biệt giữa các vùng miền Trung Quốc.",
+        }
+        return {
+            "locale": loc,
+            "note": notes.get(loc, notes["zh-CN"]),
+        }
 
     def get_locale_for_market(self, market: str) -> str:
+        if not market:
+            return self._locale
+        code = str(market).strip().upper()
         mapping = {
-            "CN": "zh-CN", "TW": "zh-TW", "HK": "zh-TW",
-            "US": "en", "GB": "en", "JP": "ja", "KR": "ko", "VN": "vi",
+            "CN": "zh-CN", "ZH": "zh-CN", "ZH-CN": "zh-CN",
+            "TW": "zh-TW", "HK": "zh-TW", "MO": "zh-TW",
+            "ZH-TW": "zh-TW",
+            "US": "en", "UK": "en", "GB": "en", "AU": "en", "CA": "en",
+            "EN": "en",
+            "JP": "ja", "JA": "ja",
+            "KR": "ko", "KO": "ko",
+            "VN": "vi", "VI": "vi",
         }
-        return mapping.get(market, "zh-CN")
+        return mapping.get(code, self._locale)
+
+    def normalize_ganzhi_for_locale(self, ganzhi_text: str, locale: Optional[str] = None) -> str:
+        if not isinstance(ganzhi_text, str):
+            return str(ganzhi_text)
+        loc = locale or self._locale
+        norm = _GANZHI_NORMALIZE.get(loc, {})
+        result = ganzhi_text
+        for source, target in norm.items():
+            result = result.replace(source, target)
+        return result
+
+    # ---- Private helpers -------------------------------------------------
+    def _translate_recursive(
+        self,
+        obj: Any,
+        keys: List[str],
+        locale: Optional[str] = None,
+    ) -> Any:
+        if isinstance(obj, dict):
+            result: Dict[str, Any] = {}
+            for k, v in obj.items():
+                if k in keys:
+                    if isinstance(v, (dict, list)):
+                        result[k] = self._translate_recursive(v, keys, locale)
+                    else:
+                        result[k] = self.translate(v, locale)
+                else:
+                    result[k] = self._translate_recursive(v, keys, locale)
+            return result
+        if isinstance(obj, list):
+            return [self._translate_recursive(item, keys, locale) for item in obj]
+        if isinstance(obj, str):
+            return self.translate(obj, locale) if obj in (
+                _TRANSLATIONS.get(locale or self._locale, {})
+            ) else obj
+        return obj
+
+    @staticmethod
+    def _parse_date_soft(text: str) -> Optional[_dt.date]:
+        text = (text or "").strip()
+        patterns = [
+            r"(\d{4})[-/.年](\d{1,2})[-/.月](\d{1,2})",
+            r"(\d{4})(\d{2})(\d{2})",
+        ]
+        for pat in patterns:
+            m = re.search(pat, text)
+            if m:
+                try:
+                    return _dt.date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+                except ValueError:
+                    return None
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Helper functions
+# ---------------------------------------------------------------------------
+
+# Simple charset heuristics for locale detection from text content.
+_HIRAGANA_RE = re.compile(r"[\u3040-\u309F]")
+_KATAKANA_RE = re.compile(r"[\u30A0-\u30FF]")
+_HANGUL_RE = re.compile(r"[\uAC00-\uD7AF]")
+_TRADITIONAL_HINT_CHARS = "這裡為什麼人們說話很溫暖時間圖畫"
+_EN_RE = re.compile(r"[A-Za-z]{3,}")
+_VI_DIACRITICS_RE = re.compile(r"[ăâđêôơưàáạảãằắặẳẵầấậẩẫèéẹẻẽềếệểễìíịỉĩòóọỏõồốộổỗờớợởỡùúụủũừứựửữỳýỵỷỹĂÂĐÊÔƠƯÀÁẠẢÃẰẮẶẲẴẦẤẬẨẪÈÉẸẺẼỀẾỆỂỄÌÍỊỈĨÒÓỌỎÕỒỐỘỔỖỜỚỢỞỠÙÚỤỦŨỪỨỰỬỮỲÝỴỶỸ]")
 
 
 def detect_locale_from_text(text: str) -> str:
-    """从文本检测语言（兼容性函数）"""
-    # 简单的 Unicode 范围检测
-    hiragana = sum(1 for c in text if "\u3040" <= c <= "\u309f")
-    katakana = sum(1 for c in text if "\u30a0" <= c <= "\u30ff")
-    hangul = sum(1 for c in text if "\uac00" <= c <= "\ud7af")
-    latin_vn = sum(1 for c in text if c in "àáảãạăắằẳẵặâấầẩẫậđêếềểễệôốồổỗộơớờởỡợưứừửữự")
-    cjk = sum(1 for c in text if "\u4e00" <= c <= "\u9fff")
-
-    if hiragana + katakana > 0:
-        return "ja"
-    if hangul > 0:
-        return "ko"
-    if latin_vn > 0:
-        return "vi"
-    if cjk > 0:
+    """Best-effort locale detection from a text snippet."""
+    if not isinstance(text, str) or not text.strip():
         return "zh-CN"
-    return "en"
+    if _HANGUL_RE.search(text):
+        return "ko"
+    if _HIRAGANA_RE.search(text) or _KATAKANA_RE.search(text):
+        return "ja"
+    if _VI_DIACRITICS_RE.search(text):
+        return "vi"
+    if _EN_RE.search(text):
+        return "en"
+    # Chinese: check for traditional-specific characters.
+    traditional_hits = sum(1 for ch in text if ch in _TRADITIONAL_HINT_CHARS)
+    if traditional_hits >= 2:
+        return "zh-TW"
+    return "zh-CN"
+
+
+_instance: Optional[I18nManager] = None
 
 
 def get_i18n_manager() -> I18nManager:
-    """获取 I18nManager 单例（兼容性别名）"""
-    return I18nManager()
+    """Return the process-wide :class:`I18nManager` singleton."""
+    global _instance
+    if _instance is None:
+        _instance = I18nManager()
+    return _instance

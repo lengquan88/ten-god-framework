@@ -58,7 +58,6 @@ ROLE_PERMISSIONS = {
             "records:read", "records:write", "records:delete",
             "webhook:read", "webhook:write",
             "plugin:read",
-            "data:read", "data:write", "data:admin",  # v2.12: 数据管理权限
         ],
         "quota_daily": 100,
     },
@@ -480,77 +479,6 @@ def create_token_pair(user_id: int, username: str, role: str) -> Dict[str, Any]:
     }
 
 
-# ============================================================================
-# v2.12: 数据库用户集成
-# ============================================================================
-
-def sync_user_to_db(username: str, password: str, role: str = "user") -> Dict[str, Any]:
-    """同步用户到数据库
-
-    持久化用户到数据库 tables。
-    """
-    from tengod.database import is_persistent, get_db
-    from tengod.auth import PasswordHasher
-
-    user_id = hash(username) % 100000  # 简单 ID 生成
-
-    # 持久化
-    if is_persistent():
-        db = get_db()
-        existing = db.get_user(username=username)
-        if not existing:
-            api_key = _generate_api_key()
-            db.create_user({
-                "username": username,
-                "api_key": api_key,
-                "role": role,
-                "quota_limit": ROLE_PERMISSIONS.get(role, {}).get("quota_daily", 100),
-            })
-
-    return {"user_id": user_id, "username": username, "role": role}
-
-
-def load_users_from_db() -> int:
-    """从数据库加载用户到内存"""
-    from tengod.database import is_persistent, get_db
-    if not is_persistent():
-        return 0
-
-    # 由于用户数据存储在内存中，这里做种子用户初始化
-    # 检查是否已有用户
-    count = 0
-    import os
-    admin_pass = os.environ.get("ADMIN_PASSWORD", "admin123")
-    sync_user_to_db("admin", admin_pass, "admin")
-    count += 1
-
-    return count
-
-
-def _generate_api_key(length: int = 32) -> str:
-    """生成 API Key"""
-    import secrets
-    import hashlib
-    raw = secrets.token_bytes(length)
-    return hashlib.sha256(raw).hexdigest()[:length]
-
-
-def check_db_quota(username: str) -> Tuple[bool, int, int]:
-    """检查数据库配额"""
-    from tengod.database import is_persistent, get_db
-    if not is_persistent():
-        return True, 0, 0
-    return get_db().check_quota(username)
-
-
-def update_db_quota(username: str, delta: int = 1) -> bool:
-    """更新数据库配额"""
-    from tengod.database import is_persistent, get_db
-    if not is_persistent():
-        return True
-    return get_db().update_quota(username, delta)
-
-
 __all__ = [
     "PasswordHasher", "JWTManager", "CurrentUser",
     "get_current_user", "get_current_user_optional",
@@ -558,6 +486,4 @@ __all__ = [
     "QuotaManager", "auth_middleware", "authorize",
     "create_token_pair", "ROLE_PERMISSIONS",
     "ACCESS_TOKEN_EXPIRE_MINUTES", "REFRESH_TOKEN_EXPIRE_DAYS",
-    "sync_user_to_db", "load_users_from_db",  # v2.12
-    "check_db_quota", "update_db_quota",  # v2.12
 ]
