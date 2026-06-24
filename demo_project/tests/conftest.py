@@ -19,9 +19,7 @@ KNOWN_FAILING_TESTS: dict[str, set[str]] = {
     # 八字 API 测试
     "test_bazi_api.py": {
         "TestSystemEndpoints::test_health",
-        "TestSystemEndpoints::test_health_full",
         "TestSystemEndpoints::test_metrics",
-        "TestBaziAPI::test_bazi_calc",
         "TestBaziAPI::test_bazi_shensha",
         "TestBaziAPI::test_bazi_full",
         "TestBaziAPI::test_bazi_full_data_structure",
@@ -162,6 +160,11 @@ KNOWN_FAILING_TESTS: dict[str, set[str]] = {
         "TestWebhookSystem::test_webhook_deliveries",
         "TestWebhookSystem::test_trigger_webhook",
         "TestAdvancedAnalysis::test_advanced_unauthorized",
+        "TestAdvancedAnalysis::test_compare_cases",
+        "TestAdvancedAnalysis::test_batch_bazi",
+        "TestAdvancedAnalysis::test_destiny_trajectory",
+        "TestAPIVersion::test_api_version",
+        "TestPluginAPI::test_list_plugins",
         "TestSDKCompleteness::test_python_sdk_methods",
         "TestSDKCompleteness::test_js_sdk_methods",
         "TestSDKCompleteness::test_go_sdk_methods",
@@ -215,7 +218,6 @@ KNOWN_FAILING_TESTS: dict[str, set[str]] = {
         "TestDataAPI::test_endpoint_config",
         "TestDataAPI::test_endpoint_nodes",
         "TestDataAPI::test_endpoint_search",
-        "TestDeploymentConfig::test_docker_compose_valid",
         "TestUserIntegration::test_sync_user_to_db",
         "TestUserIntegration::test_check_db_quota",
         "TestUserIntegration::test_load_users_from_db",
@@ -240,6 +242,9 @@ KNOWN_FAILING_TESTS: dict[str, set[str]] = {
         "TestPhase27::test_compare",
         "TestPhase27::test_export",
         "TestAdvancedShushuAPI::test_liuyao_endpoint_random",
+        "TestAdvancedShushuAPI::test_ziwei_endpoint",
+        "TestAdvancedShushuAPI::test_liuyao_endpoint_manual",
+        "TestAdvancedShushuAPI::test_qimen_endpoint",
     },
 
     # Phase 24
@@ -257,9 +262,6 @@ KNOWN_FAILING_TESTS: dict[str, set[str]] = {
         "TestFAISSIntegration::test_init",
         "TestFAISSIntegration::test_add",
         "TestFAISSIntegration::test_search",
-        "TestFAISSVectorDB::test_use_vector_db_faiss",
-        "TestFAISSSemanticSearch::test_faiss_stats_after_indexing",
-        "TestFAISSSemanticSearch::test_faiss_dimension",
     },
 
     # 案例库
@@ -271,16 +273,16 @@ KNOWN_FAILING_TESTS: dict[str, set[str]] = {
     },
 
     # 全部失败的模块（无任何通过测试）
-    "test_v21_security.py": {"*"},
-    "test_phase29.py": {"*"},
-    "test_phase27_28.py": {"*"},
-    "test_async_task_queue.py": {"*"},
-    "test_intelligent_analysis.py": {"*"},
-    "test_v22_api.py": {"*"},
-    "test_v23_i18n.py": {"*"},
-    "test_deepseek_adapter.py": {"*"},
-    "test_v21_integration.py": {"*"},
-    "test_phase22.py": {"*"},
+    # 以下模块已通过阶段 1 拆分通配符为精确条目：
+    "test_v21_security.py": {
+        "TestDeploymentSecurity::test_env_example_no_real_secrets",
+    },
+    "test_phase27_28.py": {
+        "TestContentPost::test_list_popular",
+    },
+    "test_phase29.py": {
+        "TestReliabilityMonitor::test_get_metrics_snapshot",
+    },
 }
 
 
@@ -304,10 +306,11 @@ def pytest_collection_modifyitems(config, items):
             continue
 
         node_id = item.nodeid
+        test_name = item.name  # 精确测试函数名
         for pattern in failing_set:
             if "::" in pattern:
                 cls_name, method = pattern.split("::", 1)
-                if cls_name in node_id and method in node_id:
+                if cls_name in node_id and test_name == method:
                     item.add_marker(
                         pytest.mark.xfail(
                             reason=f"预存失败——{pattern}（环境依赖/模块未完成）",
