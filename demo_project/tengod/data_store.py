@@ -122,7 +122,7 @@ class BaziRecord(Base):
     report_cache: Mapped[List["ReportCache"]] = relationship(
         back_populates="bazi_record", lazy="select", cascade="all, delete-orphan"
     )
-    cases: Mapped[List["Case"]] = relationship(
+    cases: Mapped[List["LegacyCase"]] = relationship(
         back_populates="bazi_record", lazy="select", cascade="all, delete-orphan"
     )
 
@@ -184,9 +184,9 @@ class ReportCache(Base):
         return f"<ReportCache(id={self.id}, record={self.bazi_record_id}, format={self.format!r})>"
 
 
-class Case(Base):
-    """案例库：分析案例、命例收藏、典型案例"""
-    __tablename__ = "cases"
+class LegacyCase(Base):
+    """案例库：分析案例、命例收藏、典型案例（v2.16.1 重命名，避免与 case_library.Case 冲突）"""
+    __tablename__ = "legacy_cases"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     title: Mapped[str] = mapped_column(String(256), nullable=False, index=True)
@@ -243,7 +243,7 @@ class Case(Base):
         }
 
     def __repr__(self):
-        return f"<Case(id={self.id}, title={self.title!r}, category={self.category!r})>"
+        return f"<LegacyCase(id={self.id}, title={self.title!r}, category={self.category!r})>"
 
 
 # ============================================================================
@@ -511,7 +511,7 @@ class DataStore:
     ) -> int:
         """保存一条案例，返回案例 ID"""
         with self._session() as s:
-            case = Case(
+            case = LegacyCase(
                 title=title,
                 summary=summary,
                 analysis_text=analysis_text,
@@ -532,10 +532,10 @@ class DataStore:
             s.refresh(case)
             return case.id
 
-    def get_case(self, case_id: int) -> Optional[Case]:
+    def get_case(self, case_id: int) -> Optional[LegacyCase]:
         """获取单条案例"""
         with self._session() as s:
-            return s.query(Case).filter(Case.id == case_id).first()
+            return s.query(LegacyCase).filter(LegacyCase.id == case_id).first()
 
     def list_cases(
         self,
@@ -546,22 +546,22 @@ class DataStore:
         limit: int = 50,
         offset: int = 0,
         order_by: str = "created_at_desc",
-    ) -> List[Case]:
+    ) -> List[LegacyCase]:
         """列出案例，支持多条件过滤"""
         with self._session() as s:
-            q = s.query(Case)
+            q = s.query(LegacyCase)
             if category is not None:
-                q = q.filter(Case.category == category)
+                q = q.filter(LegacyCase.category == category)
             if is_public is not None:
-                q = q.filter(Case.is_public == is_public)
+                q = q.filter(LegacyCase.is_public == is_public)
             if is_featured is not None:
-                q = q.filter(Case.is_featured == is_featured)
+                q = q.filter(LegacyCase.is_featured == is_featured)
             if user_id is not None:
-                q = q.filter(Case.user_id == user_id)
+                q = q.filter(LegacyCase.user_id == user_id)
             if order_by == "created_at_asc":
-                q = q.order_by(Case.created_at.asc())
+                q = q.order_by(LegacyCase.created_at.asc())
             else:
-                q = q.order_by(Case.created_at.desc())
+                q = q.order_by(LegacyCase.created_at.desc())
             return q.offset(offset).limit(limit).all()
 
     def search_cases(
@@ -569,25 +569,25 @@ class DataStore:
         keyword: str,
         category: Optional[str] = None,
         limit: int = 50,
-    ) -> List[Case]:
+    ) -> List[LegacyCase]:
         """关键词搜索（title / summary / analysis_text）"""
         if not keyword:
             return self.list_cases(category=category, limit=limit)
         pattern = f"%{keyword}%"
         with self._session() as s:
-            q = s.query(Case).filter(
-                (Case.title.like(pattern))
-                | (Case.summary.like(pattern))
-                | (Case.analysis_text.like(pattern))
+            q = s.query(LegacyCase).filter(
+                (LegacyCase.title.like(pattern))
+                | (LegacyCase.summary.like(pattern))
+                | (LegacyCase.analysis_text.like(pattern))
             )
             if category is not None:
-                q = q.filter(Case.category == category)
-            return q.order_by(Case.created_at.desc()).limit(limit).all()
+                q = q.filter(LegacyCase.category == category)
+            return q.order_by(LegacyCase.created_at.desc()).limit(limit).all()
 
     def update_case(self, case_id: int, **kwargs) -> bool:
         """更新案例字段"""
         with self._session() as s:
-            case = s.query(Case).filter(Case.id == case_id).first()
+            case = s.query(LegacyCase).filter(LegacyCase.id == case_id).first()
             if case is None:
                 return False
             for key, value in kwargs.items():
@@ -607,7 +607,7 @@ class DataStore:
     def delete_case(self, case_id: int) -> bool:
         """删除案例"""
         with self._session() as s:
-            case = s.query(Case).filter(Case.id == case_id).first()
+            case = s.query(LegacyCase).filter(LegacyCase.id == case_id).first()
             if case is None:
                 return False
             s.delete(case)
@@ -618,14 +618,14 @@ class DataStore:
                     is_public: Optional[bool] = None) -> int:
         """统计案例数量"""
         with self._session() as s:
-            q = s.query(func.count(Case.id))
+            q = s.query(func.count(LegacyCase.id))
             if category is not None:
-                q = q.filter(Case.category == category)
+                q = q.filter(LegacyCase.category == category)
             if is_public is not None:
-                q = q.filter(Case.is_public == is_public)
+                q = q.filter(LegacyCase.is_public == is_public)
             return q.scalar() or 0
 
-    def fulltext_search(self, keyword: str, limit: int = 20) -> List[Case]:
+    def fulltext_search(self, keyword: str, limit: int = 20) -> List[LegacyCase]:
         """
         全文检索：
           - PostgreSQL 下，若 fts_vector 被填写则使用 LIKE（不依赖未创建的 tsvector 索引）；
@@ -637,13 +637,13 @@ class DataStore:
         pattern = f"%{keyword}%"
         with self._session() as s:
             return (
-                s.query(Case)
+                s.query(LegacyCase)
                 .filter(
-                    (Case.fts_vector.like(pattern))
-                    | (Case.title.like(pattern))
-                    | (Case.summary.like(pattern))
+                    (LegacyCase.fts_vector.like(pattern))
+                    | (LegacyCase.title.like(pattern))
+                    | (LegacyCase.summary.like(pattern))
                 )
-                .order_by(Case.created_at.desc())
+                .order_by(LegacyCase.created_at.desc())
                 .limit(limit)
                 .all()
             )
@@ -651,12 +651,12 @@ class DataStore:
     def get_case_stats(self) -> Dict[str, Any]:
         """案例统计：总数、按分类分布、精选数"""
         with self._session() as s:
-            total = s.query(func.count(Case.id)).scalar() or 0
-            featured = s.query(func.count(Case.id)).filter(Case.is_featured.is_(True)).scalar() or 0
+            total = s.query(func.count(LegacyCase.id)).scalar() or 0
+            featured = s.query(func.count(LegacyCase.id)).filter(LegacyCase.is_featured.is_(True)).scalar() or 0
             per_category = dict(
-                s.query(Case.category, func.count(Case.id))
-                .filter(Case.category.isnot(None))
-                .group_by(Case.category)
+                s.query(LegacyCase.category, func.count(LegacyCase.id))
+                .filter(LegacyCase.category.isnot(None))
+                .group_by(LegacyCase.category)
                 .all()
             )
             return {
@@ -682,7 +682,7 @@ class DataStore:
                 "total_users": s.query(func.count(User.id)).scalar() or 0,
                 "total_records": s.query(func.count(BaziRecord.id)).scalar() or 0,
                 "total_cached_reports": s.query(func.count(ReportCache.id)).scalar() or 0,
-                "total_cases": s.query(func.count(Case.id)).scalar() or 0,
+                "total_cases": s.query(func.count(LegacyCase.id)).scalar() or 0,
                 "top_day_masters": [
                     {"dm": r[0], "count": r[1]}
                     for r in s.query(BaziRecord.day_master, func.count(BaziRecord.id))
