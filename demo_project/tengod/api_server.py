@@ -4210,6 +4210,280 @@ async def v2_conversation_suggestions(session_id: str, request: Request):
 
 
 # ============================================================================
+# v2.12: 数据管理 API — 案例/对话/反馈/数据库
+# ============================================================================
+
+# ── 案例管理 ────────────────────────────────────────────────────────────────
+
+class CaseListRequest(BaseModel):
+    page: int = Field(1, ge=1, description="页码")
+    page_size: int = Field(20, ge=1, le=100, description="每页数量")
+    category: str = Field("", description="分类过滤")
+    tag: str = Field("", description="标签过滤")
+    search: str = Field("", description="搜索关键词")
+
+@app.get("/api/v2/cases", tags=["v2.12 数据管理"])
+async def list_cases(request: Request, page: int = 1, page_size: int = 20, category: str = "", search: str = ""):
+    """分页列出案例"""
+    from tengod.auth import authorize
+    authorize(request, "data:read", consume_quota=False)
+    try:
+        from tengod.case_repository import get_repository
+        repo = get_repository()
+        result = repo.list_cases(page=page, page_size=page_size, category=category, search=search)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取案例列表失败: {e}")
+
+
+@app.get("/api/v2/cases/{case_id}", tags=["v2.12 数据管理"])
+async def get_case(case_id: int, request: Request):
+    """获取案例详情"""
+    from tengod.auth import authorize
+    authorize(request, "data:read", consume_quota=False)
+    try:
+        from tengod.case_repository import get_repository
+        repo = get_repository()
+        case = repo.get_case(case_id)
+        if not case:
+            raise HTTPException(status_code=404, detail="案例不存在")
+        return case
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取案例失败: {e}")
+
+
+@app.post("/api/v2/cases", tags=["v2.12 数据管理"])
+async def create_case(request: Request):
+    """创建案例"""
+    from tengod.auth import authorize
+    authorize(request, "data:write")
+    try:
+        body = await request.json()
+        from tengod.case_repository import get_repository
+        repo = get_repository()
+        result = repo.add_case(body)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"创建案例失败: {e}")
+
+
+@app.put("/api/v2/cases/{case_id}", tags=["v2.12 数据管理"])
+async def update_case(case_id: int, request: Request):
+    """更新案例"""
+    from tengod.auth import authorize
+    authorize(request, "data:write")
+    try:
+        body = await request.json()
+        from tengod.case_repository import get_repository
+        repo = get_repository()
+        success = repo.update_case(case_id, body)
+        if not success:
+            raise HTTPException(status_code=404, detail="案例不存在")
+        return {"success": True, "id": case_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"更新案例失败: {e}")
+
+
+@app.delete("/api/v2/cases/{case_id}", tags=["v2.12 数据管理"])
+async def delete_case(case_id: int, request: Request):
+    """删除案例"""
+    from tengod.auth import authorize
+    authorize(request, "data:write")
+    try:
+        from tengod.case_repository import get_repository
+        repo = get_repository()
+        success = repo.delete_case(case_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="案例不存在")
+        return {"success": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"删除案例失败: {e}")
+
+
+@app.get("/api/v2/cases/similar", tags=["v2.12 数据管理"])
+async def find_similar_cases(day_master: str = "", limit: int = 5, request: Request = None):
+    """查找相似案例"""
+    from tengod.auth import authorize
+    authorize(request, "data:read", consume_quota=False)
+    try:
+        from tengod.case_repository import get_repository
+        repo = get_repository()
+        similar = repo.get_similar_cases({"day_master": day_master}, limit=limit)
+        return {"similar": similar, "count": len(similar)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"查找相似案例失败: {e}")
+
+
+@app.get("/api/v2/cases/export", tags=["v2.12 数据管理"])
+async def export_cases(filepath: str = "/tmp/cases_export.json", request: Request = None):
+    """导出全部案例为 JSON"""
+    from tengod.auth import authorize
+    authorize(request, "data:admin", consume_quota=False)
+    try:
+        from tengod.case_repository import get_repository
+        repo = get_repository()
+        count = repo.export_to_json(filepath)
+        return {"success": True, "count": count, "path": filepath}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"导出失败: {e}")
+
+
+@app.post("/api/v2/cases/import", tags=["v2.12 数据管理"])
+async def import_cases(request: Request):
+    """批量导入案例 JSON"""
+    from tengod.auth import authorize
+    authorize(request, "data:admin")
+    try:
+        body = await request.json()
+        from tengod.case_repository import get_repository
+        repo = get_repository()
+        count = repo.bulk_import(body.get("cases", []))
+        return {"success": True, "imported": count}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"导入失败: {e}")
+
+
+# ── 对话历史 ──────────────────────────────────────────────────────────────
+
+@app.get("/api/v2/conversations", tags=["v2.12 数据管理"])
+async def list_conversations(request: Request, limit: int = 10):
+    """获取最近会话列表"""
+    from tengod.auth import authorize
+    authorize(request, "data:read", consume_quota=False)
+    try:
+        from tengod.database import is_persistent, get_db
+        if not is_persistent():
+            return {"conversations": [], "count": 0}
+        recent = get_db().get_recent_conversations(limit=limit)
+        return {"conversations": recent, "count": len(recent)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取会话列表失败: {e}")
+
+
+@app.get("/api/v2/conversations/{session_id}", tags=["v2.12 数据管理"])
+async def get_conversation(session_id: str, request: Request, limit: int = 100):
+    """获取会话详情"""
+    from tengod.auth import authorize
+    authorize(request, "data:read", consume_quota=False)
+    try:
+        from tengod.database import is_persistent, get_db
+        if not is_persistent():
+            return {"messages": [], "count": 0}
+        messages = get_db().get_conversation(session_id, limit=limit)
+        return {"session_id": session_id, "messages": messages, "count": len(messages)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取会话详情失败: {e}")
+
+
+@app.delete("/api/v2/conversations/{session_id}", tags=["v2.12 数据管理"])
+async def delete_conversation(session_id: str, request: Request):
+    """删除会话"""
+    from tengod.auth import authorize
+    authorize(request, "data:write")
+    try:
+        from tengod.database import is_persistent, get_db
+        if not is_persistent():
+            raise HTTPException(status_code=400, detail="持久化未启用")
+        deleted = get_db().delete_conversation(session_id)
+        return {"success": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"删除会话失败: {e}")
+
+
+# ── 反馈管理 ──────────────────────────────────────────────────────────────
+
+@app.get("/api/v2/feedback", tags=["v2.12 数据管理"])
+async def list_feedback(request: Request, domain: str = "", limit: int = 20, offset: int = 0):
+    """列出反馈记录"""
+    from tengod.auth import authorize
+    authorize(request, "data:read", consume_quota=False)
+    try:
+        from tengod.database import is_persistent, get_db
+        if not is_persistent():
+            return {"feedback": [], "count": 0}
+        feedback = get_db().list_feedback(domain=domain, limit=limit, offset=offset)
+        count = get_db().count_feedback(domain=domain)
+        return {"feedback": feedback, "count": count}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取反馈失败: {e}")
+
+
+@app.get("/api/v2/feedback/stats", tags=["v2.12 数据管理"])
+async def get_feedback_stats(request: Request):
+    """获取反馈统计"""
+    from tengod.auth import authorize
+    authorize(request, "data:read", consume_quota=False)
+    try:
+        from tengod.database import is_persistent, get_db
+        if not is_persistent():
+            return {"total": 0}
+        stats = get_db().get_feedback_stats()
+        return stats
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取统计失败: {e}")
+
+
+# ── 数据库管理 ──────────────────────────────────────────────────────────────
+
+@app.get("/api/v2/admin/db-stats", tags=["v2.12 数据管理"])
+async def get_db_stats(request: Request):
+    """获取数据库统计"""
+    from tengod.auth import authorize
+    authorize(request, "data:admin", consume_quota=False)
+    try:
+        from tengod.database import is_persistent, get_db
+        if not is_persistent():
+            return {"is_persistent": False, "stats": {}}
+        stats = get_db().get_stats()
+        return {"is_persistent": True, "stats": stats}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取统计失败: {e}")
+
+
+@app.post("/api/v2/admin/backup", tags=["v2.12 数据管理"])
+async def backup_full(request: Request):
+    """全量数据备份导出"""
+    from tengod.auth import authorize
+    authorize(request, "data:admin")
+    try:
+        from tengod.database import is_persistent, get_db
+        if not is_persistent():
+            raise HTTPException(status_code=400, detail="持久化未启用")
+        export = get_db().export_all()
+        return export
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"备份失败: {e}")
+
+
+@app.post("/api/v2/admin/restore", tags=["v2.12 数据管理"])
+async def restore_full(request: Request):
+    """从备份恢复全量数据"""
+    from tengod.auth import authorize
+    authorize(request, "data:admin")
+    try:
+        body = await request.json()
+        from tengod.database import is_persistent, get_db
+        if not is_persistent():
+            raise HTTPException(status_code=400, detail="持久化未启用")
+        counts = get_db().import_all(body)
+        return {"success": True, "counts": counts}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"恢复失败: {e}")
+
+
+# ============================================================================
 # 启动入口
 # ============================================================================
 
