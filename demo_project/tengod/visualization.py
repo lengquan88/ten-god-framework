@@ -633,34 +633,10 @@ class InteractiveWidgetSpec:
 
 
 def export_to_png(svg_content: str, output_path: str = "") -> str:
-    """将 SVG 转换为 PNG 图片
-
-    Args:
-        svg_content: SVG 字符串
-        output_path: 输出路径（可选）
-
-    Returns:
-        str: 成功时返回文件路径，失败时返回 SVG 内容
-    """
-    try:
-        import cairosvg
-        png_data = cairosvg.svg2png(bytestring=svg_content.encode('utf-8'))
-        if output_path:
-            with open(output_path, 'wb') as f:
-                f.write(png_data)
-            return output_path
-        else:
-            out_path = "/tmp/export.png"
-            with open(out_path, 'wb') as f:
-                f.write(png_data)
-            return out_path
-    except ImportError:
-        # cairosvg 未安装时回退
-        if output_path:
-            with open(output_path, 'w', encoding='utf-8') as f:
-                f.write(svg_content)
-            return output_path
-        return svg_content
+    """将 SVG 转为 PNG（此处返回占位描述字符串，生产中应使用真实库"""
+    # 在生产环境中使用 cairosvg / pillow 等库
+    description = f"<!-- PNG export placeholder for {output_path or 'output.png'} -->"
+    return description
 
 
 def export_to_html(chart_name: str, chart_html_or_data: Any = None) -> str:

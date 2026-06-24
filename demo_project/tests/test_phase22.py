@@ -484,7 +484,7 @@ class TestMigrationTool:
         src = _temp_db("_src3.db")
         dst = _temp_db("_dst3.db")
         mm = MigrationManager(sqlite_path=src, postgres_url=f"sqlite:///{dst}")
-        from tengod.data_store import LegacyCase as _Case
+        from tengod.data_store import Case as _Case
         assert mm._coerce_value(None, "category", _Case) is None
         assert mm._coerce_value("事业", "category", _Case) == "事业"
         result = mm._coerce_value(1, "is_public", _Case)
