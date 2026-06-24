@@ -12,11 +12,36 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-# Mock 依赖
-sys.modules['tengod.auth'] = MagicMock()
-sys.modules['tengod.auth'].authorize = MagicMock(return_value=None)
-sys.modules['tengod.metrics_collector'] = MagicMock()
-sys.modules['tengod.metrics_collector'].metrics = MagicMock()
+# ── v2.17.0: 将模块级 sys.modules 污染移到 autouse fixture 中 ──
+# 原模块级代码 sys.modules['tengod.auth'] = MagicMock() 在 pytest 收集阶段
+# 即污染全局状态，导致其他测试的 PasswordHasher.hash() 返回 MagicMock。
+# 现在通过 fixture 设置 mock 并在测试结束后清理，不影响其他测试。
+
+@pytest.fixture(autouse=True)
+def _mock_tengod_modules_for_v23():
+    """仅在本文件测试中 mock tengod.auth 和 metrics_collector，测试后恢复"""
+    _orig_auth = sys.modules.get('tengod.auth')
+    _orig_metrics = sys.modules.get('tengod.metrics_collector')
+
+    mock_auth = MagicMock()
+    mock_auth.authorize = MagicMock(return_value=None)
+    mock_metrics = MagicMock()
+    mock_metrics.metrics = MagicMock()
+
+    sys.modules['tengod.auth'] = mock_auth
+    sys.modules['tengod.metrics_collector'] = mock_metrics
+
+    yield
+
+    if _orig_auth is not None:
+        sys.modules['tengod.auth'] = _orig_auth
+    else:
+        sys.modules.pop('tengod.auth', None)
+
+    if _orig_metrics is not None:
+        sys.modules['tengod.metrics_collector'] = _orig_metrics
+    else:
+        sys.modules.pop('tengod.metrics_collector', None)
 
 
 # ════════════════════════════════════════

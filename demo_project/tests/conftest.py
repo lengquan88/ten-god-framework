@@ -8,95 +8,54 @@ v2.16.1 测试配置 —— 标记预存失败为预期失败 (xfail)
 
 标记为 xfail 后，主测试套件报告为 "全部通过或明确预期失败"。
 """
+import sys
 import pytest
+
+# ── v2.17.0: 保护 auth 模块不被 test_v22_api.py 的 MagicMock 污染 ──────────
+# test_v22_api.py 在模块级执行 sys.modules['tengod.auth'] = MagicMock()，
+# 在 pytest 收集阶段即污染全局状态。通过 pytest_configure 在污染前保存真实模块，
+# 然后在每个测试前恢复。
+_REAL_AUTH_MODULE = None
+_REAL_API_SERVER_MODULE = None
+_REAL_METRICS_MODULE = None
+
+def pytest_configure(config):
+    """在测试收集前保存真实模块引用（此时 test_v22_api.py 尚未导入）"""
+    global _REAL_AUTH_MODULE, _REAL_API_SERVER_MODULE, _REAL_METRICS_MODULE
+    try:
+        import tengod.auth as _mod
+        _REAL_AUTH_MODULE = _mod
+    except Exception:
+        pass
+    try:
+        import tengod.api_server as _mod
+        _REAL_API_SERVER_MODULE = _mod
+    except Exception:
+        pass
+    try:
+        import tengod.metrics_collector as _mod
+        _REAL_METRICS_MODULE = _mod
+    except Exception:
+        pass
+
+
+@pytest.fixture(autouse=True)
+def _restore_auth_module(request):
+    """每个测试前恢复被 test_v22_api.py 污染的模块"""
+    if _REAL_AUTH_MODULE is not None:
+        sys.modules["tengod.auth"] = _REAL_AUTH_MODULE
+    if _REAL_API_SERVER_MODULE is not None:
+        sys.modules["tengod.api_server"] = _REAL_API_SERVER_MODULE
+    if _REAL_METRICS_MODULE is not None:
+        sys.modules["tengod.metrics_collector"] = _REAL_METRICS_MODULE
+    yield
 
 # 预存失败测试列表（精确匹配 ClassName::method_name）
 # 格式：{文件名: {ClassName::method_name, ...}}
 KNOWN_FAILING_TESTS: dict[str, set[str]] = {
-    # API 集成测试：服务启动超时（全部 32 个，不区分具体测试）
-    "test_api_integration.py": {"*"},
+    # v2.17.0 阶段 1.3 修复：test_api_integration.py 已重写为 FastAPI TestClient
 
-    # 八字 API 测试
-    "test_bazi_api.py": {
-        "TestSystemEndpoints::test_health",
-        "TestSystemEndpoints::test_metrics",
-        "TestBaziAPI::test_bazi_shensha",
-        "TestBaziAPI::test_bazi_full",
-        "TestBaziAPI::test_bazi_full_data_structure",
-        "TestGraphAPI::test_graph_stats",
-        "TestAuthSystem::test_login_success",
-        "TestAuthSystem::test_auth_me",
-        "TestAuthSystem::test_token_refresh",
-        "TestAuthSystem::test_auth_refresh",
-        "TestAuthSystem::test_login_wrong_password",
-        "TestAuthSystem::test_register_success",
-        "TestAuthSystem::test_register_duplicate",
-        "TestAuthSystem::test_register_rate_limit",
-        "TestAuthSystem::test_register_without_secret",
-        "TestAuthSystem::test_register_with_secret",
-        "TestAuthSystem::test_register_twice",
-        "TestAuthSystem::test_register_weak_password",
-        "TestAuthSystem::test_register_username_empty",
-        "TestAuthSystem::test_register_password_empty",
-        "TestAuthSystem::test_register_username_invalid",
-        "TestAuthSystem::test_register_username_long",
-        "TestAuthSystem::test_register_username_short",
-        "TestAuthSystem::test_register_username_dup",
-        "TestQuotaAndPermission::test_authenticated_user_higher_quota",
-        "TestRecordsAndMultiTenancy::test_save_record_authenticated",
-        "TestRecordsAndMultiTenancy::test_list_records_own_only",
-        "TestRecordsAndMultiTenancy::test_record_isolation",
-        "TestAdvancedDivination::test_ziwei_calc",
-        "TestAdvancedDivination::test_liuyao_shake",
-        "TestAdvancedDivination::test_name_analyze",
-        "TestKnowledgeAPI::test_wuxing_query",
-        "TestKnowledgeAPI::test_wuxing_not_found",
-        "TestKnowledgeAPI::test_bagua_query",
-    },
-
-    # PWA 测试
-    "test_pwa.py": {
-        "TestPWAServiceWorker::test_sw_file_exists",
-        "TestPWAServiceWorker::test_sw_valid_json",
-        "TestPWAServiceWorker::test_sw_cache_name",
-        "TestPWAServiceWorker::test_sw_precache_urls",
-        "TestPWAServiceWorker::test_sw_runtime_cache",
-        "TestPWAManifest::test_manifest_exists",
-        "TestPWAManifest::test_manifest_name",
-        "TestPWAManifest::test_manifest_icons",
-        "TestPWAManifest::test_manifest_theme_color",
-        "TestPWAManifest::test_manifest_display",
-        "TestPWAIntegration::test_sw_registration",
-        "TestPWAIntegration::test_sw_install",
-        "TestPWAIntegration::test_sw_activate",
-        "TestPWAIntegration::test_sw_fetch",
-        "TestPWAIntegration::test_sw_message",
-        "TestPWAIntegration::test_sw_push",
-        "TestPWAIntegration::test_sw_sync",
-        "TestPWAIntegration::test_sw_fetch_cached",
-        "TestPWAIntegration::test_sw_fetch_network",
-        "TestPWAIntegration::test_sw_fetch_offline",
-        "TestPWAStaticMount::test_service_worker_served",
-        "TestManifestCompleteness::test_manifest_shortcuts",
-        "TestServiceWorkerContent::test_sw_version",
-        "TestServiceWorkerContent::test_sw_cache_strategy",
-        "TestServiceWorkerContent::test_sw_precache_urls",
-        "TestServiceWorkerContent::test_sw_offline_fallback",
-        "TestServiceWorkerContent::test_sw_background_sync",
-        "TestServiceWorkerContent::test_sw_push_notification",
-        "TestServiceWorkerContent::test_sw_message_handler",
-        "TestIndexHtmlElements::test_mobile_meta_tags",
-        "TestIndexHtmlElements::test_pwa_manifest_link",
-        "TestIndexHtmlElements::test_pwa_sw_registration",
-        "TestIndexHtmlElements::test_offline_store_import",
-        "TestIndexHtmlElements::test_mobile_bottom_nav",
-        "TestIndexHtmlElements::test_safe_area_inset",
-        "TestIndexHtmlElements::test_bazi_page",
-        "TestIndexHtmlElements::test_cases_page",
-        "TestIndexHtmlElements::test_pwa_install_hook",
-        "TestIndexHtmlElements::test_network_status_hook",
-        "TestIndexHtmlElements::test_responsive_breakpoints",
-    },
+    # v2.17.0 阶段 3 修复：test_pwa.py 35/35 全部通过（适配实际文件内容 + 内在小孩门禁解包）
 
     # Phase 30: 离线优先功能
     "test_phase30.py": {
@@ -288,6 +247,20 @@ KNOWN_FAILING_TESTS: dict[str, set[str]] = {
 
 def pytest_collection_modifyitems(config, items):
     """自动为预存失败测试添加 xfail 标记（strict=False，不阻断 CI）"""
+    # v2.17.0: 将 test_v22_api.py 移到最后执行，避免其模块级 MagicMock 污染其他测试
+    # test_v22_api.py 在模块级执行 sys.modules['tengod.auth'] = MagicMock()，
+    # 会破坏所有后续测试的 PasswordHasher 等导入。
+    v22_items = []
+    other_items = []
+    for item in items:
+        test_file = item.location[0].split("/")[-1] if "/" in item.location[0] else item.location[0]
+        test_file = test_file.split("\\")[-1]
+        if test_file == "test_v22_api.py":
+            v22_items.append(item)
+        else:
+            other_items.append(item)
+    items[:] = other_items + v22_items
+
     for item in items:
         test_file = item.location[0].split("/")[-1] if "/" in item.location[0] else item.location[0]
         test_file = test_file.split("\\")[-1]
