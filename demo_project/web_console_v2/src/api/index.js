@@ -76,4 +76,11 @@ export const restoreDb = (data) => api.post('/v2/admin/restore', data)
 export const login = (data) => api.post('/auth/login', data)
 export const register = (data) => api.post('/auth/register', data)
 
+// ── 天眼监控 (v2.15) ──
+export const getGateStats = () => api.get('/v2/gate/middleware-stats')
+export const getXiuzhenProgress = () => api.get('/v2/gate/xiuzhen-progress')
+export const getHundunFoams = (limit = 20) => api.get('/v2/gate/hundun-foams', { params: { limit } })
+export const getCorrectionLog = (limit = 20) => api.get('/v2/gate/correction-log', { params: { limit } })
+export const getHuiguStatus = () => api.get('/v2/gate/huigu-status')
+
 export default api

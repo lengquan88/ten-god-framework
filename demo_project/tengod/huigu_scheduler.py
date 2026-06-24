@@ -183,6 +183,21 @@ class HuiguScheduler:
             "history_size": len(self._history),
         }
 
+    def get_status(self) -> Dict[str, Any]:
+        """获取调度器状态（含最近历史）"""
+        stats = self.get_stats()
+        recent = self._history[-5:] if self._history else []
+        return {
+            **stats,
+            "window_size": self.window_size,
+            "max_angle": self.max_angle,
+            "recent_history": [
+                {"step": s.step, "angle": round(s.angle_to_origin, 2),
+                 "magnitude": round(s.magnitude, 4)}
+                for s in recent
+            ],
+        }
+
 
 # 全局调度器
 _huigu_scheduler: Optional[HuiguScheduler] = None
@@ -195,7 +210,12 @@ def get_huigu_scheduler(window_size: int = 10, max_angle: float = 45.0) -> Huigu
     return _huigu_scheduler
 
 
+def get_scheduler() -> HuiguScheduler:
+    """get_huigu_scheduler 的别名"""
+    return get_huigu_scheduler()
+
+
 __all__ = [
     "GradientSnapshot", "HuiguScheduler",
-    "get_huigu_scheduler",
+    "get_huigu_scheduler", "get_scheduler",
 ]

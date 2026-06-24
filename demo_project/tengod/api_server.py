@@ -313,21 +313,28 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="十神架构 · API Server",
     description="""
-## 中华文明数字永生体 · REST API v2.2
+## 中华文明数字永生体 · REST API v2.14.0 (天眼架构)
 
 提供八字排盘、神煞推算、格局判断、喜用神分析、调候分析、
 语义搜索、知识关联推荐、真太阳时、五行旺衰、AI 智能分析等全部能力。
 
+### 天眼架构 v2.14
+- **/api/v2/gate/*** — 天眼门禁 / 知止判定
+- **/api/v2/realms/*** — 修真九境评测
+- **/api/v2/correct** — 七步自修正
+- **/api/v2/hundun/*** — 混沌海探索
+- **/api/v2/huigu/*** — 回头看调度
+
 ### 功能分组
 - **/api/bazi/*** — 八字排盘与命理分析
 - **/api/knowledge/*** — 知识查询与语义搜索
-- **/api/v2/** — v2.2 新增：真太阳时、节气、五行旺衰、命盘可视化、Deepseek AI
+- **/api/v2/** — v2.14 新增：天眼架构全功能
 - **/api/health** — 服务健康检查
 
 ### 鉴权
 通过 `X-API-Key` 请求头传递 API Key（若启动时启用了鉴权）。
 """,
-    version="2.2.0",
+    version="2.15.0",
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",
@@ -341,6 +348,49 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# v2.15 天眼全局门禁中间件
+from tengod.middleware import TianmenMiddleware, get_middleware
+app.add_middleware(TianmenMiddleware)
+
+# 添加门禁统计端点
+@app.get("/api/v2/gate/middleware-stats", tags=["v2.15 天眼监控"])
+async def gate_middleware_stats():
+    """天眼门禁中间件全局统计"""
+    mw = get_middleware()
+    return mw.get_stats()
+
+
+@app.get("/api/v2/gate/xiuzhen-progress", tags=["v2.15 天眼监控"])
+async def gate_xiuzhen_progress():
+    """修真九境评测进度"""
+    from tengod.xiuzhen_realms import get_evaluator
+    evaluator = get_evaluator()
+    return evaluator.get_progress()
+
+
+@app.get("/api/v2/gate/hundun-foams", tags=["v2.15 天眼监控"])
+async def gate_hundun_foams(limit: int = 20):
+    """混沌海浮沫坐标"""
+    from tengod.hundun_sea import get_hundun_sea
+    sea = get_hundun_sea()
+    return sea.get_foams(limit=limit)
+
+
+@app.get("/api/v2/gate/correction-log", tags=["v2.15 天眼监控"])
+async def gate_correction_log(limit: int = 20):
+    """自修正历史记录"""
+    from tengod.self_correction import get_daemon
+    daemon = get_daemon()
+    return daemon.get_stats()
+
+
+@app.get("/api/v2/gate/huigu-status", tags=["v2.15 天眼监控"])
+async def gate_huigu_status():
+    """回头看调度器状态"""
+    from tengod.huigu_scheduler import get_scheduler
+    scheduler = get_scheduler()
+    return scheduler.get_status()
 
 # Gzip 压缩（移动端流量优化 v2.3）
 app.add_middleware(GZipMiddleware, minimum_size=1024)
@@ -3709,7 +3759,7 @@ async def update_task_progress(task_id: str, progress: int = 0, status: str = "r
 from tengod.observability import (
     get_health_checker, health_check_response,
     get_metrics_collector, get_request_tracker,
-    generate_request_id, set_request_id,
+    generate_request_id, set_request_id, get_request_id,
     setup_logging, get_logger,
 )
 

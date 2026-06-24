@@ -55,7 +55,7 @@
 
     <!-- 底部 -->
     <footer class="border-t border-gray-800 py-4 text-center text-xs text-gray-600">
-      天工 · 中华文明数字永生体 v2.13.0
+      天工 · 中华文明数字永生体 v2.15.0
     </footer>
   </div>
 </template>
@@ -75,6 +75,7 @@ const navItems = [
   { path: '/liuyao', label: '六爻' },
   { path: '/fusion', label: '融合' },
   { path: '/cases', label: '案例库' },
+  { path: '/tianmen', label: '天眼' },
   { path: '/admin', label: '管理' },
 ]
 

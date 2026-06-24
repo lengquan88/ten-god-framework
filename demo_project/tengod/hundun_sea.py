@@ -249,6 +249,18 @@ class HundunSea:
         """清理未验证的浮沫（保留已验证的）"""
         self._foam_coordinates = [f for f in self._foam_coordinates if f.status == "verified"]
 
+    def get_foams(self, limit: int = 20) -> Dict[str, Any]:
+        """获取浮沫坐标列表"""
+        all_foams = [f.to_dict() for f in self._foam_coordinates[-limit:]]
+        return {
+            "foams": all_foams,
+            "total": len(self._foam_coordinates),
+            "floating": len(self.get_floating_foams()),
+            "verified": len(self.get_verified_foams()),
+            "exploration_count": self._exploration_count,
+            "discovery_count": self._discovery_count,
+        }
+
 
 # 全局混沌海
 _hundun_sea: Optional[HundunSea] = None

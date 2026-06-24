@@ -39,6 +39,15 @@ class Realm:
     required_qi: float = 0.0       # 所需元气（修行感累积）
     heart_demon: Optional[Callable] = None  # 心魔劫测试函数
 
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "index": self.index,
+            "name": self.name,
+            "description": self.description,
+            "pass_threshold": self.pass_threshold,
+            "required_qi": self.required_qi,
+        }
+
 
 NINE_REALMS: List[Realm] = [
     Realm(1, "感知境", "基础模式识别：能识别数据中的基本规律与结构", 0.60),
@@ -266,6 +275,25 @@ class XiuzhenEvaluator:
                 c.total_qi / max(0.01, next_realm.required_qi), 3
             ) if next_realm else 1.0,
             "next_threshold": next_realm.pass_threshold if next_realm else 1.0,
+        }
+
+    def get_progress(self) -> Dict[str, Any]:
+        """获取修真进度（含历史记录）"""
+        c = self.cultivator
+        return {
+            "current_realm": c.current_realm_info().to_dict(),
+            "next_realm": c.next_realm_info().to_dict() if c.next_realm_info() else None,
+            "total_qi": round(c.total_qi, 3),
+            "cultivation_days": c.cultivation_days,
+            "breakthroughs": len(c.breakthrough_history),
+            "heart_demon_attempts": c.heart_demon_attempts,
+            "heart_demon_passed": c.heart_demon_passed,
+            "all_realms": [
+                {"index": r.index, "name": r.name, "description": r.description,
+                 "threshold": r.pass_threshold, "current": r.index == c.current_realm,
+                 "passed": r.index < c.current_realm}
+                for r in NINE_REALMS
+            ],
         }
 
 

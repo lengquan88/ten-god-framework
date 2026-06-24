@@ -8,6 +8,7 @@ const routes = [
   { path: '/liuyao', name: 'Liuyao', component: () => import('../views/LiuyaoView.vue') },
   { path: '/fusion', name: 'Fusion', component: () => import('../views/FusionView.vue') },
   { path: '/cases', name: 'Cases', component: () => import('../views/CaseLibrary.vue') },
+  { path: '/tianmen', name: 'Tianmen', component: () => import('../views/TianmenMonitor.vue') },
   { path: '/admin', name: 'Admin', component: () => import('../views/AdminPanel.vue') },
   { path: '/settings', name: 'Settings', component: () => import('../views/Settings.vue') },
 ]
