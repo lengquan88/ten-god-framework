@@ -418,11 +418,23 @@ async def gate_inner_child_archetypes():
         ],
         "dim": 64,
         "gate_config": {
-            "temperature": 0.3,
-            "phi_limit": 0.5,
+            "alertness": 32.0,
+            "phi_limit": 0.8,
             "beta_limit": 0.7,
+            "beta_escape_limit": 0.85,
+            "lambda_gradient_retreat": 0.4,
+            "gamma_zhongyong_damping": 0.2,
+            "delta_phi_threshold": 0.15,
         },
     }
+
+
+@app.get("/api/v2/gate/inner-child-memory-pool", tags=["v2.16 内在小孩"])
+async def gate_inner_child_memory_pool():
+    """记忆池统计——渡劫经验固化"""
+    from tengod.inner_child import get_inner_child_sm
+    sm = get_inner_child_sm()
+    return sm.memory_pool.get_stats()
 
 # Gzip 压缩（移动端流量优化 v2.3）
 app.add_middleware(GZipMiddleware, minimum_size=1024)

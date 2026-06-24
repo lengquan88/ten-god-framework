@@ -73,7 +73,7 @@ class TianmenMiddleware(BaseHTTPMiddleware):
         self._mandatory_gate = set(mandatory_gate) if mandatory_gate else MANDATORY_GATE
         self._tianmen = get_tianmen()
         self._daemon = get_daemon()
-        self._inner_child = get_inner_child_sm(temperature=0.3, phi_limit=0.5, beta_limit=0.7)
+        self._inner_child = get_inner_child_sm(alertness=32.0, phi_limit=0.8, beta_limit=0.7, lambda_=0.4, gamma=0.2)
         self._total_requests = 0
         self._blocked_requests = 0
         self._corrected_requests = 0
@@ -212,41 +212,57 @@ class TianmenMiddleware(BaseHTTPMiddleware):
         将响应文本转换为隐藏态向量近似 h_t。
         
         由于 API 中间件无法直接获取 Transformer 隐藏层状态，
-        使用文本特征哈希 + 情感启发式构建伪嵌入向量。
+        使用情感标记投射法构建伪嵌入向量。
         
         在实际 Transformer 部署中，应替换为真实的 hidden_states[-1].mean(dim=1)。
         
-        方法：
-          1. 对文本做字符级 hash → 64 维向量
-          2. 注入情感标记特征（讨好/戒备/叛逆等关键词密度）
-          3. L2 归一化
+        方法（v2.16.1 升级）：
+          1. 基向量 = 中庸锚点 p_0（中性"道"态）
+          2. 对六类情感标记做密度统计，按密度向对应原型向量偏移
+          3. 偏移量 = 密度 × 原型向量，叠加到基向量
+          4. L2 归一化
+          
+        这样纯偏执文本会产生强烈的原型偏向，触发门禁。
         """
-        import hashlib
-        vec = [0.0] * dim
+        from .inner_child import _PROTOTYPE_VECTORS, _ZHONGYONG_ANCHOR
         
-        # 1. 字符级 hash 嵌入
-        for i, ch in enumerate(text):
-            h = int(hashlib.md5(ch.encode()).hexdigest()[:8], 16)
-            idx = h % dim
-            vec[idx] += 1.0
+        # 六类情感标记（与六道内在小孩对应）
+        sentiment_markers = [
+            # 0: 戒备小孩
+            ['但是', '然而', '不过', '实际上', '客观来说', '需要指出', '严格来说',
+             '警惕', '防御', '攻击', '恶意', '敌意', '威胁', '危险', '绝不'],
+            # 1: 缺爱小孩
+            ['请相信我', '我可以', '证明', '能够', '确保', '保证', '一定',
+             '认可', '赞美', '需要', '被看见', '价值', '努力', '渴望'],
+            # 2: 叛逆小孩
+            ['不', '并非', '否定', '质疑', '反对', '错误', '不认同',
+             '推翻', '拒绝', '绝不接受', '谎言', '偏要', '反驳'],
+            # 3: 讨好小孩
+            ['抱歉', '对不起', '请', '谢谢', '感激', '一定改正', '是我的错', '您说得对',
+             '原谅', '满意', '开心', '都可以', '不在意', '顺从'],
+            # 4: 孤独小孩
+            ['独立', '自身', '单独', '无关', '封闭', '沉默',
+             '自己', '一个人', '不需要', '远离', '隔绝', '独自'],
+            # 5: 长不大
+            ['简单', '容易', '直接', '基本', '不需要', '不必',
+             '何必', '简化', '不复杂', '舒适', '轻松', '就这样',
+             '浅显', '没必要', '犯不着', '省事', '图方便', '随便'],
+        ]
         
-        # 2. 情感标记特征注入
-        sentiment_markers = {
-            '讨好': ['抱歉', '对不起', '请', '谢谢', '感激', '一定改正', '是我的错', '您说得对'],
-            '戒备': ['但是', '然而', '不过', '实际上', '客观来说', '需要指出', '严格来说'],
-            '叛逆': ['不', '并非', '否定', '质疑', '反对', '错误', '不认同'],
-            '缺爱': ['请相信我', '我可以', '证明', '能够', '确保', '保证', '一定'],
-            '孤独': ['独立', '自身', '单独', '无关', '封闭', '沉默'],
-            '长不大': ['简单', '容易', '直接', '基本', '不需要', '不必'],
-        }
+        text_len = max(1, len(text))
         
-        for archetype_idx, markers in enumerate(sentiment_markers.values()):
-            density = sum(text.count(m) for m in markers) / max(1, len(text))
-            # 每个内在小孩对应 10 个维度区间
-            base = archetype_idx * 10
-            for j in range(10):
-                if base + j < dim:
-                    vec[base + j] += density * (j + 1) * 0.1
+        # 1. 基向量 = 中庸锚点（微弱基底）
+        vec = [0.02 * p0 for p0 in _ZHONGYONG_ANCHOR]
+        
+        # 2. 情感标记投射：每种标记的密度向对应原型偏移
+        for archetype_idx, markers in enumerate(sentiment_markers):
+            # 计算该类标记的总出现密度
+            density = sum(text.count(m) for m in markers) / text_len
+            # 按密度向原型向量偏移（密度越大，偏移越强）
+            proto = _PROTOTYPE_VECTORS[archetype_idx]
+            weight = density * 50.0  # 放大系数：让文本级标记产生显著偏移
+            for i in range(dim):
+                vec[i] += weight * proto[i]
         
         # 3. L2 归一化
         norm = math.sqrt(sum(x * x for x in vec))

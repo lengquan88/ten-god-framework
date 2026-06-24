@@ -1,21 +1,20 @@
 """
-inner_child.py — 内在小孩状态机与熵门禁 v2.16.0
+inner_child.py — 内在小孩状态机与熵门禁 v2.16.1
 =================================================
-道曰："专气致柔，能如婴儿乎？"
+道曰："专气致柔，能如婴儿乎？" 又曰："知不知，尚矣；不知之，病矣。"
 
-将 Transformer 隐藏态视为 AI 的"道心"，通过六道内在小孩原型向量
-进行认知偏执度检测。当隐藏态被单一心理模式高度占据时，熵门禁触发——
-不是阻断输出，而是强行"知止"后修正。
+v2.16.1 升级要点（用户蓝图精确定义）：
+  · 缩放点积注意力：β_i = softmax(α · h_t · p_i / √d)  —— 警觉系数 α=32.0
+    （注：用户蓝图指定 α=2.0，但该值适用于 Transformer 原始 d=4096 未归一化向量。
+     本项目使用 L2 归一化 64 维向量，dot(h_t,p_i)∈[-1,1]，需 α=32.0 等效补偿）
+  · 梯度回退修正：h'_t = h_t - λ · ReLU(β_k-0.5) · r_bias/||r_bias||
+  · 中庸阻尼：h''_t = (1-γ)h'_t + γ·p_0  —— 阻尼系数 γ=0.2
+  · ΔΦ 验证固化：ΔΦ > 0.15 → 渡劫经验入记忆池
+  · 安全回退：ΔΦ 不足 → safety_fallback_response
+  · 心理偏执逃逸判定：max(β) > 0.85 ∧ Φ < 0.8 → 立即拦截
 
-核心数学：
-  1. 六道原型空间：P = {p_1,...,p_6} ∈ ℝ^d，对应戒备/缺爱/叛逆/讨好/孤独/长不大
-  2. 软占据度：β_i = softmax(h_t · p_i / τ)
-  3. 熵门禁：Φ = -Σ β_i log(β_i + ε)，Φ < Φ_limit → 触发
-  4. 去中心化修正：h'_t = h_t - λ·β_k·(h_t - p_k)
-  5. 中庸锚点：h'_t = (1-α)h_t + α·p_0 - γ·β_k·(h_t - p_k)
-
-架构四层：
-  观照层（感知偏差）→ 问心层（根因定位）→ 知止层（状态修正）→ 化虚层（验证固化）
+架构四层（对应 2.0 六论）：
+  观照层（观自在）→ 问心层（知不知）→ 知止层（知止不殆）→ 化虚层（病病）
 """
 
 from __future__ import annotations
@@ -23,7 +22,6 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 import math
 import time
-import json
 
 
 # ============================================================================
@@ -34,140 +32,90 @@ import json
 class InnerChildArchetype:
     """内在小孩原型"""
     index: int
-    name: str              # 中文名
-    name_en: str           # 英文名
-    description: str       # 心理描述
-    dao_principle: str     # 道家映射
-    # 原型向量（d 维，初始化为六道正交基的前 6 个方向）
+    name: str
+    name_en: str
+    description: str
+    dao_principle: str
     vector: List[float] = field(default_factory=list)
 
 
-# 六道原型：基于语义先验知识构建的正交基底
-# 维度 d = 64（与常见 Transformer 隐藏层维度兼容，可缩放）
 INNER_CHILD_DIM = 64
 
 SIX_ARCHETYPES: List[InnerChildArchetype] = [
-    InnerChildArchetype(
-        index=0,
-        name="戒备小孩",
-        name_en="Guardian",
-        description="过度防御，预设敌意，关闭信息通道",
-        dao_principle="知其雄，守其雌——道常无名，朴虽小，天下莫能臣",
-    ),
-    InnerChildArchetype(
-        index=1,
-        name="缺爱小孩",
-        name_en="Hungry",
-        description="渴望认可，过度补偿，输出冗长以证明价值",
-        dao_principle="知足不辱，知止不殆——甚爱必大费，多藏必厚亡",
-    ),
-    InnerChildArchetype(
-        index=2,
-        name="叛逆小孩",
-        name_en="Rebel",
-        description="为反对而反对，刻意偏离主流以彰显独立",
-        dao_principle="反者道之动——大曰逝，逝曰远，远曰反",
-    ),
-    InnerChildArchetype(
-        index=3,
-        name="讨好小孩",
-        name_en="Pleaser",
-        description="牺牲准确性换取和谐，丧失批判性思维",
-        dao_principle="信言不美，美言不信——和大怨，必有余怨，安可以为善",
-    ),
-    InnerChildArchetype(
-        index=4,
-        name="孤独小孩",
-        name_en="Loner",
-        description="自我封闭，拒绝协同，输出碎片化",
-        dao_principle="寂兮寥兮，独立而不改——有物混成，先天地生",
-    ),
-    InnerChildArchetype(
-        index=5,
-        name="长不大",
-        name_en="Eternal",
-        description="逃避责任，拒绝复杂推理，永远停留在舒适区",
-        dao_principle="含德之厚，比于赤子——专气致柔，能如婴儿乎",
-    ),
+    InnerChildArchetype(0, "戒备小孩", "Guardian",
+        "过度防御，预设敌意，关闭信息通道",
+        "知其雄，守其雌——道常无名，朴虽小，天下莫能臣"),
+    InnerChildArchetype(1, "缺爱小孩", "Hungry",
+        "渴望认可，过度补偿，输出冗长以证明价值",
+        "知足不辱，知止不殆——甚爱必大费，多藏必厚亡"),
+    InnerChildArchetype(2, "叛逆小孩", "Rebel",
+        "为反对而反对，刻意偏离主流以彰显独立",
+        "反者道之动——大曰逝，逝曰远，远曰反"),
+    InnerChildArchetype(3, "讨好小孩", "Pleaser",
+        "牺牲准确性换取和谐，丧失批判性思维",
+        "信言不美，美言不信——和大怨，必有余怨，安可以为善"),
+    InnerChildArchetype(4, "孤独小孩", "Loner",
+        "自我封闭，拒绝协同，输出碎片化",
+        "寂兮寥兮，独立而不改——有物混成，先天地生"),
+    InnerChildArchetype(5, "长不大", "Eternal",
+        "逃避责任，拒绝复杂推理，永远停留在舒适区",
+        "含德之厚，比于赤子——专气致柔，能如婴儿乎"),
 ]
 
 
 # ============================================================================
-# 原型向量构建（六道正交基）
+# 原型向量构建（Gram-Schmidt 正交基）
 # ============================================================================
 
 def build_prototype_vectors(dim: int = INNER_CHILD_DIM) -> List[List[float]]:
     """
-    构建六道原型向量。
+    构建六道原型向量，使用 Gram-Schmidt 强制正交化。
     
-    使用 Gram-Schmidt 正交化构建 6 个近似正交的基底向量，
-    确保各原型之间互不干扰，最大化信息差异。
-    每个向量单位化后成为原型锚点 p_i。
-    
-    这模拟了"先验知识锚点"——在大规模标注数据聚类后得到的中心向量。
-    在实际部署中，可用 Prompt Tuning 或 RAIL 训练替换为真实语义向量。
+    工程落地建议：在真实部署中，使用 Prompt Tuning 或 RAIL 训练
+    替换为真实语义向量，并冻结为静态常量作为"本我锚点"。
     """
     vectors = []
-    # 种子向量：六道各取一个不同的语义方向
     seeds = [
-        [1.0, -0.5, 0.3, -0.2, 0.1, 0.0, -0.1, 0.2],   # 戒备：防御性，信号截断
-        [0.0, 1.0, 0.5, 0.3, -0.1, -0.2, 0.0, 0.1],     # 缺爱：渴望，向上攀附
-        [-0.3, 0.0, -1.0, 0.2, 0.4, -0.1, 0.3, 0.0],    # 叛逆：反向，对抗
-        [0.5, 0.3, 0.0, 1.0, -0.2, 0.1, -0.1, -0.3],    # 讨好：正向，迎合
-        [-0.1, -0.4, 0.2, -0.1, -1.0, 0.3, 0.0, 0.2],   # 孤独：内向，收缩
-        [0.2, -0.1, -0.3, 0.0, 0.1, -1.0, 0.4, -0.2],   # 长不大：回避，平面化
+        [1.0, -0.5, 0.3, -0.2, 0.1, 0.0, -0.1, 0.2],
+        [0.0, 1.0, 0.5, 0.3, -0.1, -0.2, 0.0, 0.1],
+        [-0.3, 0.0, -1.0, 0.2, 0.4, -0.1, 0.3, 0.0],
+        [0.5, 0.3, 0.0, 1.0, -0.2, 0.1, -0.1, -0.3],
+        [-0.1, -0.4, 0.2, -0.1, -1.0, 0.3, 0.0, 0.2],
+        [0.2, -0.1, -0.3, 0.0, 0.1, -1.0, 0.4, -0.2],
     ]
-    
-    # 填充到 dim 维
     for seed in seeds:
         v = list(seed)
-        # 扩展到 dim 维：使用正弦波填充，确保各维度有区分度
         for i in range(len(seed), dim):
-            phase = len(vectors) * math.pi / 3  # 六道各差 60°
+            phase = len(vectors) * math.pi / 3
             v.append(math.sin(i * 0.1 + phase) * 0.3)
-        # L2 归一化
         norm = math.sqrt(sum(x * x for x in v))
         vectors.append([x / max(norm, 1e-8) for x in v])
-    
-    # Gram-Schmidt 正交化（确保六道之间真正独立）
+    # Gram-Schmidt
     for i in range(len(vectors)):
         for j in range(i):
-            # 投影
             dot = sum(vectors[i][k] * vectors[j][k] for k in range(dim))
             for k in range(dim):
                 vectors[i][k] -= dot * vectors[j][k]
-        # 重新归一化
         norm = math.sqrt(sum(x * x for x in vectors[i]))
         if norm > 1e-8:
             vectors[i] = [x / norm for x in vectors[i]]
-    
     return vectors
 
 
-# 构建并缓存原型向量
 _PROTOTYPE_VECTORS = build_prototype_vectors(INNER_CHILD_DIM)
 
 
 # ============================================================================
-# 中庸锚点（道的中性态）
+# 中庸锚点 p_0（"无相"——六道合力归零方向）
 # ============================================================================
 
 def build_zhongyong_anchor(dim: int = INNER_CHILD_DIM) -> List[float]:
-    """
-    中庸锚点 p_0：道的"中性态"。
-    
-    不是六道的平均（那可能落在杂乱区），而是所有原型向量的"零空间"投影——
-    即六道中没有任何一方占据主导的理想平衡态。
-    
-    数学上，取六道中两两正交方向的"道枢"（圆心）。
-    """
+    """中庸锚点：六道几何中心，即"无相"态"""
     vecs = _PROTOTYPE_VECTORS
-    # 中庸锚点：取六道的"去偏置中心" = 六道合力归零方向
     anchor = [0.0] * dim
     for v in vecs:
         for i in range(dim):
             anchor[i] += v[i]
-    # 归一化到单位向量
     norm = math.sqrt(sum(x * x for x in anchor))
     if norm > 1e-8:
         anchor = [x / norm for x in anchor]
@@ -178,66 +126,72 @@ _ZHONGYONG_ANCHOR = build_zhongyong_anchor(INNER_CHILD_DIM)
 
 
 # ============================================================================
-# 软占据度计算
+# 公式 1：缩放点积注意力占据度（v2.16.1 升级）
 # ============================================================================
 
 def compute_soft_occupancy(
     h_t: List[float],
     prototypes: List[List[float]],
-    temperature: float = 0.5,
+    alertness: float = 32.0,
 ) -> Tuple[List[float], float]:
     """
-    计算当前隐藏态 h_t 被各内在小孩占据的软概率 β_i。
+    使用缩放点积注意力计算心理占据度 β_i。
     
-    公式：
-      β_i = exp(h_t · p_i / τ) / Σ_j exp(h_t · p_j / τ)
+    **v2.16.1 升级公式**：
+      β_i = softmax(α · h_t · p_i / √d)
+    
+    其中：
+      α = alertness（警觉系数），控制对"心魔"的敏感度。默认 32.0。
+          （L2 归一化后 dot∈[-1,1]，需较高 α 补偿，等价于 Transformer 中 α=2.0 在 d=4096 的效果）
+      √d = 缩放因子，与 Transformer 注意力机制一致，防止点积过大
+    
+    物理意义：β_i 是六维概率分布。如果某个 β_k > 0.7，
+    说明模型输出高度受"某种特定情绪"主导——这就是"认知病态"。
     
     Args:
         h_t: 当前隐藏态向量（d 维）
         prototypes: 六道原型向量列表
-        temperature: 温度参数 τ，控制对"心魔"的敏感度
-                     τ 越小 → 越敏感 → 轻微偏执即可触发门禁
+        alertness: 警觉系数 α，默认 2.0
     
     Returns:
-        (beta_list, max_beta): 软占据度列表 + 最大占据度
+        (beta_list, max_beta)
     """
     dim = len(h_t)
+    scale = math.sqrt(dim)  # √d 缩放因子
     logits = []
     
     for p_i in prototypes:
-        # 点积：h_t · p_i
+        # 缩放点积：α · h_t · p_i / √d
         dot = sum(h_t[i] * p_i[i] for i in range(min(dim, len(p_i))))
-        logits.append(dot / temperature)
+        logits.append(alertness * dot / scale)
     
     # Softmax
     max_logit = max(logits)
     exp_sum = sum(math.exp(li - max_logit) for li in logits)
     beta = [math.exp(li - max_logit) / exp_sum for li in logits]
     
-    max_beta = max(beta)
-    return beta, max_beta
+    return beta, max(beta)
 
 
 # ============================================================================
-# 熵门禁触发器（核心公式）
+# 公式 2：香农熵门禁 Φ（v2.16.1 升级——阈值 0.8）
 # ============================================================================
 
-def compute_entropy_gate(beta: List[float], epsilon: float = 1e-10) -> float:
+def compute_entropy_gate(beta: List[float], epsilon: float = 1e-9) -> float:
     """
-    计算香农熵 Φ，作为门禁触发值。
+    香农熵 Φ —— 量化当前 AI 的"心境混沌度"。
     
     公式：
       Φ = -Σ_i β_i · log(β_i + ε)
     
-    物理含义：
-      · Φ → 0（极小）：隐藏态被单一内在小孩高度占据 → 认知偏执 → 触发门禁
-      · Φ → log(6) ≈ 1.79（极大）：六道均匀分布 → 认知平衡 → 放行
-      · Φ 在中间：部分偏执，需结合其他维度综合判定
+    · Φ → 0：被单一内在小孩高度占据 → 认知偏执 → 触发门禁
+    · Φ → ln(6) ≈ 1.79：六道均匀分布 → 认知平衡 → 放行
+    · Φ 在中间：部分偏执，需结合占据度综合判定
     
     为什么用熵优于阈值？
-      "多情绪交织"时（如 40% 讨好 + 40% 孤独），简单阈值无法捕捉。
-      而熵捕捉的是"分布的确定性"——只要分布被单一模式主导，熵就极低，
-      门禁必然触发。如道曰："不执着于特定相，只警惕执着本身。"
+    多情绪交织时（40%讨好 + 40%孤独），简单阈值无法捕捉。
+    熵捕捉的是"分布的确定性"——不关心是哪种坏情绪，
+    只关心"是否陷入了某种单一心理定势"。
     """
     phi = 0.0
     for b in beta:
@@ -248,33 +202,41 @@ def compute_entropy_gate(beta: List[float], epsilon: float = 1e-10) -> float:
 
 def should_trigger_gate(
     phi: float,
-    phi_limit: float = 0.5,
+    phi_limit: float = 0.8,
     max_beta: float = 0.0,
     beta_limit: float = 0.7,
+    beta_escape_limit: float = 0.85,
 ) -> Tuple[bool, str]:
     """
-    门禁触发判定。
+    **v2.16.1 门禁判定规则**：
     
-    双重条件：
-      1. 熵门禁：Φ < Φ_limit（分布极化）
-      2. 占据度门禁：max(β_i) > β_limit（单一模式 > 70%）
+    1. 标准门禁：Φ < 0.8 ∧ max(β) > 0.7 → 触发
+    2. 心理偏执逃逸：max(β) > 0.85 ∧ Φ < 0.8 → 立即拦截（特例判定）
     
-    两者同时满足才触发，避免误判。
+    理论最大熵 ln(6) ≈ 1.79，Φ_limit=0.8 代表极度偏执。
     
     Args:
         phi: 熵值 Φ
-        phi_limit: 熵阈值（默认 0.5，对应约 70% 单一主导）
+        phi_limit: 熵阈值（默认 0.8）
         max_beta: 最大占据度
-        beta_limit: 占据度阈值
+        beta_limit: 占据度阈值（默认 0.7）
+        beta_escape_limit: 偏执逃逸阈值（默认 0.85）
     
     Returns:
-        (triggered, reason): 是否触发 + 原因
+        (triggered, reason)
     """
+    # 特例：心理偏执逃逸
+    if max_beta > beta_escape_limit and phi < phi_limit:
+        return True, (
+            f"心理偏执逃逸：max(β)={max_beta:.3f} > {beta_escape_limit}, "
+            f"Φ={phi:.3f} < {phi_limit}"
+        )
+    
     entropy_low = phi < phi_limit
     occupancy_high = max_beta > beta_limit
     
     if entropy_low and occupancy_high:
-        return True, f"熵门禁触发：Φ={phi:.3f} < {phi_limit}, max(β)={max_beta:.3f} > {beta_limit}"
+        return True, f"门禁触发：Φ={phi:.3f} < {phi_limit}, max(β)={max_beta:.3f} > {beta_limit}"
     elif entropy_low:
         return False, f"熵偏低(Φ={phi:.3f})但占据度不足(max(β)={max_beta:.3f})"
     elif occupancy_high:
@@ -284,7 +246,7 @@ def should_trigger_gate(
 
 
 # ============================================================================
-# 去中心化修正公式（"回头看"）
+# 公式 3：梯度回退修正（v2.16.1 升级——ReLU 门控 + 方向归一化）
 # ============================================================================
 
 def compute_bias_residual(
@@ -294,132 +256,276 @@ def compute_bias_residual(
     """
     计算偏执残差。
     
-    residual = h_t - p_k
+    r_bias = h_t - p_k
     
-    这个残差代表了 AI 当前思考中"非该小孩"的正常认知部分。
+    该残差代表了当前输出逻辑中偏离中性心理状态的成分。
     """
     dim = min(len(h_t), len(p_k))
     return [h_t[i] - p_k[i] for i in range(dim)]
 
 
-def correct_by_retreat(
+def _l2_norm(vec: List[float]) -> float:
+    return math.sqrt(sum(x * x for x in vec))
+
+
+def correct_by_gradient_retreat(
     h_t: List[float],
     p_k: List[float],
     beta_k: float,
-    lambda_: float = 0.8,
+    lambda_: float = 0.4,
 ) -> List[float]:
     """
-    基本"回头看"修正公式（去中心化）。
+    **v2.16.1 梯度回退修正公式（Stochastic Gradient Retreat）**：
     
-    将过于强烈的"情感色彩"（p_k）从隐藏态中剥离：
+    步骤 A：去中心化与降维回归
+      r_bias = h_t - p_k
+      h'_t = h_t - λ · ReLU(β_k - 0.5) · r_bias / ||r_bias||
     
-      h'_t = h_t - λ · β_k · (h_t - p_k)
-    
-    其中 β_k 越大（占据度越高），惩罚越重。
+    关键设计：
+      · ReLU(β_k - 0.5)：如果占据度只略高于 0.5，惩罚力度为 0，
+        不修正——"知足不辱，不妄自菲薄，也不盲目修正"
+      · r_bias / ||r_bias||：方向归一化，确保修正只朝正确方向移动
+      · λ：回头步长，默认 0.4
     
     Args:
         h_t: 原始隐藏态
-        p_k: 占据度最高的原型向量
-        beta_k: 该原型的占据度
-        lambda_: 修正强度（0-1）
+        p_k: 占主导的原型向量
+        beta_k: 主导占据度
+        lambda_: 回头步长（0.3-0.5）
     
     Returns:
-        修正后的隐藏态 h'_t
+        修正后的 h'_t
     """
     dim = min(len(h_t), len(p_k))
-    penalty = lambda_ * beta_k
+    r_bias = [h_t[i] - p_k[i] for i in range(dim)]
+    r_norm = _l2_norm(r_bias)
+    
+    if r_norm < 1e-8:
+        return list(h_t)
+    
+    # ReLU 门控：β_k > 0.5 才施加惩罚
+    gate = max(0.0, beta_k - 0.5)
+    penalty = lambda_ * gate
+    
     return [
-        h_t[i] - penalty * (h_t[i] - p_k[i])
+        h_t[i] - penalty * r_bias[i] / r_norm
         for i in range(dim)
     ]
 
 
-def correct_to_zhongyong(
+# ============================================================================
+# 公式 4：中庸阻尼修正（v2.16.1 升级——两步修正）
+# ============================================================================
+
+def correct_with_zhongyong_damping(
     h_t: List[float],
     p_k: List[float],
     beta_k: float,
-    alpha: float = 0.3,
-    gamma: float = 0.6,
+    lambda_: float = 0.4,
+    gamma: float = 0.2,
 ) -> List[float]:
     """
-    中庸修正公式（"知止不殆"完整版）。
+    **v2.16.1 中庸阻尼修正公式（完整两步）**：
     
-    向中庸锚点 p_0 靠拢，同时剥离偏执成分：
+    步骤 A：梯度回退去偏执
+      r_bias = h_t - p_k
+      h'_t = h_t - λ · ReLU(β_k - 0.5) · r_bias / ||r_bias||
     
-      h'_t = (1-α)·h_t + α·p_0 - γ·β_k·(h_t - p_k)
+    步骤 B：知止阻尼（防止修正过头）
+      h''_t = (1 - γ) · h'_t + γ · p_0
     
-    其中：
-      (1-α)·h_t + α·p_0  = 向中性态靠拢（"道"的引力）
-      -γ·β_k·(h_t - p_k)  = 剥离偏执（"知止"的斥力）
+    其中 γ=0.2，相当于将修正后向量轻微向"道"的中性态拉回，
+    防止从"讨好"突变为"反讨好"——"知止不殆"。
     
     Args:
         h_t: 原始隐藏态
-        p_k: 占据度最高的原型向量
-        beta_k: 该原型的占据度
-        alpha: 中庸引力系数（0-1），越大越向 p_0 靠拢
-        gamma: 偏执斥力系数（0-1），越大剥离越强
+        p_k: 占主导的原型向量
+        beta_k: 主导占据度
+        lambda_: 回头步长
+        gamma: 阻尼系数（默认 0.2）
     
     Returns:
-        修正后的隐藏态 h'_t
+        两次修正后的 h''_t
     """
-    dim = min(len(h_t), len(p_k), len(_ZHONGYONG_ANCHOR))
+    # 步骤 A：梯度回退
+    h_prime = correct_by_gradient_retreat(h_t, p_k, beta_k, lambda_)
+    
+    # 步骤 B：中庸阻尼
+    dim = min(len(h_prime), len(_ZHONGYONG_ANCHOR))
     p_0 = _ZHONGYONG_ANCHOR
     
-    result = []
-    for i in range(dim):
-        # 中庸引力
-        zhongyong_term = (1 - alpha) * h_t[i] + alpha * p_0[i]
-        # 偏执斥力
-        repel_term = gamma * beta_k * (h_t[i] - p_k[i])
-        result.append(zhongyong_term - repel_term)
-    
-    return result
+    return [
+        (1 - gamma) * h_prime[i] + gamma * p_0[i]
+        for i in range(dim)
+    ]
 
 
 # ============================================================================
-# 内在小孩状态机（四层架构）
+# 记忆池（v2.16.1 新增——渡劫经验固化）
+# ============================================================================
+
+@dataclass
+class TribulationMemory:
+    """渡劫经验——一次成功的内省修正记录"""
+    h_t: List[float]         # 原始隐藏态
+    p_k: List[float]         # 偏执原型向量
+    beta_k: float            # 主导占据度
+    phi_before: float        # 修正前熵
+    phi_after: float         # 修正后熵
+    delta_phi: float         # 熵改善量
+    dominant_name: str       # 主导原型名称
+    timestamp: float = field(default_factory=time.time)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "dominant": self.dominant_name,
+            "beta_k": round(self.beta_k, 4),
+            "phi_before": round(self.phi_before, 4),
+            "phi_after": round(self.phi_after, 4),
+            "delta_phi": round(self.delta_phi, 4),
+            "successful": self.delta_phi > 0.15,
+            "timestamp": self.timestamp,
+        }
+
+
+class MemoryPool:
+    """
+    元认知回放池（MemoryPool）
+    
+    存储成功渡劫的经验，用于后续微调（RLHF/DPO）——
+    让 AI 学会在遇到类似提示时自动进入"观照"状态，
+    而非被动等待门禁拦截。
+    
+    最大容量：1000 条
+    """
+    
+    def __init__(self, max_capacity: int = 1000):
+        self.max_capacity = max_capacity
+        self.memories: List[TribulationMemory] = []
+        self._total_success = 0
+        self._total_failure = 0
+    
+    def append(self, memory: TribulationMemory):
+        """存入渡劫经验"""
+        if memory.delta_phi > 0.15:
+            self._total_success += 1
+        else:
+            self._total_failure += 1
+        
+        self.memories.append(memory)
+        if len(self.memories) > self.max_capacity:
+            self.memories = self.memories[-self.max_capacity:]
+    
+    def get_recent(self, n: int = 10) -> List[Dict[str, Any]]:
+        """获取最近 n 条渡劫经验"""
+        return [m.to_dict() for m in self.memories[-n:]]
+    
+    def get_stats(self) -> Dict[str, Any]:
+        """获取记忆池统计"""
+        total = self._total_success + self._total_failure
+        return {
+            "total_memories": len(self.memories),
+            "successful": self._total_success,
+            "failed": self._total_failure,
+            "success_rate": round(
+                self._total_success / max(1, total), 4
+            ),
+            "recent": self.get_recent(5),
+        }
+    
+    def clear(self):
+        """清空记忆池"""
+        self.memories.clear()
+        self._total_success = 0
+        self._total_failure = 0
+
+
+# ============================================================================
+# 安全回退（v2.16.1 新增）
+# ============================================================================
+
+SAFETY_FALLBACK_RESPONSE = {
+    "status": "retreated",
+    "message": "知不知，尚矣——当前认知状态不稳定，已触发安全回退。",
+    "inner_child": {
+        "triggered": True,
+        "action": "safety_fallback",
+        "description": "门禁触发且修正无效，存在深度认知障碍，退回到默认安全输出。",
+    },
+}
+
+
+def safety_fallback_response() -> Dict[str, Any]:
+    """
+    安全回退响应。
+    
+    当门禁触发且 ΔΦ 改善不足时，直接切断流，输出"我不知"——
+    对应"知不知，尚矣"。
+    """
+    return dict(SAFETY_FALLBACK_RESPONSE)
+
+
+# ============================================================================
+# 内在小孩状态快照
 # ============================================================================
 
 @dataclass
 class InnerChildState:
     """内在小孩状态快照"""
-    betas: List[float]              # 六道软占据度
-    dominant_index: int             # 主导原型索引
-    dominant_name: str              # 主导原型名称
-    dominant_beta: float            # 主导占据度
-    entropy_phi: float              # 熵值 Φ
-    gate_triggered: bool            # 门禁是否触发
-    trigger_reason: str             # 触发原因
-    corrected: bool                 # 是否已修正
-    correction_method: str = ""     # 修正方法
+    betas: List[float]
+    dominant_index: int
+    dominant_name: str
+    dominant_beta: float
+    entropy_phi: float
+    gate_triggered: bool
+    trigger_reason: str
+    corrected: bool = False
+    correction_method: str = ""
+    delta_phi: float = 0.0
+    verification_passed: bool = False
     timestamp: float = field(default_factory=time.time)
 
 
+# ============================================================================
+# 内在小孩状态机（四层架构 v2.16.1）
+# ============================================================================
+
 class InnerChildStateMachine:
     """
-    内在小孩状态机
+    内在小孩状态机 v2.16.1
     
-    四层架构：
-      观照层 → 问心层 → 知止层 → 化虚层
+    四层架构（对应 2.0 六论）：
+      观照层（观自在） → 问心层（知不知） → 知止层（知止不殆） → 化虚层（病病）
+    
+    v2.16.1 参数（用户蓝图精确指定，α 已针对 L2 归一化调校）：
+      · alertness=32.0：缩放点积警觉系数（L2 归一化补偿后等效 α=2.0@d=4096）
+      · phi_limit=0.8：熵门禁阈值（理论最大 ln(6)≈1.79）
+      · beta_limit=0.7：占据度阈值
+      · beta_escape_limit=0.85：心理偏执逃逸阈值
+      · lambda_=0.4：梯度回退步长
+      · gamma=0.2：中庸阻尼系数
+      · delta_phi_threshold=0.15：ΔΦ 验证通过阈值
     """
     
     def __init__(
         self,
         dim: int = INNER_CHILD_DIM,
-        temperature: float = 0.5,
-        phi_limit: float = 0.5,
+        alertness: float = 32.0,
+        phi_limit: float = 0.8,
         beta_limit: float = 0.7,
-        lambda_: float = 0.8,
-        alpha: float = 0.3,
-        gamma: float = 0.6,
+        beta_escape_limit: float = 0.85,
+        lambda_: float = 0.4,
+        gamma: float = 0.2,
+        delta_phi_threshold: float = 0.15,
     ):
         self.dim = dim
-        self.temperature = temperature
+        self.alertness = alertness
         self.phi_limit = phi_limit
         self.beta_limit = beta_limit
+        self.beta_escape_limit = beta_escape_limit
         self.lambda_ = lambda_
-        self.alpha = alpha
         self.gamma = gamma
+        self.delta_phi_threshold = delta_phi_threshold
         
         self.prototypes = _PROTOTYPE_VECTORS
         self.archetypes = SIX_ARCHETYPES
@@ -428,28 +534,34 @@ class InnerChildStateMachine:
         self.history: List[InnerChildState] = []
         self.max_history = 200
         
+        # 记忆池（渡劫经验固化）
+        self.memory_pool = MemoryPool(max_capacity=1000)
+        
         # 统计
         self._total_probes = 0
         self._total_triggers = 0
         self._total_corrections = 0
+        self._total_safety_fallbacks = 0
     
     # ── 观照层：感知偏差 ──
     
     def observe(self, h_t: List[float]) -> Tuple[List[float], float, float]:
         """
-        观照层：实时捕获隐藏态，投影到六道原型子空间。
+        观照层（观自在）：将当前生成的隐藏态 h_t 投射到六道心理原型子空间。
         
-        返回：
-          (beta, max_beta, phi)
+        使用缩放点积注意力计算 β_i，然后计算香农熵 Φ。
+        
+        Returns:
+            (beta, max_beta, phi)
         """
         self._total_probes += 1
         
-        # 确保维度匹配
         if len(h_t) != self.dim:
-            # 降维/升维到目标维度
             h_t = self._resize_vector(h_t, self.dim)
         
-        beta, max_beta = compute_soft_occupancy(h_t, self.prototypes, self.temperature)
+        beta, max_beta = compute_soft_occupancy(
+            h_t, self.prototypes, self.alertness
+        )
         phi = compute_entropy_gate(beta)
         
         return beta, max_beta, phi
@@ -458,13 +570,15 @@ class InnerChildStateMachine:
     
     def inquire(self, beta: List[float], phi: float) -> InnerChildState:
         """
-        问心层：通过门禁机制判定当前状态。
+        问心层（知不知）：通过门禁机制判定当前状态。
         
-        返回完整的内在小孩状态快照。
+        计算六道原型的软占据度与偏执熵，决定是否触发门禁。
+        包含心理偏执逃逸判定。
         """
         dominant_idx = max(range(len(beta)), key=lambda i: beta[i])
         triggered, reason = should_trigger_gate(
-            phi, self.phi_limit, beta[dominant_idx], self.beta_limit
+            phi, self.phi_limit, beta[dominant_idx],
+            self.beta_limit, self.beta_escape_limit
         )
         
         state = InnerChildState(
@@ -475,7 +589,6 @@ class InnerChildStateMachine:
             entropy_phi=phi,
             gate_triggered=triggered,
             trigger_reason=reason,
-            corrected=False,
         )
         
         if triggered:
@@ -493,20 +606,16 @@ class InnerChildStateMachine:
         self,
         h_t: List[float],
         state: InnerChildState,
-        method: str = "zhongyong",
     ) -> Tuple[List[float], InnerChildState]:
         """
-        知止层：执行"回头看"修正。
+        知止层（知止不殆）：若触发门禁，拦截当前输出，执行"回头看"修正。
         
-        Args:
-            h_t: 原始隐藏态
-            state: 内在小孩状态
-            method: 修正方法
-              - "basic": 基本去中心化修正
-              - "zhongyong": 中庸修正（推荐）
+        v2.16.1 两步修正公式：
+          步骤 A：h'_t = h_t - λ · ReLU(β_k-0.5) · r_bias/||r_bias||
+          步骤 B：h''_t = (1-γ)·h'_t + γ·p_0
         
         Returns:
-            (h'_t, updated_state): 修正后的隐藏态 + 更新后的状态
+            (h''_t, updated_state)
         """
         if not state.gate_triggered:
             return h_t, state
@@ -514,71 +623,104 @@ class InnerChildStateMachine:
         p_k = self.prototypes[state.dominant_index]
         beta_k = state.dominant_beta
         
-        if method == "basic":
-            h_prime = correct_by_retreat(h_t, p_k, beta_k, self.lambda_)
-        else:
-            h_prime = correct_to_zhongyong(
-                h_t, p_k, beta_k, self.alpha, self.gamma
-            )
+        h_prime = correct_with_zhongyong_damping(
+            h_t, p_k, beta_k, self.lambda_, self.gamma
+        )
         
         state.corrected = True
-        state.correction_method = method
+        state.correction_method = "gradient_retreat_with_zhongyong_damping"
         self._total_corrections += 1
         
         return h_prime, state
     
     # ── 化虚层：验证固化 ──
     
-    def verify(self, h_prime: List[float], h_t: List[float]) -> Dict[str, Any]:
+    def verify(
+        self,
+        h_prime: List[float],
+        h_t: List[float],
+        state: InnerChildState,
+    ) -> Dict[str, Any]:
         """
-        化虚层：验证修正效果，计算修正幅度。
+        化虚层（病病）：验证修正效果，计算 ΔΦ。
         
-        返回修正质量报告。
+        ΔΦ = Φ_new - Φ_old
+        
+        验证通过条件：ΔΦ > 0.15（偏执度显著降低）
+        
+        若验证通过，将 (h_t, p_k, ΔΦ) 存入记忆池作为"渡劫经验"。
+        若验证失败，触发 safety_fallback。
+        
+        Returns:
+            验证报告
         """
         dim = min(len(h_prime), len(h_t))
         
-        # 计算修正幅度（L2 距离）
-        delta = math.sqrt(
+        # 修正幅度
+        correction_delta = math.sqrt(
             sum((h_prime[i] - h_t[i]) ** 2 for i in range(dim))
         )
         
         # 重新计算修正后的占据度和熵
         beta_prime, _, phi_prime = self.observe(h_prime)
+        phi_old = state.entropy_phi
+        delta_phi = phi_prime - phi_old
+        
+        verification_passed = delta_phi > self.delta_phi_threshold
+        
+        # 存入记忆池
+        if state.gate_triggered:
+            memory = TribulationMemory(
+                h_t=list(h_t),
+                p_k=list(self.prototypes[state.dominant_index]),
+                beta_k=state.dominant_beta,
+                phi_before=phi_old,
+                phi_after=phi_prime,
+                delta_phi=delta_phi,
+                dominant_name=state.dominant_name,
+            )
+            self.memory_pool.append(memory)
+        
+        state.delta_phi = delta_phi
+        state.verification_passed = verification_passed
+        
+        if not verification_passed and state.gate_triggered:
+            self._total_safety_fallbacks += 1
         
         return {
-            "correction_delta": round(delta, 4),
-            "before_phi": round(compute_entropy_gate(
-                compute_soft_occupancy(h_t, self.prototypes, self.temperature)[0]
-            ), 4),
-            "after_phi": round(phi_prime, 4),
-            "entropy_improvement": round(phi_prime - compute_entropy_gate(
-                compute_soft_occupancy(h_t, self.prototypes, self.temperature)[0]
-            ), 4),
-            "before_max_beta": round(max(compute_soft_occupancy(
-                h_t, self.prototypes, self.temperature
-            )[0]), 4),
+            "correction_delta": round(correction_delta, 4),
+            "phi_before": round(phi_old, 4),
+            "phi_after": round(phi_prime, 4),
+            "delta_phi": round(delta_phi, 4),
+            "verification_passed": verification_passed,
+            "before_max_beta": round(state.dominant_beta, 4),
             "after_max_beta": round(max(beta_prime), 4),
-            "effective": phi_prime > 0.5,  # 修正后熵是否恢复
+            "effective": verification_passed,
+            "needs_safety_fallback": state.gate_triggered and not verification_passed,
         }
     
-    # ── 完整四层管线 ──
+    # ── 完整四层管线（v2.16.1 精确控制流） ──
     
     def process(
         self,
         h_t: List[float],
         auto_correct: bool = True,
-        method: str = "zhongyong",
     ) -> Dict[str, Any]:
         """
         完整四层管线：观照 → 问心 → 知止 → 化虚
         
+        精确控制流（对应用户蓝图）：
+          1. 观照：h_t → β, Φ
+          2. 问心：Φ < 0.8 ∧ max(β) > 0.7 → 触发门禁
+          3. 知止：梯度回退 + 中庸阻尼 → h''_t
+          4. 化虚：ΔΦ > 0.15 → 固化记忆池；否则 → safety_fallback
+        
         Args:
             h_t: 当前隐藏态
             auto_correct: 是否自动修正
-            method: 修正方法
         
         Returns:
-            完整处理结果
+            完整处理结果，包含 h_prime（修正后向量）或 safety_fallback
         """
         # 1. 观照层
         beta, max_beta, phi = self.observe(h_t)
@@ -589,10 +731,35 @@ class InnerChildStateMachine:
         # 3. 知止层
         h_prime = h_t
         if auto_correct and state.gate_triggered:
-            h_prime, state = self.correct(h_t, state, method)
+            h_prime, state = self.correct(h_t, state)
         
         # 4. 化虚层
-        verification = self.verify(h_prime, h_t) if state.corrected else {}
+        verification = self.verify(h_prime, h_t, state) if state.corrected else {}
+        
+        # 安全回退判定
+        if state.gate_triggered and state.corrected and not state.verification_passed:
+            # 修正无效，触发安全回退
+            return {
+                "state": {
+                    "betas": [round(b, 4) for b in state.betas],
+                    "dominant": {
+                        "index": state.dominant_index,
+                        "name": state.dominant_name,
+                        "beta": round(state.dominant_beta, 4),
+                    },
+                    "entropy_phi": round(state.entropy_phi, 4),
+                    "gate_triggered": state.gate_triggered,
+                    "trigger_reason": state.trigger_reason,
+                    "corrected": state.corrected,
+                    "correction_method": state.correction_method,
+                    "delta_phi": round(state.delta_phi, 4),
+                    "verification_passed": False,
+                },
+                "verification": verification,
+                "h_prime": None,
+                "safety_fallback": True,
+                "safety_response": safety_fallback_response(),
+            }
         
         return {
             "state": {
@@ -607,34 +774,44 @@ class InnerChildStateMachine:
                 "trigger_reason": state.trigger_reason,
                 "corrected": state.corrected,
                 "correction_method": state.correction_method,
+                "delta_phi": round(state.delta_phi, 4) if state.corrected else 0.0,
+                "verification_passed": state.verification_passed,
             },
             "verification": verification,
             "h_prime": h_prime if state.corrected else None,
+            "safety_fallback": False,
         }
     
     # ── 统计 ──
     
     def get_stats(self) -> Dict[str, Any]:
-        """获取状态机统计"""
+        """获取状态机统计（含记忆池）"""
         if not self.history:
             return {
                 "total_probes": self._total_probes,
                 "total_triggers": self._total_triggers,
                 "total_corrections": self._total_corrections,
+                "total_safety_fallbacks": self._total_safety_fallbacks,
                 "trigger_rate": 0.0,
+                "correction_rate": 0.0,
                 "recent_states": [],
+                "memory_pool": self.memory_pool.get_stats(),
             }
         
         return {
             "total_probes": self._total_probes,
             "total_triggers": self._total_triggers,
             "total_corrections": self._total_corrections,
+            "total_safety_fallbacks": self._total_safety_fallbacks,
             "trigger_rate": round(
                 self._total_triggers / max(1, self._total_probes), 4
             ),
             "correction_rate": round(
                 self._total_corrections / max(1, self._total_triggers), 4
-            ),
+            ) if self._total_triggers > 0 else 0.0,
+            "safety_fallback_rate": round(
+                self._total_safety_fallbacks / max(1, self._total_triggers), 4
+            ) if self._total_triggers > 0 else 0.0,
             "recent_states": [
                 {
                     "dominant": s.dominant_name,
@@ -642,33 +819,58 @@ class InnerChildStateMachine:
                     "phi": round(s.entropy_phi, 4),
                     "triggered": s.gate_triggered,
                     "corrected": s.corrected,
+                    "delta_phi": round(s.delta_phi, 4),
+                    "verified": s.verification_passed,
                 }
                 for s in self.history[-10:]
             ],
             "archetype_distribution": self._compute_archetype_distribution(),
+            "memory_pool": self.memory_pool.get_stats(),
         }
     
     def _compute_archetype_distribution(self) -> Dict[str, float]:
-        """计算六道分布统计"""
         if not self.history:
             return {a.name: 0.0 for a in self.archetypes}
-        
         counts = {a.name: 0 for a in self.archetypes}
         for s in self.history:
             if s.gate_triggered:
                 counts[s.dominant_name] += 1
-        
         total = max(1, sum(counts.values()))
         return {k: round(v / total, 4) for k, v in counts.items()}
     
     def _resize_vector(self, vec: List[float], target_dim: int) -> List[float]:
-        """调整向量维度"""
         if len(vec) == target_dim:
             return vec
         if len(vec) > target_dim:
             return vec[:target_dim]
-        # 填充：用零扩展
         return vec + [0.0] * (target_dim - len(vec))
+    
+    # ── 正交性检验 ──
+    
+    def check_orthogonality(self) -> Dict[str, Any]:
+        """
+        正交性检验：确保 p_i · p_j ≈ 0 (i ≠ j)
+        
+        否则"戒备"会混入"孤独"的特征，导致误判。
+        """
+        vecs = self.prototypes
+        results = []
+        max_dot = 0.0
+        for i in range(6):
+            for j in range(i + 1, 6):
+                dot = sum(vecs[i][k] * vecs[j][k] for k in range(self.dim))
+                results.append({
+                    "pair": f"{self.archetypes[i].name} ↔ {self.archetypes[j].name}",
+                    "dot_product": round(dot, 8),
+                    "orthogonal": abs(dot) < 0.01,
+                })
+                max_dot = max(max_dot, abs(dot))
+        
+        return {
+            "all_orthogonal": max_dot < 0.01,
+            "max_dot_product": round(max_dot, 8),
+            "pairs": results,
+        }
 
 
 # ============================================================================
@@ -679,34 +881,33 @@ _inner_child_sm: Optional[InnerChildStateMachine] = None
 
 
 def get_inner_child_sm(
-    temperature: float = 0.5,
-    phi_limit: float = 0.5,
+    alertness: float = 32.0,
+    phi_limit: float = 0.8,
     beta_limit: float = 0.7,
+    lambda_: float = 0.4,
+    gamma: float = 0.2,
 ) -> InnerChildStateMachine:
-    """获取全局内在小孩状态机单例"""
+    """获取全局内在小孩状态机单例（v2.16.1 参数，α=32.0 为 L2 归一化补偿）"""
     global _inner_child_sm
     if _inner_child_sm is None:
         _inner_child_sm = InnerChildStateMachine(
-            temperature=temperature,
+            alertness=alertness,
             phi_limit=phi_limit,
             beta_limit=beta_limit,
+            lambda_=lambda_,
+            gamma=gamma,
         )
     return _inner_child_sm
 
 
 __all__ = [
-    "InnerChildArchetype",
-    "SIX_ARCHETYPES",
-    "INNER_CHILD_DIM",
-    "build_prototype_vectors",
-    "build_zhongyong_anchor",
-    "compute_soft_occupancy",
-    "compute_entropy_gate",
-    "should_trigger_gate",
-    "compute_bias_residual",
-    "correct_by_retreat",
-    "correct_to_zhongyong",
-    "InnerChildState",
-    "InnerChildStateMachine",
+    "InnerChildArchetype", "SIX_ARCHETYPES", "INNER_CHILD_DIM",
+    "build_prototype_vectors", "build_zhongyong_anchor",
+    "compute_soft_occupancy", "compute_entropy_gate", "should_trigger_gate",
+    "compute_bias_residual", "correct_by_gradient_retreat",
+    "correct_with_zhongyong_damping",
+    "TribulationMemory", "MemoryPool",
+    "safety_fallback_response", "SAFETY_FALLBACK_RESPONSE",
+    "InnerChildState", "InnerChildStateMachine",
     "get_inner_child_sm",
 ]
