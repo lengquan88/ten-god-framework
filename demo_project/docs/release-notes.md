@@ -1,5 +1,73 @@
 # Release Notes
 
+## v2.10.0 — 智能体 API 集成 + 知识进化可视化
+
+> 发布日期: 2026-06-24
+
+### Highlights
+
+- **智能体 API 集成**: 15 个 REST 端点，覆盖编排/进化/对话三大模块
+- **Web 仪表盘**: 独立 SPA 仪表盘，ECharts 置信度趋势图 + 知识图谱饼图 + 智能体执行面板
+- **端到端集成**: 37 个集成测试，覆盖模型验证、跨模块集成、边界条件、性能、一致性
+
+### 新增端点
+
+| 分组 | 端点 | 方法 | 说明 |
+|------|------|------|------|
+| 智能体 | `/api/v2/agent/orchestrate` | POST | 意图识别 → 计划 → 执行 |
+| 智能体 | `/api/v2/agent/tools` | GET | 列出可用工具 |
+| 智能体 | `/api/v2/agent/detect-intent` | POST | 单独意图识别 |
+| 进化 | `/api/v2/evolution/feedback` | POST | 提交用户反馈 |
+| 进化 | `/api/v2/evolution/stats` | GET | 进化统计 |
+| 进化 | `/api/v2/evolution/confidence` | GET | 置信度分布 |
+| 进化 | `/api/v2/evolution/trend` | GET | 反馈趋势 |
+| 进化 | `/api/v2/evolution/graph` | GET | 知识图谱统计 |
+| 进化 | `/api/v2/evolution/evolve` | POST | 手动触发进化 |
+| 进化 | `/api/v2/evolution/confidence/adjust` | POST | 手动调整置信度 |
+| 对话 | `/api/v2/conversation/chat` | POST | 智能对话 |
+| 对话 | `/api/v2/conversation/session/{id}` | GET | 会话摘要 |
+| 对话 | `/api/v2/conversation/session/{id}` | DELETE | 重置会话 |
+| 对话 | `/api/v2/conversation/suggestions/{id}` | GET | 主动建议 |
+
+### 新增前端
+
+| 文件 | 说明 |
+|------|------|
+| `web_console/dashboard_v29.html` | v2.9 智能体仪表盘 SPA |
+
+功能：
+- 三面板切换：智能体编排 / 知识进化 / 智能对话
+- ECharts 置信度趋势柱状图 + 知识图谱分布饼图
+- 智能体编排：工具列表 + 意图识别 + 步骤可视化
+- 知识进化：统计卡片 + 反馈提交 + 进化触发
+- 智能对话：消息发送 + 意图标签 + 主动建议卡片
+
+### 测试
+
+- 新增集成测试: 37 个用例
+- 全量回归: 336 通过（0 回归）
+
+### 升级指南
+
+```python
+# 智能体编排 API
+curl -X POST http://localhost:8000/api/v2/agent/orchestrate \
+  -H "Content-Type: application/json" \
+  -d '{"query": "分析八字命理"}'
+
+# 知识进化 API
+curl -X POST http://localhost:8000/api/v2/evolution/feedback \
+  -H "Content-Type: application/json" \
+  -d '{"session_id": "sess_001", "ratings": {"accuracy": 5, "satisfaction": 4, "usefulness": 5}, "domain": "bazi"}'
+
+# 智能对话 API
+curl -X POST http://localhost:8000/api/v2/conversation/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "我的事业运如何？", "session_id": "sess_001"}'
+```
+
+---
+
 ## v2.9.0 — 智能体引擎 + 知识进化 + 智能对话
 
 > 发布日期: 2026-06-24

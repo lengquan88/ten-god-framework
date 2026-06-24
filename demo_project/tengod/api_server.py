@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-api_server.py — 十神架构 · REST API 服务 v2.3.0
+api_server.py — 十神架构 · REST API 服务 v2.10.0
 
 FastAPI-based HTTP REST API，将全部六阶段能力服务化。
 
@@ -3863,6 +3863,350 @@ async def get_api_config():
         if secret and len(secret) > 8:
             cfg["security"]["jwt_secret"] = secret[:4] + "****"
     return cfg
+
+
+# ============================================================================
+# v2.9: 智能体编排 + 知识进化 + 智能对话 API
+# ============================================================================
+
+# ── Pydantic 模型 ────────────────────────────────────────────────────────────
+
+class AgentOrchestrateRequest(BaseModel):
+    query: str = Field(..., description="用户查询/意图描述", min_length=1, max_length=2000)
+    session_id: Optional[str] = Field(None, description="会话ID")
+    params: Optional[Dict[str, Any]] = Field(None, description="额外参数（如出生日期）")
+
+class AgentToolsResponse(BaseModel):
+    tools: List[Dict[str, Any]]
+    count: int
+
+class AgentIntentResponse(BaseModel):
+    primary: str
+    intents: List[str]
+    confidence: float
+    suggested_tools: List[str]
+
+class EvolutionFeedbackRequest(BaseModel):
+    session_id: str = Field(..., description="会话ID")
+    ratings: Dict[str, int] = Field(..., description="评分: accuracy/satisfaction/usefulness (1-5)")
+    domain: str = Field("general", description="知识领域")
+    comment: str = Field("", description="文字反馈")
+    analysis_type: str = Field("", description="分析类型")
+    corrections: Optional[List[Dict[str, str]]] = Field(None, description="纠正列表")
+
+class EvolutionFeedbackResponse(BaseModel):
+    session_id: str
+    overall_score: float
+    domain: str
+    confidence_after: float
+
+class EvolutionStatsResponse(BaseModel):
+    total_feedback: int
+    average_score: float
+    total_nodes: int
+    total_edges: int
+    total_evolutions: int
+    domains: Dict[str, Any]
+    recent_evolutions: List[Dict[str, Any]]
+
+class EvolutionConfidenceResponse(BaseModel):
+    confidences: Dict[str, float]
+    average: float
+    highest: Dict[str, Any]
+    lowest: Dict[str, Any]
+
+class EvolutionAdjustRequest(BaseModel):
+    domain: str = Field(..., description="知识领域")
+    adjustment: float = Field(..., ge=-1.0, le=1.0, description="调整量 [-1.0, 1.0]")
+    reason: str = Field("", description="调整原因")
+
+class ConversationChatRequest(BaseModel):
+    message: str = Field(..., description="用户消息", min_length=1, max_length=5000)
+    session_id: str = Field(..., description="会话ID")
+    bazi_context: str = Field("", description="八字上下文")
+
+class ConversationChatResponse(BaseModel):
+    session_id: str
+    response: str
+    intent: Dict[str, Any]
+    suggestions: List[Dict[str, str]]
+    conversation_state: str
+    session_stats: Dict[str, Any]
+
+class ConversationSessionResponse(BaseModel):
+    session_id: str
+    message_count: int
+    topics_covered: List[str]
+    intent_context: Dict[str, Any]
+
+
+# ── 智能体编排端点 ───────────────────────────────────────────────────────────
+
+@app.post("/api/v2/agent/orchestrate", tags=["v2.9 智能体"])
+async def v2_agent_orchestrate(req: AgentOrchestrateRequest, request: Request):
+    """智能体编排：意图识别 → 计划生成 → 执行工具链 → 返回结果"""
+    from tengod.auth import authorize
+    authorize(request, "agent:orchestrate")
+    try:
+        from tengod.agent_orchestrator import get_orchestrator
+        orchestrator = get_orchestrator()
+        params = req.params or {}
+        result = orchestrator.orchestrate(req.query, session_id=req.session_id, params=params)
+        return result.to_dict()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"智能体编排失败: {e}")
+
+
+@app.get("/api/v2/agent/tools", tags=["v2.9 智能体"])
+async def v2_agent_tools(request: Request):
+    """列出所有可用工具及其规格"""
+    from tengod.auth import authorize
+    authorize(request, "agent:tools", consume_quota=False)
+    try:
+        from tengod.agent_orchestrator import get_orchestrator
+        orchestrator = get_orchestrator()
+        return AgentToolsResponse(
+            tools=orchestrator.get_tool_specs(),
+            count=len(orchestrator.tools),
+        ).model_dump()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取工具列表失败: {e}")
+
+
+@app.post("/api/v2/agent/detect-intent", tags=["v2.9 智能体"])
+async def v2_agent_detect_intent(request: Request):
+    """意图识别：分析用户查询，返回意图分类和置信度"""
+    from tengod.auth import authorize
+    authorize(request, "agent:detect", consume_quota=False)
+    try:
+        body = await request.json()
+        query = body.get("query", "")
+        if not query:
+            raise HTTPException(status_code=400, detail="query 不能为空")
+        from tengod.agent_orchestrator import get_orchestrator
+        orchestrator = get_orchestrator()
+        intent = orchestrator.detect_intent(query)
+        plan = orchestrator.plan_actions(query, intent)
+        return AgentIntentResponse(
+            primary=intent["primary"],
+            intents=intent["intents"],
+            confidence=intent["confidence"],
+            suggested_tools=plan,
+        ).model_dump()
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"意图识别失败: {e}")
+
+
+# ── 知识进化端点 ────────────────────────────────────────────────────────────
+
+@app.post("/api/v2/evolution/feedback", tags=["v2.9 知识进化"])
+async def v2_evolution_feedback(req: EvolutionFeedbackRequest, request: Request):
+    """提交用户反馈：用于知识进化系统的置信度调整"""
+    from tengod.auth import authorize
+    authorize(request, "evolution:feedback")
+    try:
+        from tengod.knowledge_evolution import get_evolution_engine
+        engine = get_evolution_engine()
+        record = engine.collect_feedback(
+            session_id=req.session_id,
+            ratings=req.ratings,
+            domain=req.domain,
+            comment=req.comment,
+            analysis_type=req.analysis_type,
+            corrections=req.corrections,
+        )
+        return EvolutionFeedbackResponse(
+            session_id=record.session_id,
+            overall_score=round(record.overall_score(), 2),
+            domain=record.domain,
+            confidence_after=engine.get_confidence(req.domain),
+        ).model_dump()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"提交反馈失败: {e}")
+
+
+@app.get("/api/v2/evolution/stats", tags=["v2.9 知识进化"])
+async def v2_evolution_stats(request: Request):
+    """获取知识进化统计：总反馈数、置信度分布、进化历史"""
+    from tengod.auth import authorize
+    authorize(request, "evolution:read", consume_quota=False)
+    try:
+        from tengod.knowledge_evolution import get_evolution_engine
+        engine = get_evolution_engine()
+        stats = engine.get_evolution_stats()
+        return EvolutionStatsResponse(**stats).model_dump()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取进化统计失败: {e}")
+
+
+@app.get("/api/v2/evolution/confidence", tags=["v2.9 知识进化"])
+async def v2_evolution_confidence(request: Request):
+    """获取所有知识领域的置信度分布"""
+    from tengod.auth import authorize
+    authorize(request, "evolution:read", consume_quota=False)
+    try:
+        from tengod.knowledge_evolution import get_evolution_engine
+        engine = get_evolution_engine()
+        confs = engine.get_all_confidences()
+        entries = sorted(confs.items(), key=lambda x: x[1], reverse=True)
+        avg = sum(confs.values()) / len(confs) if confs else 0
+        return EvolutionConfidenceResponse(
+            confidences=confs,
+            average=round(avg, 3),
+            highest={"domain": entries[0][0], "confidence": entries[0][1]} if entries else {},
+            lowest={"domain": entries[-1][0], "confidence": entries[-1][1]} if entries else {},
+        ).model_dump()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取置信度失败: {e}")
+
+
+@app.get("/api/v2/evolution/trend", tags=["v2.9 知识进化"])
+async def v2_evolution_trend(request: Request, domain: str = "", limit: int = 20):
+    """获取反馈趋势：按时间排序的反馈评分"""
+    from tengod.auth import authorize
+    authorize(request, "evolution:read", consume_quota=False)
+    try:
+        from tengod.knowledge_evolution import get_evolution_engine
+        engine = get_evolution_engine()
+        trend = engine.get_feedback_trend(domain=domain, limit=limit)
+        return {"domain": domain or "all", "limit": limit, "data": trend, "count": len(trend)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取反馈趋势失败: {e}")
+
+
+@app.get("/api/v2/evolution/graph", tags=["v2.9 知识进化"])
+async def v2_evolution_graph(request: Request):
+    """获取知识图谱统计：节点/边分布、关系类型"""
+    from tengod.auth import authorize
+    authorize(request, "evolution:read", consume_quota=False)
+    try:
+        from tengod.knowledge_evolution import get_evolution_engine
+        engine = get_evolution_engine()
+        return engine.get_knowledge_graph_stats()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取知识图谱失败: {e}")
+
+
+@app.post("/api/v2/evolution/evolve", tags=["v2.9 知识进化"])
+async def v2_evolution_trigger(request: Request):
+    """手动触发知识进化：分析反馈趋势 + 自动补全知识图谱"""
+    from tengod.auth import authorize
+    authorize(request, "evolution:evolve")
+    try:
+        from tengod.knowledge_evolution import get_evolution_engine
+        engine = get_evolution_engine()
+        results = engine.evolve()
+        return {
+            "evolutions": [r.to_dict() for r in results],
+            "count": len(results),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"知识进化失败: {e}")
+
+
+@app.post("/api/v2/evolution/confidence/adjust", tags=["v2.9 知识进化"])
+async def v2_evolution_adjust(req: EvolutionAdjustRequest, request: Request):
+    """手动调整知识领域置信度"""
+    from tengod.auth import authorize
+    authorize(request, "evolution:adjust")
+    try:
+        from tengod.knowledge_evolution import get_evolution_engine
+        engine = get_evolution_engine()
+        profile = engine.adjust_confidence(req.domain, req.adjustment, req.reason)
+        return {
+            "domain": req.domain,
+            "confidence": profile.current_confidence,
+            "adjustment": req.adjustment,
+            "reason": req.reason,
+            "adjustment_count": len(profile.adjustments),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"调整置信度失败: {e}")
+
+
+# ── 智能对话端点 ────────────────────────────────────────────────────────────
+
+@app.post("/api/v2/conversation/chat", tags=["v2.9 对话引擎"])
+async def v2_conversation_chat(req: ConversationChatRequest, request: Request):
+    """智能对话：意图追踪 + 主动建议 + 多轮记忆"""
+    from tengod.auth import authorize
+    authorize(request, "conversation:chat")
+    try:
+        from tengod.ai_interpreter import smart_chat
+        result = await smart_chat(
+            user_message=req.message,
+            session_id=req.session_id,
+            bazi_context=req.bazi_context,
+        )
+        return ConversationChatResponse(
+            session_id=result["session_id"],
+            response=result["response"],
+            intent=result["intent"],
+            suggestions=result["suggestions"],
+            conversation_state=result["conversation_state"],
+            session_stats=result["session_stats"],
+        ).model_dump()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"智能对话失败: {e}")
+
+
+@app.get("/api/v2/conversation/session/{session_id}", tags=["v2.9 对话引擎"])
+async def v2_conversation_session(session_id: str, request: Request):
+    """获取会话摘要：消息数、话题覆盖、意图上下文"""
+    from tengod.auth import authorize
+    authorize(request, "conversation:read", consume_quota=False)
+    try:
+        from tengod.ai_interpreter import get_conversation_engine
+        engine = get_conversation_engine()
+        summary = engine.get_session_summary(session_id)
+        return ConversationSessionResponse(
+            session_id=session_id,
+            message_count=summary["message_count"],
+            topics_covered=summary["topics_covered"],
+            intent_context=summary["intent_context"],
+        ).model_dump()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取会话摘要失败: {e}")
+
+
+@app.delete("/api/v2/conversation/session/{session_id}", tags=["v2.9 对话引擎"])
+async def v2_conversation_reset(session_id: str, request: Request):
+    """重置会话：清除对话历史、意图追踪、建议记录"""
+    from tengod.auth import authorize
+    authorize(request, "conversation:reset")
+    try:
+        from tengod.ai_interpreter import get_conversation_engine
+        engine = get_conversation_engine()
+        engine.reset_session(session_id)
+        return {"session_id": session_id, "status": "reset", "timestamp": datetime.now(timezone.utc).isoformat()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"重置会话失败: {e}")
+
+
+@app.get("/api/v2/conversation/suggestions/{session_id}", tags=["v2.9 对话引擎"])
+async def v2_conversation_suggestions(session_id: str, request: Request):
+    """获取主动建议：基于当前会话意图追踪"""
+    from tengod.auth import authorize
+    authorize(request, "conversation:read", consume_quota=False)
+    try:
+        from tengod.ai_interpreter import get_conversation_engine, ProactiveAdvisor
+        engine = get_conversation_engine()
+        session = engine.get_session_summary(session_id)
+        advisor = ProactiveAdvisor()
+        suggestions = advisor.generate_suggestions(
+            session.get("intent_context", {}),
+            max_suggestions=3,
+        )
+        return {
+            "session_id": session_id,
+            "suggestions": suggestions,
+            "count": len(suggestions),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取建议失败: {e}")
 
 
 # ============================================================================

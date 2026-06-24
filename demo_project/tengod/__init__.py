@@ -14,10 +14,10 @@ TenGod - Chinese Fortune Telling System v2.3
 - 知识图谱融合 (knowledge_fusion)
 - 国际化 (i18n)
 
-版本: 2.9.0
+版本: 2.10.0
 """
 
-__version__ = "2.9.0"
+__version__ = "2.10.0"
 __author__ = "TenGod Team"
 
 from .core import get_core, create_app
