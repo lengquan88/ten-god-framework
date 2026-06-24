@@ -46,6 +46,14 @@ client = TestClient(app)
 # 辅助函数
 # ════════════════════════════════════════
 
+def unwrap(r):
+    """解包内在小孩门禁包裹的响应 {output, confidence, uncertainty} → output"""
+    data = r.json()
+    if isinstance(data, dict) and "output" in data and "confidence" in data:
+        return data["output"]
+    return data
+
+
 def get_auth_headers():
     """获取认证用户 token"""
     token = JWTManager.create_access_token(1, "testuser", "user")
@@ -389,7 +397,7 @@ class TestAIInterpretAPI:
             "year": 1990, "month": 6, "day": 15, "hour": 10, "gender": "male",
         }, headers=get_auth_headers())
         assert r.status_code == 200
-        data = r.json()
+        data = unwrap(r)
         assert "interpretation" in data
         assert "model" in data
         assert isinstance(data["interpretation"], str)
@@ -408,7 +416,7 @@ class TestAIInterpretAPI:
             "year": 1990, "month": 6, "day": 15, "hour": 10, "gender": "male",
         }, headers=get_auth_headers())
         assert r.status_code == 200
-        data = r.json()
+        data = unwrap(r)
         assert "interpretation" in data
 
     def test_liuyao_interpret(self):
@@ -417,7 +425,7 @@ class TestAIInterpretAPI:
                        params={"question": "事业发展"},
                        headers=get_auth_headers())
         assert r.status_code == 200
-        data = r.json()
+        data = unwrap(r)
         assert "interpretation" in data
         assert "gua_name" in data
 
@@ -427,7 +435,7 @@ class TestAIInterpretAPI:
                        params={"surname": "张", "given_name": "伟"},
                        headers=get_auth_headers())
         assert r.status_code == 200
-        data = r.json()
+        data = unwrap(r)
         assert "interpretation" in data
         assert "score" in data
 
@@ -437,7 +445,7 @@ class TestAIInterpretAPI:
                        params={"question": "事业发展", "mode": "tuibeitu"},
                        headers=get_auth_headers())
         assert r.status_code == 200
-        data = r.json()
+        data = unwrap(r)
         assert "interpretation" in data
 
     def test_marriage_interpret(self):
@@ -449,7 +457,7 @@ class TestAIInterpretAPI:
             "bazi2": {"day_master": "甲", "pillars": {"year": "甲子", "month": "丙寅", "day": "甲午", "hour": "乙丑"}},
         }, headers=get_auth_headers())
         assert r.status_code == 200
-        data = r.json()
+        data = unwrap(r)
         assert "interpretation" in data
 
     def test_bazi_interpret_validation_error(self):

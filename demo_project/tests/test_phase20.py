@@ -28,6 +28,14 @@ def client():
     return TestClient(app)
 
 
+def unwrap(r):
+    """解包内在小孩门禁包裹的响应 {output, confidence, uncertainty} → output"""
+    data = r.json()
+    if isinstance(data, dict) and "output" in data and "confidence" in data:
+        return data["output"]
+    return data
+
+
 @pytest.fixture(autouse=True)
 def reset_state():
     QuotaManager._usage.clear()
@@ -87,7 +95,7 @@ class TestWebhookSystem:
         """列出 Webhook 事件类型"""
         r = client.get("/api/webhooks/events", headers=user_headers)
         assert r.status_code == 200
-        events = r.json()["events"]
+        events = unwrap(r)["events"]
         assert len(events) >= 10
         event_types = [e["type"] for e in events]
         assert "case.created" in event_types
@@ -103,7 +111,7 @@ class TestWebhookSystem:
             "description": "测试订阅",
         }, headers=user_headers)
         assert r.status_code == 200
-        sub = r.json()
+        sub = unwrap(r)
         assert sub["id"] > 0
         assert sub["url"] == "https://example.com/hook"
         assert "case.created" in sub["events"]
@@ -120,7 +128,7 @@ class TestWebhookSystem:
         }, headers=user_headers)
         r = client.get("/api/webhooks", headers=user_headers)
         assert r.status_code == 200
-        subs = r.json()["subscriptions"]
+        subs = unwrap(r)["subscriptions"]
         assert len(subs) >= 2
 
     def test_list_webhooks_active_only(self, client, user_headers):
@@ -128,11 +136,11 @@ class TestWebhookSystem:
         r = client.post("/api/webhooks", json={
             "url": "https://a.com/hook", "events": ["*"],
         }, headers=user_headers)
-        sub_id = r.json()["id"]
+        sub_id = unwrap(r)["id"]
         client.put(f"/api/webhooks/{sub_id}", json={"is_active": False}, headers=user_headers)
 
         r = client.get("/api/webhooks?active_only=true", headers=user_headers)
-        subs = r.json()["subscriptions"]
+        subs = unwrap(r)["subscriptions"]
         assert all(s["is_active"] for s in subs)
 
     def test_get_webhook(self, client, user_headers):
@@ -140,10 +148,10 @@ class TestWebhookSystem:
         r = client.post("/api/webhooks", json={
             "url": "https://x.com/h", "events": ["*"],
         }, headers=user_headers)
-        sub_id = r.json()["id"]
+        sub_id = unwrap(r)["id"]
         r = client.get(f"/api/webhooks/{sub_id}", headers=user_headers)
         assert r.status_code == 200
-        assert r.json()["url"] == "https://x.com/h"
+        assert unwrap(r)["url"] == "https://x.com/h"
 
     def test_get_webhook_not_found(self, client, user_headers):
         """获取不存在的 Webhook"""
@@ -155,31 +163,31 @@ class TestWebhookSystem:
         r = client.post("/api/webhooks", json={
             "url": "https://x.com/h", "events": ["*"],
         }, headers=user_headers)
-        sub_id = r.json()["id"]
+        sub_id = unwrap(r)["id"]
         r = client.put(f"/api/webhooks/{sub_id}", json={
             "url": "https://y.com/h",
             "is_active": False,
         }, headers=user_headers)
         assert r.status_code == 200
-        assert r.json()["url"] == "https://y.com/h"
-        assert r.json()["is_active"] is False
+        assert unwrap(r)["url"] == "https://y.com/h"
+        assert unwrap(r)["is_active"] is False
 
     def test_delete_webhook_admin(self, client, admin_headers):
         """管理员删除 Webhook"""
         r = client.post("/api/webhooks", json={
             "url": "https://x.com/h", "events": ["*"],
         }, headers=admin_headers)
-        sub_id = r.json()["id"]
+        sub_id = unwrap(r)["id"]
         r = client.delete(f"/api/webhooks/{sub_id}", headers=admin_headers)
         assert r.status_code == 200
-        assert r.json()["deleted"] is True
+        assert unwrap(r)["deleted"] is True
 
     def test_delete_webhook_user_forbidden(self, client, user_headers):
         """普通用户不能删除 Webhook（需要 webhook:delete 权限）"""
         r = client.post("/api/webhooks", json={
             "url": "https://x.com/h", "events": ["*"],
         }, headers=user_headers)
-        sub_id = r.json()["id"]
+        sub_id = unwrap(r)["id"]
         r = client.delete(f"/api/webhooks/{sub_id}", headers=user_headers)
         assert r.status_code == 403
 
@@ -193,7 +201,7 @@ class TestWebhookSystem:
             "payload": {"case_id": 1},
         }, headers=user_headers)
         assert r.status_code == 200
-        assert r.json()["triggered"] >= 1
+        assert unwrap(r)["triggered"] >= 1
 
     def test_webhook_stats(self, client, user_headers):
         """Webhook 统计"""
@@ -202,7 +210,7 @@ class TestWebhookSystem:
         }, headers=user_headers)
         r = client.get("/api/webhooks/stats/summary", headers=user_headers)
         assert r.status_code == 200
-        stats = r.json()
+        stats = unwrap(r)
         assert stats["total_subscriptions"] >= 1
         assert "event_types" in stats
         assert "success_rate" in stats
@@ -217,10 +225,10 @@ class TestWebhookSystem:
         r = client.post("/api/webhooks", json={
             "url": "https://x.com/h", "events": ["*"],
         }, headers=admin_headers)
-        sub_id = r.json()["id"]
+        sub_id = unwrap(r)["id"]
         r = client.get(f"/api/webhooks/{sub_id}/deliveries", headers=admin_headers)
         assert r.status_code == 200
-        assert "deliveries" in r.json()
+        assert "deliveries" in unwrap(r)
 
 
 # ════════════════════════════════════════
@@ -234,7 +242,7 @@ class TestPluginAPI:
         """列出插件"""
         r = client.get("/api/plugins", headers=user_headers)
         assert r.status_code == 200
-        assert "plugins" in r.json()
+        assert "plugins" in unwrap(r)
 
     def test_plugin_stats(self, client, user_headers):
         """插件统计"""
@@ -260,7 +268,7 @@ class TestAPIVersion:
         """获取 API 版本"""
         r = client.get("/api/version")
         assert r.status_code == 200
-        v = r.json()
+        v = unwrap(r)
         assert v["api_version"] == "3.0.0"
         assert "sdk_versions" in v
         assert v["sdk_versions"]["python"] == "3.0.0"
@@ -287,7 +295,7 @@ class TestAdvancedAnalysis:
             "record_b_id": rid_b,
         }, headers=user_headers)
         assert r.status_code == 200
-        d = r.json()
+        d = unwrap(r)
         assert "similarity_score" in d
         assert "wuxing_compare" in d
         assert "summary" in d
@@ -312,7 +320,7 @@ class TestAdvancedAnalysis:
             ]
         }, headers=user_headers)
         assert r.status_code == 200
-        d = r.json()
+        d = unwrap(r)
         assert d["stats"]["total"] == 3
         assert d["stats"]["success"] == 3
         assert len(d["results"]) == 3
@@ -331,7 +339,7 @@ class TestAdvancedAnalysis:
             "start_age": 0, "end_age": 50,
         }, headers=user_headers)
         assert r.status_code == 200
-        d = r.json()
+        d = unwrap(r)
         assert "day_master" in d
         assert "dayun" in d
         assert "liunian" in d

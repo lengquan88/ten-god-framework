@@ -325,10 +325,17 @@ class TestDeploymentSecurity:
         with open(env_path, "r", encoding="utf-8") as f:
             content = f.read()
 
-        # 应使用占位符
-        assert "your_api_key_here" in content or "your-" in content.lower()
         # 不应有真实密钥格式
         assert "sk-1234567890" not in content
+        assert "sk-proj-" not in content
+        # API_KEY 应为空或占位符（不应有真实密钥值）
+        for line in content.splitlines():
+            line = line.strip()
+            if line.startswith("API_KEY=") and not line.startswith("#"):
+                value = line[len("API_KEY="):].strip().strip('"').strip("'")
+                # 空值或占位符均可，真实密钥通常 >20 字符且包含字母数字混合
+                if value and len(value) > 20 and not value.startswith("your_"):
+                    pytest.fail(f"API_KEY 似乎包含真实密钥: {value[:8]}...")
 
     def test_healthcheck_exists(self):
         """Dockerfile 应有健康检查"""

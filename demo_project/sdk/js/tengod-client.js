@@ -1,6 +1,6 @@
 /**
  * TenGod API Client for JavaScript/Node.js
- * @version 1.5.0
+ * @version v3.0.0
  */
 
 class TenGodClient {
@@ -148,6 +148,96 @@ class TenGodClient {
    */
   async getVersion() {
     return this._request('GET', '/api/v1/version');
+  }
+
+  // ── v3.0.0 新增方法 ──
+
+  async baziCalc(params) {
+    return this._request('POST', '/api/bazi/calc', params);
+  }
+
+  async baziFull(params) {
+    return this._request('POST', '/api/bazi/full', params);
+  }
+
+  async listCases(params = {}) {
+    return this._request('GET', '/api/cases?' + new URLSearchParams(params));
+  }
+
+  async getCase(caseId) {
+    return this._request('GET', `/api/cases/${caseId}`);
+  }
+
+  async createCase(data) {
+    return this._request('POST', '/api/cases', data);
+  }
+
+  async searchCases(keyword, limit = 20) {
+    return this._request('GET', `/api/cases/search?keyword=${keyword}&limit=${limit}`);
+  }
+
+  async similarCases(caseId, limit = 5) {
+    return this._request('GET', `/api/cases/${caseId}/similar?limit=${limit}`);
+  }
+
+  async caseCategories() {
+    return this._request('GET', '/api/cases/categories/list');
+  }
+
+  async caseTags() {
+    return this._request('GET', '/api/cases/tags/list');
+  }
+
+  async caseStats() {
+    return this._request('GET', '/api/cases/stats/summary');
+  }
+
+  async exportCases(data) {
+    return this._request('POST', '/api/cases/export', data);
+  }
+
+  async favoriteCase(caseId) {
+    return this._request('POST', `/api/cases/${caseId}/favorite`);
+  }
+
+  async likeCase(caseId) {
+    return this._request('POST', `/api/cases/${caseId}/like`);
+  }
+
+  async listWebhookEvents() {
+    return this._request('GET', '/api/webhooks/events');
+  }
+
+  async createWebhook(data) {
+    return this._request('POST', '/api/webhooks', data);
+  }
+
+  async listWebhooks(activeOnly = false) {
+    return this._request('GET', `/api/webhooks?active_only=${activeOnly}`);
+  }
+
+  async deleteWebhook(webhookId) {
+    return this._request('DELETE', `/api/webhooks/${webhookId}`);
+  }
+
+  async triggerWebhook(eventType, payload) {
+    return this._request('POST', '/api/webhooks/trigger', { event_type: eventType, payload });
+  }
+
+  async webhookStats() {
+    return this._request('GET', '/api/webhooks/stats/summary');
+  }
+
+  async listPlugins() {
+    return this._request('GET', '/api/plugins');
+  }
+
+  async pluginStats() {
+    return this._request('GET', '/api/plugins/stats/summary');
+  }
+
+  async apiVersion() {
+    return this._request('GET', '/api/version');
   }
 }
 
