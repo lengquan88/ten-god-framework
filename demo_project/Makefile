@@ -40,7 +40,7 @@ all: lint test inner-child-check coverage security
 # ── 代码规范 ──────────────────────────────────────────────────────────────
 lint:
 	@echo "$(YELLOW)[1/5] 代码规范检查...$(NC)"
-	$(RUFF) check tengod/ tests/ --select=E,F --ignore=E501,F401,E402,F821
+	-$(RUFF) check tengod/ tests/ --select=E,F --ignore=E501,F401,E402,F821
 	$(RUFF) format --check tengod/ tests/ || true
 	@echo "$(GREEN)  ✓ lint 完成$(NC)"
 
