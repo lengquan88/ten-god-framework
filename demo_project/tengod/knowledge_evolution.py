@@ -296,6 +296,9 @@ class KnowledgeEvolution:
         # 实时调整置信度
         self._update_confidence_from_feedback(record)
 
+        # 持久化到数据库
+        self._persist_feedback(record)
+
         return record
 
     def _extract_tags(self, comment: str) -> List[str]:
@@ -740,6 +743,88 @@ class KnowledgeEvolution:
         self._edges.clear()
         self._evolution_history.clear()
         self._init_seed_knowledge()
+
+    # ── 持久化 ──────────────────────────────────────────────────────────
+
+    def _persist_feedback(self, record: FeedbackRecord) -> None:
+        """持久化反馈到数据库"""
+        try:
+            from tengod.database import is_persistent, get_db
+            if is_persistent():
+                get_db().insert_feedback(record.to_dict())
+        except Exception:
+            pass
+
+    def sync_knowledge_graph_to_db(self) -> Dict[str, int]:
+        """同步知识图谱到数据库"""
+        try:
+            from tengod.database import is_persistent, get_db
+            if not is_persistent():
+                return {"nodes": 0, "edges": 0}
+            db = get_db()
+            for node in self._nodes.values():
+                db.insert_kg_node(node.to_dict())
+            for edge in self._edges:
+                db.insert_kg_edge(edge.to_dict())
+            return {"nodes": len(self._nodes), "edges": len(self._edges)}
+        except Exception:
+            return {"nodes": 0, "edges": 0}
+
+    def load_knowledge_graph_from_db(self) -> Dict[str, int]:
+        """从数据库加载知识图谱"""
+        try:
+            from tengod.database import is_persistent, get_db
+            if not is_persistent():
+                return {"nodes": 0, "edges": 0}
+            db = get_db()
+            nodes = db.list_kg_nodes()
+            edges = db.list_kg_edges()
+            self._nodes.clear()
+            self._edges.clear()
+            for n in nodes:
+                self._nodes[n["id"]] = KnowledgeNode(
+                    id=n["id"], domain=n["domain"], concept=n["concept"],
+                    confidence=n["confidence"], properties=n.get("properties", {}),
+                    sources=n.get("sources", []),
+                )
+            for e in edges:
+                self._edges.append(KnowledgeEdge(
+                    source_id=e["source_id"], target_id=e["target_id"],
+                    relation=e["relation"], weight=e["weight"],
+                    confidence=e["confidence"],
+                ))
+            return {"nodes": len(nodes), "edges": len(edges)}
+        except Exception:
+            return {"nodes": 0, "edges": 0}
+
+    def load_feedback_from_db(self) -> int:
+        """从数据库加载反馈"""
+        try:
+            from tengod.database import is_persistent, get_db
+            if not is_persistent():
+                return 0
+            db = get_db()
+            fbs = db.list_feedback(limit=10000)
+            count = 0
+            for fb in fbs:
+                record = FeedbackRecord(
+                    session_id=fb["session_id"],
+                    timestamp=fb["created_at"],
+                    domain=fb["domain"],
+                    accuracy=fb["accuracy"],
+                    satisfaction=fb["satisfaction"],
+                    usefulness=fb["usefulness"],
+                    comment=fb["comment"],
+                    analysis_type=fb["analysis_type"],
+                    corrections=fb["corrections"],
+                    tags=fb["tags"],
+                )
+                self._feedbacks.append(record)
+                self._update_confidence_from_feedback(record)
+                count += 1
+            return count
+        except Exception:
+            return 0
 
 
 # ============================================================================

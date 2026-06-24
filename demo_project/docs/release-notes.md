@@ -1,5 +1,66 @@
 # Release Notes
 
+## v2.11.0 — 数据持久化 + 案例库升级
+
+> 发布日期: 2026-06-24
+
+### Highlights
+
+- **SQLite 数据库层**: 零依赖，6 张表，WAL 模式，支持并发读
+- **案例仓库**: 持久化案例管理，全文搜索，JSON 导入导出，分页
+- **对话/反馈持久化**: 会话恢复，知识图谱同步，非阻塞持久化钩子
+- **向后兼容**: 内存模式默认，`STORAGE_BACKEND=sqlite` 启用持久化
+
+### 新增模块
+
+| 模块 | 文件 | 说明 |
+|------|------|------|
+| 数据库层 | `tengod/database.py` | DatabaseManager 类，6 表 CRUD，导入导出 |
+| 案例仓库 | `tengod/case_repository.py` | CaseRepository 类，种子数据，搜索，分页 |
+
+### 数据库 Schema
+
+| 表 | 说明 | 关键字段 |
+|------|------|----------|
+| `cases` | 案例 | name, bazi_data, analysis, tags, category |
+| `feedback` | 用户反馈 | session_id, domain, accuracy, satisfaction, usefulness |
+| `conversations` | 对话历史 | session_id, role, message, intent |
+| `kg_nodes` | 知识图谱节点 | id, domain, concept, confidence, properties |
+| `kg_edges` | 知识图谱边 | source_id, target_id, relation, weight |
+| `users` | 用户/配额 | username, api_key, quota_used, quota_limit |
+
+### 增强模块
+
+| 模块 | 变更 |
+|------|------|
+| `ai_interpreter.py` | ConversationEngine 添加 `_persist_message`/`_persist_response`/`load_session_from_db` |
+| `knowledge_evolution.py` | KnowledgeEvolution 添加 `_persist_feedback`/`sync_knowledge_graph_to_db`/`load_knowledge_graph_from_db`/`load_feedback_from_db` |
+
+### 测试
+
+- 新增持久化测试: 27 个用例
+- 全量回归: 363 通过（0 回归）
+
+### 升级指南
+
+```bash
+# 启用持久化
+export STORAGE_BACKEND=sqlite
+export TENGOD_DB_PATH=tengod.db
+
+# 启动服务
+python -m tengod.api_server --port 8000
+
+# 案例仓库
+from tengod.case_repository import get_repository
+repo = get_repository()
+repo.seed()  # 播种初始数据
+results = repo.search("财运")
+repo.export_to_json("cases_backup.json")
+```
+
+---
+
 ## v2.10.0 — 智能体 API 集成 + 知识进化可视化
 
 > 发布日期: 2026-06-24

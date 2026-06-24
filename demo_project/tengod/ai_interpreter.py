@@ -1424,6 +1424,9 @@ class ConversationEngine:
         if intent["primary_topic"] != "综合":
             session["topics_covered"].add(intent["primary_topic"])
 
+        # 持久化到数据库
+        self._persist_message(session_id, "user", user_message, intent)
+
         # 主动建议
         suggestions = self._advisor.generate_suggestions(
             self._tracker.get_context(),
@@ -1439,6 +1442,36 @@ class ConversationEngine:
                 "topics_covered": list(session["topics_covered"]),
             },
         }
+
+    def _persist_message(self, session_id: str, role: str, message: str, intent: Dict[str, Any] = None) -> None:
+        """持久化消息到数据库"""
+        try:
+            from tengod.database import is_persistent, get_db
+            if is_persistent():
+                get_db().insert_message(session_id, role, message, intent)
+        except Exception:
+            pass  # 持久化失败不影响主流程
+
+    def _persist_response(self, session_id: str, response: str) -> None:
+        """持久化回复到数据库"""
+        self._persist_message(session_id, "assistant", response)
+
+    def load_session_from_db(self, session_id: str) -> Optional[Dict[str, Any]]:
+        """从数据库恢复会话"""
+        try:
+            from tengod.database import is_persistent, get_db
+            if not is_persistent():
+                return None
+            messages = get_db().get_conversation(session_id)
+            if not messages:
+                return None
+            return {
+                "session_id": session_id,
+                "message_count": len(messages),
+                "messages": messages,
+            }
+        except Exception:
+            return None
 
     async def chat(
         self,
@@ -1479,6 +1512,7 @@ class ConversationEngine:
         self._tracker.track(user_message, response_text)
         add_to_conversation(session_id, "user", user_message)
         add_to_conversation(session_id, "assistant", response_text[:300])
+        self._persist_response(session_id, response_text)
 
         result["response"] = response_text
         result["response_length"] = len(response_text)
