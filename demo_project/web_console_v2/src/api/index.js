@@ -83,4 +83,8 @@ export const getHundunFoams = (limit = 20) => api.get('/v2/gate/hundun-foams', {
 export const getCorrectionLog = (limit = 20) => api.get('/v2/gate/correction-log', { params: { limit } })
 export const getHuiguStatus = () => api.get('/v2/gate/huigu-status')
 
+// ── 内在小孩 (v2.16) ──
+export const getInnerChildStats = () => api.get('/v2/gate/inner-child-stats')
+export const getInnerChildArchetypes = () => api.get('/v2/gate/inner-child-archetypes')
+
 export default api

@@ -392,6 +392,38 @@ async def gate_huigu_status():
     scheduler = get_scheduler()
     return scheduler.get_status()
 
+
+@app.get("/api/v2/gate/inner-child-stats", tags=["v2.16 内在小孩"])
+async def gate_inner_child_stats():
+    """内在小孩状态机统计"""
+    from tengod.inner_child import get_inner_child_sm
+    sm = get_inner_child_sm()
+    return sm.get_stats()
+
+
+@app.get("/api/v2/gate/inner-child-archetypes", tags=["v2.16 内在小孩"])
+async def gate_inner_child_archetypes():
+    """六道内在小孩原型定义"""
+    from tengod.inner_child import SIX_ARCHETYPES
+    return {
+        "archetypes": [
+            {
+                "index": a.index,
+                "name": a.name,
+                "name_en": a.name_en,
+                "description": a.description,
+                "dao_principle": a.dao_principle,
+            }
+            for a in SIX_ARCHETYPES
+        ],
+        "dim": 64,
+        "gate_config": {
+            "temperature": 0.3,
+            "phi_limit": 0.5,
+            "beta_limit": 0.7,
+        },
+    }
+
 # Gzip 压缩（移动端流量优化 v2.3）
 app.add_middleware(GZipMiddleware, minimum_size=1024)
 

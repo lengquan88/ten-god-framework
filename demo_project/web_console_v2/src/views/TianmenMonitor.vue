@@ -41,6 +41,58 @@
       </div>
     </div>
 
+    <!-- 内在小孩 -->
+    <div v-if="activeTab === 'inner-child'" class="space-y-4">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <StatCard label="探测次数" :value="innerChild.total_probes || 0" color="blue" />
+        <StatCard label="门禁触发" :value="innerChild.total_triggers || 0" color="red" />
+        <StatCard label="触发率" :value="((innerChild.trigger_rate || 0) * 100).toFixed(1) + '%'" color="amber" />
+        <StatCard label="修正率" :value="((innerChild.correction_rate || 0) * 100).toFixed(1) + '%'" color="green" />
+      </div>
+      <!-- 六道心理原型卡片 -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div v-for="arch in innerChildArchetypes" :key="arch.index"
+          class="bg-gray-900 rounded-lg p-3 border border-gray-800 hover:border-amber-700/50 transition-colors">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-sm font-semibold text-amber-400">{{ arch.name }}</span>
+            <span class="text-xs text-gray-500">{{ arch.name_en }}</span>
+          </div>
+          <p class="text-xs text-gray-500 mb-2 line-clamp-2">{{ arch.description }}</p>
+          <p class="text-xs text-gray-600 italic line-clamp-2">{{ arch.dao_principle }}</p>
+          <!-- β 占据度条 -->
+          <div class="mt-2">
+            <div class="flex justify-between text-xs text-gray-600 mb-1">
+              <span>占据度 β</span>
+              <span>{{ (innerChild.archetype_distribution?.[arch.name] || 0 * 100).toFixed(1) }}%</span>
+            </div>
+            <div class="h-1.5 bg-gray-800 rounded-full overflow-hidden">
+              <div class="h-full bg-amber-500 rounded-full transition-all duration-700"
+                :style="{ width: ((innerChild.archetype_distribution?.[arch.name] || 0) * 100).toFixed(1) + '%' }" />
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- 最近状态 -->
+      <div class="bg-gray-900 rounded-lg p-4 border border-gray-800">
+        <h3 class="text-sm font-semibold text-gray-300 mb-3">最近探测状态</h3>
+        <div v-if="(innerChild.recent_states || []).length === 0" class="text-center text-gray-600 py-4">
+          等待 API 请求触发内在小孩探测...
+        </div>
+        <div v-else class="space-y-2">
+          <div v-for="(s, i) in innerChild.recent_states" :key="i"
+            class="flex items-center justify-between p-2 rounded bg-gray-800/50 text-xs">
+            <span class="text-gray-400">{{ s.dominant }}</span>
+            <span class="text-gray-500">β={{ s.beta }}</span>
+            <span class="text-gray-500">Φ={{ s.phi }}</span>
+            <span class="px-2 py-0.5 rounded" :class="s.triggered ? 'bg-red-900/50 text-red-400' : 'bg-gray-700/50 text-gray-500'">
+              {{ s.triggered ? '触发' : '正常' }}
+            </span>
+            <span v-if="s.corrected" class="text-green-400">已修正</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- 修真九境 -->
     <div v-if="activeTab === 'xiuzhen'" class="space-y-4">
       <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -171,7 +223,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { getGateStats, getXiuzhenProgress, getHundunFoams, getCorrectionLog, getHuiguStatus } from '../api'
+import { getGateStats, getXiuzhenProgress, getHundunFoams, getCorrectionLog, getHuiguStatus, getInnerChildStats, getInnerChildArchetypes } from '../api'
 
 const activeTab = ref('gate')
 const loading = ref(false)
@@ -182,9 +234,12 @@ const xiuzhen = ref({ current_realm: {}, all_realms: [], total_qi: 0, cultivatio
 const hundun = ref({ foams: [], total: 0, floating: 0, verified: 0, exploration_count: 0, discovery_count: 0 })
 const correction = ref({ total_corrections: 0, successful: 0, success_rate: 0, recent_reports: [] })
 const huigu = ref({ total_steps: 0, silent_count: 0, recall_count: 0, silent_rate: 0, recall_rate: 0, trajectory_health: 0, window_size: 0, max_angle: 0 })
+const innerChild = ref({ total_probes: 0, total_triggers: 0, total_corrections: 0, trigger_rate: 0, correction_rate: 0, recent_states: [], archetype_distribution: {} })
+const innerChildArchetypes = ref([])
 
 const tabs = [
   { id: 'gate', label: '门禁统计' },
+  { id: 'inner-child', label: '内在小孩' },
   { id: 'xiuzhen', label: '修真九境' },
   { id: 'hundun', label: '混沌海' },
   { id: 'correction', label: '自修正' },
@@ -201,14 +256,18 @@ const xiuzhenProgressPercent = computed(() => {
 async function fetchAll() {
   loading.value = true
   try {
-    const [s, x, h, c, hu] = await Promise.allSettled([
+    const [s, ic, a, x, h, c, hu] = await Promise.allSettled([
       getGateStats(),
+      getInnerChildStats(),
+      getInnerChildArchetypes(),
       getXiuzhenProgress(),
       getHundunFoams(),
       getCorrectionLog(),
       getHuiguStatus(),
     ])
     if (s.status === 'fulfilled') stats.value = s.value.data || s.value
+    if (ic.status === 'fulfilled') innerChild.value = ic.value.data || ic.value
+    if (a.status === 'fulfilled') innerChildArchetypes.value = (a.value.data || a.value)?.archetypes || []
     if (x.status === 'fulfilled') xiuzhen.value = x.value.data || x.value
     if (h.status === 'fulfilled') hundun.value = h.value.data || h.value
     if (c.status === 'fulfilled') correction.value = c.value.data || c.value

@@ -35,6 +35,11 @@ class ZhizhiVerdict:
     retreat_reason: str = ""        # 回退原因
     cultivation_qi: float = 0.0     # 元气利用率 (修行感)
     timestamp: float = field(default_factory=time.time)
+    # v2.16 内在小孩门禁
+    inner_child_phi: Optional[float] = None       # 内在小孩熵值 Φ
+    inner_child_triggered: bool = False           # 内在小孩门禁是否触发
+    inner_child_dominant: str = ""                # 主导内在小孩
+    inner_child_beta: float = 0.0                 # 主导占据度
 
 
 @dataclass
@@ -76,6 +81,7 @@ class ZhizhiEngine:
         confidence_scores: Optional[Dict[str, float]] = None,
         feature_entropies: Optional[Dict[str, float]] = None,
         context: Optional[Dict[str, Any]] = None,
+        inner_child_state: Optional[Dict[str, Any]] = None,
     ) -> ZhizhiVerdict:
         """
         知止判定：判断输出是否可以通过天门。
@@ -139,6 +145,22 @@ class ZhizhiEngine:
             if not retreat_reason:
                 retreat_reason = f"方差过大 ({variance:.2f} > {self.gate.max_variance_threshold:.2f})"
 
+        # 4.5 内在小孩熵门禁 (v2.16)
+        inner_child_phi = None
+        inner_child_triggered = False
+        inner_child_dominant = ""
+        inner_child_beta = 0.0
+        if inner_child_state:
+            inner_child_phi = inner_child_state.get("entropy_phi", 0.0)
+            inner_child_triggered = inner_child_state.get("gate_triggered", False)
+            inner_child_dominant = inner_child_state.get("dominant", {}).get("name", "")
+            inner_child_beta = inner_child_state.get("dominant", {}).get("beta", 0.0)
+            if inner_child_triggered:
+                passed = False
+                should_retreat = True
+                if not retreat_reason:
+                    retreat_reason = f"内在小孩门禁触发：{inner_child_dominant}占据 β={inner_child_beta:.3f}, Φ={inner_child_phi:.3f}"
+
         # 5. 修行感（元气利用率）
         cultivation_qi = self._compute_cultivation_qi(raw_confidence, max_entropy, variance)
 
@@ -151,6 +173,10 @@ class ZhizhiEngine:
             should_retreat=should_retreat,
             retreat_reason=retreat_reason,
             cultivation_qi=cultivation_qi,
+            inner_child_phi=inner_child_phi,
+            inner_child_triggered=inner_child_triggered,
+            inner_child_dominant=inner_child_dominant,
+            inner_child_beta=inner_child_beta,
         )
 
         # 6. 更新历史 + 自适应阈值

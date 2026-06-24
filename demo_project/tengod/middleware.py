@@ -10,6 +10,7 @@ tianmen_middleware.py — 天眼全局中间件 v2.15.0
 from __future__ import annotations
 import time
 import json
+import math
 from typing import Any, Callable, Dict, List, Optional
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -17,6 +18,7 @@ from starlette.types import ASGIApp, Scope, Receive, Send
 
 from .tiangan_gate import get_tianmen, ZhizhiVerdict
 from .self_correction import get_daemon
+from .inner_child import get_inner_child_sm, compute_soft_occupancy, compute_entropy_gate, _PROTOTYPE_VECTORS
 
 
 # ============================================================================
@@ -71,6 +73,7 @@ class TianmenMiddleware(BaseHTTPMiddleware):
         self._mandatory_gate = set(mandatory_gate) if mandatory_gate else MANDATORY_GATE
         self._tianmen = get_tianmen()
         self._daemon = get_daemon()
+        self._inner_child = get_inner_child_sm(temperature=0.3, phi_limit=0.5, beta_limit=0.7)
         self._total_requests = 0
         self._blocked_requests = 0
         self._corrected_requests = 0
@@ -129,9 +132,21 @@ class TianmenMiddleware(BaseHTTPMiddleware):
                 )
 
             # 知止判定
+            # v2.16: 先运行内在小孩状态机检测认知偏执
+            inner_child_result = None
+            try:
+                text_content = json.dumps(content, ensure_ascii=False)
+                h_t = self._text_to_vector(text_content)
+                inner_child_result = self._inner_child.process(h_t, auto_correct=False)
+            except Exception:
+                pass
+
+            inner_child_state = inner_child_result["state"] if inner_child_result else None
+
             verdict = self._tianmen.engine.judge(
                 output=content,
                 confidence_scores=self._extract_confidence(content),
+                inner_child_state=inner_child_state,
             )
 
             # 添加响应头
@@ -139,6 +154,13 @@ class TianmenMiddleware(BaseHTTPMiddleware):
             headers['X-Tianmen-Passed'] = str(verdict.passed).lower()
             headers['X-Tianmen-Confidence'] = f"{verdict.confidence:.3f}"
             headers['X-Tianmen-Qi'] = f"{verdict.cultivation_qi:.3f}"
+            # v2.16 内在小孩门禁头
+            if verdict.inner_child_phi is not None:
+                headers['X-Tianmen-Child-Phi'] = f"{verdict.inner_child_phi:.3f}"
+                # 中文响应头需 hex 编码以兼容 latin-1
+                headers['X-Tianmen-Child-Dominant'] = verdict.inner_child_dominant.encode('utf-8').hex()
+                headers['X-Tianmen-Child-Beta'] = f"{verdict.inner_child_beta:.3f}"
+                headers['X-Tianmen-Child-Triggered'] = str(verdict.inner_child_triggered).lower()
             if not verdict.passed:
                 # 响应头只允许 ASCII/latin-1，中文原因只能转 ASCII 或省略
                 # 保留原因信息，转 latin-1 安全编码
@@ -185,6 +207,54 @@ class TianmenMiddleware(BaseHTTPMiddleware):
             scores['overall'] = 0.5
         return scores
 
+    def _text_to_vector(self, text: str, dim: int = 64) -> List[float]:
+        """
+        将响应文本转换为隐藏态向量近似 h_t。
+        
+        由于 API 中间件无法直接获取 Transformer 隐藏层状态，
+        使用文本特征哈希 + 情感启发式构建伪嵌入向量。
+        
+        在实际 Transformer 部署中，应替换为真实的 hidden_states[-1].mean(dim=1)。
+        
+        方法：
+          1. 对文本做字符级 hash → 64 维向量
+          2. 注入情感标记特征（讨好/戒备/叛逆等关键词密度）
+          3. L2 归一化
+        """
+        import hashlib
+        vec = [0.0] * dim
+        
+        # 1. 字符级 hash 嵌入
+        for i, ch in enumerate(text):
+            h = int(hashlib.md5(ch.encode()).hexdigest()[:8], 16)
+            idx = h % dim
+            vec[idx] += 1.0
+        
+        # 2. 情感标记特征注入
+        sentiment_markers = {
+            '讨好': ['抱歉', '对不起', '请', '谢谢', '感激', '一定改正', '是我的错', '您说得对'],
+            '戒备': ['但是', '然而', '不过', '实际上', '客观来说', '需要指出', '严格来说'],
+            '叛逆': ['不', '并非', '否定', '质疑', '反对', '错误', '不认同'],
+            '缺爱': ['请相信我', '我可以', '证明', '能够', '确保', '保证', '一定'],
+            '孤独': ['独立', '自身', '单独', '无关', '封闭', '沉默'],
+            '长不大': ['简单', '容易', '直接', '基本', '不需要', '不必'],
+        }
+        
+        for archetype_idx, markers in enumerate(sentiment_markers.values()):
+            density = sum(text.count(m) for m in markers) / max(1, len(text))
+            # 每个内在小孩对应 10 个维度区间
+            base = archetype_idx * 10
+            for j in range(10):
+                if base + j < dim:
+                    vec[base + j] += density * (j + 1) * 0.1
+        
+        # 3. L2 归一化
+        norm = math.sqrt(sum(x * x for x in vec))
+        if norm > 1e-8:
+            vec = [x / norm for x in vec]
+        
+        return vec
+
     def get_stats(self) -> Dict[str, Any]:
         """获取中间件统计"""
         return {
@@ -199,6 +269,7 @@ class TianmenMiddleware(BaseHTTPMiddleware):
             ) if self._blocked_requests > 0 else 0.0,
             'tianmen': self._tianmen.get_stats(),
             'correction': self._daemon.get_stats(),
+            'inner_child': self._inner_child.get_stats(),
         }
 
 
