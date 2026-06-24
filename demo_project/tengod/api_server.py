@@ -46,6 +46,7 @@ import json
 import os
 import sys
 import time
+import threading
 import logging
 import hashlib
 import secrets
@@ -58,7 +59,7 @@ from typing import Any, Dict, List, Optional, Union
 from fastapi import FastAPI, HTTPException, Request, Depends, Query, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 import uvicorn
@@ -3699,6 +3700,169 @@ async def update_task_progress(task_id: str, progress: int = 0, status: str = "r
     task["progress"] = progress
     task["status"] = status
     return task
+
+
+# ============================================================================
+# v2.8: 可观测性 + API 加固
+# ============================================================================
+
+from tengod.observability import (
+    get_health_checker, health_check_response,
+    get_metrics_collector, get_request_tracker,
+    generate_request_id, set_request_id,
+    setup_logging, get_logger,
+)
+
+# 初始化日志
+setup_logging(level="INFO", fmt="json")
+logger = get_logger("tengod.api")
+
+# 注册默认健康检查
+_health = get_health_checker()
+_health.register("memory", lambda: {"status": "healthy", "detail": "OK"})
+_health.register("python", lambda: {
+    "status": "healthy",
+    "detail": f"Python {sys.version[:5]}",
+    "version": sys.version,
+})
+
+
+# ── 请求追踪中间件 ──────────────────────────────────────────────────────────
+
+@app.middleware("http")
+async def request_tracking_middleware(request: Request, call_next):
+    """请求追踪中间件"""
+    rid = request.headers.get("X-Request-ID", generate_request_id())
+    set_request_id(rid)
+
+    tracker = get_request_tracker()
+    tracker.start_request(rid, request.method, request.url.path)
+
+    start = time.time()
+    try:
+        response = await call_next(request)
+        duration_ms = (time.time() - start) * 1000
+        tracker.end_request(rid, response.status_code, duration_ms)
+        response.headers["X-Request-ID"] = rid
+        response.headers["X-Response-Time"] = f"{duration_ms:.1f}ms"
+        return response
+    except Exception as e:
+        duration_ms = (time.time() - start) * 1000
+        tracker.end_request(rid, 500, duration_ms)
+        logger.error(f"Request failed: {str(e)}", extra={"request_id": rid, "path": request.url.path})
+        raise
+
+
+# ── 全局错误处理 ────────────────────────────────────────────────────────────
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """全局异常处理"""
+    logger.error(f"Unhandled exception: {str(exc)}", extra={"path": request.url.path})
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "internal_server_error",
+            "message": str(exc)[:200],
+            "request_id": get_request_id(),
+        },
+    )
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """HTTP 异常统一格式"""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": "http_error",
+            "message": exc.detail,
+            "status_code": exc.status_code,
+            "request_id": get_request_id(),
+        },
+    )
+
+
+# ── 速率限制 ────────────────────────────────────────────────────────────────
+
+_rate_limit_store: Dict[str, List[float]] = {}
+_rate_limit_lock = threading.Lock()
+
+def _check_rate_limit(client_ip: str, max_requests: int = 100, window: int = 60) -> bool:
+    """简单的滑动窗口速率限制"""
+    now = time.time()
+    with _rate_limit_lock:
+        if client_ip not in _rate_limit_store:
+            _rate_limit_store[client_ip] = []
+        timestamps = _rate_limit_store[client_ip]
+        timestamps = [t for t in timestamps if now - t < window]
+        _rate_limit_store[client_ip] = timestamps
+
+        if len(timestamps) >= max_requests:
+            return False
+
+        timestamps.append(now)
+        return True
+
+    # 清理过期条目
+    if len(_rate_limit_store) > 10000:
+        expired = [ip for ip, ts in _rate_limit_store.items()
+                    if not ts or now - ts[-1] > window * 2]
+        for ip in expired:
+            _rate_limit_store.pop(ip, None)
+
+
+# ── 健康检查端点 ────────────────────────────────────────────────────────────
+
+@app.get("/health", tags=["v2.8 可观测性"])
+async def health_check():
+    """健康检查端点"""
+    return health_check_response()
+
+
+@app.get("/health/ready", tags=["v2.8 可观测性"])
+async def readiness_check():
+    """就绪检查"""
+    result = health_check_response()
+    if result["status"] == "unhealthy":
+        return JSONResponse(status_code=503, content=result)
+    return result
+
+
+@app.get("/health/live", tags=["v2.8 可观测性"])
+async def liveness_check():
+    """存活检查"""
+    return {"status": "alive", "timestamp": datetime.now(timezone.utc).isoformat()}
+
+
+# ── Prometheus 指标端点 ─────────────────────────────────────────────────────
+
+@app.get("/metrics", tags=["v2.8 可观测性"])
+async def metrics():
+    """Prometheus 指标端点"""
+    return Response(
+        content=get_metrics_collector().get_metrics(),
+        media_type="text/plain; charset=utf-8",
+    )
+
+
+# ── 配置端点 ────────────────────────────────────────────────────────────────
+
+@app.get("/api/config", tags=["v2.8 配置"])
+async def get_api_config():
+    """获取当前配置（敏感信息脱敏）"""
+    from tengod.config_manager import get_config_dict
+    cfg = get_config_dict()
+    # 脱敏
+    if "llm" in cfg and "api_key" in cfg["llm"]:
+        key = cfg["llm"]["api_key"]
+        if key and len(key) > 8:
+            cfg["llm"]["api_key"] = key[:4] + "****" + key[-4:]
+    if "security" in cfg and "jwt_secret" in cfg["security"]:
+        secret = cfg["security"]["jwt_secret"]
+        if secret and len(secret) > 8:
+            cfg["security"]["jwt_secret"] = secret[:4] + "****"
+    return cfg
 
 
 # ============================================================================

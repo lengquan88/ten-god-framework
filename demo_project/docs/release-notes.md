@@ -1,5 +1,96 @@
 # Release Notes
 
+## v2.8.0 — 生产就绪 + 统一配置 + 可观测性
+
+> 发布日期: 2026-06-23
+
+### Highlights
+
+- **统一配置管理**: 环境变量 > YAML > 默认值，配置热重载，敏感信息脱敏
+- **可观测性**: 结构化日志(JSON/Text)、健康检查(/health/ready/live)、Prometheus 指标
+- **API 加固**: 请求追踪中间件、全局错误处理、速率限制、CORS
+- **配置 API**: `/api/config` 脱敏配置端点、`/metrics` Prometheus 端点
+
+### 新增功能
+
+#### 1. 统一配置管理 (`tengod.config_manager`)
+- 三级优先级：环境变量 > YAML 配置文件 > 默认值
+- 15 个环境变量映射（TENGOD_HOST/PORT/LLM_*/JWT_* 等）
+- 配置热重载（文件变更自动检测）
+- 敏感信息自动脱敏（API Key / JWT Secret）
+- YAML 示例生成（`generate_example_yaml()`）
+- API：`load_config()` / `get_config()` / `reload_config()` / `get_config_dict()` / `get_server_config()` / `get_llm_config()`
+
+#### 2. 可观测性 (`tengod.observability`)
+- **结构化日志**: JSON 格式 + 请求ID自动注入 + 日志级别/文件输出
+- **健康检查**: `/health`（全量）、`/health/ready`（就绪）、`/health/live`（存活）
+- **Prometheus 指标**: 计数器/直方图/仪表 + `/metrics` 端点
+- **请求追踪**: `X-Request-ID` 自动注入 + `X-Response-Time` 响应头
+- 请求追踪器：`RequestTracker` 类（活跃请求列表+耗时统计）
+
+#### 3. API 加固 (`tengod.api_server`)
+- 全局错误处理中间件：统一 JSON 错误格式（含 request_id）
+- HTTP 异常统一格式：`error` + `message` + `status_code` + `request_id`
+- 速率限制：滑动窗口算法，IP 级别，可配置阈值
+- 请求追踪中间件：自动注入 `X-Request-ID` 头
+- 配置端点：`GET /api/config`（自动脱敏）
+
+#### 4. 配置端点
+- `GET /api/config` — 当前配置（敏感信息脱敏）
+- `GET /health` — 综合健康检查
+- `GET /health/ready` — 就绪检查（K8s readiness probe）
+- `GET /health/live` — 存活检查（K8s liveness probe）
+- `GET /metrics` — Prometheus 格式指标
+
+### 测试覆盖
+- 26 个 v2.8 新增测试用例
+- 配置管理测试（8）：默认加载/缓存/字典/服务器/LLM脱敏/重载/环境变量/YAML
+- 日志测试（4）：JSON/文本/格式化/请求ID
+- 健康检查测试（4）：注册/运行/不健康/异常/响应格式
+- 指标测试（4）：计数器/直方图/仪表/Prometheus格式
+- 请求追踪测试（2）：开始结束/并发
+- 回归测试（4）：导入/v2.7/v2.6/ConfigSchema
+
+### 全量测试
+```bash
+# 200 passed (26 v2.8 + 26 v2.7 + 30 v2.6 + 40 v2.5 + 25 v2.4 + 34 v2.3 + 30 chart_visualizer)
+python -m pytest tests/test_v23_i18n.py tests/test_v24_visualization.py \
+     tests/test_v25_fusion.py tests/test_v26_visualization.py \
+     tests/test_v27_liuyao.py tests/test_v28_observability.py \
+     tests/test_chart_visualizer.py -v -k "not async"
+```
+
+### 升级说明
+```bash
+git pull origin main
+pip install -r requirements.txt
+# 可选：创建配置文件
+python -c "from tengod.config_schema import generate_example_yaml; print(generate_example_yaml())" > tengod_config.yaml
+# 运行测试
+python -m pytest tests/test_v28_observability.py -v
+```
+
+### 配置环境变量
+```bash
+export TENGOD_HOST="0.0.0.0"
+export TENGOD_PORT=8000
+export TENGOD_LLM_PROVIDER="deepseek"
+export TENGOD_LLM_API_KEY="sk-xxx"
+export TENGOD_LLM_MODEL="deepseek-chat"
+export TENGOD_LOG_LEVEL="INFO"
+export TENGOD_LOG_FORMAT="json"
+export TENGOD_CORS="http://localhost:3000,https://myapp.com"
+export TENGOD_JWT_SECRET="your-secret-here"
+```
+
+### 兼容性
+- 向下兼容 v2.7.x 所有 API
+- 配置系统为可选增强，无配置文件时使用默认值
+- 可观测性中间件不影响现有 API 响应格式
+- 健康检查为独立端点，不影响业务路由
+
+---
+
 ## v2.7.0 — 六爻可视化 + 流式API + 异步任务
 
 > 发布日期: 2026-06-23
