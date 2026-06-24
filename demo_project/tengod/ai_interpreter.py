@@ -26,7 +26,8 @@ ai_interpreter.py — 阶段十七 · AI 智能解读服务 v1.0.0
 from __future__ import annotations
 
 from dataclasses import asdict, is_dataclass
-from typing import Any, AsyncGenerator, Dict, List, Optional
+from typing import Any, AsyncGenerator, Dict, List, Optional, Set
+import time
 
 from .llm_adapter import (
     BaseLLMAdapter,
@@ -1157,6 +1158,418 @@ async def chat_with_memory(
     add_to_conversation(session_id, "assistant", response.content[:300])
 
     return response.content
+
+
+# ============================================================================
+# v2.9: 智能对话引擎 — 意图追踪 + 主动建议 + 多轮自主对话
+# ============================================================================
+
+# 对话状态定义
+CONVERSATION_STATES = ["greeting", "exploring", "deep_analysis", "follow_up", "summary", "idle"]
+
+# 意图主题映射
+TOPIC_KEYWORDS = {
+    "事业": ["事业", "工作", "职业", "求职", "创业", "升职", "跳槽", "老板", "同事", "行业"],
+    "财运": ["财运", "财富", "钱", "投资", "理财", "收入", "股票", "基金", "生意", "亏损"],
+    "感情": ["感情", "婚姻", "恋爱", "分手", "复合", "伴侣", "夫妻", "单身", "相亲", "出轨"],
+    "健康": ["健康", "身体", "疾病", "养生", "失眠", "疲劳", "体检", "手术", "康复"],
+    "家庭": ["家庭", "父母", "子女", "孩子", "教育", "婆媳", "兄弟姐妹", "亲戚"],
+    "学业": ["学业", "考试", "学习", "升学", "考研", "留学", "成绩", "专业"],
+    "命理": ["八字", "命理", "格局", "喜用神", "大运", "流年", "五行", "日主", "神煞"],
+    "紫微": ["紫微", "斗数", "命宫", "星曜", "四化", "宫位"],
+    "占卜": ["占卜", "六爻", "卦", "奇门", "预测", "算卦", "吉凶"],
+}
+
+# 主动建议模板
+PROACTIVE_SUGGESTIONS = {
+    "事业": [
+        "要不要看看您当前大运对事业的影响？",
+        "需要分析您适合的行业方向吗？",
+        "想了解近期是否有升职机遇吗？",
+    ],
+    "财运": [
+        "需要分析您当前的财运周期吗？",
+        "想了解投资时机是否合适吗？",
+        "要不要看看偏财运如何？",
+    ],
+    "感情": [
+        "需要分析您当前的感情运势吗？",
+        "想了解您的正缘特征吗？",
+        "要不要看看近期桃花运？",
+    ],
+    "健康": [
+        "需要分析五行对您健康的影响吗？",
+        "想了解养生调理的方向吗？",
+        "要不要看看需要注意的年份？",
+    ],
+    "命理": [
+        "需要深入分析您的格局层次吗？",
+        "想了解神煞对您的影响吗？",
+        "要不要看看未来三年的大运流年？",
+    ],
+    "综合": [
+        "需要生成一份完整的命理报告吗？",
+        "想了解八字、紫微和奇门的一致性吗？",
+        "要不要对比历史相似案例？",
+    ],
+}
+
+
+class IntentTracker:
+    """意图追踪器
+
+    追踪多轮对话中的用户意图变化，识别话题切换和深度演进。
+    """
+
+    def __init__(self):
+        self._history: List[Dict[str, Any]] = []
+        self._current_topic: str = ""
+        self._topic_depth: int = 0
+        self._conversation_state: str = "greeting"
+
+    def track(self, user_message: str, response: str = "") -> Dict[str, Any]:
+        """追踪本轮对话意图
+
+        Args:
+            user_message: 用户消息
+            response: 系统回复（可选）
+
+        Returns:
+            意图追踪结果
+        """
+        topics = self._detect_topics(user_message)
+        primary_topic = topics[0] if topics else "综合"
+
+        # 话题切换检测
+        topic_changed = bool(self._current_topic) and primary_topic != self._current_topic
+        if topic_changed:
+            self._topic_depth = 1
+        elif not topic_changed and self._current_topic == primary_topic:
+            self._topic_depth += 1
+        elif not self._current_topic:
+            self._topic_depth = 1
+
+        self._current_topic = primary_topic
+
+        # 状态推断
+        self._conversation_state = self._infer_state(user_message)
+
+        record = {
+            "timestamp": time.time(),
+            "message": user_message[:200],
+            "topics": topics,
+            "primary_topic": primary_topic,
+            "topic_changed": topic_changed,
+            "topic_depth": self._topic_depth,
+            "state": self._conversation_state,
+            "message_length": len(user_message),
+        }
+        self._history.append(record)
+
+        return record
+
+    def _detect_topics(self, message: str) -> List[str]:
+        """检测消息中的话题"""
+        matched = []
+        for topic, keywords in TOPIC_KEYWORDS.items():
+            if any(kw in message for kw in keywords):
+                matched.append(topic)
+        return matched if matched else ["综合"]
+
+    def _infer_state(self, message: str) -> str:
+        """推断对话状态"""
+        # 关键词检查优先于长度检查
+        if any(kw in message for kw in ["总结", "概括", "总的来说", "汇总"]):
+            return "summary"
+        if any(kw in message for kw in ["为什么", "如何", "原因", "详细说明"]):
+            return "deep_analysis"
+        if self._topic_depth >= 3:
+            return "deep_analysis"
+        msg_len = len(message)
+        if msg_len < 10:
+            return "greeting"
+        if msg_len < 30:
+            return "exploring"
+        return "follow_up"
+
+    def get_context(self) -> Dict[str, Any]:
+        """获取当前对话上下文"""
+        return {
+            "current_topic": self._current_topic,
+            "topic_depth": self._topic_depth,
+            "state": self._conversation_state,
+            "total_turns": len(self._history),
+            "recent_topics": [h["primary_topic"] for h in self._history[-5:]],
+        }
+
+    def reset(self) -> None:
+        """重置追踪器"""
+        self._history.clear()
+        self._current_topic = ""
+        self._topic_depth = 0
+        self._conversation_state = "greeting"
+
+
+class ProactiveAdvisor:
+    """主动建议生成器
+
+    根据对话上下文和意图追踪，生成主动建议。
+    """
+
+    def __init__(self):
+        self._suggested: Set[str] = set()  # 已建议过的内容，避免重复
+
+    def generate_suggestions(
+        self,
+        intent_context: Dict[str, Any],
+        conversation_history: str = "",
+        max_suggestions: int = 2,
+    ) -> List[Dict[str, str]]:
+        """生成主动建议"""
+        topic = intent_context.get("current_topic", "综合")
+        depth = intent_context.get("topic_depth", 1)
+        state = intent_context.get("state", "follow_up")
+
+        suggestions = []
+
+        # 优先级1：深度分析触发
+        if depth >= 2 and state == "deep_analysis":
+            deep_suggestions = [
+                "需要生成详细的专业分析报告吗？",
+                "想了解其他命理体系的交叉验证吗？",
+                "需要历史案例对比参考吗？",
+            ]
+            for s in deep_suggestions:
+                if s not in self._suggested and len(suggestions) < max_suggestions:
+                    suggestions.append({
+                        "question": s,
+                        "context": "深度分析",
+                        "reason": "您已深入探讨此话题，建议获取更全面的分析",
+                        "type": "depth_trigger",
+                    })
+                    self._suggested.add(s)
+
+        # 优先级2：基于状态
+        if state == "summary":
+            s = "需要将分析结果保存为报告吗？"
+            if s not in self._suggested and len(suggestions) < max_suggestions:
+                suggestions.append({
+                    "question": s,
+                    "context": "总结",
+                    "reason": "对话即将结束",
+                    "type": "state_trigger",
+                })
+                self._suggested.add(s)
+
+        # 优先级3：基于话题
+        topic_suggestions = PROACTIVE_SUGGESTIONS.get(topic, PROACTIVE_SUGGESTIONS["综合"])
+        for s in topic_suggestions:
+            if s not in self._suggested and len(suggestions) < max_suggestions:
+                suggestions.append({
+                    "question": s,
+                    "context": topic,
+                    "reason": f"基于您对{topic}的关注",
+                    "type": "topic_related",
+                })
+                self._suggested.add(s)
+
+        return suggestions[:max_suggestions]
+
+    def reset(self) -> None:
+        """重置建议记录"""
+        self._suggested.clear()
+
+
+class ConversationEngine:
+    """智能对话引擎 v2.9
+
+    整合意图追踪、主动建议和多轮对话记忆，
+    提供自主对话能力。
+    """
+
+    def __init__(self):
+        self._tracker = IntentTracker()
+        self._advisor = ProactiveAdvisor()
+        self._sessions: Dict[str, Dict[str, Any]] = {}
+
+    def process_message(
+        self,
+        user_message: str,
+        session_id: str,
+        bazi_context: str = "",
+    ) -> Dict[str, Any]:
+        """处理用户消息
+
+        Args:
+            user_message: 用户消息
+            session_id: 会话ID
+            bazi_context: 八字上下文（可选）
+
+        Returns:
+            处理结果，包含意图/建议/状态
+        """
+        # 初始化会话
+        if session_id not in self._sessions:
+            self._sessions[session_id] = {
+                "created_at": time.time(),
+                "message_count": 0,
+                "topics_covered": set(),
+            }
+
+        session = self._sessions[session_id]
+        session["message_count"] += 1
+
+        # 意图追踪
+        intent = self._tracker.track(user_message)
+        if intent["primary_topic"] != "综合":
+            session["topics_covered"].add(intent["primary_topic"])
+
+        # 主动建议
+        suggestions = self._advisor.generate_suggestions(
+            self._tracker.get_context(),
+        )
+
+        return {
+            "session_id": session_id,
+            "intent": intent,
+            "suggestions": suggestions,
+            "conversation_state": self._tracker._conversation_state,
+            "session_stats": {
+                "message_count": session["message_count"],
+                "topics_covered": list(session["topics_covered"]),
+            },
+        }
+
+    async def chat(
+        self,
+        user_message: str,
+        session_id: str,
+        bazi_context: str = "",
+        llm: Optional[BaseLLMAdapter] = None,
+    ) -> Dict[str, Any]:
+        """自主对话
+
+        完整的对话处理流程：意图追踪 → 上下文构建 → LLM 回复 → 主动建议
+
+        Args:
+            user_message: 用户消息
+            session_id: 会话ID
+            bazi_context: 八字上下文
+            llm: LLM 适配器
+
+        Returns:
+            对话结果
+        """
+        if llm is None:
+            llm = get_llm()
+
+        # 处理消息
+        result = self.process_message(user_message, session_id, bazi_context)
+
+        # 构建增强的 LLM 消息
+        messages = self._build_enhanced_messages(
+            user_message, session_id, bazi_context, result["intent"],
+        )
+
+        # 生成回复
+        response = await llm.chat(messages)
+        response_text = response.content
+
+        # 记录对话
+        self._tracker.track(user_message, response_text)
+        add_to_conversation(session_id, "user", user_message)
+        add_to_conversation(session_id, "assistant", response_text[:300])
+
+        result["response"] = response_text
+        result["response_length"] = len(response_text)
+
+        return result
+
+    def _build_enhanced_messages(
+        self,
+        user_message: str,
+        session_id: str,
+        bazi_context: str,
+        intent: Dict[str, Any],
+    ) -> List[ChatMessage]:
+        """构建增强的对话消息"""
+        messages = [
+            ChatMessage(role="system", content=BAZI_INTERPRET_PROMPT),
+            ChatMessage(
+                role="system",
+                content="你是一位智能命理顾问，能够进行多轮深度对话。"
+                        "请根据对话历史和用户当前问题，提供连贯、有深度的回答。"
+                        "如果用户的关注点有变化，请自然过渡。"
+                        "在适当的时候，可以主动引导用户深入探讨。",
+            ),
+        ]
+
+        # 注入命盘上下文
+        if bazi_context:
+            messages.append(ChatMessage(
+                role="system",
+                content=f"用户命盘：\n{bazi_context[:1000]}",
+            ))
+
+        # 注入对话历史
+        history = get_conversation_history(session_id, max_turns=3)
+        if history:
+            messages.append(ChatMessage(role="system", content=history))
+
+        # 注入意图上下文
+        topic = intent.get("primary_topic", "")
+        depth = intent.get("topic_depth", 1)
+        if topic and depth >= 2:
+            messages.append(ChatMessage(
+                role="system",
+                content=f"用户已就'{topic}'话题进行了{depth}轮对话，"
+                        f"请提供更深入的分析，避免重复之前的回答。",
+            ))
+
+        messages.append(ChatMessage(role="user", content=user_message))
+        return messages
+
+    def get_session_summary(self, session_id: str) -> Dict[str, Any]:
+        """获取会话摘要"""
+        session = self._sessions.get(session_id, {})
+        return {
+            "session_id": session_id,
+            "message_count": session.get("message_count", 0),
+            "topics_covered": list(session.get("topics_covered", set())),
+            "conversation_history": get_conversation_history(session_id),
+            "intent_context": self._tracker.get_context(),
+        }
+
+    def reset_session(self, session_id: str) -> None:
+        """重置会话"""
+        self._sessions.pop(session_id, None)
+        self._tracker.reset()
+        self._advisor.reset()
+        clear_conversation(session_id)
+
+
+# 全局对话引擎
+_conversation_engine: Optional[ConversationEngine] = None
+
+
+def get_conversation_engine() -> ConversationEngine:
+    """获取全局对话引擎"""
+    global _conversation_engine
+    if _conversation_engine is None:
+        _conversation_engine = ConversationEngine()
+    return _conversation_engine
+
+
+async def smart_chat(
+    user_message: str,
+    session_id: str,
+    bazi_context: str = "",
+    llm: Optional[BaseLLMAdapter] = None,
+) -> Dict[str, Any]:
+    """智能对话入口"""
+    return await get_conversation_engine().chat(
+        user_message, session_id, bazi_context, llm,
+    )
 
 
 # ============================================================================

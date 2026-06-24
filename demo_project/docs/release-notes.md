@@ -1,5 +1,70 @@
 # Release Notes
 
+## v2.9.0 — 智能体引擎 + 知识进化 + 智能对话
+
+> 发布日期: 2026-06-24
+
+### Highlights
+
+- **智能体编排引擎**: Plan→Execute→Observe→Reflect 循环，8 个标准工具链，意图识别与自动编排
+- **知识进化系统**: 用户反馈闭环，贝叶斯式置信度动态调整，知识图谱自动补全（传递推理/跨域关联/对称补全）
+- **智能对话引擎**: 意图追踪（9 话题识别），主动建议生成（3 优先级），多轮自主对话
+
+### 新增模块
+
+| 模块 | 文件 | 说明 |
+|------|------|------|
+| 智能体编排引擎 | `tengod/agent_orchestrator.py` | AgentOrchestrator 类，Tool 工具链，P/E/O/R 循环 |
+| 知识进化系统 | `tengod/knowledge_evolution.py` | KnowledgeEvolution 类，反馈闭环，知识图谱 |
+| 智能对话引擎 | `tengod/ai_interpreter.py` (增强) | IntentTracker, ProactiveAdvisor, ConversationEngine |
+
+### 新增功能
+
+#### 智能体编排引擎
+- `AgentOrchestrator`: 基于意图识别自动编排工具链
+- 8 个标准工具: analyze_bazi, analyze_ziwei, cast_qimen, cast_liuyao, compare_cases, generate_report, fusion_analyze, fengshui_evaluate
+- 意图识别: 支持 8 种意图（八字/紫微/奇门/六爻/风水/融合/报告/案例）
+- 自动计划生成: 根据意图匹配最优工具链
+- `quick_orchestrate()`: 一键编排入口
+
+#### 知识进化系统
+- `FeedbackRecord`: 三维度反馈（准确度/满意度/有用性）+ 标签提取
+- `ConfidenceProfile`: 9 领域置信度，贝叶斯式实时更新
+- `KnowledgeNode` / `KnowledgeEdge`: 知识图谱数据结构
+- 种子知识图谱: 18 节点 + 10 边，覆盖 6 个领域
+- 自动补全: 传递推理、跨域关联、对称补全三种策略
+- 进化统计: 反馈趋势、置信度分布、图谱统计
+
+#### 智能对话引擎
+- `IntentTracker`: 9 话题关键词检测，话题切换与深度追踪
+- `ProactiveAdvisor`: 3 优先级建议生成（深度触发 > 状态 > 话题）
+- `ConversationEngine`: 整合意图追踪 + 主动建议 + 多轮记忆
+- `smart_chat()`: 全流程自主对话入口
+
+### 测试
+
+- 新增 v2.9 测试: 78 个用例
+- 全量回归: 300 个测试通过（无回归）
+
+### 升级指南
+
+```python
+# 智能体编排
+from tengod.agent_orchestrator import quick_orchestrate
+result = quick_orchestrate("分析八字命理")
+
+# 知识进化
+from tengod.knowledge_evolution import quick_feedback, quick_evolve
+quick_feedback("session_id", {"accuracy": 5, "satisfaction": 4, "usefulness": 5}, domain="bazi")
+quick_evolve()
+
+# 智能对话
+from tengod.ai_interpreter import smart_chat, get_conversation_engine
+result = await smart_chat("我的事业运如何？", "session_id", bazi_context="...")
+```
+
+---
+
 ## v2.8.0 — 生产就绪 + 统一配置 + 可观测性
 
 > 发布日期: 2026-06-23
