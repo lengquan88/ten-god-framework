@@ -12,6 +12,12 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 import json
 import time
 
+# v2.13.0: 十神智能体工具导入
+from .shen_agents import (
+    ALL_AGENTS,
+    agent_tool_dispatcher,
+)
+
 
 # ============================================================================
 # 工具定义
@@ -98,6 +104,28 @@ STANDARD_TOOLS: List[Tool] = [
          {"type": "object", "properties": {"direction": {"type": "string"}, "year": {"type": "integer"}},
           "required": ["direction"]}, "divination"),
 ]
+
+# v2.13.0: 十神智能体工具注册
+def _shen_agent_tool_factory(agent_name: str, agent_title: str, agent_desc: str) -> Callable:
+    """创建十神智能体工具函数"""
+    def _tool(params: Dict) -> Dict:
+        return agent_tool_dispatcher(agent_name, params)
+    _tool.__name__ = f"_shen_{agent_name}_tool"
+    return _tool
+
+for agent_name, agent in ALL_AGENTS.items():
+    tool_func = _shen_agent_tool_factory(agent_name, agent.title, agent.description)
+    tool = Tool(
+        f"shen_{agent_name}",
+        f"{agent.title}：{agent.description}",
+        tool_func,
+        {"type": "object", "properties": {
+            "bazi_data": {"type": "object", "description": "八字命盘数据"},
+            "question": {"type": "string", "description": "用户具体问题"},
+        }, "required": ["bazi_data"]},
+        "shen",
+    )
+    STANDARD_TOOLS.append(tool)  # type: ignore[arg-type]
 
 
 # ============================================================================

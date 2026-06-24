@@ -4484,6 +4484,69 @@ async def restore_full(request: Request):
 
 
 # ============================================================================
+# v2.13: 流年运势 API
+# ============================================================================
+
+from tengod.dayun_liunian import get_liunian_engine
+
+
+@app.post("/api/v2/liunian/analyze", tags=["v2.13 流年运势"])
+async def liunian_analyze(request: Request):
+    """流年运势综合分析（含大运+流年叠加、四维度评分）"""
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="请求体须为JSON")
+
+    birth_year = body.get("birth_year")
+    birth_month = body.get("birth_month")
+    birth_day = body.get("birth_day")
+    if not all([birth_year, birth_month, birth_day]):
+        raise HTTPException(status_code=400, detail="缺少必填字段: birth_year, birth_month, birth_day")
+
+    engine = get_liunian_engine()
+    result = engine.analyze(
+        birth_year=int(birth_year),
+        birth_month=int(birth_month),
+        birth_day=int(birth_day),
+        hour=int(body.get("hour", 12)),
+        minute=int(body.get("minute", 0)),
+        is_male=body.get("gender", "male") == "male",
+        longitude=float(body.get("longitude", 120.0)),
+        yongshen=body.get("yongshen"),
+        jishen=body.get("jishen"),
+        target_years=body.get("target_years"),
+    )
+    return result
+
+
+@app.get("/api/v2/liunian/year/{year}", tags=["v2.13 流年运势"])
+async def liunian_single_year(
+    year: int,
+    birth_year: int,
+    birth_month: int,
+    birth_day: int,
+    hour: int = 12,
+    minute: int = 0,
+    gender: str = "male",
+    longitude: float = 120.0,
+    yongshen: str = "",
+    jishen: str = "",
+):
+    """单年流年运势详情"""
+    engine = get_liunian_engine()
+    yongshen_list = [y.strip() for y in yongshen.split(",") if y.strip()] if yongshen else None
+    jishen_list = [j.strip() for j in jishen.split(",") if j.strip()] if jishen else None
+    result = engine.analyze(
+        birth_year=birth_year, birth_month=birth_month, birth_day=birth_day,
+        hour=hour, minute=minute, is_male=gender == "male",
+        longitude=longitude, yongshen=yongshen_list, jishen=jishen_list,
+        target_years=[year],
+    )
+    return result["liunian"][0] if result["liunian"] else {}
+
+
+# ============================================================================
 # 启动入口
 # ============================================================================
 

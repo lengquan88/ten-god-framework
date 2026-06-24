@@ -36,7 +36,7 @@ class TestAgentOrchestrator:
     def test_standard_tools_count(self):
         """测试标准工具集数量"""
         from tengod.agent_orchestrator import STANDARD_TOOLS
-        assert len(STANDARD_TOOLS) == 8
+        assert len(STANDARD_TOOLS) == 22  # v2.13: 8 基础 + 14 十神智能体
 
     def test_standard_tools_categories(self):
         """测试标准工具分类"""
@@ -58,7 +58,7 @@ class TestAgentOrchestrator:
         """测试编排器初始化"""
         from tengod.agent_orchestrator import AgentOrchestrator
         orch = AgentOrchestrator()
-        assert len(orch.tools) == 8
+        assert len(orch.tools) == 22  # v2.13: 8 基础 + 14 十神智能体
         assert orch._max_steps == 10
 
     def test_orchestrator_custom_tools(self):
@@ -74,7 +74,7 @@ class TestAgentOrchestrator:
         from tengod.agent_orchestrator import AgentOrchestrator
         orch = AgentOrchestrator()
         specs = orch.get_tool_specs()
-        assert len(specs) == 8
+        assert len(specs) == 22  # v2.13: 8 基础 + 14 十神智能体
         assert all("type" in s for s in specs)
 
     def test_orchestrator_get_tool_descriptions(self):
