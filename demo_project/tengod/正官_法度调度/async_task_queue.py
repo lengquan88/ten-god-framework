@@ -3,6 +3,7 @@
 用 asyncio.Queue 替代当前 in-memory thread 方案，支持任务优先级。
 """
 import asyncio
+import inspect
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -95,7 +96,7 @@ class AsyncTaskQueue:
             item.started_at = time.time()
 
             try:
-                if asyncio.iscoroutinefunction(item.func):
+                if inspect.iscoroutinefunction(item.func):
                     result = await item.func(*item.args, **item.kwargs)
                 else:
                     result = item.func(*item.args, **item.kwargs)

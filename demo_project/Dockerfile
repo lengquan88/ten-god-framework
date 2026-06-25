@@ -1,8 +1,8 @@
 # =============================================================================
 # TenGod Framework Docker 镜像构建 v2.0
 # =============================================================================
-# 中华文明数字永生体 · v2.16.1「内在小孩·知止不殆」
-# 升级：Python 3.14、多阶段构建、内在小孩健康检查、非root用户
+# 中华文明数字永生体 · v2.19.0「生产就绪」
+# 升级：弃用警告清零、覆盖率 70%+、优雅关闭、安全基线
 # =============================================================================
 
 # ── 第一阶段：构建依赖 ────────────────────────────────────────────────────
@@ -27,8 +27,8 @@ FROM python:3.14-slim
 
 # 镜像元数据
 LABEL org.opencontainers.image.title="TenGod Framework" \
-      org.opencontainers.image.description="中华文明数字永生体 · 命理智能分析系统 v2.16.1" \
-      org.opencontainers.image.version="2.16.1" \
+      org.opencontainers.image.description="中华文明数字永生体 · 命理智能分析系统 v2.19.0" \
+      org.opencontainers.image.version="2.19.0" \
       org.opencontainers.image.authors="TenGod Team" \
       org.opencontainers.image.licenses="MIT"
 
@@ -67,5 +67,6 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:8000/api/health || exit 1
 
-# 启动命令
-CMD ["python", "run_tengod_demo.py"]
+# 启动命令（使用 exec 形式 + SIGTERM 信号传递）
+# uvicorn 默认处理 SIGTERM 实现优雅关闭
+CMD ["python", "-m", "uvicorn", "tengod.api_server:app", "--host", "0.0.0.0", "--port", "8000", "--graceful-timeout", "15"]

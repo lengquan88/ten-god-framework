@@ -18,7 +18,7 @@ import json
 import time
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 
@@ -39,7 +39,7 @@ _STORE: Dict[str, Dict[str, Any]] = {
 
 
 def _now_iso() -> str:
-    return datetime.utcnow().isoformat() + "Z"
+    return datetime.now(timezone.utc).isoformat() + "Z"
 
 
 def _new_id(prefix: str) -> str:

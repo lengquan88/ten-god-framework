@@ -21,7 +21,7 @@ import threading
 import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field, asdict
-from datetime import datetime
+from datetime import datetime, timezone
 from multiprocessing import Process, Queue
 from queue import Empty
 from typing import Any, Callable, Dict, List, Optional, Union
@@ -161,7 +161,7 @@ class PluginMetadata:
     hooks: List[str] = field(default_factory=list)
     permissions: List[str] = field(default_factory=list)
     dependencies: List[str] = field(default_factory=list)
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     is_active: bool = True
     is_builtin: bool = False
 
@@ -276,9 +276,9 @@ class PluginRegistry:
             try:
                 created_at = datetime.fromisoformat(created_at_raw)
             except ValueError:
-                created_at = datetime.utcnow()
+                created_at = datetime.now(timezone.utc)
         else:
-            created_at = datetime.utcnow()
+            created_at = datetime.now(timezone.utc)
 
         md = PluginMetadata(
             id=str(d.get("id", "")),
