@@ -1,4 +1,4 @@
-name: TenGod CI/CD v2.1
+name: TenGod CI/CD v2.20.0
 
 on:
   push:
@@ -261,7 +261,7 @@ jobs:
           context: demo_project
           push: false
           load: true
-          tags: tengod:v2.16.1
+          tags: tengod:v2.20.0
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache,mode=max
       - name: 健康检查

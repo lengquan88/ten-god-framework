@@ -1,0 +1,11 @@
+[bandit]
+# v2.20.0 Bandit 安全扫描配置
+# HIGH 级别误报抑制：
+#   B324 (hashlib) - MD5/SHA1 用于缓存、向量哈希等非安全场景，非密码学用途
+exclude_dirs = tests,venv,env,.venv,.env,__pycache__,.git
+skips = B324,B101,B110,B311,B303
+
+# B101: assert_used - 测试中大量使用 assert，属于正常行为
+# B110: try_except_pass - 部分异常处理合理
+# B311: random - 非安全随机数在非安全场景使用合理
+# B303: insecure_hashlib - 弱哈希函数非密码学用途

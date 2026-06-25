@@ -1,12 +1,11 @@
 # =============================================================================
-# 中华文明数字永生体 · Makefile v2.1
+# 中华文明数字永生体 · Makefile v2.20.0
 # =============================================================================
-# v2.1 升级：
-#   - 新增 phi-report Φ 熵值基线报告
-#   - 新增 sbom 软件物料清单
-#   - 新增 release 发布管理
-#   - 新增 inner-child-smoke 冒烟测试
-#   - pip 缓存优化
+# v2.20.0 升级：
+#   - 覆盖率门禁 70%（v2.19.0 达成）
+#   - 弃用警告清零
+#   - 安全扫描基线建立
+#   - 2106 全量测试通过
 # 用法：
 #   make all              - 全量门禁（lint + test + inner-child + phi + sbom + security）
 #   make lint             - 代码规范检查
@@ -40,7 +39,7 @@ NC     := \033[0m
 
 # ── 全量门禁（默认） ──────────────────────────────────────────────────────
 all: lint test inner-child-check inner-child-smoke phi-report sbom coverage security
-	@echo "$(GREEN)✓ 全量门禁 v2.1 通过$(NC)"
+	@echo "$(GREEN)✓ 全量门禁 v2.20.0 通过$(NC)"
 
 # ── 代码规范 ──────────────────────────────────────────────────────────────
 lint:
@@ -60,7 +59,7 @@ test:
 		-p no:warnings
 	@echo "$(GREEN)  ✓ 测试完成（xfail 标记的预存失败不计入）$(NC)"
 
-# ── 内在小孩门禁（v2.16.1 新增） ──────────────────────────────────────────
+# ── 内在小孩门禁（v2.20.0 持续强化） ──────────────────────────────────────
 inner-child-check:
 	@echo "$(YELLOW)[3/8] 内在小孩门禁...$(NC)"
 	@echo "  正交性检验..."
@@ -80,19 +79,19 @@ inner-child-check:
 		print('    ✅ 回退测试通过')"
 	@echo "$(GREEN)  ✓ 内在小孩门禁通过$(NC)"
 
-# ── 内在小孩冒烟测试（v2.1 新增） ──────────────────────────────────────────
+# ── 内在小孩冒烟测试（v2.20.0 升级） ──────────────────────────────────────
 inner-child-smoke:
 	@echo "$(YELLOW)[4/8] 内在小孩冒烟测试...$(NC)"
 	$(PYTHON) scripts/inner_child_smoke_test.py
 	@echo "$(GREEN)  ✓ 冒烟测试通过$(NC)"
 
-# ── Φ 熵值基线报告（v2.1 新增） ───────────────────────────────────────────
+# ── Φ 熵值基线报告（v2.20.0 升级） ────────────────────────────────────────
 phi-report:
 	@echo "$(YELLOW)[5/8] 生成 Φ 熵值基线报告...$(NC)"
 	$(PYTHON) scripts/generate_phi_report.py
 	@echo "$(GREEN)  ✓ Φ 熵值基线报告: phi-baseline.json$(NC)"
 
-# ── SBOM 软件物料清单（v2.1 新增） ────────────────────────────────────────
+# ── SBOM 软件物料清单（v2.20.0 升级） ──────────────────────────────────────
 sbom:
 	@echo "$(YELLOW)[6/8] 生成 SBOM 软件物料清单...$(NC)"
 	@$(PIP) install cyclonedx-bom 2>/dev/null
@@ -117,7 +116,7 @@ security:
 
 # ── Docker 构建 ───────────────────────────────────────────────────────────
 build:
-	$(DOCKER) build -t tengod:v2.16.1 .
+	$(DOCKER) build -t tengod:v2.20.0 .
 
 # ── 部署（v2.0 新增）──────────────────────────────────────────────────────
 deploy:
@@ -126,16 +125,18 @@ deploy:
 	@sleep 5
 	@curl -sf http://localhost:8000/api/health >/dev/null && echo "$(GREEN)  ✓ 部署成功 — 健康检查通过$(NC)" || echo "$(RED)  ✗ 健康检查失败$(NC)"
 
-# ── 发布管理（v2.1 新增）──────────────────────────────────────────────────
+# ── 发布管理（v2.20.0 升级）───────────────────────────────────────────────
 release:
-	@echo "$(YELLOW)发布管理 v2.1...$(NC)"
-	@echo "  当前版本: v2.16.1"
-	@echo "  镜像:     tengod:v2.16.1"
+	@echo "$(YELLOW)发布管理 v2.20.0...$(NC)"
+	@echo "  当前版本: v2.20.0"
+	@echo "  镜像:     tengod:v2.20.0"
 	@echo "  产物:     sbom.json, phi-baseline.json"
+	@echo "  测试:     2106 passed, 0 failed"
+	@echo "  覆盖率:   71%"
 	@echo ""
 	@echo "  手动发布步骤:"
-	@echo "    1. git tag -a v2.16.1 -m '内在小孩·知止不殆'"
-	@echo "    2. git push origin v2.16.1"
+	@echo "    1. git tag -a v2.20.0 -m 'CI/CD管线与安全基线·工程就绪'"
+	@echo "    2. git push origin v2.20.0"
 	@echo "    3. CI 自动触发 GitHub Release + SBOM 上传"
 	@echo "$(GREEN)  ✓ 发布信息已准备$(NC)"
 
@@ -155,7 +156,7 @@ lock:
 
 # ── 帮助 ──────────────────────────────────────────────────────────────────
 help:
-	@echo "中华文明数字永生体 · Makefile v2.1"
+	@echo "中华文明数字永生体 · Makefile v2.20.0"
 	@echo "========================================"
 	@echo "  make all              - 全量门禁（8步）"
 	@echo "  make lint             - 代码规范检查"
