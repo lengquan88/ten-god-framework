@@ -48,15 +48,13 @@ import sys
 import time
 import threading
 import logging
-import hashlib
 import secrets
 from collections import defaultdict
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from functools import wraps
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException, Request, Depends, Query, Header
+from fastapi import FastAPI, HTTPException, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse, Response
@@ -1377,7 +1375,7 @@ async def ai_chat(query: ChatQuery, request: Request):
     authorize(request, "chat:send")
     from tengod.metrics_collector import metrics
     metrics.record_ai_chat()
-    from tengod.llm_adapter import get_llm, chat, chat_stream, ChatMessage
+    from tengod.llm_adapter import get_llm, chat, chat_stream
 
     llm = get_llm()
 
@@ -2535,7 +2533,7 @@ async def api_version():
 async def register(req: RegisterRequest):
     """用户注册"""
     from tengod.auth import PasswordHasher
-    from tengod.data_store import DataStore, User as UserModel
+    from tengod.data_store import User as UserModel
 
     store = _get_data_store()
     with store._session() as s:
@@ -2571,8 +2569,8 @@ async def register(req: RegisterRequest):
 @app.post("/api/auth/login", tags=["用户认证"])
 async def login(req: LoginRequest):
     """用户登录"""
-    from tengod.auth import PasswordHasher, JWTManager, create_token_pair
-    from tengod.data_store import DataStore, User as UserModel
+    from tengod.auth import PasswordHasher, create_token_pair
+    from tengod.data_store import User as UserModel
 
     store = _get_data_store()
     with store._session() as s:
@@ -2655,7 +2653,7 @@ async def get_me(request: Request):
 async def change_password(req: ChangePasswordRequest, request: Request):
     """修改密码"""
     from tengod.auth import CurrentUser, PasswordHasher
-    from tengod.data_store import DataStore, User as UserModel
+    from tengod.data_store import User as UserModel
 
     user: Optional[CurrentUser] = getattr(request.state, "current_user", None)
     if user is None or not user.is_authenticated:
@@ -2680,7 +2678,7 @@ async def change_password(req: ChangePasswordRequest, request: Request):
 async def update_profile(req: UpdateUserRequest, request: Request):
     """更新用户资料"""
     from tengod.auth import CurrentUser
-    from tengod.data_store import DataStore, User as UserModel
+    from tengod.data_store import User as UserModel
 
     user: Optional[CurrentUser] = getattr(request.state, "current_user", None)
     if user is None or not user.is_authenticated:
@@ -2714,7 +2712,7 @@ async def update_profile(req: UpdateUserRequest, request: Request):
 async def list_users_admin(request: Request):
     """列出所有用户（仅管理员）"""
     from tengod.auth import CurrentUser
-    from tengod.data_store import DataStore, User as UserModel
+    from tengod.data_store import User as UserModel
 
     user: Optional[CurrentUser] = getattr(request.state, "current_user", None)
     if user is None or user.role != "admin":
@@ -2745,7 +2743,7 @@ async def list_users_admin(request: Request):
 async def update_user_role(user_id: int, role: str, request: Request):
     """更新用户角色（仅管理员）"""
     from tengod.auth import CurrentUser, ROLE_PERMISSIONS
-    from tengod.data_store import DataStore, User as UserModel
+    from tengod.data_store import User as UserModel
 
     current: Optional[CurrentUser] = getattr(request.state, "current_user", None)
     if current is None or current.role != "admin":
@@ -2770,7 +2768,7 @@ async def update_user_role(user_id: int, role: str, request: Request):
 async def toggle_user_status(user_id: int, request: Request):
     """启用/禁用用户（仅管理员）"""
     from tengod.auth import CurrentUser
-    from tengod.data_store import DataStore, User as UserModel
+    from tengod.data_store import User as UserModel
 
     current: Optional[CurrentUser] = getattr(request.state, "current_user", None)
     if current is None or current.role != "admin":
@@ -3298,7 +3296,7 @@ async def v2_chart_bazi(req: ChartBaziRequest, request: Request):
     from tengod.auth import authorize
     authorize(request, "bazi:calc")
     try:
-        from tengod.chart_visualizer import BaziChartVisualizer, VisualizationConfig, visualize_bazi
+        from tengod.chart_visualizer import BaziChartVisualizer, VisualizationConfig
         from tengod.bazi_analyzer import BaziAnalyzer
         from tengod.shensha_engine import calc_all_shensha
         from tengod.geju_engine import calc_geju
@@ -3354,7 +3352,7 @@ async def v2_ai_analyze(req: AIAnalyzeRequest, request: Request):
     from tengod.metrics_collector import metrics
     metrics.record_ai_chat()
     try:
-        from tengod.intelligent_analysis import IntelligentAnalysisEngine, get_engine
+        from tengod.intelligent_analysis import get_engine
         from tengod.bazi_analyzer import BaziAnalyzer
         from tengod.shensha_engine import calc_all_shensha
         from tengod.geju_engine import calc_geju
@@ -3758,7 +3756,6 @@ async def create_task(request: Request):
         body = {}
 
     task_type = body.get("type", "generic")
-    params = body.get("params", {})
 
     with _task_lock:
         _task_counter += 1
@@ -3864,7 +3861,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 @app.exception_handler(HTTPException)
-async def http_exception_handler(request: Request, exc: HTTPException):
+async def http_exception_handler_v2(request: Request, exc: HTTPException):
     """HTTP 异常统一格式"""
     return JSONResponse(
         status_code=exc.status_code,
@@ -3909,7 +3906,7 @@ def _check_rate_limit(client_ip: str, max_requests: int = 100, window: int = 60)
 # ── 健康检查端点 ────────────────────────────────────────────────────────────
 
 @app.get("/health", tags=["v2.8 可观测性"])
-async def health_check():
+async def health_check_v2():
     """健康检查端点"""
     return health_check_response()
 
@@ -4317,7 +4314,7 @@ class CaseListRequest(BaseModel):
     search: str = Field("", description="搜索关键词")
 
 @app.get("/api/v2/cases", tags=["v2.12 数据管理"])
-async def list_cases(request: Request, page: int = 1, page_size: int = 20, category: str = "", search: str = ""):
+async def list_cases_v2(request: Request, page: int = 1, page_size: int = 20, category: str = "", search: str = ""):
     """分页列出案例"""
     from tengod.auth import authorize
     authorize(request, "data:read", consume_quota=False)
@@ -4331,7 +4328,7 @@ async def list_cases(request: Request, page: int = 1, page_size: int = 20, categ
 
 
 @app.get("/api/v2/cases/{case_id}", tags=["v2.12 数据管理"])
-async def get_case(case_id: int, request: Request):
+async def get_case_v2(case_id: int, request: Request):
     """获取案例详情"""
     from tengod.auth import authorize
     authorize(request, "data:read", consume_quota=False)
@@ -4349,7 +4346,7 @@ async def get_case(case_id: int, request: Request):
 
 
 @app.post("/api/v2/cases", tags=["v2.12 数据管理"])
-async def create_case(request: Request):
+async def create_case_v2(request: Request):
     """创建案例"""
     from tengod.auth import authorize
     authorize(request, "data:write")
@@ -4364,7 +4361,7 @@ async def create_case(request: Request):
 
 
 @app.put("/api/v2/cases/{case_id}", tags=["v2.12 数据管理"])
-async def update_case(case_id: int, request: Request):
+async def update_case_v2(case_id: int, request: Request):
     """更新案例"""
     from tengod.auth import authorize
     authorize(request, "data:write")
@@ -4383,7 +4380,7 @@ async def update_case(case_id: int, request: Request):
 
 
 @app.delete("/api/v2/cases/{case_id}", tags=["v2.12 数据管理"])
-async def delete_case(case_id: int, request: Request):
+async def delete_case_v2(case_id: int, request: Request):
     """删除案例"""
     from tengod.auth import authorize
     authorize(request, "data:write")
@@ -4415,7 +4412,7 @@ async def find_similar_cases(day_master: str = "", limit: int = 5, request: Requ
 
 
 @app.get("/api/v2/cases/export", tags=["v2.12 数据管理"])
-async def export_cases(filepath: str = "/tmp/cases_export.json", request: Request = None):
+async def export_cases_v2(filepath: str = "/tmp/cases_export.json", request: Request = None):
     """导出全部案例为 JSON"""
     from tengod.auth import authorize
     authorize(request, "data:admin", consume_quota=False)
@@ -4429,7 +4426,7 @@ async def export_cases(filepath: str = "/tmp/cases_export.json", request: Reques
 
 
 @app.post("/api/v2/cases/import", tags=["v2.12 数据管理"])
-async def import_cases(request: Request):
+async def import_cases_v2(request: Request):
     """批量导入案例 JSON"""
     from tengod.auth import authorize
     authorize(request, "data:admin")
@@ -4484,7 +4481,7 @@ async def delete_conversation(session_id: str, request: Request):
         from tengod.database import is_persistent, get_db
         if not is_persistent():
             raise HTTPException(status_code=400, detail="持久化未启用")
-        deleted = get_db().delete_conversation(session_id)
+        get_db().delete_conversation(session_id)
         return {"success": True}
     except HTTPException:
         raise

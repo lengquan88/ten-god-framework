@@ -9,9 +9,8 @@
 """
 
 from collections import OrderedDict
-from dataclasses import dataclass, field
-from functools import lru_cache
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Set
 
 __all__ = [
     "KnowledgeGraph",

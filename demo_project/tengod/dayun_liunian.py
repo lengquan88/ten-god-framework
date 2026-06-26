@@ -20,7 +20,7 @@ from typing import Dict, List, Optional
 
 from .bazi_calculator import (
     TIAN_GAN, DI_ZHI, calc_bazi, calc_year_pillar,
-    _gan_index, _zhi_index, _jiazi_name,
+    _gan_index, _zhi_index,
 )
 
 
@@ -817,10 +817,10 @@ if __name__ == '__main__':
     print(f"日主: {result['day_master']} ({result['day_master_wuxing']})")
     print(f"起运: {result['qiyun_age']}岁")
     print(f"喜用神: {result['yongshen']}")
-    print(f"大运:")
+    print("大运:")
     for du in result['dayuns']:
         print(f"  {du['start_age']:>3d}-{du['end_age']:>3d}岁: {du['pillar']} [{du['gan_shigan']}] ({du['direction']})")
-    print(f"\n流年分析:")
+    print("\n流年分析:")
     for ln in result['liunian']:
         print(f"  {ln['year']}年 [{ln['pillar']}] "
               f"十神:{ln['gan_shigan']} "

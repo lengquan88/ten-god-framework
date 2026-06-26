@@ -26,7 +26,7 @@ advanced_analysis.py — 十神架构高级分析模块 v1.0.0
     result = analyzer.destiny_trajectory(year=1990, month=6, day=15, hour=10, gender="male")
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from .bazi_analyzer import BaziAnalyzer
 from .data_store import get_data_store

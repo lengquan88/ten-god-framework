@@ -21,7 +21,7 @@ import json
 import time
 import secrets
 from dataclasses import dataclass
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Tuple
 
 from fastapi import HTTPException, Request, status
@@ -490,7 +490,6 @@ def sync_user_to_db(username: str, password: str, role: str = "user") -> Dict[st
     持久化用户到数据库 tables。
     """
     from tengod.database import is_persistent, get_db
-    from tengod.auth import PasswordHasher
 
     user_id = hash(username) % 100000  # 简单 ID 生成
 
@@ -512,7 +511,7 @@ def sync_user_to_db(username: str, password: str, role: str = "user") -> Dict[st
 
 def load_users_from_db() -> int:
     """从数据库加载用户到内存"""
-    from tengod.database import is_persistent, get_db
+    from tengod.database import is_persistent
     if not is_persistent():
         return 0
 

@@ -15,7 +15,6 @@ tiangan_gate.py — 天眼门禁内核 v2.14.0
 from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
-import math
 import time
 
 

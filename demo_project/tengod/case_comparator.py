@@ -18,8 +18,7 @@ case_comparator.py — 案例对比分析模块 v2.5
 from __future__ import annotations
 
 from dataclasses import dataclass, field, asdict
-from typing import Any, Dict, List, Optional, Tuple
-import json
+from typing import Any, Dict, List
 import math
 
 
@@ -349,7 +348,6 @@ class CaseComparator:
         """分析差异"""
         differences = []
 
-        source_pillars = source.get("pillars", {})
         for case in similar:
             if case.similarity > 0.7:
                 differences.append(f"与{case.case_id}高度相似(sim={case.similarity:.0%})，"
@@ -386,7 +384,7 @@ class CaseComparator:
             "",
             f"源命盘：{bazi_str}",
             "",
-            f"【相似度统计】",
+            "【相似度统计】",
             f"  匹配案例数：{stats['count']}",
             f"  最高相似度：{stats['max_similarity']:.0%}",
             f"  平均相似度：{stats['avg_similarity']:.0%}",

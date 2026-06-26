@@ -2,7 +2,6 @@
 TenGod Core Module
 Provides core functionality for the Chinese fortune telling system
 """
-import os
 import uuid
 from typing import Any, Dict, Optional
 from datetime import datetime

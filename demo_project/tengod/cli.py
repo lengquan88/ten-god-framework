@@ -19,7 +19,6 @@
     tengod generate --prompt "写一首诗" --format markdown
 """
 import argparse
-import json
 import os
 import sys
 

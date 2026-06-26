@@ -15,7 +15,7 @@ liuyao_engine.py — 六爻起卦与断卦引擎 v1.0.0
 from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import List, Tuple
 import random
 
 

@@ -11,7 +11,7 @@
 """
 
 from typing import Dict, Any, List, Optional
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from html import escape
 import json
 
@@ -539,10 +539,6 @@ class ZiweiChartVisualizer:
         # 构建 4x3 网格
         grid_cells = [""] * 12  # 0=寅 ... 11=丑
 
-        # 命宫在12宫中的索引（用于定位地支位置）
-        ming_gong_zhi = ming_gong.get("zhi", "寅")
-        ming_offset = DI_ZHI_12.index(ming_gong_zhi) if ming_gong_zhi in DI_ZHI_12 else 0
-
         # 按地支顺序排列宫位（从寅开始）
         for i, gong in enumerate(gongs[:12]):
             zhi = gong.get("ganzhi", "")[-1:] if len(gong.get("ganzhi", "")) >= 2 else ""
@@ -665,10 +661,8 @@ class ZiweiChartVisualizer:
 
         # SVG 布局参数
         width, height = 800, 640
-        cx, cy = width // 2, height // 2
-        outer_r = 260
+        cx = width // 2
         inner_r = 130
-        palace_r = (outer_r + inner_r) / 2  # 宫位标签半径
 
         svg_parts = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">']
         svg_parts.append(f'<rect width="{width}" height="{height}" fill="#1a1a2e"/>')
@@ -677,24 +671,17 @@ class ZiweiChartVisualizer:
         # 绘制12宫位扇形
         for i, gong in enumerate(gongs[:12]):
             angle = -90 + i * 30  # 从顶部顺时针
-            rad = angle * 3.14159 / 180
-            next_rad = (angle + 30) * 3.14159 / 180
-
-            name = gong.get("name", "--")
-            main_stars = gong.get("main_stars", [])
-            aux_stars = gong.get("aux_stars", [])
+            
 
             # 扇形路径
-            x1 = cx + outer_r * 3.14159 / 180 * (angle + 15) * 0  # 简化
             # 使用多边形近似扇形
             pts = []
             for a in [angle, angle + 30]:
-                ar = a * 3.14159 / 180
+                
                 pts.append(f"{cx + inner_r * 3.14159 / 180 * (90 - a) * 0}")
 
             # 简化为使用圆环 + 文字
-            mid_angle = (angle + 15) * 3.14159 / 180
-            tx = cx + palace_r * 3.14159 / 180 * (angle + 15) * 0  # 太复杂，改用简单布局
+            
 
             # 改用简单的网格布局SVG
             pass
@@ -726,7 +713,6 @@ class ZiweiChartVisualizer:
             ganzhi = gong.get("ganzhi", "--")
             main_stars = gong.get("main_stars", [])
             aux_stars = gong.get("aux_stars", [])
-            sihua_star = gong.get("sihua", "")
 
             # 边框颜色
             stroke = "#444"
@@ -1095,7 +1081,6 @@ class TrajectoryTimeline:
         if not liunians:
             return ""
 
-        max_score = 100
         bars = []
         for ln in liunians[:8]:
             if not isinstance(ln, dict):
@@ -1465,7 +1450,6 @@ class FengshuiVisualizer:
 
     def generate_html(self, fengshui_data: Dict) -> str:
         """生成玄空飞星HTML"""
-        yun = fengshui_data.get("yun", 9)
         yun_name = fengshui_data.get("yun_name", "")
         direction = fengshui_data.get("direction", "")
         yun_pan = fengshui_data.get("yun_pan", {})

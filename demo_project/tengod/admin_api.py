@@ -702,8 +702,7 @@ def create_admin_app(
         title: 应用标题。
     """
     try:
-        from fastapi import FastAPI, HTTPException, Query, Body, status
-        from fastapi.responses import JSONResponse
+        from fastapi import FastAPI, HTTPException, Query
     except Exception as e:
         raise ImportError(
             f"create_admin_app 需要 fastapi: {e}\n"

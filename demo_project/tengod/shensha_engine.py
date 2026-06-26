@@ -9,9 +9,9 @@ shensha_engine.py — 神煞推算引擎 v1.0.0
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List
 
 __all__ = [
     "ShenshaEngine",

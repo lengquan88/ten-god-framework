@@ -15,31 +15,27 @@ pipeline.py — 十神编排管道 v2.17.0
 - 全链路追踪与日志
 - 优雅降级（某阶段失败不影响整体）
 """
-import json
 import logging
 import time
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 # ── 导入所有十神模块 ──
 from .正官_法度调度.api_router import APIRouter
-from .元辰_本源定位.locator import YuanChenLocator, ProjectRoot
-from .正财_知识固化.knowledge_base import KnowledgeBase, KnowledgeNode
-from .偏财_奇招演化.search_optimizer import SearchOptimizer, SearchSpace, SearchResult
+from .元辰_本源定位.locator import YuanChenLocator
+from .正财_知识固化.knowledge_base import KnowledgeBase
+from .偏财_奇招演化.search_optimizer import SearchOptimizer, SearchSpace
 from .食神_创生输出.content_generator import (
     ContentGenerator,
-    GenerationConfig,
-    OutputFormat,
-    LLMProvider,
 )
 from .伤官_破界创新.innovator import Innovator, Idea, InnovationType
-from .七杀_品质裁决.quality_judge import QualityJudge, Score, Grade
+from .七杀_品质裁决.quality_judge import QualityJudge
 from .太极_阴阳调和.balancer import TaiChiBalancer, YinYang
-from .正印_滋养守护.config_manager import ConfigManager, Config
-from .劫财_攻防边界.guard import Guard, Permission, SecurityContext
-from .偏印_桥接通变.adapter import Adapter, ProtocolConverter, DictToJsonConverter
+from .正印_滋养守护.config_manager import ConfigManager
+from .劫财_攻防边界.guard import Guard
+from .偏印_桥接通变.adapter import Adapter, DictToJsonConverter
 from .比肩_架构协同.registry import (
     ComponentRegistry,
     ComponentState,
@@ -500,7 +496,7 @@ class PianYinHandler(StageHandler):
         ctx.response["output"] = output
         ctx.response["confidence"] = 0.5
         ctx.response["uncertainty"] = 0.3
-        logger.info(f"[偏印] 格式适配完成")
+        logger.info("[偏印] 格式适配完成")
         return True
 
 

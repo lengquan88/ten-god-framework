@@ -2,10 +2,8 @@
 TenGod MCP Server
 Model Context Protocol server for AI agent integration
 """
-import json
 import logging
-from typing import Any, Dict, List, Optional
-from datetime import datetime
+from typing import Any, Dict, List
 
 
 logger = logging.getLogger(__name__)

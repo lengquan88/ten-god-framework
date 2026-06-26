@@ -24,7 +24,7 @@ import threading
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List
 
 
 @dataclass
@@ -194,16 +194,16 @@ class MetricsCollector:
     def prometheus_text(self) -> str:
         """导出 Prometheus 文本格式"""
         lines = []
-        lines.append(f"# HELP tengod_uptime_seconds Application uptime")
-        lines.append(f"# TYPE tengod_uptime_seconds gauge")
+        lines.append("# HELP tengod_uptime_seconds Application uptime")
+        lines.append("# TYPE tengod_uptime_seconds gauge")
         lines.append(f"tengod_uptime_seconds {self.uptime:.1f}")
 
-        lines.append(f"# HELP tengod_requests_total Total requests")
-        lines.append(f"# TYPE tengod_requests_total counter")
+        lines.append("# HELP tengod_requests_total Total requests")
+        lines.append("# TYPE tengod_requests_total counter")
         lines.append(f"tengod_requests_total {self._counters.get('requests', 0)}")
 
-        lines.append(f"# HELP tengod_errors_total Total errors")
-        lines.append(f"# TYPE tengod_errors_total counter")
+        lines.append("# HELP tengod_errors_total Total errors")
+        lines.append("# TYPE tengod_errors_total counter")
         lines.append(f"tengod_errors_total {sum(self._errors.values())}")
 
         for ep, stats in self._latencies.items():
@@ -214,12 +214,12 @@ class MetricsCollector:
             lines.append(f"tengod_latency_{safe_name}_seconds{{quantile=\"0.95\"}} {stats.percentile(95):.4f}")
             lines.append(f"tengod_latency_{safe_name}_seconds{{quantile=\"0.99\"}} {stats.percentile(99):.4f}")
 
-        lines.append(f"# HELP tengod_cache_hit_rate Cache hit rate")
-        lines.append(f"# TYPE tengod_cache_hit_rate gauge")
+        lines.append("# HELP tengod_cache_hit_rate Cache hit rate")
+        lines.append("# TYPE tengod_cache_hit_rate gauge")
         lines.append(f"tengod_cache_hit_rate {self.cache_hit_rate:.3f}")
 
-        lines.append(f"# HELP tengod_phi_entropy Current Φ entropy")
-        lines.append(f"# TYPE tengod_phi_entropy gauge")
+        lines.append("# HELP tengod_phi_entropy Current Φ entropy")
+        lines.append("# TYPE tengod_phi_entropy gauge")
         lines.append(f"tengod_phi_entropy {self._phi_entropy:.4f}")
 
         return "\n".join(lines) + "\n"

@@ -21,7 +21,6 @@ xiuzhen_realms.py — 修真九境评测体系 v2.14.0
 from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
-import math
 import time
 
 
@@ -267,7 +266,6 @@ class XiuzhenEvaluator:
     def get_realm_progress(self) -> Dict[str, Any]:
         """获取当前境界进度"""
         c = self.cultivator
-        realm = c.current_realm_info()
         next_realm = c.next_realm_info()
         return {
             **c.to_dict(),

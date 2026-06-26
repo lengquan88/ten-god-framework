@@ -20,9 +20,8 @@ knowledge_evolution.py — 知识进化系统 v2.9
 from __future__ import annotations
 
 from dataclasses import dataclass, field, asdict
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from collections import defaultdict
-import json
 import time
 
 

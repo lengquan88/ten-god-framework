@@ -16,7 +16,7 @@ advanced_shushu.py — 阶段二十一 · 21.4 高级术数系统
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
 

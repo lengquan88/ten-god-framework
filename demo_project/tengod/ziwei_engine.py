@@ -18,8 +18,7 @@ ziwei_engine.py — 紫微斗数排盘引擎 v1.0.0
 
 from __future__ import annotations
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 
 # ============================================================================

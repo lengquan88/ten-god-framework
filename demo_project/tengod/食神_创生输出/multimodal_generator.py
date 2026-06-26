@@ -2,11 +2,8 @@
 
 食神扩展：支持图片生成（Stable Diffusion）和音频生成。
 """
-import json
 import time
 import uuid
-import urllib.request
-import urllib.parse
 from typing import Any, Dict, List, Optional, Tuple
 
 

@@ -14,11 +14,11 @@ import math
 from typing import Any, Callable, Dict, List, Optional
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.types import ASGIApp, Scope, Receive, Send
+from starlette.types import ASGIApp
 
-from .tiangan_gate import get_tianmen, ZhizhiVerdict
+from .tiangan_gate import get_tianmen
 from .self_correction import get_daemon
-from .inner_child import get_inner_child_sm, compute_soft_occupancy, compute_entropy_gate, _PROTOTYPE_VECTORS
+from .inner_child import get_inner_child_sm, _PROTOTYPE_VECTORS
 
 
 # ============================================================================
@@ -106,8 +106,6 @@ class TianmenMiddleware(BaseHTTPMiddleware):
         if not self.should_gate(path):
             return await call_next(request)
 
-        start_time = time.time()
-
         # 先获取原始响应
         response = await call_next(request)
 
@@ -122,7 +120,7 @@ class TianmenMiddleware(BaseHTTPMiddleware):
             # 解析内容
             try:
                 content = json.loads(body_bytes)
-            except:
+            except Exception:
                 # 非 JSON 直接返回
                 return Response(
                     content=body_bytes,
@@ -224,7 +222,7 @@ class TianmenMiddleware(BaseHTTPMiddleware):
           
         这样纯偏执文本会产生强烈的原型偏向，触发门禁。
         """
-        from .inner_child import _PROTOTYPE_VECTORS, _ZHONGYONG_ANCHOR
+        from .inner_child import _ZHONGYONG_ANCHOR
         
         # 六类情感标记（与六道内在小孩对应）
         sentiment_markers = [

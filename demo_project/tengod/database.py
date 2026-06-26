@@ -25,8 +25,7 @@ import sqlite3
 import time
 import threading
 from contextlib import contextmanager
-from dataclasses import dataclass, field, asdict
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 # ============================================================================
 # 配置

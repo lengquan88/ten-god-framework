@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 __all__ = [
     "BaziReportGenerator",

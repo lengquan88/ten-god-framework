@@ -12,7 +12,7 @@ name_engine.py — 姓名学分析引擎 v1.0.0
 
 from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import List, Tuple
 
 
 # ============================================================================

@@ -2,10 +2,7 @@
 
 对接《四库全书》《中华经典古籍库》API，使正财成为真实知识中枢。
 """
-import json
 import time
-import urllib.request
-import urllib.parse
 from typing import Any, Dict, List, Optional
 
 

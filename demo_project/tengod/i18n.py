@@ -24,8 +24,7 @@ i18n.py — 命理系统国际化模块 v2.3.0
 
 from __future__ import annotations
 
-import json
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 __all__ = [
     "t",
@@ -203,7 +202,6 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
     "巨门": {"zh-CN": "巨门", "zh-TW": "巨門", "en": "JuMen (Huge Gate)"},
     "天相": {"zh-CN": "天相", "zh-TW": "天相", "en": "TianXiang (Heavenly Minister)"},
     "天梁": {"zh-CN": "天梁", "zh-TW": "天梁", "en": "TianLiang (Heavenly Ridge)"},
-    "七杀": {"zh-CN": "七杀", "zh-TW": "七殺", "en": "QiSha (Seven Killings)"},
     "破军": {"zh-CN": "破军", "zh-TW": "破軍", "en": "PoJun (Victory Army)"},
 
     # ── 八字四柱 ────────────────────────────────────────────────────────
@@ -266,7 +264,6 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
     "帝旺": {"zh-CN": "帝旺", "zh-TW": "帝旺", "en": "DiWang (Emperor)"},
     "衰": {"zh-CN": "衰", "zh-TW": "衰", "en": "Shuai (Decline)"},
     "病": {"zh-CN": "病", "zh-TW": "病", "en": "Bing (Sickness)"},
-    "死": {"zh-CN": "死", "zh-TW": "死", "en": "Si (Death)"},
     "墓": {"zh-CN": "墓", "zh-TW": "墓", "en": "Mu (Grave)"},
     "绝": {"zh-CN": "绝", "zh-TW": "絕", "en": "Jue (Extinction)"},
     "胎": {"zh-CN": "胎", "zh-TW": "胎", "en": "Tai (Embryo)"},

@@ -22,7 +22,7 @@ liunian_judgment.py — 流年吉凶自动断语 v1.0.0
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 

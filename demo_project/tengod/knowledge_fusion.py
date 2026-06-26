@@ -20,14 +20,12 @@ knowledge_fusion.py — 命理知识融合引擎 v2.2.0
 from __future__ import annotations
 
 import json
-import re
-from typing import Any, Dict, List, Optional, Tuple, Set, Iterator
+from typing import Any, Dict, List, Optional
 from dataclasses import dataclass
-from urllib.parse import urlparse
 
 from .graph_engine import KnowledgeGraphDB, GraphNode, GraphEdge, get_graph_db
 from .vector_store import VectorStore, get_vector_store
-from .deepseek_adapter import DeepseekClient, DeepseekConfig, DeepseekResponse, Message
+from .deepseek_adapter import DeepseekClient, DeepseekResponse, Message
 
 
 __all__ = [
@@ -313,8 +311,8 @@ class KnowledgeGraphVisualization:
                 for n in exp["nodes"]
             ],
             "links": [
-                {"source": l["source"], "target": l["target"], "value": l["value"]}
-                for l in exp["links"]
+                {"source": link["source"], "target": link["target"], "value": link["value"]}
+                for link in exp["links"]
             ],
         }
         return json.dumps(d3_data, ensure_ascii=False, indent=2)

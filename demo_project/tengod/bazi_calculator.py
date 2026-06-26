@@ -25,9 +25,8 @@ bazi_calculator.py — 八字排盘核心
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 
 # = = = = = = = = = = = = = = = = = = = =

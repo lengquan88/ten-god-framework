@@ -4,7 +4,7 @@ divination_engine.py — 五行/干支/十神关系推演引擎 v1.0.0
 提供完整的五行生克、天干地支、十神推演与八字分析能力。
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple
 

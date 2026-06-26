@@ -157,7 +157,6 @@ class FusionAnalyzer:
             return SystemAnalysis("八字", available=False, error="无数据")
 
         analysis = self._bazi.get("analysis", {})
-        pillars = self._bazi.get("pillars", {})
         day_master = analysis.get("day_master", "")
         wuxing = analysis.get("wuxing", {})
         geju = self._bazi.get("geju", "")
@@ -217,8 +216,6 @@ class FusionAnalyzer:
             return SystemAnalysis("紫微斗数", available=False, error="无数据")
 
         ming_gong = self._ziwei.get("ming_gong", {})
-        shen_gong = self._ziwei.get("shen_gong", {})
-        gongs = self._ziwei.get("gongs", [])
         sihua = self._ziwei.get("sihua", {})
         ming_zhu = self._ziwei.get("ming_zhu", "")
         shen_zhu = self._ziwei.get("shen_zhu", "")
@@ -280,14 +277,11 @@ class FusionAnalyzer:
         pan_type = self._qimen.get("pan_type", "时家奇门")
         men = self._qimen.get("men", "")
         star = self._qimen.get("star", "")
-        gan = self._qimen.get("gan", "")
-        shen = self._qimen.get("shen", "")
+        
 
         # 八门吉凶
         good_men = {"开门", "休门", "生门"}
         bad_men = {"死门", "惊门", "伤门"}
-        neutral_men = {"杜门", "景门"}
-
         if men in good_men:
             men_score = 20
         elif men in bad_men:
@@ -297,7 +291,6 @@ class FusionAnalyzer:
 
         # 九星吉凶
         good_stars = {"天辅", "天禽", "天心", "天任", "天冲", "天英"}
-        bad_stars = {"天蓬", "天芮", "天柱"}
 
         if star in good_stars:
             star_score = 15
@@ -373,7 +366,7 @@ class FusionAnalyzer:
         if len(scores) >= 2:
             score_range = max(scores) - min(scores)
             if score_range <= 15:
-                agreements.append(f"三体系评分一致（偏差≤15分）")
+                agreements.append("三体系评分一致（偏差≤15分）")
                 dimensions["score_consistency"] = 20
             elif score_range <= 30:
                 dimensions["score_consistency"] = 10
@@ -552,8 +545,6 @@ class FusionAnalyzer:
         recs: List[str],
     ) -> str:
         """生成融合分析报告"""
-        t = lambda s: s  # 默认中文，可通过 _t 覆盖
-
         lines = [
             "=" * 60,
             "       三体系融合命理分析报告",

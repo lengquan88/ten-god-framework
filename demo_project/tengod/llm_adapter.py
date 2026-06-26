@@ -25,12 +25,11 @@ llm_adapter.py — 偏印·桥接通变 · 大模型适配层 v1.0.0
 
 from __future__ import annotations
 
-import json
 import os
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, AsyncGenerator, Dict, List, Optional
+from typing import AsyncGenerator, Dict, List, Optional
 
 # ============================================================================
 # 配置

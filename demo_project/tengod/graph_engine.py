@@ -22,8 +22,7 @@ import json
 import re
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Set, Tuple, Iterator
-from functools import lru_cache
+from typing import Any, Dict, List, Optional, Set
 
 
 __all__ = [

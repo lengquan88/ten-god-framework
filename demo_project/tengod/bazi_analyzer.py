@@ -20,7 +20,7 @@ from typing import Dict, List
 from .bazi_calculator import BaziChart
 from .dayun_liunian import (
     calc_dayun, calc_liunian_range,
-    derive_shigan, derive_zhi_shigan, GAN_WUXING, GAN_YINYANG,
+    derive_shigan, GAN_WUXING, GAN_YINYANG,
 )
 
 

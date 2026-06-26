@@ -16,7 +16,6 @@ from datetime import datetime
 
 from .deepseek_adapter import (
     DeepseekClient,
-    DeepseekConfig,
     Message,
     get_client
 )

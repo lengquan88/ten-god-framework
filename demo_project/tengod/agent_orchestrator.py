@@ -8,8 +8,7 @@ Plan → Execute → Observe → Reflect 循环
 from __future__ import annotations
 
 from dataclasses import dataclass, field, asdict
-from typing import Any, Callable, Dict, List, Optional, Tuple
-import json
+from typing import Any, Callable, Dict, List, Optional
 import time
 
 # v2.13.0: 十神智能体工具导入
@@ -207,8 +206,6 @@ class AgentOrchestrator:
 
     def detect_intent(self, user_message: str) -> Dict[str, Any]:
         """识别用户意图"""
-        msg_lower = user_message.lower()
-
         # 规则匹配
         intent_map = {
             "八字": ["八字", "命理", "生辰", "日主", "五行", "格局", "用神", "大运"],

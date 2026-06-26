@@ -26,9 +26,8 @@ shen_agents.py — 十神智能体 v2.13.0
 """
 
 from __future__ import annotations
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
-import json
 
 
 # ============================================================================
@@ -99,9 +98,6 @@ class QishaAgent(ShenAgent):
         super().__init__("七杀", "品质裁决", "分析命主面临的挑战、竞争压力与突破机遇，评估魄力与领导力")
 
     def analyze(self, bazi_data, question=""):
-        pillars = bazi_data.get("pillars", {})
-        day_master = bazi_data.get("day_master", "")
-        day_pillar = pillars.get("day", "")
         shigan = bazi_data.get("shigan_map", {})
 
         # 查找七杀出现的柱位
@@ -195,7 +191,6 @@ class YuanchenAgent(ShenAgent):
         super().__init__("元辰", "本源定位", "分析命主的根本特质、五行根基与核心优势")
 
     def analyze(self, bazi_data, question=""):
-        day_master = bazi_data.get("day_master", "")
         pillars = bazi_data.get("pillars", {})
 
         # 五行统计
@@ -204,7 +199,7 @@ class YuanchenAgent(ShenAgent):
                       "己": "土", "庚": "金", "辛": "金", "壬": "水", "癸": "水"}
         for p in pillars.values():
             if len(p) >= 2:
-                g, z = p[0], p[1]
+                g = p[0]
                 if g in gan_wuxing:
                     wuxing_count[gan_wuxing[g]] += 1
 

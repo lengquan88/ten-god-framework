@@ -23,10 +23,10 @@ import json
 import os
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from sqlalchemy import (
-    Column, Integer, String, Float, Text, DateTime, ForeignKey,
+    Integer, String, Float, Text, DateTime, ForeignKey,
     create_engine, Index, func,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship
