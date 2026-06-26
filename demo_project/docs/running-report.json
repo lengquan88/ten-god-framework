@@ -1,9 +1,9 @@
 {
   "status": "running",
-  "db": "unavailable",
-  "users": 0,
-  "records": 0,
+  "db": "ok",
+  "users": 73,
+  "records": 16,
   "cases": 0,
   "metrics": {},
-  "timestamp": "2026-06-26T06:27:18.457437+00:00"
+  "timestamp": "2026-06-26T10:30:38.681493+00:00"
 }
