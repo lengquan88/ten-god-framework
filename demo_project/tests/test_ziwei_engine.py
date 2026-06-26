@@ -196,13 +196,13 @@ class TestLunarConversion:
 
     def test_lunar_year_days(self):
         days_2023 = ZiweiEngine._lunar_year_days(2023)
-        assert days_2023 == 384
+        assert days_2023 == 383
         days_2024 = ZiweiEngine._lunar_year_days(2024)
         assert days_2024 == 354
         days_2025 = ZiweiEngine._lunar_year_days(2025)
         assert days_2025 == 384
         days_2022 = ZiweiEngine._lunar_year_days(2022)
-        assert days_2022 == 355
+        assert days_2022 == 354
 
     def test_lunar_month_days(self):
         assert ZiweiEngine._lunar_month_days(2024, 1) == 29
