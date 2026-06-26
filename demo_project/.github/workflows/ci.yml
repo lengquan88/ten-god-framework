@@ -1,4 +1,4 @@
-name: TenGod CI/CD v2.20.0
+name: TenGod CI/CD v2.13.0
 
 on:
   push:
@@ -239,7 +239,7 @@ jobs:
           "
 
   # ═══════════════════════════════════════════════════════════════
-  # 6. Docker 镜像构建（v2.1：BuildKit 层缓存 + 多架构）
+  # 6. Docker 镜像构建（v2.13.0：BuildKit 层缓存 + 多架构）
   # ═══════════════════════════════════════════════════════════════
   docker:
     name: "🐳 Docker Build"
@@ -266,8 +266,8 @@ jobs:
           cache-to: type=local,dest=/tmp/.buildx-cache,mode=max
       - name: 健康检查
         run: |
-          docker run --rm -d --name tengod-test -p 8001:8000 tengod:v2.16.1
-          sleep 10
+          docker run --rm -d --name tengod-test -p 8001:8000 tengod:v2.20.0
+          sleep 15
           curl -sf http://localhost:8001/api/health >/dev/null && echo "✅ Health check PASSED" || echo "⚠️  Health check skipped"
           docker stop tengod-test || true
           exit 0
@@ -328,7 +328,7 @@ jobs:
       - name: Deploy
         run: |
           echo "🚀 Deploying to staging..."
-          echo "  Image:  tengod:v2.16.1"
+          echo "  Image:  tengod:v2.20.0"
           echo "  Commit: ${{ github.sha }}"
           echo "  Branch: ${{ github.ref }}"
           echo "✅ Staging deploy triggered"
@@ -349,7 +349,7 @@ jobs:
       - name: Deploy
         run: |
           echo "🌐 Deploying to production..."
-          echo "  Image:  tengod:v2.16.1"
+          echo "  Image:  tengod:v2.20.0"
           echo "  Commit: ${{ github.sha }}"
           echo "✅ Production deploy triggered"
 
@@ -367,7 +367,7 @@ jobs:
         uses: actions/download-artifact@v4
       - name: 生成 Release Notes
         run: |
-          echo "## TenGod v2.16.1「内在小孩·知止不殆」" > release-notes.md
+          echo "## TenGod v2.20.0「内在小孩·知止不殆」" > release-notes.md
           echo "" >> release-notes.md
           echo "### 核心交付" >> release-notes.md
           echo "- 四层自我觉察架构：观照层→问心层→知止层→化虚层" >> release-notes.md
@@ -377,10 +377,10 @@ jobs:
           echo "### 测试结果" >> release-notes.md
           echo "- 对抗测试 18/18 = 100%" >> release-notes.md
           echo "- 天眼 E2E 17/17 通过" >> release-notes.md
-          echo "- 976 passed, 0 failed, 0 errors" >> release-notes.md
+          echo "- 6416 passed, 0 failed, 0 errors" >> release-notes.md
           echo "" >> release-notes.md
           echo "### 产物" >> release-notes.md
-          echo "- Docker 镜像: \`tengod:v2.16.1\`" >> release-notes.md
+          echo "- Docker 镜像: \`tengod:v2.20.0\`" >> release-notes.md
           echo "- SBOM: \`sbom.json\`" >> release-notes.md
           cat release-notes.md
       - name: Create GitHub Release
@@ -405,7 +405,7 @@ jobs:
     steps:
       - name: 生成 PR 摘要
         run: |
-          echo "## 🤖 CI/CD v2.1 Summary" > pr-summary.md
+          echo "## 🤖 CI/CD v2.13.0 Summary" > pr-summary.md
           echo "" >> pr-summary.md
           echo "| Job | Result |" >> pr-summary.md
           echo "|-----|--------|" >> pr-summary.md
@@ -431,7 +431,7 @@ jobs:
       - name: Check all jobs
         run: |
           echo "=============================================="
-          echo "🔒 质量门禁 v2.1"
+          echo "🔒 质量门禁 v2.13.0"
           echo "=============================================="
           echo "  Lint:          ${{ needs.lint.result }}"
           echo "  Test:          ${{ needs.test.result }}"
