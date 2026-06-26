@@ -156,6 +156,7 @@ jobs:
           context: demo_project
           file: demo_project/Dockerfile
           push: false
+          load: true
           tags: ${{ env.DOCKER_IMAGE }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -163,7 +164,7 @@ jobs:
       - name: 验证镜像
         run: |
           docker run --rm -d --name test-api -p 8001:8000 ${{ env.DOCKER_IMAGE }}:${{ github.sha }}
-          sleep 10
+          sleep 15
           curl -sf http://localhost:8001/api/health | python -m json.tool
           docker stop test-api || true
 
