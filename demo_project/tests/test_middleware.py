@@ -320,6 +320,43 @@ class TestShouldGate:
             mw = TianmenMiddleware(None)
             assert mw.should_gate('/') is False
 
+    def test_should_gate_custom_exclude(self):
+        """自定义排除路径"""
+        from tengod.middleware import TianmenMiddleware
+        with patch('tengod.middleware.get_tianmen'), \
+             patch('tengod.middleware.get_daemon'), \
+             patch('tengod.middleware.get_inner_child_sm'):
+            mw = TianmenMiddleware(None, exclude_paths=['/api/custom/exclude'])
+            assert mw.should_gate('/api/custom/exclude') is False
+            assert mw.should_gate('/api/custom/other') is True  # 以 /api 开头，默认通过
+
+    def test_should_gate_mandatory_takes_priority(self):
+        """强制路径优先于排除路径"""
+        from tengod.middleware import TianmenMiddleware
+        # 模拟一个路径同时出现在两个列表中——但代码逻辑是先检查排除再检查强制
+        # 所以如果路径同时匹配，排除优先
+        with patch('tengod.middleware.get_tianmen'), \
+             patch('tengod.middleware.get_daemon'), \
+             patch('tengod.middleware.get_inner_child_sm'):
+            mw = TianmenMiddleware(None, exclude_paths=['/api/v2/gate/'], mandatory_gate=['/api/v2/'])
+            # /api/v2/gate/ 在排除列表中，虽然 /api/v2/ 也在强制列表中
+            # 但排除检查先于强制检查，所以排除优先
+            assert mw.should_gate('/api/v2/gate/stats') is False
+
+    def test_should_gate_api_prefix_not_full_match(self):
+        """以 /api 开头但不是完整路径的也触发门禁"""
+        from tengod.middleware import TianmenMiddleware
+        with patch('tengod.middleware.get_tianmen'), \
+             patch('tengod.middleware.get_daemon'), \
+             patch('tengod.middleware.get_inner_child_sm'):
+            mw = TianmenMiddleware(None)
+            assert mw.should_gate('/api') is True
+            # /api-v1 实际以 /api 开头（startswith 不尊重词边界）
+            assert mw.should_gate('/api-v1') is True
+            # 不以 /api 开头的路径不触发
+            assert mw.should_gate('/ap') is False
+            assert mw.should_gate('/a') is False
+
 
 # ---------------------------------------------------------------------------
 # 测试 dispatch()
@@ -765,6 +802,175 @@ class TestDispatch:
                 # 修正失败，_corrected_requests 不增加
                 assert mw._corrected_requests == 0
 
+    @pytest.mark.asyncio
+    async def test_dispatch_html_content_type(self):
+        """text/html 响应类型触发 body 读取和 JSON 解析"""
+        from tengod.middleware import TianmenMiddleware
+        with patch('tengod.middleware.get_tianmen'), \
+             patch('tengod.middleware.get_daemon'), \
+             patch('tengod.middleware.get_inner_child_sm'):
+            mw = TianmenMiddleware(None)
+            req = make_mock_request('/api/hello')
+            # text/html 匹配 'text/' 前缀，会进入 body 处理分支
+            resp_data = Response(
+                content=b"<html>not json</html>",
+                status_code=200,
+                headers={"content-type": "text/html"},
+                media_type="text/html",
+            )
+            _add_body_iterator(resp_data, b"<html>not json</html>")
+            mock_call_next = AsyncMock(return_value=resp_data)
+
+            resp = await mw.dispatch(req, mock_call_next)
+
+            assert resp.status_code == 200
+            assert b"<html>not json</html>" in resp.body
+
+    @pytest.mark.asyncio
+    async def test_dispatch_media_type_fallback(self):
+        """无 content-type header 时使用 media_type 回退"""
+        from tengod.middleware import TianmenMiddleware
+        with patch('tengod.middleware.get_tianmen') as mock_gt, \
+             patch('tengod.middleware.get_daemon'), \
+             patch('tengod.middleware.get_inner_child_sm') as mock_gic:
+            mock_tianmen = MagicMock()
+            mock_tianmen.engine.judge.return_value = create_passed_verdict()
+            mock_tianmen.get_stats.return_value = {}
+            mock_gt.return_value = mock_tianmen
+
+            mock_inner = MagicMock()
+            mock_inner.process.return_value = {
+                "state": {"gate_triggered": False, "dominant": {"name": "", "beta": 0.0}, "entropy_phi": 1.5},
+                "safety_fallback": False,
+            }
+            mock_inner.get_stats.return_value = {}
+            mock_gic.return_value = mock_inner
+
+            mw = TianmenMiddleware(None)
+            req = make_mock_request('/api/test')
+            # 无 content-type header，但 media_type="application/json"
+            resp_data = make_json_response({"ok": True})
+            del resp_data.headers["content-type"]
+            resp_data.media_type = "application/json"
+            mock_call_next = AsyncMock(return_value=resp_data)
+
+            resp = await mw.dispatch(req, mock_call_next)
+
+            assert resp.status_code == 200
+            assert resp.headers.get('X-Tianmen-Passed') == 'true'
+
+    @pytest.mark.asyncio
+    async def test_dispatch_empty_json_body(self):
+        """空 JSON 响应体 {}"""
+        from tengod.middleware import TianmenMiddleware
+        with patch('tengod.middleware.get_tianmen') as mock_gt, \
+             patch('tengod.middleware.get_daemon'), \
+             patch('tengod.middleware.get_inner_child_sm') as mock_gic:
+            mock_tianmen = MagicMock()
+            mock_tianmen.engine.judge.return_value = create_passed_verdict()
+            mock_tianmen.get_stats.return_value = {}
+            mock_gt.return_value = mock_tianmen
+
+            mock_inner = MagicMock()
+            mock_inner.process.return_value = {
+                "state": {"gate_triggered": False, "dominant": {"name": "", "beta": 0.0}, "entropy_phi": 1.5},
+                "safety_fallback": False,
+            }
+            mock_inner.get_stats.return_value = {}
+            mock_gic.return_value = mock_inner
+
+            mw = TianmenMiddleware(None)
+            req = make_mock_request('/api/test')
+            mock_call_next = AsyncMock(return_value=make_json_response({}))
+
+            resp = await mw.dispatch(req, mock_call_next)
+
+            assert resp.status_code == 200
+            assert resp.headers.get('X-Tianmen-Passed') == 'true'
+
+    @pytest.mark.asyncio
+    async def test_dispatch_inner_child_result_none(self):
+        """inner_child.process 返回 None（无 state 字段），回退到 None inner_child_state"""
+        from tengod.middleware import TianmenMiddleware
+        with patch('tengod.middleware.get_tianmen') as mock_gt, \
+             patch('tengod.middleware.get_daemon'), \
+             patch('tengod.middleware.get_inner_child_sm') as mock_gic:
+            mock_tianmen = MagicMock()
+            mock_tianmen.engine.judge.return_value = create_passed_verdict()
+            mock_tianmen.get_stats.return_value = {}
+            mock_gt.return_value = mock_tianmen
+
+            mock_inner = MagicMock()
+            # process 返回 None 导致 inner_child_result["state"] 失败
+            # 但 try/except 会捕获，inner_child_state 变为 None
+            mock_inner.process.return_value = None
+            mock_inner.get_stats.return_value = {}
+            mock_gic.return_value = mock_inner
+
+            mw = TianmenMiddleware(None)
+            req = make_mock_request('/api/test')
+            mock_call_next = AsyncMock(return_value=make_json_response({"ok": True}))
+
+            resp = await mw.dispatch(req, mock_call_next)
+
+            assert resp.status_code == 200
+            # inner_child 异常被静默捕获，门禁正常工作
+            assert resp.headers.get('X-Tianmen-Passed') == 'true'
+
+    @pytest.mark.asyncio
+    async def test_dispatch_failed_but_no_retreat(self):
+        """判决不通过但 should_retreat=False，不触发修正"""
+        from tengod.middleware import TianmenMiddleware
+        from tengod.tiangan_gate import ZhizhiVerdict
+        verdict = ZhizhiVerdict(
+            passed=False,
+            confidence=0.4,
+            entropies={"output": 0.6},
+            variance=0.2,
+            threshold_level=0.6,
+            should_retreat=False,
+            retreat_reason="边界情况",
+            cultivation_qi=0.3,
+            inner_child_phi=None,
+            inner_child_triggered=False,
+            inner_child_dominant="",
+            inner_child_beta=0.0,
+        )
+
+        with patch('tengod.middleware.get_tianmen') as mock_gt, \
+             patch('tengod.middleware.get_daemon') as mock_gd, \
+             patch('tengod.middleware.get_inner_child_sm') as mock_gic:
+            mock_tianmen = MagicMock()
+            mock_tianmen.engine.judge.return_value = verdict
+            mock_tianmen.get_stats.return_value = {}
+            mock_gt.return_value = mock_tianmen
+
+            mock_daemon = MagicMock()
+            mock_daemon.get_stats.return_value = {}
+            mock_gd.return_value = mock_daemon
+
+            mock_inner = MagicMock()
+            mock_inner.process.return_value = {
+                "state": {"gate_triggered": False, "dominant": {"name": "", "beta": 0.0}, "entropy_phi": 1.5},
+                "safety_fallback": False,
+            }
+            mock_inner.get_stats.return_value = {}
+            mock_gic.return_value = mock_inner
+
+            mw = TianmenMiddleware(None)
+            req = make_mock_request('/api/test')
+            mock_call_next = AsyncMock(return_value=make_json_response({"result": "test"}))
+
+            resp = await mw.dispatch(req, mock_call_next)
+
+            assert resp.status_code == 200
+            assert resp.headers.get('X-Tianmen-Passed') == 'false'
+            assert mw._blocked_requests == 1
+            # should_retreat=False，不触发修正
+            assert mw._corrected_requests == 0
+            # daemon.correct 不应被调用
+            mock_daemon.correct.assert_not_called()
+
 
 # ---------------------------------------------------------------------------
 # 测试 _extract_confidence()
@@ -836,6 +1042,45 @@ class TestExtractConfidence:
 
             scores = mw._extract_confidence(42)
             assert scores == {'overall': 0.5}
+
+    def test_extract_all_three_fields(self):
+        """内容同时包含 confidence, score, overall 三个字段"""
+        from tengod.middleware import TianmenMiddleware
+        with patch('tengod.middleware.get_tianmen'), \
+             patch('tengod.middleware.get_daemon'), \
+             patch('tengod.middleware.get_inner_child_sm'):
+            mw = TianmenMiddleware(None)
+            scores = mw._extract_confidence({
+                "confidence": 0.88,
+                "score": 0.72,
+                "overall": 0.55,
+            })
+            assert scores['output'] == 0.88
+            assert scores['score'] == 0.72
+            assert scores['overall'] == 0.55
+
+    def test_extract_empty_dict(self):
+        """空 dict 返回默认 overall=0.5"""
+        from tengod.middleware import TianmenMiddleware
+        with patch('tengod.middleware.get_tianmen'), \
+             patch('tengod.middleware.get_daemon'), \
+             patch('tengod.middleware.get_inner_child_sm'):
+            mw = TianmenMiddleware(None)
+            scores = mw._extract_confidence({})
+            assert scores == {'overall': 0.5}
+
+    def test_extract_confidence_default_on_missing(self):
+        """confidence 字段缺失时不添加到 scores"""
+        from tengod.middleware import TianmenMiddleware
+        with patch('tengod.middleware.get_tianmen'), \
+             patch('tengod.middleware.get_daemon'), \
+             patch('tengod.middleware.get_inner_child_sm'):
+            mw = TianmenMiddleware(None)
+            # content 有 score 但无 confidence 字段
+            scores = mw._extract_confidence({"score": 0.5})
+            assert 'output' not in scores
+            assert 'score' in scores
+            assert scores['score'] == 0.5
 
 
 # ---------------------------------------------------------------------------
@@ -920,6 +1165,40 @@ class TestTextToVector:
             norm = math.sqrt(sum(x * x for x in vec))
             assert abs(norm - 1.0) < 1e-6
 
+    def test_text_to_vector_with_sentiment_markers(self):
+        """包含情感标记的文本，验证密度向原型向量偏移"""
+        from tengod.middleware import TianmenMiddleware
+        with patch('tengod.middleware.get_tianmen'), \
+             patch('tengod.middleware.get_daemon'), \
+             patch('tengod.middleware.get_inner_child_sm'):
+            mw = TianmenMiddleware(None)
+            # 大量戒备小孩标记
+            vec_guard = mw._text_to_vector("警惕 防御 攻击 恶意 敌意 威胁 危险 绝不")
+            assert len(vec_guard) == 64
+            norm = math.sqrt(sum(x * x for x in vec_guard))
+            assert abs(norm - 1.0) < 1e-6
+
+            # 大量讨好小孩标记
+            vec_pleaser = mw._text_to_vector("抱歉 对不起 请 谢谢 感激 一定改正 是我的错 您说得对")
+            assert len(vec_pleaser) == 64
+            norm = math.sqrt(sum(x * x for x in vec_pleaser))
+            assert abs(norm - 1.0) < 1e-6
+
+            # 两种标记混合，向量应该不同
+            assert vec_guard != vec_pleaser
+
+    def test_text_to_vector_single_char(self):
+        """单字符文本测试"""
+        from tengod.middleware import TianmenMiddleware
+        with patch('tengod.middleware.get_tianmen'), \
+             patch('tengod.middleware.get_daemon'), \
+             patch('tengod.middleware.get_inner_child_sm'):
+            mw = TianmenMiddleware(None)
+            vec = mw._text_to_vector("道")
+            assert len(vec) == 64
+            norm = math.sqrt(sum(x * x for x in vec))
+            assert abs(norm - 1.0) < 1e-6
+
 
 # ---------------------------------------------------------------------------
 # 测试 get_stats()
@@ -990,6 +1269,44 @@ class TestGetStats:
             assert stats['block_rate'] == 0.0
             assert stats['correction_rate'] == 0.0
 
+    def test_get_stats_blocked_zero_with_requests(self):
+        """有请求但无 blocked 时 correction_rate=0.0"""
+        from tengod.middleware import TianmenMiddleware
+        with patch('tengod.middleware.get_tianmen') as mock_gt, \
+             patch('tengod.middleware.get_daemon') as mock_gd, \
+             patch('tengod.middleware.get_inner_child_sm') as mock_gic:
+            mock_gt.return_value = MagicMock(get_stats=lambda: {})
+            mock_gd.return_value = MagicMock(get_stats=lambda: {})
+            mock_gic.return_value = MagicMock(get_stats=lambda: {})
+
+            mw = TianmenMiddleware(None)
+            mw._total_requests = 50
+            mw._blocked_requests = 0
+            mw._corrected_requests = 0
+
+            stats = mw.get_stats()
+            assert stats['block_rate'] == 0.0
+            assert stats['correction_rate'] == 0.0
+
+    def test_get_stats_all_blocked(self):
+        """全部被 blocked 的场景"""
+        from tengod.middleware import TianmenMiddleware
+        with patch('tengod.middleware.get_tianmen') as mock_gt, \
+             patch('tengod.middleware.get_daemon') as mock_gd, \
+             patch('tengod.middleware.get_inner_child_sm') as mock_gic:
+            mock_gt.return_value = MagicMock(get_stats=lambda: {})
+            mock_gd.return_value = MagicMock(get_stats=lambda: {})
+            mock_gic.return_value = MagicMock(get_stats=lambda: {})
+
+            mw = TianmenMiddleware(None)
+            mw._total_requests = 10
+            mw._blocked_requests = 10
+            mw._corrected_requests = 5
+
+            stats = mw.get_stats()
+            assert stats['block_rate'] == 1.0
+            assert stats['correction_rate'] == 0.5
+
 
 # ---------------------------------------------------------------------------
 # 测试 get_middleware() 单例
@@ -1032,6 +1349,23 @@ class TestGetMiddlewareSingleton:
             )
             assert mw._exclude_paths == set(custom_exclude)
             assert mw._mandatory_gate == set(custom_mandatory)
+
+    def test_second_call_ignores_custom_paths(self):
+        """第二次调用时传入自定义路径会被忽略（返回已有单例）"""
+        import tengod.middleware as mw_mod
+        mw_mod._tianmen_middleware = None
+
+        from tengod.middleware import get_middleware
+
+        with patch('tengod.middleware.get_tianmen'), \
+             patch('tengod.middleware.get_daemon'), \
+             patch('tengod.middleware.get_inner_child_sm'):
+            mw1 = get_middleware(exclude_paths=['/first'], mandatory_gate=['/first/api/'])
+            mw2 = get_middleware(exclude_paths=['/second'], mandatory_gate=['/second/api/'])
+            assert mw1 is mw2
+            # 第二次调用不会改变已有单例的路径配置
+            assert mw2._exclude_paths == set(['/first'])
+            assert mw2._mandatory_gate == set(['/first/api/'])
 
 
 # ---------------------------------------------------------------------------

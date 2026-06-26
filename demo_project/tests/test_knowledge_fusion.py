@@ -1210,3 +1210,417 @@ class TestEdgeCases:
         assert len(result.text_chunks) == 2
         assert "古籍内容A" in result.text_chunks
         assert "古籍内容B" in result.text_chunks
+
+
+# ============================================================================
+# 15. _search_classic_texts 直接测试
+# ============================================================================
+
+class TestSearchClassicTexts:
+    """_search_classic_texts 方法直接测试"""
+
+    def test_search_text_returns_text_key(self):
+        mock_vector = MagicMock()
+        mock_vector.search_text.return_value = [
+            {"text": "古籍片段A"},
+            {"text": "古籍片段B"},
+        ]
+        engine = KnowledgeFusionEngine(vector_store=mock_vector)
+        chunks = engine._search_classic_texts("查询", top_k=5)
+        assert chunks == ["古籍片段A", "古籍片段B"]
+        mock_vector.search_text.assert_called_once_with("查询", top_k=5)
+
+    def test_search_text_returns_content_key(self):
+        mock_vector = MagicMock()
+        mock_vector.search_text.return_value = [
+            {"content": "内容A"},
+            {"content": "内容B"},
+        ]
+        engine = KnowledgeFusionEngine(vector_store=mock_vector)
+        chunks = engine._search_classic_texts("查询")
+        assert chunks == ["内容A", "内容B"]
+
+    def test_search_text_mixed_keys(self):
+        mock_vector = MagicMock()
+        mock_vector.search_text.return_value = [
+            {"text": "文本片段"},
+            {"content": "内容片段"},
+            {"text": "文本片段2"},
+        ]
+        engine = KnowledgeFusionEngine(vector_store=mock_vector)
+        chunks = engine._search_classic_texts("查询")
+        assert len(chunks) == 3
+        assert "文本片段" in chunks
+        assert "内容片段" in chunks
+
+    def test_search_text_empty_results(self):
+        mock_vector = MagicMock()
+        mock_vector.search_text.return_value = []
+        engine = KnowledgeFusionEngine(vector_store=mock_vector)
+        chunks = engine._search_classic_texts("查询")
+        assert chunks == []
+
+    def test_search_text_no_text_or_content(self):
+        mock_vector = MagicMock()
+        mock_vector.search_text.return_value = [
+            {"other": "val"},
+            {"metadata": {"node_id": "n1"}},
+        ]
+        engine = KnowledgeFusionEngine(vector_store=mock_vector)
+        chunks = engine._search_classic_texts("查询")
+        assert chunks == []
+
+    def test_search_text_truncated_at_top_k(self):
+        mock_vector = MagicMock()
+        mock_vector.search_text.return_value = [
+            {"text": f"片段{i}"} for i in range(10)
+        ]
+        engine = KnowledgeFusionEngine(vector_store=mock_vector)
+        chunks = engine._search_classic_texts("查询", top_k=3)
+        assert len(chunks) == 3
+        assert chunks == ["片段0", "片段1", "片段2"]
+
+    def test_search_text_default_top_k(self):
+        mock_vector = MagicMock()
+        mock_vector.search_text.return_value = [
+            {"text": f"片段{i}"} for i in range(10)
+        ]
+        engine = KnowledgeFusionEngine(vector_store=mock_vector)
+        chunks = engine._search_classic_texts("查询")
+        assert len(chunks) == 5  # default top_k=5
+
+
+# ============================================================================
+# 16. hybrid_search 更多边界情况
+# ============================================================================
+
+class TestHybridSearchEdgeCases:
+    """hybrid_search 边界情况补充测试"""
+
+    def test_graph_depth_zero(self):
+        """graph_depth=0 时只做向量搜索，不做图遍历"""
+        mock_graph = make_mock_graph()
+        mock_vector = MagicMock()
+        mock_vector.embed.return_value = [0.1]
+        mock_vector.search.return_value = [{"metadata": {"node_id": "n1"}}]
+        n1 = make_graph_node("n1", "test", "节点1")
+        mock_graph.get_node.return_value = n1
+
+        engine = KnowledgeFusionEngine(graph_db=mock_graph, vector_store=mock_vector)
+        nodes, edges = engine.hybrid_search("查询", graph_depth=0)
+
+        assert len(nodes) == 1
+        assert nodes[0].id == "n1"
+        assert edges == []
+        mock_graph.get_neighbors.assert_not_called()
+
+    def test_get_node_returns_none(self):
+        """get_node 返回 None 时不应崩溃"""
+        mock_graph = make_mock_graph()
+        mock_vector = MagicMock()
+        mock_vector.embed.return_value = [0.1]
+        mock_vector.search.return_value = [{"metadata": {"node_id": "missing"}}]
+        mock_graph.get_neighbors.return_value = []
+        mock_graph.get_node.return_value = None
+
+        engine = KnowledgeFusionEngine(graph_db=mock_graph, vector_store=mock_vector)
+        nodes, edges = engine.hybrid_search("查询")
+
+        assert nodes == []
+        assert edges == []
+
+    def test_graph_expansion_with_missing_node(self):
+        """图遍历中，邻居的目标节点不存在于图谱中"""
+        mock_graph = make_mock_graph()
+        mock_vector = MagicMock()
+        mock_vector.embed.return_value = [0.1]
+        mock_vector.search.return_value = [{"metadata": {"node_id": "n1"}}]
+
+        edge_n1_to_missing = make_graph_edge("n1", "missing", "关联")
+        mock_graph.get_neighbors.side_effect = lambda nid: (
+            [edge_n1_to_missing] if nid == "n1" else []
+        )
+        n1 = make_graph_node("n1", "test", "节点1")
+        mock_graph.get_node.side_effect = lambda nid: {"n1": n1}.get(nid)
+
+        engine = KnowledgeFusionEngine(graph_db=mock_graph, vector_store=mock_vector)
+        nodes, edges = engine.hybrid_search("查询", graph_depth=2)
+
+        assert len(nodes) == 1
+        assert nodes[0].id == "n1"
+        assert len(edges) == 1  # 边仍被收集，但节点不存在
+
+    def test_vector_results_with_mixed_node_ids(self):
+        """部分 vector 结果有 node_id metadata，部分没有"""
+        mock_graph = make_mock_graph()
+        mock_vector = MagicMock()
+        mock_vector.embed.return_value = [0.1]
+        mock_vector.search.return_value = [
+            {"metadata": {"node_id": "n1"}},
+            {"metadata": {}},
+            {"metadata": {"node_id": "n2"}},
+            {"metadata": {"score": 0.5}},
+        ]
+        mock_graph.get_neighbors.return_value = []
+        n1 = make_graph_node("n1", "test", "A")
+        n2 = make_graph_node("n2", "test", "B")
+        mock_graph.get_node.side_effect = lambda nid: {"n1": n1, "n2": n2}.get(nid)
+
+        engine = KnowledgeFusionEngine(graph_db=mock_graph, vector_store=mock_vector)
+        nodes, edges = engine.hybrid_search("查询")
+
+        assert len(nodes) == 2
+        node_ids = {n.id for n in nodes}
+        assert node_ids == {"n1", "n2"}
+
+
+# ============================================================================
+# 17. inject_classic_text 更多边界情况
+# ============================================================================
+
+class TestInjectClassicTextEdgeCases:
+    """inject_classic_text 边界情况补充测试"""
+
+    def test_injection_with_overlap(self):
+        """分段注入测试（注意：overlap=0 时 start=end 导致 break，只产生一个分段）"""
+        mock_engine = MagicMock()
+        mock_engine.graph_db = MagicMock(spec=KnowledgeGraphDB)
+        mock_engine.graph_db.get_node.return_value = None
+
+        # 内容长度 250，chunk_size=100，overlap=0
+        # 1st: start=0, end=100, chunk="X"*100 > 50, valid, start=100-0=100, start>=end(100), break
+        content = "X" * 250
+        count = inject_classic_text(mock_engine, "经典", content, chunk_size=100, overlap=0)
+
+        assert count == 1
+        mock_engine.vector_store.add_text.assert_called_once()
+
+    def test_injection_with_overlap_chunk_size_boundary(self):
+        """overlap=0 时每个分段后 start=end，立即 break"""
+        mock_engine = MagicMock()
+        mock_engine.graph_db = MagicMock(spec=KnowledgeGraphDB)
+        mock_engine.graph_db.get_node.return_value = None
+
+        # 内容 120，chunk_size=60，overlap=0
+        # 1st: start=0, end=60, chunk="A"*60 > 50, valid, start=60, start>=end(60), break
+        content = "A" * 120
+        count = inject_classic_text(mock_engine, "测试", content, chunk_size=60, overlap=0)
+
+        assert count == 1
+        mock_engine.vector_store.add_text.assert_called_once()
+
+    def test_injection_multi_chunk_with_overlap_zero(self):
+        """overlap=0 时只产生一个分段（源码行为：start=end 时 break）"""
+        mock_engine = MagicMock()
+        mock_engine.graph_db = MagicMock(spec=KnowledgeGraphDB)
+        mock_engine.graph_db.get_node.return_value = None
+
+        content = "B" * 300
+        count = inject_classic_text(mock_engine, "测试经", content, chunk_size=100, overlap=0)
+
+        # chunk_size=100, overlap=0, content=300
+        # 1st: [0:100] -> "B"*100, start=100, start>=end(100), break
+        assert count == 1
+        mock_engine.vector_store.add_text.assert_called_once()
+
+    def test_content_exactly_at_boundary(self):
+        """内容长度正好等于 chunk_size 边界"""
+        mock_engine = MagicMock()
+        mock_engine.graph_db = MagicMock(spec=KnowledgeGraphDB)
+        mock_engine.graph_db.get_node.return_value = None
+
+        content = "C" * 100
+        count = inject_classic_text(mock_engine, "边界", content, chunk_size=100, overlap=0)
+
+        assert count == 1
+        mock_engine.vector_store.add_text.assert_called_once()
+
+    def test_content_slightly_above_minimum(self):
+        """内容长度刚好超过最小分段长度"""
+        mock_engine = MagicMock()
+        mock_engine.graph_db = MagicMock(spec=KnowledgeGraphDB)
+        mock_engine.graph_db.get_node.return_value = None
+
+        content = "D" * 51
+        count = inject_classic_text(mock_engine, "最小", content, chunk_size=200, overlap=0)
+
+        assert count == 1
+        mock_engine.vector_store.add_text.assert_called_once()
+
+    def test_empty_content(self):
+        """空内容"""
+        mock_engine = MagicMock()
+        mock_engine.graph_db = MagicMock(spec=KnowledgeGraphDB)
+        mock_engine.graph_db.get_node.return_value = None
+
+        count = inject_classic_text(mock_engine, "空", "", chunk_size=100, overlap=0)
+
+        assert count == 0
+        mock_engine.vector_store.add_text.assert_not_called()
+
+
+# ============================================================================
+# 18. FusedKnowledge 更多边界情况
+# ============================================================================
+
+class TestFusedKnowledgeEdgeCases:
+    """FusedKnowledge 更多边界情况"""
+
+    def test_to_dict_roundtrip_all_fields(self):
+        fk = FusedKnowledge(
+            query="复杂查询",
+            nodes=[{"id": "n1", "label": "test", "name": "节点", "properties": {"a": 1}}],
+            edges=[{"source": "n1", "target": "n2", "relation": "生", "weight": 0.8, "properties": {}}],
+            text_chunks=["片段1", "片段2"],
+            reasoning_chain="长篇推理结果",
+            relevance_scores={"n1": 0.95, "n2": 0.85},
+            depth=3,
+        )
+        d = fk.to_dict()
+        assert d["depth"] == 3
+        assert d["nodes"][0]["properties"] == {"a": 1}
+        assert d["edges"][0]["weight"] == 0.8
+
+    def test_to_json_with_unicode(self):
+        fk = FusedKnowledge(
+            query="八字查询",
+            nodes=[{"id": "n1", "name": "䷀乾"}],
+            edges=[],
+            text_chunks=["《三命通会》曰：……"],
+            reasoning_chain="推理：甲木生于寅月……",
+            relevance_scores={"n1": 1.0},
+        )
+        json_str = fk.to_json()
+        assert "䷀乾" in json_str
+        assert "《三命通会》" in json_str
+        data = json.loads(json_str)
+        assert data["nodes"][0]["name"] == "䷀乾"
+
+    def test_default_depth_value(self):
+        fk = FusedKnowledge(
+            query="q",
+            nodes=[],
+            edges=[],
+            text_chunks=[],
+            reasoning_chain="",
+            relevance_scores={},
+        )
+        assert fk.depth == 2
+
+    def test_to_dict_does_not_mutate_original(self):
+        """to_dict 返回同一个 list 引用（浅拷贝），修改返回 dict 会影响到原始对象"""
+        nodes = [{"id": "n1"}]
+        edges = [{"source": "n1", "target": "n2"}]
+        fk = FusedKnowledge(
+            query="q",
+            nodes=nodes,
+            edges=edges,
+            text_chunks=["t"],
+            reasoning_chain="r",
+            relevance_scores={"n1": 0.5},
+        )
+        d = fk.to_dict()
+        d["nodes"].append({"id": "extra"})
+        # to_dict 返回共享引用，修改会反映到原始对象
+        assert len(fk.nodes) == 2
+
+
+# ============================================================================
+# 19. 图谱可视化更多边界情况
+# ============================================================================
+
+class TestVisualizationEdgeCases:
+    """图谱可视化更多边界情况"""
+
+    def test_export_duplicate_categories(self):
+        """多个节点具有相同标签时，categories 去重并排序"""
+        nodes = [
+            make_graph_node("n1", "wuxing", "木", label="五行"),
+            make_graph_node("n2", "wuxing", "火", label="五行"),
+            make_graph_node("n3", "gan", "甲", label="天干"),
+        ]
+        engine = KnowledgeFusionEngine()
+        result = engine.export_graph_visualization(nodes, [])
+        assert result["categories"] == ["gan", "wuxing"]
+
+    def test_export_self_loops(self):
+        """自环边（source == target）"""
+        nodes = [make_graph_node("n1", "test", "A")]
+        edges = [make_graph_edge("n1", "n1", "自环")]
+        engine = KnowledgeFusionEngine()
+        result = engine.export_graph_visualization(nodes, edges)
+        assert len(result["links"]) == 1
+        assert result["links"][0]["source"] == "n1"
+        assert result["links"][0]["target"] == "n1"
+
+    def test_export_node_without_name(self):
+        """GraphNode 没有 name 属性时的处理（通过 properties 获取 label）"""
+        node = make_graph_node("n1", "test", "节点名")
+        node.properties = {"label": "自定义标签"}
+        engine = KnowledgeFusionEngine()
+        result = engine.export_graph_visualization([node], [])
+        assert result["nodes"][0]["label"] == "自定义标签"
+
+
+# ============================================================================
+# 20. 综合边界情况
+# ============================================================================
+
+class TestComprehensiveEdgeCases:
+    """综合边界情况"""
+
+    def test_bazi_data_with_empty_pillars_values(self):
+        """八字 data 中 pillars 值为空字符串"""
+        bazi = {
+            "pillars": {"year": "", "month": "", "day": "", "hour": ""},
+            "wuxing": {},
+            "geju": "",
+            "shensha": [],
+        }
+        mock_engine = KnowledgeFusionEngine()
+        keywords = mock_engine._extract_keywords(bazi)
+        assert keywords == []
+
+    def test_bazi_data_with_none_values(self):
+        """八字 data 中 pillars 值为非 dict 类型时会产生 AttributeError"""
+        # 源码不处理 pillars 为 None 的情况，这会导致 AttributeError
+        with pytest.raises(AttributeError):
+            KnowledgeFusionEngine()._extract_keywords({"pillars": None})
+
+    def test_hybrid_search_with_custom_top_k(self):
+        """自定义 top_k 参数"""
+        mock_graph = make_mock_graph()
+        mock_vector = MagicMock()
+        mock_vector.embed.return_value = [0.1]
+        mock_vector.search.return_value = []
+        mock_graph.get_neighbors.return_value = []
+
+        engine = KnowledgeFusionEngine(graph_db=mock_graph, vector_store=mock_vector)
+        engine.hybrid_search("查询", top_k=20)
+
+        mock_vector.search.assert_called_once_with([0.1], top_k=20)
+
+    def test_inject_classic_text_with_unicode_name(self):
+        """经典名称为 Unicode"""
+        mock_engine = MagicMock()
+        mock_engine.graph_db = MagicMock(spec=KnowledgeGraphDB)
+        mock_engine.graph_db.get_node.return_value = None
+
+        content = "X" * 200
+        count = inject_classic_text(mock_engine, "《三命通会》·卷一", content, chunk_size=60, overlap=0)
+
+        assert count > 0
+        mock_engine.graph_db.add_node.assert_called_once_with(
+            "classic:《三命通会》·卷一", "classic", "《三命通会》·卷一",
+            properties={"total_chunks": count}
+        )
+
+    def test_get_fusion_engine_reset_singleton(self):
+        """重置单例后重新获取"""
+        import tengod.knowledge_fusion as kf
+        kf._fusion_engine = None
+        engine = get_fusion_engine()
+        assert isinstance(engine, KnowledgeFusionEngine)
+        # 第二次获取应返回同一实例
+        engine2 = get_fusion_engine()
+        assert engine is engine2

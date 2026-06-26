@@ -1,9 +1,37 @@
 {
   "status": "running",
-  "db": "unavailable",
+  "db": "ok",
   "users": 0,
   "records": 0,
   "cases": 0,
-  "metrics": {},
-  "timestamp": "2026-06-26T15:30:27.178138+00:00"
+  "metrics": {
+    "timestamp": "2026-06-26T16:57:21.022390+00:00",
+    "uptime_seconds": 42.1,
+    "requests": {
+      "total": 0,
+      "errors": 0,
+      "error_rate_percent": 0,
+      "avg_latency_ms": 0,
+      "status_codes": {},
+      "top_endpoints": {}
+    },
+    "business": {
+      "bazi_calcs": 0,
+      "ziwei_calcs": 0,
+      "liuyao_calcs": 0,
+      "qimen_calcs": 0,
+      "name_analyses": 0,
+      "marriage_analyses": 0,
+      "ai_chats": 0,
+      "ai_reports": 0,
+      "knowledge_searches": 0
+    },
+    "system": {
+      "cpu_percent": 0.0,
+      "memory_percent": 49.8,
+      "memory_used_mb": 1984.95,
+      "disk_percent": 83.4
+    }
+  },
+  "timestamp": "2026-06-26T16:57:21.022414+00:00"
 }
