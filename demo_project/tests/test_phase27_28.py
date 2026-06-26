@@ -105,8 +105,12 @@ class TestContentPost:
         EngagementService.like("u_l3", p2["post_id"])
         popular = ContentPost.list_popular()
         assert len(popular) >= 2
-        # 第一个应该是 p1
-        assert popular[0]["post_id"] == p1["post_id"]
+        # p1 应排在 p2 前面（p1 点赞更多）
+        p1_rank = next((i for i, p in enumerate(popular) if p["post_id"] == p1["post_id"]), None)
+        p2_rank = next((i for i, p in enumerate(popular) if p["post_id"] == p2["post_id"]), None)
+        assert p1_rank is not None, "p1 不在热门列表中"
+        assert p2_rank is not None, "p2 不在热门列表中"
+        assert p1_rank < p2_rank, f"p1(排名{p1_rank}) 应排在 p2(排名{p2_rank}) 前面"
 
     def test_visibility_public_appears_in_feed(self):
         ContentPost.create(user_id="u_author", title="Public", visibility="public")

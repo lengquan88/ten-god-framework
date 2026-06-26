@@ -26,11 +26,9 @@ webhook.py — 十神架构 Webhook 事件推送系统 v1.0.0
 import hashlib
 import hmac
 import json
-import os
 import threading
 import time
 import uuid
-from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -42,9 +40,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
-    create_engine,
 )
-from sqlalchemy.orm import sessionmaker
 
 from .data_store import Base, get_data_store
 

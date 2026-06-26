@@ -26,9 +26,8 @@ from __future__ import annotations
 import csv
 import io
 import json
-from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from sqlalchemy import (
     Column, Integer, String, Float, Text, DateTime, ForeignKey,
@@ -156,8 +155,8 @@ class CaseLibrary:
 
     def __init__(self, store: Optional[DataStore] = None):
         self.store = store or get_data_store()
-        # 确保新表已创建
-        Base.metadata.create_all(self.store._engine)
+        # 确保新表已创建（checkfirst=True 避免重复创建报错）
+        Base.metadata.create_all(self.store._engine, checkfirst=True)
 
     def _session(self) -> Session:
         return self.store._session()

@@ -1,6 +1,6 @@
 [tool.ruff]
 line-length = 120
-target-version = "py310"
+target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "N"]
@@ -19,7 +19,7 @@ source = ["tengod"]
 omit = ["tengod/七杀_品质裁决/test_runner.py"]
 
 [tool.coverage.report]
-fail_under = 40
+fail_under = 70
 exclude_also = [
     "def __repr__",
     "if __name__ == .__main__.:",

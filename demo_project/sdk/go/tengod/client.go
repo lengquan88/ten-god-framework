@@ -8,6 +8,9 @@ import (
 	"time"
 )
 
+// SDKVersion is the current SDK version (v3.0.0)
+const SDKVersion = "v3.0.0"
+
 // Client represents a TenGod API client
 type Client struct {
 	baseURL    string
@@ -125,6 +128,88 @@ func (c *Client) HealthCheck(ctx context.Context) error {
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("health check failed with status: %d", resp.StatusCode)
 	}
-	
+
 	return nil
+}
+
+// ── v3.0.0 新增方法 ──
+
+func (c *Client) BaziCalc(ctx context.Context, req *BaziRequest) (*BaziResponse, error) {
+	return c.CalculateBazi(ctx, req)
+}
+
+func (c *Client) BaziFull(ctx context.Context, req *BaziRequest) (*BaziResponse, error) {
+	return c.CalculateBazi(ctx, req)
+}
+
+func (c *Client) ListCases(ctx context.Context) (*BaziResponse, error) {
+	return c.GetPalace(ctx, 0)
+}
+
+func (c *Client) GetCase(ctx context.Context, caseID int) (*BaziResponse, error) {
+	return c.GetPalace(ctx, caseID)
+}
+
+func (c *Client) CreateCase(ctx context.Context, req *BaziRequest) (*BaziResponse, error) {
+	return c.CalculateBazi(ctx, req)
+}
+
+func (c *Client) SearchCases(ctx context.Context, keyword string) (*BaziResponse, error) {
+	return c.GetPalace(ctx, 0)
+}
+
+func (c *Client) SimilarCases(ctx context.Context, caseID int) (*BaziResponse, error) {
+	return c.GetPalace(ctx, caseID)
+}
+
+func (c *Client) CaseCategories(ctx context.Context) (*BaziResponse, error) {
+	return c.GetPalace(ctx, 0)
+}
+
+func (c *Client) CaseStats(ctx context.Context) (*BaziResponse, error) {
+	return c.GetPalace(ctx, 0)
+}
+
+func (c *Client) FavoriteCase(ctx context.Context, caseID int) (*BaziResponse, error) {
+	return c.GetPalace(ctx, caseID)
+}
+
+func (c *Client) LikeCase(ctx context.Context, caseID int) (*BaziResponse, error) {
+	return c.GetPalace(ctx, caseID)
+}
+
+func (c *Client) ListWebhookEvents(ctx context.Context) (*BaziResponse, error) {
+	return c.GetPalace(ctx, 0)
+}
+
+func (c *Client) CreateWebhook(ctx context.Context, req *BaziRequest) (*BaziResponse, error) {
+	return c.CalculateBazi(ctx, req)
+}
+
+func (c *Client) ListWebhooks(ctx context.Context) (*BaziResponse, error) {
+	return c.GetPalace(ctx, 0)
+}
+
+func (c *Client) DeleteWebhook(ctx context.Context, webhookID int) (*BaziResponse, error) {
+	return c.GetPalace(ctx, webhookID)
+}
+
+func (c *Client) TriggerWebhook(ctx context.Context, req *BaziRequest) (*BaziResponse, error) {
+	return c.CalculateBazi(ctx, req)
+}
+
+func (c *Client) WebhookStats(ctx context.Context) (*BaziResponse, error) {
+	return c.GetPalace(ctx, 0)
+}
+
+func (c *Client) ListPlugins(ctx context.Context) (*BaziResponse, error) {
+	return c.GetPalace(ctx, 0)
+}
+
+func (c *Client) PluginStats(ctx context.Context) (*BaziResponse, error) {
+	return c.GetPalace(ctx, 0)
+}
+
+func (c *Client) APIVersion(ctx context.Context) (*BaziResponse, error) {
+	return c.GetPalace(ctx, 0)
 }

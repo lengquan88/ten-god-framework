@@ -19,9 +19,8 @@ geju_engine.py — 格局 + 喜用神 + 调候引擎 v1.0.0
 from __future__ import annotations
 
 from collections import Counter
-from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, Dict, List, Optional, Set
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
 
 __all__ = [
     "GejuEngine",
@@ -856,7 +855,6 @@ def text_report_comprehensive(pillars: Dict[str, str]) -> str:
 # ============================================================================
 
 if __name__ == "__main__":
-    import json
 
     # 测试：1990-06-15 → 庚午壬午辛亥癸巳
     test_pillars = {

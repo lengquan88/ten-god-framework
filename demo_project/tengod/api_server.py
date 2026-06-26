@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-api_server.py — 十神架构 · REST API 服务 v1.0.0
+api_server.py — 十神架构 · REST API 服务 v2.10.0
 
 FastAPI-based HTTP REST API，将全部六阶段能力服务化。
 
@@ -20,7 +20,15 @@ FastAPI-based HTTP REST API，将全部六阶段能力服务化。
   /api/knowledge/bagua/{trigram}  — 八卦查询
   /api/knowledge/shigan           — 十神推演
   /api/knowledge/dizhi            — 地支分析
-
+  
+  v2.2 新增端点:
+  /api/v2/solar-time   — 真太阳时计算
+  /api/v2/jieqi        — 节气查询
+  /api/v2/wuxing/strength — 五行旺衰量化
+  /api/v2/chart/bazi   — 八字命盘 HTML 可视化
+  /api/v2/ai/analyze   — Deepseek AI 智能分析
+  /api/v2/ai/stream    — AI 流式响应
+        
 用法:
     python -m tengod.api_server                          # 启动 (默认 8000)
     python -m tengod.api_server --port 8080              # 指定端口
@@ -38,18 +46,18 @@ import json
 import os
 import sys
 import time
+import threading
 import logging
-import hashlib
 import secrets
 from collections import defaultdict
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from functools import wraps
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException, Request, Depends, Query, Header
+from fastapi import FastAPI, HTTPException, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 import uvicorn
@@ -303,20 +311,28 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="十神架构 · API Server",
     description="""
-## 中华文明数字永生体 · REST API
+## 中华文明数字永生体 · REST API v2.14.0 (天眼架构)
 
 提供八字排盘、神煞推算、格局判断、喜用神分析、调候分析、
-语义搜索、知识关联推荐等全部能力。
+语义搜索、知识关联推荐、真太阳时、五行旺衰、AI 智能分析等全部能力。
+
+### 天眼架构 v2.14
+- **/api/v2/gate/*** — 天眼门禁 / 知止判定
+- **/api/v2/realms/*** — 修真九境评测
+- **/api/v2/correct** — 七步自修正
+- **/api/v2/hundun/*** — 混沌海探索
+- **/api/v2/huigu/*** — 回头看调度
 
 ### 功能分组
 - **/api/bazi/*** — 八字排盘与命理分析
 - **/api/knowledge/*** — 知识查询与语义搜索
+- **/api/v2/** — v2.14 新增：天眼架构全功能
 - **/api/health** — 服务健康检查
 
 ### 鉴权
 通过 `X-API-Key` 请求头传递 API Key（若启动时启用了鉴权）。
 """,
-    version="1.0.0",
+    version="2.15.0",
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",
@@ -330,6 +346,96 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# v2.15 天眼全局门禁中间件
+from tengod.middleware import TianmenMiddleware, get_middleware
+app.add_middleware(TianmenMiddleware)
+
+# 添加门禁统计端点
+@app.get("/api/v2/gate/middleware-stats", tags=["v2.15 天眼监控"])
+async def gate_middleware_stats():
+    """天眼门禁中间件全局统计"""
+    mw = get_middleware()
+    return mw.get_stats()
+
+
+@app.get("/api/v2/gate/xiuzhen-progress", tags=["v2.15 天眼监控"])
+async def gate_xiuzhen_progress():
+    """修真九境评测进度"""
+    from tengod.xiuzhen_realms import get_evaluator
+    evaluator = get_evaluator()
+    return evaluator.get_progress()
+
+
+@app.get("/api/v2/gate/hundun-foams", tags=["v2.15 天眼监控"])
+async def gate_hundun_foams(limit: int = 20):
+    """混沌海浮沫坐标"""
+    from tengod.hundun_sea import get_hundun_sea
+    sea = get_hundun_sea()
+    return sea.get_foams(limit=limit)
+
+
+@app.get("/api/v2/gate/correction-log", tags=["v2.15 天眼监控"])
+async def gate_correction_log(limit: int = 20):
+    """自修正历史记录"""
+    from tengod.self_correction import get_daemon
+    daemon = get_daemon()
+    return daemon.get_stats()
+
+
+@app.get("/api/v2/gate/huigu-status", tags=["v2.15 天眼监控"])
+async def gate_huigu_status():
+    """回头看调度器状态"""
+    from tengod.huigu_scheduler import get_scheduler
+    scheduler = get_scheduler()
+    return scheduler.get_status()
+
+
+@app.get("/api/v2/gate/inner-child-stats", tags=["v2.16 内在小孩"])
+async def gate_inner_child_stats():
+    """内在小孩状态机统计"""
+    from tengod.inner_child import get_inner_child_sm
+    sm = get_inner_child_sm()
+    return sm.get_stats()
+
+
+@app.get("/api/v2/gate/inner-child-archetypes", tags=["v2.16 内在小孩"])
+async def gate_inner_child_archetypes():
+    """六道内在小孩原型定义"""
+    from tengod.inner_child import SIX_ARCHETYPES
+    return {
+        "archetypes": [
+            {
+                "index": a.index,
+                "name": a.name,
+                "name_en": a.name_en,
+                "description": a.description,
+                "dao_principle": a.dao_principle,
+            }
+            for a in SIX_ARCHETYPES
+        ],
+        "dim": 64,
+        "gate_config": {
+            "alertness": 32.0,
+            "phi_limit": 0.8,
+            "beta_limit": 0.7,
+            "beta_escape_limit": 0.85,
+            "lambda_gradient_retreat": 0.4,
+            "gamma_zhongyong_damping": 0.2,
+            "delta_phi_threshold": 0.15,
+        },
+    }
+
+
+@app.get("/api/v2/gate/inner-child-memory-pool", tags=["v2.16 内在小孩"])
+async def gate_inner_child_memory_pool():
+    """记忆池统计——渡劫经验固化"""
+    from tengod.inner_child import get_inner_child_sm
+    sm = get_inner_child_sm()
+    return sm.memory_pool.get_stats()
+
+# Gzip 压缩（移动端流量优化 v2.3）
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 
 # 鉴权（API Key）
 app.add_middleware(AuthMiddleware)
@@ -692,7 +798,7 @@ async def bazi_report(query: ReportQuery, request: Request,
         analyzer = BaziAnalyzer(query.bazi.year, query.bazi.month, query.bazi.day,
                                 query.bazi.hour, query.bazi.minute, is_male=is_male,
                                 longitude=query.bazi.longitude, latitude=query.bazi.latitude)
-        gen = BaziReportGenerator(analyzer)
+        gen = BaziReportGenerator(analyzer, lang=getattr(query, 'lang', 'zh-CN'))
 
         pillars = analyzer.analysis["pillars"]
         if query.include_shensha:
@@ -1269,7 +1375,7 @@ async def ai_chat(query: ChatQuery, request: Request):
     authorize(request, "chat:send")
     from tengod.metrics_collector import metrics
     metrics.record_ai_chat()
-    from tengod.llm_adapter import get_llm, chat, chat_stream, ChatMessage
+    from tengod.llm_adapter import get_llm, chat, chat_stream
 
     llm = get_llm()
 
@@ -1655,7 +1761,7 @@ class CaseLinkRequest(BaseModel):
 class WebhookSubscribeRequest(BaseModel):
     """Webhook 订阅请求"""
     url: str = Field(..., min_length=1, max_length=512, description="回调 URL")
-    events: List[str] = Field(..., min_items=1, description="订阅事件列表，支持 * 通配")
+    events: List[str] = Field(..., min_length=1, description="订阅事件列表，支持 * 通配")
     secret: Optional[str] = Field(default="", max_length=256, description="HMAC 签名密钥")
     description: Optional[str] = Field(default="", max_length=256)
 
@@ -2086,7 +2192,7 @@ async def plugin_stats(request: Request):
 
 class BatchBaziRequest(BaseModel):
     """批量排盘请求"""
-    inputs: List[Dict[str, Any]] = Field(..., min_items=1, max_items=100)
+    inputs: List[Dict[str, Any]] = Field(..., min_length=1, max_length=100)
 
 
 class CompareCasesRequest(BaseModel):
@@ -2427,7 +2533,7 @@ async def api_version():
 async def register(req: RegisterRequest):
     """用户注册"""
     from tengod.auth import PasswordHasher
-    from tengod.data_store import DataStore, User as UserModel
+    from tengod.data_store import User as UserModel
 
     store = _get_data_store()
     with store._session() as s:
@@ -2463,8 +2569,8 @@ async def register(req: RegisterRequest):
 @app.post("/api/auth/login", tags=["用户认证"])
 async def login(req: LoginRequest):
     """用户登录"""
-    from tengod.auth import PasswordHasher, JWTManager, create_token_pair
-    from tengod.data_store import DataStore, User as UserModel
+    from tengod.auth import PasswordHasher, create_token_pair
+    from tengod.data_store import User as UserModel
 
     store = _get_data_store()
     with store._session() as s:
@@ -2547,7 +2653,7 @@ async def get_me(request: Request):
 async def change_password(req: ChangePasswordRequest, request: Request):
     """修改密码"""
     from tengod.auth import CurrentUser, PasswordHasher
-    from tengod.data_store import DataStore, User as UserModel
+    from tengod.data_store import User as UserModel
 
     user: Optional[CurrentUser] = getattr(request.state, "current_user", None)
     if user is None or not user.is_authenticated:
@@ -2572,7 +2678,7 @@ async def change_password(req: ChangePasswordRequest, request: Request):
 async def update_profile(req: UpdateUserRequest, request: Request):
     """更新用户资料"""
     from tengod.auth import CurrentUser
-    from tengod.data_store import DataStore, User as UserModel
+    from tengod.data_store import User as UserModel
 
     user: Optional[CurrentUser] = getattr(request.state, "current_user", None)
     if user is None or not user.is_authenticated:
@@ -2606,7 +2712,7 @@ async def update_profile(req: UpdateUserRequest, request: Request):
 async def list_users_admin(request: Request):
     """列出所有用户（仅管理员）"""
     from tengod.auth import CurrentUser
-    from tengod.data_store import DataStore, User as UserModel
+    from tengod.data_store import User as UserModel
 
     user: Optional[CurrentUser] = getattr(request.state, "current_user", None)
     if user is None or user.role != "admin":
@@ -2637,7 +2743,7 @@ async def list_users_admin(request: Request):
 async def update_user_role(user_id: int, role: str, request: Request):
     """更新用户角色（仅管理员）"""
     from tengod.auth import CurrentUser, ROLE_PERMISSIONS
-    from tengod.data_store import DataStore, User as UserModel
+    from tengod.data_store import User as UserModel
 
     current: Optional[CurrentUser] = getattr(request.state, "current_user", None)
     if current is None or current.role != "admin":
@@ -2662,7 +2768,7 @@ async def update_user_role(user_id: int, role: str, request: Request):
 async def toggle_user_status(user_id: int, request: Request):
     """启用/禁用用户（仅管理员）"""
     from tengod.auth import CurrentUser
-    from tengod.data_store import DataStore, User as UserModel
+    from tengod.data_store import User as UserModel
 
     current: Optional[CurrentUser] = getattr(request.state, "current_user", None)
     if current is None or current.role != "admin":
@@ -3049,6 +3155,1614 @@ async def general_exception_handler(request: Request, exc: Exception):
             "timestamp": datetime.now(timezone.utc).isoformat(),
         },
     )
+
+
+# ============================================================================
+# v2.2 新增端点：真太阳时、节气、五行旺衰、命盘可视化、Deepseek AI
+# ============================================================================
+
+# ─── v2.2 请求模型 ─────────────────────────────────────────────────────────
+
+class SolarTimeRequest(BaseModel):
+    """真太阳时计算请求"""
+    year: int = Field(..., ge=1900, le=2100, description="年")
+    month: int = Field(..., ge=1, le=12, description="月")
+    day: int = Field(..., ge=1, le=31, description="日")
+    hour: int = Field(default=12, ge=0, le=23, description="时")
+    minute: int = Field(default=0, ge=0, le=59, description="分")
+    longitude: float = Field(default=120.0, description="经度")
+
+
+class JieqiRequest(BaseModel):
+    """节气查询请求"""
+    year: int = Field(..., ge=1900, le=2100, description="年")
+    month: int = Field(..., ge=1, le=12, description="月")
+    day: int = Field(..., ge=1, le=31, description="日")
+
+
+class WuxingStrengthRequest(BaseModel):
+    """五行旺衰查询请求"""
+    month: int = Field(..., ge=1, le=12, description="月份")
+    element: Optional[str] = Field(default=None, description="指定五行: 木/火/土/金/水")
+
+
+class ChartBaziRequest(BaseModel):
+    """命盘可视化请求"""
+    bazi: BaziInput = Field(..., description="八字输入")
+    theme: str = Field(default="classic", description="主题: classic/modern/minimal")
+    format: str = Field(default="html", description="输出格式: html/json")
+
+
+class AIAnalyzeRequest(BaseModel):
+    """AI 智能分析请求"""
+    bazi: BaziInput = Field(..., description="八字输入")
+    analysis_type: str = Field(default="basic", description="分析类型: basic/career/year/marriage/full")
+    focus: str = Field(default="综合", description="分析焦点")
+    target_year: Optional[int] = Field(default=None, ge=1900, le=2200, description="流年分析年份")
+    age: Optional[int] = Field(default=None, ge=0, le=120, description="事业分析年龄")
+    partner_bazi: Optional[BaziInput] = Field(default=None, description="合婚对方八字")
+
+
+class AIStreamRequest(BaseModel):
+    """AI 流式分析请求"""
+    bazi: BaziInput = Field(..., description="八字输入")
+    question: str = Field(default="", description="用户问题")
+    analysis_type: str = Field(default="basic", description="分析类型")
+
+
+# ─── v2.2 API 端点 ─────────────────────────────────────────────────────────
+
+@app.post("/api/v2/solar-time", tags=["v2.2 真太阳时"])
+async def v2_solar_time(req: SolarTimeRequest, request: Request):
+    """真太阳时计算：经度修正 + 均时差 + 时辰映射"""
+    from tengod.auth import authorize
+    authorize(request, "bazi:calc")
+    try:
+        from tengod.solar_time import SolarTimeCalculator
+        from datetime import datetime
+        calc = SolarTimeCalculator(longitude=req.longitude)
+        local = datetime(req.year, req.month, req.day, req.hour, req.minute)
+        result = calc.calculate(local)
+        shichen = calc.get_shichen(result.true_hour)
+        return {
+            "input": {"datetime": f"{req.year}-{req.month:02d}-{req.day:02d} {req.hour:02d}:{req.minute:02d}",
+                      "longitude": req.longitude},
+            "solar_time": f"{result.true_hour:02d}:{result.true_minute:02d}",
+            "time_correction_minutes": round(result.time_correction, 2),
+            "shichen": shichen,
+            "shichen_range": {"start": calc.get_shichen_range(shichen)[0],
+                              "end": calc.get_shichen_range(shichen)[1]},
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"真太阳时计算失败: {e}")
+
+
+@app.post("/api/v2/jieqi", tags=["v2.2 节气"])
+async def v2_jieqi(req: JieqiRequest, request: Request):
+    """节气查询：当前节气 + 下一节气 + 节气日判断"""
+    from tengod.auth import authorize
+    authorize(request, "bazi:calc", consume_quota=False)
+    try:
+        from tengod.solar_time import JieqiCalculator
+        calc = JieqiCalculator()
+        info = calc.get_jieqi(req.year, req.month, req.day)
+        is_jieqi = calc.is_jieqi_day(req.month, req.day)
+        return {
+            "date": f"{req.year}-{req.month:02d}-{req.day:02d}",
+            "current_jieqi": info.get("current"),
+            "next_jieqi": info.get("next"),
+            "is_jieqi_day": is_jieqi,
+            "month": info.get("month"),
+            "day": info.get("day"),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"节气查询失败: {e}")
+
+
+@app.post("/api/v2/wuxing/strength", tags=["v2.2 五行旺衰"])
+async def v2_wuxing_strength(req: WuxingStrengthRequest, request: Request):
+    """五行旺衰量化：旺/相/休/囚/死 五级量化"""
+    from tengod.auth import authorize
+    authorize(request, "bazi:calc", consume_quota=False)
+    try:
+        from tengod.solar_time import WuxingStrengthCalculator
+        calc = WuxingStrengthCalculator()
+        if req.element:
+            result = calc.calculate_strength(req.element, req.month)
+            return {
+                "month": req.month,
+                "season": calc.get_season(req.month),
+                "element": req.element,
+                "status": result["status"],
+                "strength": result["strength"],
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+        all_strengths = calc.calculate_all(req.month)
+        return {
+            "month": req.month,
+            "season": calc.get_season(req.month),
+            "strengths": all_strengths,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"五行旺衰计算失败: {e}")
+
+
+@app.post("/api/v2/chart/bazi", tags=["v2.2 命盘可视化"])
+async def v2_chart_bazi(req: ChartBaziRequest, request: Request):
+    """八字命盘可视化：生成交互式 HTML 命盘或 JSON 数据"""
+    from tengod.auth import authorize
+    authorize(request, "bazi:calc")
+    try:
+        from tengod.chart_visualizer import BaziChartVisualizer, VisualizationConfig
+        from tengod.bazi_analyzer import BaziAnalyzer
+        from tengod.shensha_engine import calc_all_shensha
+        from tengod.geju_engine import calc_geju
+
+        is_male = req.bazi.gender == "male"
+        analyzer = BaziAnalyzer(req.bazi.year, req.bazi.month, req.bazi.day,
+                                req.bazi.hour, req.bazi.minute, is_male=is_male,
+                                longitude=req.bazi.longitude, latitude=req.bazi.latitude)
+        a = analyzer.analysis
+        pillars = a["pillars"]
+
+        # 统计五行
+        wuxing_count = {"木": 0, "火": 0, "土": 0, "金": 0, "水": 0}
+        wuxing_map = {'甲': '木', '乙': '木', '丙': '火', '丁': '火',
+                       '戊': '土', '己': '土', '庚': '金', '辛': '金',
+                       '壬': '水', '癸': '水'}
+        for pillar in pillars.values():
+            for char in pillar:
+                if char in wuxing_map:
+                    wuxing_count[wuxing_map[char]] += 1
+
+        # 神煞
+        shensha_result = calc_all_shensha(pillars)
+        shensha_names = [v["name"] for v in shensha_result.all_shensha.values()][:10]
+
+        geju_result = calc_geju(pillars)
+
+        chart_data = {
+            "pillars": pillars,
+            "wuxing": wuxing_count,
+            "geju": geju_result.geju_name,
+            "shensha": shensha_names,
+        }
+
+        if req.format == "json":
+            viz = BaziChartVisualizer()
+            return {"json": json.loads(viz.generate_json(chart_data)),
+                    "timestamp": datetime.now(timezone.utc).isoformat()}
+
+        cfg = VisualizationConfig(theme=req.theme)
+        viz = BaziChartVisualizer(cfg)
+        html = viz.generate_html(chart_data)
+        return HTMLResponse(content=html)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"命盘可视化生成失败: {e}")
+
+
+@app.post("/api/v2/ai/analyze", tags=["v2.2 AI 分析"])
+async def v2_ai_analyze(req: AIAnalyzeRequest, request: Request):
+    """Deepseek AI 智能命理分析：八字解读/流年/合婚/事业/综合"""
+    from tengod.auth import authorize
+    authorize(request, "ai:interpret")
+    from tengod.metrics_collector import metrics
+    metrics.record_ai_chat()
+    try:
+        from tengod.intelligent_analysis import get_engine
+        from tengod.bazi_analyzer import BaziAnalyzer
+        from tengod.shensha_engine import calc_all_shensha
+        from tengod.geju_engine import calc_geju
+
+        is_male = req.bazi.gender == "male"
+        analyzer = BaziAnalyzer(req.bazi.year, req.bazi.month, req.bazi.day,
+                                req.bazi.hour, req.bazi.minute, is_male=is_male,
+                                longitude=req.bazi.longitude, latitude=req.bazi.latitude)
+        a = analyzer.analysis
+        pillars = a["pillars"]
+
+        wuxing_count = {"木": 0, "火": 0, "土": 0, "金": 0, "水": 0}
+        wuxing_map = {'甲': '木', '乙': '木', '丙': '火', '丁': '火',
+                       '戊': '土', '己': '土', '庚': '金', '辛': '金',
+                       '壬': '水', '癸': '水'}
+        for pillar in pillars.values():
+            for char in pillar:
+                if char in wuxing_map:
+                    wuxing_count[wuxing_map[char]] += 1
+
+        shensha_result = calc_all_shensha(pillars)
+        shensha_names = [v["name"] for v in shensha_result.all_shensha.values()][:10]
+        geju_result = calc_geju(pillars)
+
+        bazi_data = {
+            "pillars": pillars,
+            "wuxing": wuxing_count,
+            "geju": geju_result.geju_name,
+            "shensha": shensha_names,
+        }
+
+        engine = get_engine()
+        options = {}
+
+        if req.analysis_type in ("career", "full"):
+            options["career"] = True
+            options["age"] = req.age or 30
+        if req.analysis_type in ("year", "full"):
+            options["year"] = req.target_year or 2026
+        if req.analysis_type == "marriage" and req.partner_bazi:
+            from tengod.bazi_analyzer import BaziAnalyzer as BA2
+            p = req.partner_bazi
+            partner_analyzer = BA2(p.year, p.month, p.day, p.hour, p.minute,
+                                   is_male=(p.gender != req.bazi.gender),
+                                   longitude=p.longitude, latitude=p.latitude)
+            partner_pillars = partner_analyzer.analysis["pillars"]
+            options["marriage"] = True
+            options["partner_bazi"] = {"pillars": partner_pillars}
+
+        result = await engine.full_analysis(bazi_data, options=options)
+
+        response = {
+            "analysis_type": req.analysis_type,
+            "focus": req.focus,
+            "results": {},
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+        for key, val in result.items():
+            if hasattr(val, "__dict__"):
+                response["results"][key] = {
+                    "title": val.title,
+                    "content": val.content if len(val.content) < 500 else val.content[:500] + "...",
+                    "score": val.score,
+                    "tags": val.tags,
+                    "recommendations": val.recommendations[:3],
+                }
+            else:
+                response["results"][key] = str(val)[:500]
+
+        return response
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI 智能分析失败: {e}")
+
+
+@app.post("/api/v2/ai/stream", tags=["v2.2 AI 分析"])
+async def v2_ai_stream(req: AIStreamRequest, request: Request):
+    """Deepseek AI 流式分析：SSE 实时推送分析结果"""
+    from tengod.auth import authorize
+    authorize(request, "ai:interpret:stream")
+    from tengod.metrics_collector import metrics
+    metrics.record_ai_chat()
+    try:
+        from tengod.deepseek_adapter import DeepseekClient, DeepseekConfig, Message, BAZI_SYSTEM_PROMPT
+        from tengod.bazi_analyzer import BaziAnalyzer
+        from tengod.shensha_engine import calc_all_shensha
+        from tengod.geju_engine import calc_geju
+        from fastapi.responses import StreamingResponse
+
+        is_male = req.bazi.gender == "male"
+        analyzer = BaziAnalyzer(req.bazi.year, req.bazi.month, req.bazi.day,
+                                req.bazi.hour, req.bazi.minute, is_male=is_male,
+                                longitude=req.bazi.longitude, latitude=req.bazi.latitude)
+        a = analyzer.analysis
+        pillars = a["pillars"]
+
+        shensha_result = calc_all_shensha(pillars)
+        shensha_names = [v["name"] for v in shensha_result.all_shensha.values()][:10]
+        geju_result = calc_geju(pillars)
+
+        context = (
+            f"八字：年柱{pillars['year']} 月柱{pillars['month']} 日柱{pillars['day']} 时柱{pillars['hour']}\n"
+            f"日主：{a['day_master']}\n"
+            f"格局：{geju_result.geju_name}\n"
+            f"神煞：{','.join(shensha_names)}\n"
+            f"五行：{a.get('wuxing', '')}\n"
+            f"问题：{req.question or '请综合分析此命盘'}"
+        )
+
+        api_key = os.environ.get("DEEPSEEK_API_KEY", "")
+        if not api_key:
+            raise HTTPException(status_code=503, detail="DEEPSEEK_API_KEY 未配置")
+
+        async def generate():
+            client = DeepseekClient(DeepseekConfig(api_key=api_key))
+            try:
+                async for chunk in client.stream_chat(
+                    [Message(role="user", content=context)],
+                    system_prompt=BAZI_SYSTEM_PROMPT[:500],
+                ):
+                    yield f"data: {json.dumps({'chunk': chunk}, ensure_ascii=False)}\n\n"
+                yield "data: [DONE]\n\n"
+            finally:
+                await client.close()
+
+        return StreamingResponse(
+            generate(),
+            media_type="text/event-stream",
+            headers={"X-Backend": "deepseek-chat", "X-API-Version": "2.2.0"},
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI 流式分析失败: {e}")
+
+
+# ============================================================================
+# v2.3 新增：国际化端点
+# ============================================================================
+
+@app.get("/api/v2/i18n/languages", tags=["v2.3 国际化"])
+async def v2_i18n_languages(request: Request):
+    """获取可用语言列表"""
+    from tengod.auth import authorize
+    authorize(request, "public", consume_quota=False)
+    from tengod.i18n import get_i18n_engine
+    engine = get_i18n_engine()
+    return {"languages": engine.get_available_langs(), "default": "zh-CN"}
+
+
+@app.post("/api/v2/i18n/translate", tags=["v2.3 国际化"])
+async def v2_i18n_translate(request: Request):
+    """批量翻译接口：传入文本数组和目标语言，返回翻译结果"""
+    from tengod.auth import authorize
+    authorize(request, "public", consume_quota=False)
+    try:
+        body = await request.json()
+        texts = body.get("texts", [])
+        lang = body.get("lang", "en")
+        from tengod.i18n import get_i18n_engine
+        engine = get_i18n_engine()
+        result = {text: engine.translate(text, lang) for text in texts}
+        return {"lang": lang, "translations": result}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# ============================================================================
+# v2.3 新增：移动端轻量端点 + 分页
+# ============================================================================
+
+@app.get("/api/v2/mobile/bazi/quick", tags=["v2.3 移动端"])
+async def v2_mobile_bazi_quick(
+    request: Request,
+    year: int, month: int, day: int, hour: int,
+    minute: int = 0, gender: str = "male",
+    longitude: float = 116.4, latitude: float = 39.9,
+    lang: str = "zh-CN",
+):
+    """移动端轻量八字排盘：只返回核心数据，减少 payload"""
+    from tengod.auth import authorize
+    authorize(request, "bazi:calc")
+    try:
+        from tengod.bazi_analyzer import BaziAnalyzer
+        is_male = gender == "male"
+        analyzer = BaziAnalyzer(year, month, day, hour, minute,
+                                is_male=is_male, longitude=longitude, latitude=latitude)
+        a = analyzer.analysis
+        pillars = a["pillars"]
+
+        # 统计五行
+        wuxing_count = {"木": 0, "火": 0, "土": 0, "金": 0, "水": 0}
+        wuxing_map = {'甲': '木', '乙': '木', '丙': '火', '丁': '火',
+                       '戊': '土', '己': '土', '庚': '金', '辛': '金',
+                       '壬': '水', '癸': '水'}
+        for pillar in pillars.values():
+            for char in pillar:
+                if char in wuxing_map:
+                    wuxing_count[wuxing_map[char]] += 1
+
+        # 翻译
+        result = {
+            "p": pillars,
+            "d": a["day_master"],
+            "w": wuxing_count,
+            "t": a.get("total_score", 0),
+        }
+
+        if lang != "zh-CN":
+            from tengod.i18n import translate_bazi, translate_wuxing
+            result["p"] = translate_bazi(pillars, lang=lang)
+            result["w"] = translate_wuxing(wuxing_count, lang=lang)
+
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v2/knowledge/list", tags=["v2.3 移动端"])
+async def v2_knowledge_list(
+    request: Request,
+    page: int = 1,
+    page_size: int = 20,
+    category: Optional[str] = None,
+    lang: str = "zh-CN",
+):
+    """知识图谱列表：支持分页、分类过滤、多语言"""
+    from tengod.auth import authorize
+    authorize(request, "knowledge:read", consume_quota=False)
+    try:
+        from tengod.graph_engine import get_graph_db
+        graph_db = get_graph_db()
+        nodes = list(graph_db._nodes.values())
+
+        # 分类过滤
+        if category:
+            nodes = [n for n in nodes if n.label == category]
+
+        total = len(nodes)
+        start = (page - 1) * page_size
+        end = start + page_size
+        page_nodes = nodes[start:end]
+
+        # 翻译
+        if lang != "zh-CN":
+            from tengod.i18n import t as ti18n
+            result_nodes = []
+            for n in page_nodes:
+                d = n.to_dict()
+                d["name"] = ti18n(d["name"], lang)
+                result_nodes.append(d)
+        else:
+            result_nodes = [n.to_dict() for n in page_nodes]
+
+        return {
+            "items": result_nodes,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": (total + page_size - 1) // page_size,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# v2.7: 六爻卦象 API
+# ============================================================================
+
+from pydantic import BaseModel, Field
+
+class LiuyaoCastRequest(BaseModel):
+    date: Optional[str] = Field(None, description="日期 (YYYY-MM-DD)，默认今天")
+    question: Optional[str] = Field(None, description="所问之事")
+    method: str = Field("random", description="起卦方式: random(随机) / manual(手动)")
+
+class LiuyaoCastResponse(BaseModel):
+    ben_gua_name: str
+    bian_gua_name: str = ""
+    hu_gua_name: str = ""
+    shang_gua: str = ""
+    xia_gua: str = ""
+    gua_gong: str = ""
+    yaos: List[Dict[str, Any]] = []
+    overall_judgment: str = ""
+    day_ganzhi: str = ""
+
+
+@app.post("/api/liuyao/cast", response_model=LiuyaoCastResponse, tags=["v2.7 六爻"])
+async def cast_liuyao(request: LiuyaoCastRequest):
+    """六爻起卦"""
+    try:
+        from tengod.liuyao_engine import LiuyaoEngine
+        engine = LiuyaoEngine()
+        result = engine.calc_gua(day_ganzhi=request.date)
+        yaos = [
+            {
+                "position": y.position,
+                "yao_type": str(y.yao_type),
+                "is_dong": y.is_dong,
+                "zhi": y.zhi,
+                "liuqin": y.liuqin,
+                "liushen": y.liushen,
+                "shi": y.shi,
+                "ying": y.ying,
+            }
+            for y in result.yaos
+        ]
+        return LiuyaoCastResponse(
+            ben_gua_name=result.ben_gua_name,
+            bian_gua_name=result.bian_gua_name,
+            hu_gua_name=result.hu_gua_name,
+            shang_gua=result.shang_gua,
+            xia_gua=result.xia_gua,
+            gua_gong=result.gua_gong,
+            yaos=yaos,
+            overall_judgment=result.overall_judgment,
+            day_ganzhi=result.day_ganzhi,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/liuyao/chart", tags=["v2.7 六爻"])
+async def liuyao_chart(date: Optional[str] = None, question: Optional[str] = None):
+    """六爻卦象 HTML 可视化"""
+    try:
+        from tengod.liuyao_engine import LiuyaoEngine
+        from tengod.chart_visualizer import visualize_liuyao
+        engine = LiuyaoEngine()
+        result = engine.calc_gua(day_ganzhi=date)
+        html = visualize_liuyao(result)
+        return HTMLResponse(content=html)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# v2.7: SSE 流式解读端点
+# ============================================================================
+
+from starlette.responses import StreamingResponse
+
+@app.post("/api/v2/ai/stream-interpret", tags=["v2.7 AI 流式"])
+async def stream_ai_interpret(request: Request):
+    """SSE 流式 AI 解读"""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+
+    bazi_context = body.get("bazi_context", "")
+    question = body.get("question", "请分析命盘")
+    system = body.get("system", "bazi")
+
+    async def generate():
+        try:
+            from tengod.llm_adapter import get_llm_adapter
+            llm = get_llm_adapter()
+
+            if system == "bazi":
+                from tengod.ai_interpreter import BAZI_INTERPRET_PROMPT
+                prompt = BAZI_INTERPRET_PROMPT
+            elif system == "liuyao":
+                prompt = "你是一位精通六爻的占卜师，请根据卦象进行解读。"
+            else:
+                prompt = "你是一位精通命理的顾问，请进行专业分析。"
+
+            messages = [
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": f"{question}\n\n{bazi_context}"},
+            ]
+
+            response = await llm.chat_stream(messages)
+            async for chunk in response:
+                content = getattr(chunk, "content", "") if hasattr(chunk, "content") else str(chunk)
+                if content:
+                    yield f"data: {json.dumps({'content': content}, ensure_ascii=False)}\n\n"
+            yield "data: [DONE]\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'error': str(e)}, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
+
+
+# ============================================================================
+# v2.7: 异步任务端点
+# ============================================================================
+
+_task_store: Dict[str, Dict[str, Any]] = {}
+_task_counter = 0
+_task_lock = __import__("threading").Lock()
+
+@app.post("/api/tasks", tags=["v2.7 异步任务"])
+async def create_task(request: Request):
+    """创建异步任务"""
+    global _task_counter
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+
+    task_type = body.get("type", "generic")
+
+    with _task_lock:
+        _task_counter += 1
+        task_id = f"task_{_task_counter}"
+        _task_store[task_id] = {
+            "id": task_id,
+            "type": task_type,
+            "status": "pending",
+            "progress": 0,
+            "result": None,
+            "error": None,
+            "created_at": __import__("datetime").datetime.now().isoformat(),
+        }
+
+    return {"task_id": task_id, "status": "pending"}
+
+
+@app.get("/api/tasks/{task_id}", tags=["v2.7 异步任务"])
+async def get_task_status(task_id: str):
+    """获取任务状态"""
+    task = _task_store.get(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    return task
+
+
+@app.post("/api/tasks/{task_id}/progress", tags=["v2.7 异步任务"])
+async def update_task_progress(task_id: str, progress: int = 0, status: str = "running"):
+    """更新任务进度（内部使用）"""
+    task = _task_store.get(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    task["progress"] = progress
+    task["status"] = status
+    return task
+
+
+# ============================================================================
+# v2.8: 可观测性 + API 加固
+# ============================================================================
+
+from tengod.observability import (
+    get_health_checker, health_check_response,
+    get_metrics_collector, get_request_tracker,
+    generate_request_id, set_request_id, get_request_id,
+    setup_logging, get_logger,
+)
+
+# 初始化日志
+setup_logging(level="INFO", fmt="json")
+logger = get_logger("tengod.api")
+
+# 注册默认健康检查
+_health = get_health_checker()
+_health.register("memory", lambda: {"status": "healthy", "detail": "OK"})
+_health.register("python", lambda: {
+    "status": "healthy",
+    "detail": f"Python {sys.version[:5]}",
+    "version": sys.version,
+})
+
+
+# ── 请求追踪中间件 ──────────────────────────────────────────────────────────
+
+@app.middleware("http")
+async def request_tracking_middleware(request: Request, call_next):
+    """请求追踪中间件"""
+    rid = request.headers.get("X-Request-ID", generate_request_id())
+    set_request_id(rid)
+
+    tracker = get_request_tracker()
+    tracker.start_request(rid, request.method, request.url.path)
+
+    start = time.time()
+    try:
+        response = await call_next(request)
+        duration_ms = (time.time() - start) * 1000
+        tracker.end_request(rid, response.status_code, duration_ms)
+        response.headers["X-Request-ID"] = rid
+        response.headers["X-Response-Time"] = f"{duration_ms:.1f}ms"
+        return response
+    except Exception as e:
+        duration_ms = (time.time() - start) * 1000
+        tracker.end_request(rid, 500, duration_ms)
+        logger.error(f"Request failed: {str(e)}", extra={"request_id": rid, "path": request.url.path})
+        raise
+
+
+# ── 全局错误处理 ────────────────────────────────────────────────────────────
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """全局异常处理"""
+    logger.error(f"Unhandled exception: {str(exc)}", extra={"path": request.url.path})
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "internal_server_error",
+            "message": str(exc)[:200],
+            "request_id": get_request_id(),
+        },
+    )
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler_v2(request: Request, exc: HTTPException):
+    """HTTP 异常统一格式"""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": "http_error",
+            "message": exc.detail,
+            "status_code": exc.status_code,
+            "request_id": get_request_id(),
+        },
+    )
+
+
+# ── 速率限制 ────────────────────────────────────────────────────────────────
+
+_rate_limit_store: Dict[str, List[float]] = {}
+_rate_limit_lock = threading.Lock()
+
+def _check_rate_limit(client_ip: str, max_requests: int = 100, window: int = 60) -> bool:
+    """简单的滑动窗口速率限制"""
+    now = time.time()
+    with _rate_limit_lock:
+        if client_ip not in _rate_limit_store:
+            _rate_limit_store[client_ip] = []
+        timestamps = _rate_limit_store[client_ip]
+        timestamps = [t for t in timestamps if now - t < window]
+        _rate_limit_store[client_ip] = timestamps
+
+        if len(timestamps) >= max_requests:
+            return False
+
+        timestamps.append(now)
+        return True
+
+    # 清理过期条目
+    if len(_rate_limit_store) > 10000:
+        expired = [ip for ip, ts in _rate_limit_store.items()
+                    if not ts or now - ts[-1] > window * 2]
+        for ip in expired:
+            _rate_limit_store.pop(ip, None)
+
+
+# ── 健康检查端点 ────────────────────────────────────────────────────────────
+
+@app.get("/health", tags=["v2.8 可观测性"])
+async def health_check_v2():
+    """健康检查端点"""
+    return health_check_response()
+
+
+@app.get("/health/ready", tags=["v2.8 可观测性"])
+async def readiness_check():
+    """就绪检查"""
+    result = health_check_response()
+    if result["status"] == "unhealthy":
+        return JSONResponse(status_code=503, content=result)
+    return result
+
+
+@app.get("/health/live", tags=["v2.8 可观测性"])
+async def liveness_check():
+    """存活检查"""
+    return {"status": "alive", "timestamp": datetime.now(timezone.utc).isoformat()}
+
+
+# ── Prometheus 指标端点 ─────────────────────────────────────────────────────
+
+@app.get("/metrics", tags=["v2.8 可观测性"])
+async def metrics():
+    """Prometheus 指标端点"""
+    return Response(
+        content=get_metrics_collector().get_metrics(),
+        media_type="text/plain; charset=utf-8",
+    )
+
+
+# ── 配置端点 ────────────────────────────────────────────────────────────────
+
+@app.get("/api/config", tags=["v2.8 配置"])
+async def get_api_config():
+    """获取当前配置（敏感信息脱敏）"""
+    from tengod.config_manager import get_config_dict
+    cfg = get_config_dict()
+    # 脱敏
+    if "llm" in cfg and "api_key" in cfg["llm"]:
+        key = cfg["llm"]["api_key"]
+        if key and len(key) > 8:
+            cfg["llm"]["api_key"] = key[:4] + "****" + key[-4:]
+    if "security" in cfg and "jwt_secret" in cfg["security"]:
+        secret = cfg["security"]["jwt_secret"]
+        if secret and len(secret) > 8:
+            cfg["security"]["jwt_secret"] = secret[:4] + "****"
+    return cfg
+
+
+# ============================================================================
+# v2.9: 智能体编排 + 知识进化 + 智能对话 API
+# ============================================================================
+
+# ── Pydantic 模型 ────────────────────────────────────────────────────────────
+
+class AgentOrchestrateRequest(BaseModel):
+    query: str = Field(..., description="用户查询/意图描述", min_length=1, max_length=2000)
+    session_id: Optional[str] = Field(None, description="会话ID")
+    params: Optional[Dict[str, Any]] = Field(None, description="额外参数（如出生日期）")
+
+class AgentToolsResponse(BaseModel):
+    tools: List[Dict[str, Any]]
+    count: int
+
+class AgentIntentResponse(BaseModel):
+    primary: str
+    intents: List[str]
+    confidence: float
+    suggested_tools: List[str]
+
+class EvolutionFeedbackRequest(BaseModel):
+    session_id: str = Field(..., description="会话ID")
+    ratings: Dict[str, int] = Field(..., description="评分: accuracy/satisfaction/usefulness (1-5)")
+    domain: str = Field("general", description="知识领域")
+    comment: str = Field("", description="文字反馈")
+    analysis_type: str = Field("", description="分析类型")
+    corrections: Optional[List[Dict[str, str]]] = Field(None, description="纠正列表")
+
+class EvolutionFeedbackResponse(BaseModel):
+    session_id: str
+    overall_score: float
+    domain: str
+    confidence_after: float
+
+class EvolutionStatsResponse(BaseModel):
+    total_feedback: int
+    average_score: float
+    total_nodes: int
+    total_edges: int
+    total_evolutions: int
+    domains: Dict[str, Any]
+    recent_evolutions: List[Dict[str, Any]]
+
+class EvolutionConfidenceResponse(BaseModel):
+    confidences: Dict[str, float]
+    average: float
+    highest: Dict[str, Any]
+    lowest: Dict[str, Any]
+
+class EvolutionAdjustRequest(BaseModel):
+    domain: str = Field(..., description="知识领域")
+    adjustment: float = Field(..., ge=-1.0, le=1.0, description="调整量 [-1.0, 1.0]")
+    reason: str = Field("", description="调整原因")
+
+class ConversationChatRequest(BaseModel):
+    message: str = Field(..., description="用户消息", min_length=1, max_length=5000)
+    session_id: str = Field(..., description="会话ID")
+    bazi_context: str = Field("", description="八字上下文")
+
+class ConversationChatResponse(BaseModel):
+    session_id: str
+    response: str
+    intent: Dict[str, Any]
+    suggestions: List[Dict[str, str]]
+    conversation_state: str
+    session_stats: Dict[str, Any]
+
+class ConversationSessionResponse(BaseModel):
+    session_id: str
+    message_count: int
+    topics_covered: List[str]
+    intent_context: Dict[str, Any]
+
+
+# ── 智能体编排端点 ───────────────────────────────────────────────────────────
+
+@app.post("/api/v2/agent/orchestrate", tags=["v2.9 智能体"])
+async def v2_agent_orchestrate(req: AgentOrchestrateRequest, request: Request):
+    """智能体编排：意图识别 → 计划生成 → 执行工具链 → 返回结果"""
+    from tengod.auth import authorize
+    authorize(request, "agent:orchestrate")
+    try:
+        from tengod.agent_orchestrator import get_orchestrator
+        orchestrator = get_orchestrator()
+        params = req.params or {}
+        result = orchestrator.orchestrate(req.query, session_id=req.session_id, params=params)
+        return result.to_dict()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"智能体编排失败: {e}")
+
+
+@app.get("/api/v2/agent/tools", tags=["v2.9 智能体"])
+async def v2_agent_tools(request: Request):
+    """列出所有可用工具及其规格"""
+    from tengod.auth import authorize
+    authorize(request, "agent:tools", consume_quota=False)
+    try:
+        from tengod.agent_orchestrator import get_orchestrator
+        orchestrator = get_orchestrator()
+        return AgentToolsResponse(
+            tools=orchestrator.get_tool_specs(),
+            count=len(orchestrator.tools),
+        ).model_dump()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取工具列表失败: {e}")
+
+
+@app.post("/api/v2/agent/detect-intent", tags=["v2.9 智能体"])
+async def v2_agent_detect_intent(request: Request):
+    """意图识别：分析用户查询，返回意图分类和置信度"""
+    from tengod.auth import authorize
+    authorize(request, "agent:detect", consume_quota=False)
+    try:
+        body = await request.json()
+        query = body.get("query", "")
+        if not query:
+            raise HTTPException(status_code=400, detail="query 不能为空")
+        from tengod.agent_orchestrator import get_orchestrator
+        orchestrator = get_orchestrator()
+        intent = orchestrator.detect_intent(query)
+        plan = orchestrator.plan_actions(query, intent)
+        return AgentIntentResponse(
+            primary=intent["primary"],
+            intents=intent["intents"],
+            confidence=intent["confidence"],
+            suggested_tools=plan,
+        ).model_dump()
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"意图识别失败: {e}")
+
+
+# ── 知识进化端点 ────────────────────────────────────────────────────────────
+
+@app.post("/api/v2/evolution/feedback", tags=["v2.9 知识进化"])
+async def v2_evolution_feedback(req: EvolutionFeedbackRequest, request: Request):
+    """提交用户反馈：用于知识进化系统的置信度调整"""
+    from tengod.auth import authorize
+    authorize(request, "evolution:feedback")
+    try:
+        from tengod.knowledge_evolution import get_evolution_engine
+        engine = get_evolution_engine()
+        record = engine.collect_feedback(
+            session_id=req.session_id,
+            ratings=req.ratings,
+            domain=req.domain,
+            comment=req.comment,
+            analysis_type=req.analysis_type,
+            corrections=req.corrections,
+        )
+        return EvolutionFeedbackResponse(
+            session_id=record.session_id,
+            overall_score=round(record.overall_score(), 2),
+            domain=record.domain,
+            confidence_after=engine.get_confidence(req.domain),
+        ).model_dump()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"提交反馈失败: {e}")
+
+
+@app.get("/api/v2/evolution/stats", tags=["v2.9 知识进化"])
+async def v2_evolution_stats(request: Request):
+    """获取知识进化统计：总反馈数、置信度分布、进化历史"""
+    from tengod.auth import authorize
+    authorize(request, "evolution:read", consume_quota=False)
+    try:
+        from tengod.knowledge_evolution import get_evolution_engine
+        engine = get_evolution_engine()
+        stats = engine.get_evolution_stats()
+        return EvolutionStatsResponse(**stats).model_dump()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取进化统计失败: {e}")
+
+
+@app.get("/api/v2/evolution/confidence", tags=["v2.9 知识进化"])
+async def v2_evolution_confidence(request: Request):
+    """获取所有知识领域的置信度分布"""
+    from tengod.auth import authorize
+    authorize(request, "evolution:read", consume_quota=False)
+    try:
+        from tengod.knowledge_evolution import get_evolution_engine
+        engine = get_evolution_engine()
+        confs = engine.get_all_confidences()
+        entries = sorted(confs.items(), key=lambda x: x[1], reverse=True)
+        avg = sum(confs.values()) / len(confs) if confs else 0
+        return EvolutionConfidenceResponse(
+            confidences=confs,
+            average=round(avg, 3),
+            highest={"domain": entries[0][0], "confidence": entries[0][1]} if entries else {},
+            lowest={"domain": entries[-1][0], "confidence": entries[-1][1]} if entries else {},
+        ).model_dump()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取置信度失败: {e}")
+
+
+@app.get("/api/v2/evolution/trend", tags=["v2.9 知识进化"])
+async def v2_evolution_trend(request: Request, domain: str = "", limit: int = 20):
+    """获取反馈趋势：按时间排序的反馈评分"""
+    from tengod.auth import authorize
+    authorize(request, "evolution:read", consume_quota=False)
+    try:
+        from tengod.knowledge_evolution import get_evolution_engine
+        engine = get_evolution_engine()
+        trend = engine.get_feedback_trend(domain=domain, limit=limit)
+        return {"domain": domain or "all", "limit": limit, "data": trend, "count": len(trend)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取反馈趋势失败: {e}")
+
+
+@app.get("/api/v2/evolution/graph", tags=["v2.9 知识进化"])
+async def v2_evolution_graph(request: Request):
+    """获取知识图谱统计：节点/边分布、关系类型"""
+    from tengod.auth import authorize
+    authorize(request, "evolution:read", consume_quota=False)
+    try:
+        from tengod.knowledge_evolution import get_evolution_engine
+        engine = get_evolution_engine()
+        return engine.get_knowledge_graph_stats()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取知识图谱失败: {e}")
+
+
+@app.post("/api/v2/evolution/evolve", tags=["v2.9 知识进化"])
+async def v2_evolution_trigger(request: Request):
+    """手动触发知识进化：分析反馈趋势 + 自动补全知识图谱"""
+    from tengod.auth import authorize
+    authorize(request, "evolution:evolve")
+    try:
+        from tengod.knowledge_evolution import get_evolution_engine
+        engine = get_evolution_engine()
+        results = engine.evolve()
+        return {
+            "evolutions": [r.to_dict() for r in results],
+            "count": len(results),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"知识进化失败: {e}")
+
+
+@app.post("/api/v2/evolution/confidence/adjust", tags=["v2.9 知识进化"])
+async def v2_evolution_adjust(req: EvolutionAdjustRequest, request: Request):
+    """手动调整知识领域置信度"""
+    from tengod.auth import authorize
+    authorize(request, "evolution:adjust")
+    try:
+        from tengod.knowledge_evolution import get_evolution_engine
+        engine = get_evolution_engine()
+        profile = engine.adjust_confidence(req.domain, req.adjustment, req.reason)
+        return {
+            "domain": req.domain,
+            "confidence": profile.current_confidence,
+            "adjustment": req.adjustment,
+            "reason": req.reason,
+            "adjustment_count": len(profile.adjustments),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"调整置信度失败: {e}")
+
+
+# ── 智能对话端点 ────────────────────────────────────────────────────────────
+
+@app.post("/api/v2/conversation/chat", tags=["v2.9 对话引擎"])
+async def v2_conversation_chat(req: ConversationChatRequest, request: Request):
+    """智能对话：意图追踪 + 主动建议 + 多轮记忆"""
+    from tengod.auth import authorize
+    authorize(request, "conversation:chat")
+    try:
+        from tengod.ai_interpreter import smart_chat
+        result = await smart_chat(
+            user_message=req.message,
+            session_id=req.session_id,
+            bazi_context=req.bazi_context,
+        )
+        return ConversationChatResponse(
+            session_id=result["session_id"],
+            response=result["response"],
+            intent=result["intent"],
+            suggestions=result["suggestions"],
+            conversation_state=result["conversation_state"],
+            session_stats=result["session_stats"],
+        ).model_dump()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"智能对话失败: {e}")
+
+
+@app.get("/api/v2/conversation/session/{session_id}", tags=["v2.9 对话引擎"])
+async def v2_conversation_session(session_id: str, request: Request):
+    """获取会话摘要：消息数、话题覆盖、意图上下文"""
+    from tengod.auth import authorize
+    authorize(request, "conversation:read", consume_quota=False)
+    try:
+        from tengod.ai_interpreter import get_conversation_engine
+        engine = get_conversation_engine()
+        summary = engine.get_session_summary(session_id)
+        return ConversationSessionResponse(
+            session_id=session_id,
+            message_count=summary["message_count"],
+            topics_covered=summary["topics_covered"],
+            intent_context=summary["intent_context"],
+        ).model_dump()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取会话摘要失败: {e}")
+
+
+@app.delete("/api/v2/conversation/session/{session_id}", tags=["v2.9 对话引擎"])
+async def v2_conversation_reset(session_id: str, request: Request):
+    """重置会话：清除对话历史、意图追踪、建议记录"""
+    from tengod.auth import authorize
+    authorize(request, "conversation:reset")
+    try:
+        from tengod.ai_interpreter import get_conversation_engine
+        engine = get_conversation_engine()
+        engine.reset_session(session_id)
+        return {"session_id": session_id, "status": "reset", "timestamp": datetime.now(timezone.utc).isoformat()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"重置会话失败: {e}")
+
+
+@app.get("/api/v2/conversation/suggestions/{session_id}", tags=["v2.9 对话引擎"])
+async def v2_conversation_suggestions(session_id: str, request: Request):
+    """获取主动建议：基于当前会话意图追踪"""
+    from tengod.auth import authorize
+    authorize(request, "conversation:read", consume_quota=False)
+    try:
+        from tengod.ai_interpreter import get_conversation_engine, ProactiveAdvisor
+        engine = get_conversation_engine()
+        session = engine.get_session_summary(session_id)
+        advisor = ProactiveAdvisor()
+        suggestions = advisor.generate_suggestions(
+            session.get("intent_context", {}),
+            max_suggestions=3,
+        )
+        return {
+            "session_id": session_id,
+            "suggestions": suggestions,
+            "count": len(suggestions),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取建议失败: {e}")
+
+
+# ============================================================================
+# v2.12: 数据管理 API — 案例/对话/反馈/数据库
+# ============================================================================
+
+# ── 案例管理 ────────────────────────────────────────────────────────────────
+
+class CaseListRequest(BaseModel):
+    page: int = Field(1, ge=1, description="页码")
+    page_size: int = Field(20, ge=1, le=100, description="每页数量")
+    category: str = Field("", description="分类过滤")
+    tag: str = Field("", description="标签过滤")
+    search: str = Field("", description="搜索关键词")
+
+@app.get("/api/v2/cases", tags=["v2.12 数据管理"])
+async def list_cases_v2(request: Request, page: int = 1, page_size: int = 20, category: str = "", search: str = ""):
+    """分页列出案例"""
+    from tengod.auth import authorize
+    authorize(request, "data:read", consume_quota=False)
+    try:
+        from tengod.case_repository import get_repository
+        repo = get_repository()
+        result = repo.list_cases(page=page, page_size=page_size, category=category, search=search)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取案例列表失败: {e}")
+
+
+@app.get("/api/v2/cases/{case_id}", tags=["v2.12 数据管理"])
+async def get_case_v2(case_id: int, request: Request):
+    """获取案例详情"""
+    from tengod.auth import authorize
+    authorize(request, "data:read", consume_quota=False)
+    try:
+        from tengod.case_repository import get_repository
+        repo = get_repository()
+        case = repo.get_case(case_id)
+        if not case:
+            raise HTTPException(status_code=404, detail="案例不存在")
+        return case
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取案例失败: {e}")
+
+
+@app.post("/api/v2/cases", tags=["v2.12 数据管理"])
+async def create_case_v2(request: Request):
+    """创建案例"""
+    from tengod.auth import authorize
+    authorize(request, "data:write")
+    try:
+        body = await request.json()
+        from tengod.case_repository import get_repository
+        repo = get_repository()
+        result = repo.add_case(body)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"创建案例失败: {e}")
+
+
+@app.put("/api/v2/cases/{case_id}", tags=["v2.12 数据管理"])
+async def update_case_v2(case_id: int, request: Request):
+    """更新案例"""
+    from tengod.auth import authorize
+    authorize(request, "data:write")
+    try:
+        body = await request.json()
+        from tengod.case_repository import get_repository
+        repo = get_repository()
+        success = repo.update_case(case_id, body)
+        if not success:
+            raise HTTPException(status_code=404, detail="案例不存在")
+        return {"success": True, "id": case_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"更新案例失败: {e}")
+
+
+@app.delete("/api/v2/cases/{case_id}", tags=["v2.12 数据管理"])
+async def delete_case_v2(case_id: int, request: Request):
+    """删除案例"""
+    from tengod.auth import authorize
+    authorize(request, "data:write")
+    try:
+        from tengod.case_repository import get_repository
+        repo = get_repository()
+        success = repo.delete_case(case_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="案例不存在")
+        return {"success": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"删除案例失败: {e}")
+
+
+@app.get("/api/v2/cases/similar", tags=["v2.12 数据管理"])
+async def find_similar_cases(day_master: str = "", limit: int = 5, request: Request = None):
+    """查找相似案例"""
+    from tengod.auth import authorize
+    authorize(request, "data:read", consume_quota=False)
+    try:
+        from tengod.case_repository import get_repository
+        repo = get_repository()
+        similar = repo.get_similar_cases({"day_master": day_master}, limit=limit)
+        return {"similar": similar, "count": len(similar)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"查找相似案例失败: {e}")
+
+
+@app.get("/api/v2/cases/export", tags=["v2.12 数据管理"])
+async def export_cases_v2(filepath: str = "/tmp/cases_export.json", request: Request = None):
+    """导出全部案例为 JSON"""
+    from tengod.auth import authorize
+    authorize(request, "data:admin", consume_quota=False)
+    try:
+        from tengod.case_repository import get_repository
+        repo = get_repository()
+        count = repo.export_to_json(filepath)
+        return {"success": True, "count": count, "path": filepath}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"导出失败: {e}")
+
+
+@app.post("/api/v2/cases/import", tags=["v2.12 数据管理"])
+async def import_cases_v2(request: Request):
+    """批量导入案例 JSON"""
+    from tengod.auth import authorize
+    authorize(request, "data:admin")
+    try:
+        body = await request.json()
+        from tengod.case_repository import get_repository
+        repo = get_repository()
+        count = repo.bulk_import(body.get("cases", []))
+        return {"success": True, "imported": count}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"导入失败: {e}")
+
+
+# ── 对话历史 ──────────────────────────────────────────────────────────────
+
+@app.get("/api/v2/conversations", tags=["v2.12 数据管理"])
+async def list_conversations(request: Request, limit: int = 10):
+    """获取最近会话列表"""
+    from tengod.auth import authorize
+    authorize(request, "data:read", consume_quota=False)
+    try:
+        from tengod.database import is_persistent, get_db
+        if not is_persistent():
+            return {"conversations": [], "count": 0}
+        recent = get_db().get_recent_conversations(limit=limit)
+        return {"conversations": recent, "count": len(recent)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取会话列表失败: {e}")
+
+
+@app.get("/api/v2/conversations/{session_id}", tags=["v2.12 数据管理"])
+async def get_conversation(session_id: str, request: Request, limit: int = 100):
+    """获取会话详情"""
+    from tengod.auth import authorize
+    authorize(request, "data:read", consume_quota=False)
+    try:
+        from tengod.database import is_persistent, get_db
+        if not is_persistent():
+            return {"messages": [], "count": 0}
+        messages = get_db().get_conversation(session_id, limit=limit)
+        return {"session_id": session_id, "messages": messages, "count": len(messages)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取会话详情失败: {e}")
+
+
+@app.delete("/api/v2/conversations/{session_id}", tags=["v2.12 数据管理"])
+async def delete_conversation(session_id: str, request: Request):
+    """删除会话"""
+    from tengod.auth import authorize
+    authorize(request, "data:write")
+    try:
+        from tengod.database import is_persistent, get_db
+        if not is_persistent():
+            raise HTTPException(status_code=400, detail="持久化未启用")
+        get_db().delete_conversation(session_id)
+        return {"success": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"删除会话失败: {e}")
+
+
+# ── 反馈管理 ──────────────────────────────────────────────────────────────
+
+@app.get("/api/v2/feedback", tags=["v2.12 数据管理"])
+async def list_feedback(request: Request, domain: str = "", limit: int = 20, offset: int = 0):
+    """列出反馈记录"""
+    from tengod.auth import authorize
+    authorize(request, "data:read", consume_quota=False)
+    try:
+        from tengod.database import is_persistent, get_db
+        if not is_persistent():
+            return {"feedback": [], "count": 0}
+        feedback = get_db().list_feedback(domain=domain, limit=limit, offset=offset)
+        count = get_db().count_feedback(domain=domain)
+        return {"feedback": feedback, "count": count}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取反馈失败: {e}")
+
+
+@app.get("/api/v2/feedback/stats", tags=["v2.12 数据管理"])
+async def get_feedback_stats(request: Request):
+    """获取反馈统计"""
+    from tengod.auth import authorize
+    authorize(request, "data:read", consume_quota=False)
+    try:
+        from tengod.database import is_persistent, get_db
+        if not is_persistent():
+            return {"total": 0}
+        stats = get_db().get_feedback_stats()
+        return stats
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取统计失败: {e}")
+
+
+# ── 数据库管理 ──────────────────────────────────────────────────────────────
+
+@app.get("/api/v2/admin/db-stats", tags=["v2.12 数据管理"])
+async def get_db_stats(request: Request):
+    """获取数据库统计"""
+    from tengod.auth import authorize
+    authorize(request, "data:admin", consume_quota=False)
+    try:
+        from tengod.database import is_persistent, get_db
+        if not is_persistent():
+            return {"is_persistent": False, "stats": {}}
+        stats = get_db().get_stats()
+        return {"is_persistent": True, "stats": stats}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取统计失败: {e}")
+
+
+@app.post("/api/v2/admin/backup", tags=["v2.12 数据管理"])
+async def backup_full(request: Request):
+    """全量数据备份导出"""
+    from tengod.auth import authorize
+    authorize(request, "data:admin")
+    try:
+        from tengod.database import is_persistent, get_db
+        if not is_persistent():
+            raise HTTPException(status_code=400, detail="持久化未启用")
+        export = get_db().export_all()
+        return export
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"备份失败: {e}")
+
+
+@app.post("/api/v2/admin/restore", tags=["v2.12 数据管理"])
+async def restore_full(request: Request):
+    """从备份恢复全量数据"""
+    from tengod.auth import authorize
+    authorize(request, "data:admin")
+    try:
+        body = await request.json()
+        from tengod.database import is_persistent, get_db
+        if not is_persistent():
+            raise HTTPException(status_code=400, detail="持久化未启用")
+        counts = get_db().import_all(body)
+        return {"success": True, "counts": counts}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"恢复失败: {e}")
+
+
+# ============================================================================
+# v2.13: 流年运势 API
+# ============================================================================
+
+from tengod.dayun_liunian import get_liunian_engine
+
+
+@app.post("/api/v2/liunian/analyze", tags=["v2.13 流年运势"])
+async def liunian_analyze(request: Request):
+    """流年运势综合分析（含大运+流年叠加、四维度评分）"""
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="请求体须为JSON")
+
+    birth_year = body.get("birth_year")
+    birth_month = body.get("birth_month")
+    birth_day = body.get("birth_day")
+    if not all([birth_year, birth_month, birth_day]):
+        raise HTTPException(status_code=400, detail="缺少必填字段: birth_year, birth_month, birth_day")
+
+    engine = get_liunian_engine()
+    result = engine.analyze(
+        birth_year=int(birth_year),
+        birth_month=int(birth_month),
+        birth_day=int(birth_day),
+        hour=int(body.get("hour", 12)),
+        minute=int(body.get("minute", 0)),
+        is_male=body.get("gender", "male") == "male",
+        longitude=float(body.get("longitude", 120.0)),
+        yongshen=body.get("yongshen"),
+        jishen=body.get("jishen"),
+        target_years=body.get("target_years"),
+    )
+    return result
+
+
+@app.get("/api/v2/liunian/year/{year}", tags=["v2.13 流年运势"])
+async def liunian_single_year(
+    year: int,
+    birth_year: int,
+    birth_month: int,
+    birth_day: int,
+    hour: int = 12,
+    minute: int = 0,
+    gender: str = "male",
+    longitude: float = 120.0,
+    yongshen: str = "",
+    jishen: str = "",
+):
+    """单年流年运势详情"""
+    engine = get_liunian_engine()
+    yongshen_list = [y.strip() for y in yongshen.split(",") if y.strip()] if yongshen else None
+    jishen_list = [j.strip() for j in jishen.split(",") if j.strip()] if jishen else None
+    result = engine.analyze(
+        birth_year=birth_year, birth_month=birth_month, birth_day=birth_day,
+        hour=hour, minute=minute, is_male=gender == "male",
+        longitude=longitude, yongshen=yongshen_list, jishen=jishen_list,
+        target_years=[year],
+    )
+    return result["liunian"][0] if result["liunian"] else {}
+
+
+# ============================================================================
+# v2.14: 天眼门禁 API
+# ============================================================================
+
+from tengod.tiangan_gate import get_tianmen
+from tengod.xiuzhen_realms import get_evaluator, NINE_REALMS
+from tengod.self_correction import get_daemon
+from tengod.hundun_sea import get_hundun_sea
+from tengod.huigu_scheduler import get_huigu_scheduler
+
+
+@app.get("/api/v2/gate/stats", tags=["v2.14 天眼门禁"])
+async def gate_stats():
+    """天眼门禁统计"""
+    tianmen = get_tianmen()
+    return tianmen.get_stats()
+
+
+@app.get("/api/v2/gate/verdict", tags=["v2.14 天眼门禁"])
+async def gate_verdict(
+    output: str = "",
+    confidence: float = 0.5,
+    entropy: float = 0.5,
+    variance: float = 0.1,
+):
+    """知止判定测试"""
+    tianmen = get_tianmen()
+    guarded, verdict = tianmen.guard(
+        output,
+        confidence_scores={"overall": confidence},
+        feature_entropies={"output": entropy},
+    )
+    return {
+        "passed": verdict.passed,
+        "confidence": round(verdict.confidence, 3),
+        "cultivation_qi": round(verdict.cultivation_qi, 3),
+        "should_retreat": verdict.should_retreat,
+        "reason": verdict.retreat_reason,
+        "guarded_output": guarded,
+    }
+
+
+@app.get("/api/v2/realms/status", tags=["v2.14 修真九境"])
+async def realms_status():
+    """修真九境修行状态"""
+    evaluator = get_evaluator()
+    return evaluator.get_realm_progress()
+
+
+@app.get("/api/v2/realms/all", tags=["v2.14 修真九境"])
+async def realms_all():
+    """九境全览"""
+    return [
+        {
+            "index": r.index,
+            "name": r.name,
+            "description": r.description,
+            "threshold": r.pass_threshold,
+        }
+        for r in NINE_REALMS
+    ]
+
+
+@app.post("/api/v2/realms/evaluate", tags=["v2.14 修真九境"])
+async def realms_evaluate(request: Request):
+    """心魔劫评测"""
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="请求体须为JSON")
+    scores = body.get("scores", {})
+    evaluator = get_evaluator()
+    return evaluator.evaluate(scores, body.get("test_name", "心魔劫"))
+
+
+@app.post("/api/v2/correct", tags=["v2.14 自修正"])
+async def self_correct(request: Request):
+    """七步自修正流程"""
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="请求体须为JSON")
+    daemon = get_daemon()
+    state, report = daemon.correct(
+        current_state=body.get("state", {}),
+        expected_output=body.get("expected"),
+        physical_constraints=body.get("constraints"),
+        memory_store=body.get("memory"),
+        enable_gate=body.get("enable_gate", True),
+    )
+    return {
+        "corrected_state": state,
+        "report": report.to_dict(),
+    }
+
+
+@app.get("/api/v2/correct/stats", tags=["v2.14 自修正"])
+async def correction_stats():
+    """自修正统计"""
+    daemon = get_daemon()
+    return daemon.get_stats()
+
+
+@app.get("/api/v2/hundun/stats", tags=["v2.14 混沌海"])
+async def hundun_stats():
+    """混沌海统计"""
+    sea = get_hundun_sea()
+    return sea.get_stats()
+
+
+@app.get("/api/v2/hundun/foams", tags=["v2.14 混沌海"])
+async def hundun_foams(status: str = "floating"):
+    """浮沫坐标列表"""
+    sea = get_hundun_sea()
+    if status == "verified":
+        foams = sea.get_verified_foams()
+    else:
+        foams = sea.get_floating_foams()
+    return [f.to_dict() for f in foams[:20]]
+
+
+@app.get("/api/v2/huigu/stats", tags=["v2.14 回头看"])
+async def huigu_stats():
+    """回头看调度器统计"""
+    scheduler = get_huigu_scheduler()
+    return scheduler.get_stats()
 
 
 # ============================================================================

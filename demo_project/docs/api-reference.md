@@ -1,7 +1,7 @@
 # Tengod API Reference
 
-自动生成于 2026-06-21T16:04:21.771205+00:00
-共 **107** 个端点，
+自动生成于 2026-06-26T10:30:38.675559+00:00
+共 **178** 个端点，
 **4** 个核心模型。
 
 ## 端点分组统计
@@ -11,7 +11,7 @@
 - **用户管理**: 2
 - **高级分析**: 3
 - **系统**: 5
-- **public**: 81
+- **public**: 152
 - **八字排盘**: 7
 - **知识查询**: 4
 - **数据持久化**: 1
@@ -77,6 +77,46 @@
 
 - 分组: 系统
 - 说明: 配置读取/写入
+
+### `GET /api/v2/gate/middleware-stats`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/gate/xiuzhen-progress`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/gate/hundun-foams`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/gate/correction-log`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/gate/huigu-status`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/gate/inner-child-stats`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/gate/inner-child-archetypes`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/gate/inner-child-memory-pool`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
 
 ### `GET /`
 
@@ -479,6 +519,321 @@
 - 说明: 扫描自 api_server.py
 
 ### `GET /api/graph/export`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/solar-time`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/jieqi`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/wuxing/strength`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/chart/bazi`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/ai/analyze`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/ai/stream`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/i18n/languages`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/i18n/translate`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/mobile/bazi/quick`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/knowledge/list`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/liuyao/cast`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/liuyao/chart`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/ai/stream-interpret`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/tasks`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/tasks/{task_id}`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/tasks/{task_id}/progress`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /health`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /health/ready`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /health/live`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /metrics`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/config`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/agent/orchestrate`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/agent/tools`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/agent/detect-intent`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/evolution/feedback`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/evolution/stats`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/evolution/confidence`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/evolution/trend`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/evolution/graph`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/evolution/evolve`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/evolution/confidence/adjust`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/conversation/chat`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/conversation/session/{session_id}`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/conversation/session/{session_id}`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/conversation/suggestions/{session_id}`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/cases`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/cases/{case_id}`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/cases`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/cases/{case_id}`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/cases/{case_id}`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/cases/similar`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/cases/export`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/cases/import`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/conversations`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/conversations/{session_id}`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/conversations/{session_id}`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/feedback`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/feedback/stats`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/admin/db-stats`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/admin/backup`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/admin/restore`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/liunian/analyze`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/liunian/year/{year}`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/gate/stats`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/gate/verdict`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/realms/status`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/realms/all`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/realms/evaluate`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/correct`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/correct/stats`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/hundun/stats`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/hundun/foams`
+
+- 分组: public
+- 说明: 扫描自 api_server.py
+
+### `GET /api/v2/huigu/stats`
 
 - 分组: public
 - 说明: 扫描自 api_server.py

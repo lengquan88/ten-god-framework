@@ -20,6 +20,14 @@ os.environ.pop("TENGOD_API_KEY", None)
 os.environ["TENGOD_LLM_BACKEND"] = "mock"
 
 
+def unwrap(r):
+    """解包内在小孩门禁包裹的响应 {output, confidence, uncertainty} → output"""
+    data = r.json()
+    if isinstance(data, dict) and "output" in data and "confidence" in data:
+        return data["output"]
+    return data
+
+
 # ─── 紫微斗数 ────────────────────────────────────────────────────────────────
 
 class TestZiweiEngine:
@@ -192,7 +200,7 @@ class TestAdvancedShushuAPI:
             headers=admin_headers,
         )
         assert resp.status_code == 200
-        d = resp.json()
+        d = unwrap(resp)
         assert "gongs" in d and len(d["gongs"]) == 12
 
     def test_liuyao_endpoint_manual(self, admin_headers):
@@ -206,7 +214,7 @@ class TestAdvancedShushuAPI:
             headers=admin_headers,
         )
         assert resp.status_code == 200
-        d = resp.json()
+        d = unwrap(resp)
         assert "yaos" in d and len(d["yaos"]) == 6
 
     def test_liuyao_endpoint_random(self, admin_headers):
@@ -220,7 +228,7 @@ class TestAdvancedShushuAPI:
             headers=admin_headers,
         )
         assert resp.status_code == 200
-        d = resp.json()
+        d = unwrap(resp)
         assert "yaos" in d
 
     def test_qimen_endpoint(self, admin_headers):
@@ -234,7 +242,7 @@ class TestAdvancedShushuAPI:
             headers=admin_headers,
         )
         assert resp.status_code == 200
-        d = resp.json()
+        d = unwrap(resp)
         assert "gongs" in d and len(d["gongs"]) == 9
 
     def test_ziwei_endpoint_validation(self):

@@ -21,9 +21,8 @@ import os
 import statistics
 import threading
 import time
-import traceback
 from collections import defaultdict, deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -112,7 +111,6 @@ class SlidingWindow:
             return False
 
     def _allow_redis(self) -> bool:
-        import redis
         key = self._redis_key()
         now_ms = self._now_ms()
         cutoff_ms = now_ms - int(self.window_seconds * 1000)

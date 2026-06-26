@@ -2,10 +2,9 @@
 
 共识引擎从 Raft 扩展到联邦学习场景，多实例协同训练模型。
 """
-import json
 import time
 import uuid
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List
 
 
 class FederatedConsensus:
@@ -138,7 +137,6 @@ class FederatedConsensus:
     ) -> Dict[str, List[float]]:
         """添加差分隐私噪声（Laplace 机制）"""
         import random
-        import math
 
         sensitivity = 1.0
         scale = sensitivity / epsilon

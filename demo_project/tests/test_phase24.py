@@ -301,6 +301,14 @@ except Exception:
     HAS_FASTAPI = False
 
 
+def unwrap(r):
+    """解包内在小孩门禁包裹的响应 {output, confidence, uncertainty} → output"""
+    data = r.json()
+    if isinstance(data, dict) and "output" in data and "confidence" in data:
+        return data["output"]
+    return data
+
+
 @pytest.mark.skipif(not HAS_FASTAPI, reason="fastapi / tengod.api_server 不可用")
 class TestComprehensiveInterpretAPI:
     @pytest.fixture
@@ -321,7 +329,7 @@ class TestComprehensiveInterpretAPI:
             "report_format": "text",
         })
         assert resp.status_code == 200
-        data = resp.json()
+        data = unwrap(resp)
         assert "ai_interpretation" in data
         assert "formatted_report" in data
         assert "raw_result" in data
@@ -337,7 +345,7 @@ class TestComprehensiveInterpretAPI:
             "target_year": 2026, "report_format": "markdown",
         })
         assert resp.status_code == 200
-        data = resp.json()
+        data = unwrap(resp)
         assert data["format"] == "markdown"
         assert "多体系" in data["formatted_report"]
         assert "# " in data["formatted_report"]
@@ -357,7 +365,7 @@ class TestComprehensiveInterpretAPI:
             "report_format": "text",
         })
         assert resp.status_code == 200
-        data = resp.json()
+        data = unwrap(resp)
         assert "ai_interpretation" in data
 
 

@@ -14,7 +14,6 @@ import json
 import os
 import time
 import uuid
-from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 
@@ -438,7 +437,14 @@ class MiniappClient:
 # ShareCardGenerator
 # ---------------------------------------------------------------------------
 class ShareCardGenerator:
-    """WeChat share card utilities."""
+    """WeChat share card utilities with i18n support."""
+
+    def _t(self, text: str, lang: str = "zh-CN") -> str:
+        try:
+            from tengod.i18n import t
+            return t(text, lang)
+        except ImportError:
+            return text
 
     def generate_bazi_share(
         self,
@@ -446,10 +452,12 @@ class ShareCardGenerator:
         day_master: str,
         geju: str,
         score: float,
+        lang: str = "zh-CN",
     ) -> Dict[str, Any]:
+        t = self._t
         pillar_text = ""
         if isinstance(pillars, list):
-            names = ["年柱", "月柱", "日柱", "时柱"]
+            names = [t("年柱", lang), t("月柱", lang), t("日柱", lang), t("时柱", lang)]
             parts = []
             for i, p in enumerate(pillars[:4]):
                 if isinstance(p, dict):
@@ -461,11 +469,11 @@ class ShareCardGenerator:
             pillar_text = " · ".join(parts)
         else:
             pillar_text = str(pillars)
-        title = f"命盘 · 日主 {day_master}" if day_master else "命盘分析"
+        title = f"{t('命盘', lang)} · {t('日主', lang)} {day_master}" if day_master else t("命盘分析", lang)
         description = (
-            f"格局 {geju or '未知'}，得分 {score:.1f}。{pillar_text}"
+            f"{t('格局', lang)} {geju or t('未知', lang)}，{t('得分', lang)} {score:.1f}。{pillar_text}"
             if isinstance(score, (int, float))
-            else f"格局 {geju or '未知'}。{pillar_text}"
+            else f"{t('格局', lang)} {geju or t('未知', lang)}。{pillar_text}"
         )
         raw = base64.b64encode(
             json.dumps({"title": title, "description": description}, ensure_ascii=False).encode("utf-8")
@@ -484,15 +492,17 @@ class ShareCardGenerator:
     def generate_trajectory_share(
         self,
         trajectory_summary: Any,
+        lang: str = "zh-CN",
     ) -> Dict[str, Any]:
+        t = self._t
         if isinstance(trajectory_summary, dict):
             day_master = trajectory_summary.get("day_master", "")
             dayun = trajectory_summary.get("dayun", [])
-            title = f"命运轨迹 · {day_master}" if day_master else "命运轨迹分析"
+            title = f"{t('命运轨迹', lang)} · {day_master}" if day_master else t("命运轨迹分析", lang)
             years = ", ".join(str(x.get("age_start", "")) for x in dayun[:3] if isinstance(x, dict))
-            description = f"大运起运阶段：{years or '未知'}。"
+            description = f"{t('大运起运阶段', lang)}：{years or t('未知', lang)}。"
         else:
-            title = "命运轨迹"
+            title = t("命运轨迹", lang)
             description = str(trajectory_summary)
         raw = base64.b64encode(description.encode("utf-8")).decode("ascii")
         return {
@@ -506,9 +516,11 @@ class ShareCardGenerator:
         self,
         ai_interpretation: str,
         first_line: str,
+        lang: str = "zh-CN",
     ) -> Dict[str, Any]:
-        title = first_line or "AI 解读"
-        description = ai_interpretation[:80] if ai_interpretation else "查看完整解读..."
+        t = self._t
+        title = first_line or t("AI 解读", lang)
+        description = ai_interpretation[:80] if ai_interpretation else t("查看完整解读", lang) + "..."
         raw = base64.b64encode(ai_interpretation.encode("utf-8")).decode("ascii")
         return {
             "title": title,

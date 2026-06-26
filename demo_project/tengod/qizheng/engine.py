@@ -29,10 +29,8 @@ tengod.qizheng — 阶段二十一 · 21.3 七政四余星象排盘
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List
 
 
 # ============================================================================

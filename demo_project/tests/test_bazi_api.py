@@ -44,6 +44,14 @@ def unique_username(prefix="testuser"):
     return f"{prefix}_{uuid.uuid4().hex[:8]}"
 
 
+def unwrap(r):
+    """解包内在小孩门禁包裹的响应 {output, confidence, uncertainty} → output"""
+    data = r.json()
+    if isinstance(data, dict) and "output" in data and "confidence" in data:
+        return data["output"]
+    return data
+
+
 def register_and_login(username=None, password="Test123456"):
     """注册并登录，返回 (username, token, user_id)"""
     username = username or unique_username()
@@ -58,7 +66,7 @@ def register_and_login(username=None, password="Test123456"):
         "username": username,
         "password": password,
     })
-    data = r.json()
+    data = unwrap(r)
     token = data.get("access_token", "")
     user_id = data.get("user", {}).get("id", 0)
     # 重置该用户配额
@@ -80,7 +88,7 @@ class TestSystemEndpoints:
     def test_health(self):
         r = client.get("/api/health")
         assert r.status_code == 200
-        data = r.json()
+        data = unwrap(r)
         assert data["status"] == "ok"
         assert "version" in data
         assert "uptime_seconds" in data
@@ -123,7 +131,7 @@ class TestBaziAPI:
         """基础排盘"""
         r = client.post("/api/bazi/calc", json=self.BAZI_INPUT)
         assert r.status_code == 200
-        data = r.json()
+        data = unwrap(r)
         assert "pillars" in data
         assert set(data["pillars"].keys()) == {"year", "month", "day", "hour"}
 
@@ -136,7 +144,7 @@ class TestBaziAPI:
         """神煞推算"""
         r = client.post("/api/bazi/shensha", json=self.BAZI_INPUT)
         assert r.status_code == 200
-        data = r.json()
+        data = unwrap(r)
         assert "shensha" in data or "summary" in data
 
     def test_bazi_geju(self):
@@ -159,7 +167,7 @@ class TestBaziAPI:
         _, token, _ = register_and_login()
         r = client.post("/api/bazi/full", json=self.BAZI_INPUT, headers=auth_headers(token))
         assert r.status_code == 200
-        data = r.json()
+        data = unwrap(r)
         assert "bazi" in data
         assert "shensha" in data
         assert "geju" in data
@@ -172,7 +180,7 @@ class TestBaziAPI:
         """综合分析数据结构完整"""
         _, token, _ = register_and_login()
         r = client.post("/api/bazi/full", json=self.BAZI_INPUT, headers=auth_headers(token))
-        data = r.json()
+        data = unwrap(r)
         # 五行得分
         assert "wuxing_score" in data["bazi"]
         # 十神计数
@@ -193,7 +201,7 @@ class TestGraphAPI:
     def test_graph_stats(self):
         r = client.get("/api/graph/stats")
         assert r.status_code == 200
-        data = r.json()
+        data = unwrap(r)
         assert data["total_nodes"] > 100
         assert data["total_edges"] > 200
         assert "labels" in data
@@ -302,7 +310,7 @@ class TestAuthSystem:
             "username": username, "password": "Test123456",
         })
         assert r.status_code == 200
-        data = r.json()
+        data = unwrap(r)
         assert "access_token" in data
         assert "refresh_token" in data
         assert data["token_type"] == "bearer"
@@ -322,7 +330,7 @@ class TestAuthSystem:
         _, token, _ = register_and_login()
         r = client.get("/api/auth/me", headers=auth_headers(token))
         assert r.status_code == 200
-        data = r.json()
+        data = unwrap(r)
         assert "username" in data
         assert "role" in data
 
@@ -338,12 +346,6 @@ class TestAuthSystem:
 
     def test_auth_refresh(self):
         """刷新令牌"""
-        _, token, _ = register_and_login()
-        # 先登录获取 refresh_token
-        r = client.post("/api/auth/login", json={
-            "username": "test_refresh_user", "password": "Test123456",
-        })
-        # 使用刚注册的用户
         username = unique_username()
         client.post("/api/auth/register", json={
             "username": username, "password": "Test123456",
@@ -351,11 +353,12 @@ class TestAuthSystem:
         login_r = client.post("/api/auth/login", json={
             "username": username, "password": "Test123456",
         })
-        refresh_token = login_r.json().get("refresh_token", "")
+        data = unwrap(login_r)
+        refresh_token = data.get("refresh_token", "")
         if refresh_token:
             r = client.post("/api/auth/refresh", json={"refresh_token": refresh_token})
             assert r.status_code == 200
-            assert "access_token" in r.json()
+            assert "access_token" in unwrap(r)
 
 
 # ════════════════════════════════════════
@@ -425,7 +428,7 @@ class TestRecordsAndMultiTenancy:
         # user2 查询记录，不应看到 user1 的
         r = client.get("/api/records", headers=auth_headers(token2))
         assert r.status_code == 200
-        data = r.json()
+        data = unwrap(r)
         # user2 的记录列表不应包含 user1 的记录
         items = data if isinstance(data, list) else data.get("items", [])
         for rec in items:
@@ -443,7 +446,7 @@ class TestRecordsAndMultiTenancy:
         }, params={"label": "隔离测试"}, headers=auth_headers(token1))
 
         if save_r.status_code in (200, 201):
-            record_data = save_r.json()
+            record_data = unwrap(save_r)
             record_id = record_data.get("id") or record_data.get("record_id")
             if record_id:
                 # user2 尝试访问 user1 的记录

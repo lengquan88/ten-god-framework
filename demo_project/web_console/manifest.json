@@ -1,21 +1,52 @@
 {
-  "name": "TenGod Web Console",
+  "name": "TenGod 命理智能分析系统",
   "short_name": "TenGod",
-  "description": "Chinese Fortune Telling System - Web Console",
-  "start_url": "/index.html",
+  "description": "中华文明数字永生体 · 命理智能分析系统 — 八字排盘、AI 分析、知识图谱",
+  "version": "2.3.0",
+  "start_url": "/app/index.html",
   "display": "standalone",
-  "background_color": "#0a0a0a",
-  "theme_color": "#0a0a0a",
+  "display_override": ["standalone", "minimal-ui"],
+  "background_color": "#0a0a0f",
+  "theme_color": "#1a1a2e",
   "orientation": "portrait-primary",
+  "scope": "/app/",
+  "lang": "zh-CN",
+  "categories": ["lifestyle", "education"],
   "icons": [
     {
-      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect fill='%230a0a0a' width='512' height='512' rx='64'/><text x='256' y='340' font-size='280' text-anchor='middle' fill='%23e8d5b7'>易</text></svg>",
+      "src": "icons/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.svg",
       "sizes": "512x512",
       "type": "image/svg+xml",
       "purpose": "any maskable"
     }
   ],
-  "categories": ["utilities", "lifestyle"],
-  "lang": "zh-CN",
-  "dir": "ltr"
+  "shortcuts": [
+    {
+      "name": "八字排盘",
+      "short_name": "排盘",
+      "description": "快速八字排盘",
+      "url": "/app/index.html#bazi",
+      "icons": [{ "src": "icons/icon-192.svg", "sizes": "192x192" }]
+    },
+    {
+      "name": "AI 分析",
+      "short_name": "AI",
+      "description": "AI 智能命理分析",
+      "url": "/app/index.html#ai",
+      "icons": [{ "src": "icons/icon-192.svg", "sizes": "192x192" }]
+    },
+    {
+      "name": "知识图谱",
+      "short_name": "知识",
+      "description": "命理知识图谱浏览",
+      "url": "/app/index.html#knowledge",
+      "icons": [{ "src": "icons/icon-192.svg", "sizes": "192x192" }]
+    }
+  ]
 }

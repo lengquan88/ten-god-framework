@@ -21,6 +21,14 @@ from tengod.data_store import DataStore
 from tengod.case_library import CaseLibrary, Case, CaseRelation, DEFAULT_CATEGORIES
 
 
+def unwrap(r):
+    """解包内在小孩门禁包裹的响应 {output, confidence, uncertainty} → output"""
+    data = r.json()
+    if isinstance(data, dict) and "output" in data and "confidence" in data:
+        return data["output"]
+    return data
+
+
 # ════════════════════════════════════════
 # 测试夹具
 # ════════════════════════════════════════
@@ -442,14 +450,14 @@ class TestCaseAPI:
             "tags": ["测试"],
         }, headers=headers)
         assert r.status_code == 200
-        assert r.json()["created"] is True
+        assert unwrap(r)["created"] is True
 
     def test_list_cases_api(self, client_and_headers):
         """列出案例 API"""
         client, headers = client_and_headers
         r = client.get("/api/cases", headers=headers)
         assert r.status_code == 200
-        assert "total" in r.json()
+        assert "total" in unwrap(r)
 
     def test_search_cases_api(self, client_and_headers):
         """搜索案例 API"""
@@ -464,14 +472,14 @@ class TestCaseAPI:
         client, headers = client_and_headers
         r = client.get("/api/cases/categories/list", headers=headers)
         assert r.status_code == 200
-        assert "categories" in r.json()
+        assert "categories" in unwrap(r)
 
     def test_tags_api(self, client_and_headers):
         """标签列表 API"""
         client, headers = client_and_headers
         r = client.get("/api/cases/tags/list", headers=headers)
         assert r.status_code == 200
-        assert "tags" in r.json()
+        assert "tags" in unwrap(r)
 
     def test_stats_api(self, client_and_headers):
         """统计 API"""
