@@ -7,4 +7,4 @@ curl -X POST http://localhost:8000/api/bazi/calc \
   -d '{"year":1990,"month":6,"day":15,"hour":10,"gender":"male"}'
 ```
 
-共 107 个端点，完整 API 参考见 `docs/api-reference.md`。
+共 178 个端点，完整 API 参考见 `docs/api-reference.md`。
