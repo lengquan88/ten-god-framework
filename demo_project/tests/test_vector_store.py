@@ -34,6 +34,16 @@ from tengod.vector_store import (
 )
 
 
+# Mock FAISS module (not installed in test environment)
+if "faiss" not in sys.modules:
+    _mock_faiss = MagicMock()
+    _mock_index = MagicMock()
+    _mock_faiss.IndexFlatIP = MagicMock(return_value=_mock_index)
+    _mock_faiss.write_index = MagicMock()
+    _mock_faiss.read_index = MagicMock(return_value=_mock_index)
+    sys.modules["faiss"] = _mock_faiss
+
+
 # ============================================================================
 # Mock 辅助函数
 # ============================================================================
@@ -84,14 +94,26 @@ def _make_mock_faiss_index():
 @pytest.fixture
 def mock_faiss():
     """Mock FAISS 模块，替换 sys.modules 中的 faiss。"""
-    import faiss as real_faiss
-    _real_write_index = real_faiss.write_index
-    _real_read_index = real_faiss.read_index
-
     mock_faiss_mod = MagicMock()
-    mock_faiss_mod.IndexFlatIP = real_faiss.IndexFlatIP  # 保留真实类以正确构建
-    mock_faiss_mod.write_index = MagicMock(side_effect=_real_write_index)
-    mock_faiss_mod.read_index = MagicMock(side_effect=_real_read_index)
+    mock_index = MagicMock()
+    # 默认 search 返回有效结果（懒初始化 / 搜索 / 推荐测试需要）
+    mock_index.search.return_value = (
+        np.array([[0.95, 0.85, 0.75, 0.65, 0.55]], dtype=np.float32),
+        np.array([[0, 1, 2, 3, 4]], dtype=np.int64),
+    )
+    mock_faiss_mod.IndexFlatIP = MagicMock(return_value=mock_index)
+
+    # write_index 需要实际创建文件（save 测试需要断言文件存在）
+    def _write_index(index, path):
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+        with open(path, "wb") as f:
+            f.write(b"mock_index")
+
+    mock_faiss_mod.write_index = MagicMock(side_effect=_write_index)
+
+    # read_index 返回一个 MagicMock（load 测试需要）
+    mock_faiss_mod.read_index = MagicMock(return_value=MagicMock())
+
     with patch.dict("sys.modules", {"faiss": mock_faiss_mod}):
         yield mock_faiss_mod
 
