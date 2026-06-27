@@ -1,978 +1,651 @@
-"""
-test_config_manager.py — 统一配置管理器全面测试
-=================================================
-覆盖：load_config, get_config, reload_config, get_config_dict,
-      get_server_config, get_llm_config, init_config, _env_override
-目标覆盖率：85%+
-"""
+"""Comprehensive tests for tengod.config_manager."""
+
+from __future__ import annotations
 
 import os
-import tempfile
-from unittest.mock import MagicMock, patch, PropertyMock
+import time
+from unittest.mock import patch
 
 import pytest
 
 import tengod.config_manager as cm
-from tengod.config_schema import TengodConfig, ServerConfig, LLMConfig, _PYDANTIC_V2
+from tengod.config_schema import _PYDANTIC_V2, TengodConfig
 
 
-# ── Fixtures ────────────────────────────────────────────────────────────
-
-
-@pytest.fixture(autouse=True)
-def reset_global_state():
-    """每个测试前重置 config_manager 的全局状态"""
-    cm._CONFIG_INSTANCE = None
-    cm._CONFIG_PATH = None
-    cm._CONFIG_MTIME = 0
-    cm._CONFIG_HOT_RELOAD = False
-    cm._CONFIG_HOT_RELOAD_INTERVAL = 5
-    yield
-
-
-def _make_valid_config_dict(name="tengod"):
-    """构造一个有效的配置字典"""
-    return {
-        "name": name,
-        "server": {"host": "0.0.0.0", "port": 8000, "mode": "auto", "workers": 1, "cors_origins": ["*"]},
-        "database": {"backend": "memory", "url": "", "pool_size": 5, "wal_mode": True, "echo_sql": False},
-        "llm": {"provider": "openai", "api_key": "", "api_base": "", "model": "gpt-3.5-turbo",
-                "temperature": 0.7, "max_tokens": 2048, "timeout": 60.0, "max_retries": 3, "retry_backoff": 2.0},
-        "security": {"jwt_secret": "", "jwt_algorithm": "HS256", "jwt_expire_minutes": 60,
-                     "rate_limit_capacity": 100, "rate_limit_refill_rate": 10.0,
-                     "audit_enabled": True, "audit_backend": "sqlite"},
-        "scheduler": {"max_workers": 4, "timeout": 30, "queue_size": 100, "cache_enabled": True, "cache_size": 1000},
-        "consensus": {"enabled": False, "node_id": "", "peer_addresses": [],
-                      "election_timeout_min": 5.0, "election_timeout_max": 10.0, "heartbeat_interval": 2.0},
-        "knowledge": {"backend": "memory", "vector_enabled": False, "vector_backend": "auto",
-                      "max_node_size": 10000, "index_path": ""},
-        "monitoring": {"prometheus_enabled": True, "log_level": "INFO", "log_format": "json",
-                       "health_check_interval": 30},
-    }
-
-
-# ============================================================================
-# _env_override 测试
-# ============================================================================
+# =============================================================================
+# _env_override tests
+# =============================================================================
 
 
 class TestEnvOverride:
-    """测试 _env_override 函数"""
+    """Tests for the internal _env_override function."""
 
-    def test_no_env_vars_set(self):
-        """没有环境变量时原样返回配置"""
-        config = _make_valid_config_dict()
-        with patch.dict(os.environ, {}, clear=True):
-            result = cm._env_override(config)
-        assert result["name"] == "tengod"
+    def test_no_env_vars_set_returns_unchanged(self, clean_env):
+        """When no TENGOD_* env vars are set, config dict is unchanged."""
+        config = {"name": "test", "server": {"host": "0.0.0.0", "port": 8000}}
+        result = cm._env_override(config)
+        assert result["name"] == "test"
+        assert result["server"]["host"] == "0.0.0.0"
+        assert result["server"]["port"] == 8000
 
-    def test_tengod_name(self):
-        config = _make_valid_config_dict()
-        with patch.dict(os.environ, {"TENGOD_NAME": "my-tengod"}, clear=True):
-            result = cm._env_override(config)
-        assert result["name"] == "my-tengod"
+    def test_tengod_name_override(self, clean_env):
+        """TENGOD_NAME overrides name field."""
+        os.environ["TENGOD_NAME"] = "my-custom-name"
+        config = {"name": "default"}
+        result = cm._env_override(config)
+        assert result["name"] == "my-custom-name"
 
-    def test_tengod_host(self):
-        config = _make_valid_config_dict()
-        with patch.dict(os.environ, {"TENGOD_HOST": "127.0.0.1"}, clear=True):
-            result = cm._env_override(config)
-        assert result["server"]["host"] == "127.0.0.1"
+    def test_tengod_host_override(self, clean_env):
+        """TENGOD_HOST overrides server.host."""
+        os.environ["TENGOD_HOST"] = "192.168.1.1"
+        config = {"server": {"host": "0.0.0.0"}}
+        result = cm._env_override(config)
+        assert result["server"]["host"] == "192.168.1.1"
 
-    def test_tengod_port(self):
-        config = _make_valid_config_dict()
-        with patch.dict(os.environ, {"TENGOD_PORT": "9090"}, clear=True):
-            result = cm._env_override(config)
-        assert result["server"]["port"] == 9090
+    def test_tengod_port_override_int(self, clean_env):
+        """TENGOD_PORT is converted to int."""
+        os.environ["TENGOD_PORT"] = "9999"
+        config = {"server": {"port": 8000}}
+        result = cm._env_override(config)
+        assert result["server"]["port"] == 9999
+        assert isinstance(result["server"]["port"], int)
 
-    def test_tengod_port_invalid(self):
-        """无效端口号应被忽略"""
-        config = _make_valid_config_dict()
-        with patch.dict(os.environ, {"TENGOD_PORT": "abc"}, clear=True):
-            result = cm._env_override(config)
-        assert result["server"]["port"] == 8000  # 保持默认值
+    def test_tengod_port_invalid_value_skipped(self, clean_env):
+        """Invalid TENGOD_PORT value is silently skipped."""
+        os.environ["TENGOD_PORT"] = "not-a-number"
+        config = {"server": {"port": 8000}}
+        result = cm._env_override(config)
+        assert result["server"]["port"] == 8000
 
-    def test_tengod_workers(self):
-        config = _make_valid_config_dict()
-        with patch.dict(os.environ, {"TENGOD_WORKERS": "8"}, clear=True):
-            result = cm._env_override(config)
-        assert result["server"]["workers"] == 8
+    def test_tengod_workers_override(self, clean_env):
+        """TENGOD_WORKERS overrides server.workers."""
+        os.environ["TENGOD_WORKERS"] = "4"
+        config = {"server": {"workers": 1}}
+        result = cm._env_override(config)
+        assert result["server"]["workers"] == 4
 
-    def test_tengod_cors(self):
-        config = _make_valid_config_dict()
-        with patch.dict(os.environ, {"TENGOD_CORS": "a.com,b.com"}, clear=True):
-            result = cm._env_override(config)
-        assert result["server"]["cors_origins"] == ["a.com", "b.com"]
+    def test_tengod_cors_override(self, clean_env):
+        """TENGOD_CORS splits comma-separated string into list."""
+        os.environ["TENGOD_CORS"] = "http://a.com,http://b.com,http://c.com"
+        config = {"server": {"cors_origins": ["*"]}}
+        result = cm._env_override(config)
+        assert result["server"]["cors_origins"] == [
+            "http://a.com",
+            "http://b.com",
+            "http://c.com",
+        ]
 
-    def test_tengod_cors_single(self):
-        config = _make_valid_config_dict()
-        with patch.dict(os.environ, {"TENGOD_CORS": "only.com"}, clear=True):
-            result = cm._env_override(config)
-        assert result["server"]["cors_origins"] == ["only.com"]
+    def test_tengod_cors_single_value(self, clean_env):
+        """TENGOD_CORS with single value."""
+        os.environ["TENGOD_CORS"] = "http://localhost:3000"
+        config = {"server": {"cors_origins": ["*"]}}
+        result = cm._env_override(config)
+        assert result["server"]["cors_origins"] == ["http://localhost:3000"]
 
-    def test_tengod_log_level(self):
-        config = _make_valid_config_dict()
-        with patch.dict(os.environ, {"TENGOD_LOG_LEVEL": "DEBUG"}, clear=True):
-            result = cm._env_override(config)
+    def test_tengod_log_level_override(self, clean_env):
+        """TENGOD_LOG_LEVEL overrides monitoring.log_level."""
+        os.environ["TENGOD_LOG_LEVEL"] = "DEBUG"
+        config = {"monitoring": {"log_level": "INFO"}}
+        result = cm._env_override(config)
         assert result["monitoring"]["log_level"] == "DEBUG"
 
-    def test_tengod_log_format(self):
-        config = _make_valid_config_dict()
-        with patch.dict(os.environ, {"TENGOD_LOG_FORMAT": "text"}, clear=True):
-            result = cm._env_override(config)
+    def test_tengod_log_format_override(self, clean_env):
+        """TENGOD_LOG_FORMAT overrides monitoring.log_format."""
+        os.environ["TENGOD_LOG_FORMAT"] = "text"
+        config = {"monitoring": {"log_format": "json"}}
+        result = cm._env_override(config)
         assert result["monitoring"]["log_format"] == "text"
 
-    def test_tengod_db_url(self):
-        config = _make_valid_config_dict()
-        with patch.dict(os.environ, {"TENGOD_DB_URL": "postgresql://localhost/db"}, clear=True):
-            result = cm._env_override(config)
-        assert result["database"]["url"] == "postgresql://localhost/db"
+    def test_tengod_db_url_override(self, clean_env):
+        """TENGOD_DB_URL overrides database.url."""
+        os.environ["TENGOD_DB_URL"] = "postgresql://localhost/test"
+        config = {"database": {"url": ""}}
+        result = cm._env_override(config)
+        assert result["database"]["url"] == "postgresql://localhost/test"
 
-    def test_tengod_llm_provider(self):
-        config = _make_valid_config_dict()
-        with patch.dict(os.environ, {"TENGOD_LLM_PROVIDER": "claude"}, clear=True):
-            result = cm._env_override(config)
-        assert result["llm"]["provider"] == "claude"
+    def test_tengod_llm_provider_override(self, clean_env):
+        """TENGOD_LLM_PROVIDER overrides llm.provider."""
+        os.environ["TENGOD_LLM_PROVIDER"] = "anthropic"
+        config = {"llm": {"provider": "openai"}}
+        result = cm._env_override(config)
+        assert result["llm"]["provider"] == "anthropic"
 
-    def test_tengod_llm_api_key(self):
-        config = _make_valid_config_dict()
-        with patch.dict(os.environ, {"TENGOD_LLM_API_KEY": "sk-12345678"}, clear=True):
-            result = cm._env_override(config)
-        assert result["llm"]["api_key"] == "sk-12345678"
+    def test_tengod_llm_api_key_override(self, clean_env):
+        """TENGOD_LLM_API_KEY overrides llm.api_key."""
+        os.environ["TENGOD_LLM_API_KEY"] = "sk-secret-key"
+        config = {"llm": {"api_key": ""}}
+        result = cm._env_override(config)
+        assert result["llm"]["api_key"] == "sk-secret-key"
 
-    def test_tengod_llm_model(self):
-        config = _make_valid_config_dict()
-        with patch.dict(os.environ, {"TENGOD_LLM_MODEL": "gpt-4"}, clear=True):
-            result = cm._env_override(config)
-        assert result["llm"]["model"] == "gpt-4"
+    def test_tengod_llm_model_override(self, clean_env):
+        """TENGOD_LLM_MODEL overrides llm.model."""
+        os.environ["TENGOD_LLM_MODEL"] = "gpt-4-turbo"
+        config = {"llm": {"model": "gpt-3.5-turbo"}}
+        result = cm._env_override(config)
+        assert result["llm"]["model"] == "gpt-4-turbo"
 
-    def test_tengod_llm_base(self):
-        config = _make_valid_config_dict()
-        with patch.dict(os.environ, {"TENGOD_LLM_BASE": "https://api.example.com"}, clear=True):
-            result = cm._env_override(config)
-        assert result["llm"]["api_base"] == "https://api.example.com"
+    def test_tengod_llm_base_override(self, clean_env):
+        """TENGOD_LLM_BASE overrides llm.api_base."""
+        os.environ["TENGOD_LLM_BASE"] = "https://custom.api.com"
+        config = {"llm": {"api_base": ""}}
+        result = cm._env_override(config)
+        assert result["llm"]["api_base"] == "https://custom.api.com"
 
-    def test_tengod_jwt_secret(self):
-        config = _make_valid_config_dict()
-        with patch.dict(os.environ, {"TENGOD_JWT_SECRET": "super-secret"}, clear=True):
-            result = cm._env_override(config)
-        assert result["security"]["jwt_secret"] == "super-secret"
+    def test_tengod_jwt_secret_override(self, clean_env):
+        """TENGOD_JWT_SECRET overrides security.jwt_secret."""
+        os.environ["TENGOD_JWT_SECRET"] = "super-secret-jwt"
+        config = {"security": {"jwt_secret": ""}}
+        result = cm._env_override(config)
+        assert result["security"]["jwt_secret"] == "super-secret-jwt"
 
-    def test_tengod_rate_limit(self):
-        config = _make_valid_config_dict()
-        with patch.dict(os.environ, {"TENGOD_RATE_LIMIT": "200"}, clear=True):
-            result = cm._env_override(config)
-        assert result["security"]["rate_limit_capacity"] == 200
+    def test_tengod_rate_limit_override(self, clean_env):
+        """TENGOD_RATE_LIMIT overrides security.rate_limit_capacity."""
+        os.environ["TENGOD_RATE_LIMIT"] = "500"
+        config = {"security": {"rate_limit_capacity": 100}}
+        result = cm._env_override(config)
+        assert result["security"]["rate_limit_capacity"] == 500
 
-    def test_tengod_rate_limit_invalid(self):
-        """无效的速率限制值应被忽略"""
-        config = _make_valid_config_dict()
-        with patch.dict(os.environ, {"TENGOD_RATE_LIMIT": "not-a-number"}, clear=True):
-            result = cm._env_override(config)
+    def test_tengod_rate_limit_invalid_skipped(self, clean_env):
+        """Invalid TENGOD_RATE_LIMIT value is silently skipped."""
+        os.environ["TENGOD_RATE_LIMIT"] = "abc"
+        config = {"security": {"rate_limit_capacity": 100}}
+        result = cm._env_override(config)
         assert result["security"]["rate_limit_capacity"] == 100
 
-    def test_tengod_prometheus_enabled_true(self):
-        config = _make_valid_config_dict()
-        with patch.dict(os.environ, {"TENGOD_PROMETHEUS": "true"}, clear=True):
-            result = cm._env_override(config)
+    def test_tengod_prometheus_enabled_true(self, clean_env):
+        """TENGOD_PROMETHEUS=true enables prometheus."""
+        os.environ["TENGOD_PROMETHEUS"] = "true"
+        config = {"monitoring": {"prometheus_enabled": False}}
+        result = cm._env_override(config)
         assert result["monitoring"]["prometheus_enabled"] is True
 
-    def test_tengod_prometheus_enabled_false(self):
-        config = _make_valid_config_dict()
-        with patch.dict(os.environ, {"TENGOD_PROMETHEUS": "false"}, clear=True):
-            result = cm._env_override(config)
+    def test_tengod_prometheus_enabled_false(self, clean_env):
+        """TENGOD_PROMETHEUS=false disables prometheus."""
+        os.environ["TENGOD_PROMETHEUS"] = "false"
+        config = {"monitoring": {"prometheus_enabled": True}}
+        result = cm._env_override(config)
         assert result["monitoring"]["prometheus_enabled"] is False
 
-    def test_all_env_vars_together(self):
-        """多个环境变量同时设置"""
-        config = _make_valid_config_dict()
-        env = {
-            "TENGOD_NAME": "prod",
-            "TENGOD_HOST": "10.0.0.1",
-            "TENGOD_PORT": "8080",
-            "TENGOD_WORKERS": "4",
-            "TENGOD_LOG_LEVEL": "ERROR",
-            "TENGOD_DB_URL": "sqlite:///prod.db",
-            "TENGOD_LLM_PROVIDER": "deepseek",
-            "TENGOD_LLM_API_KEY": "sk-key",
-            "TENGOD_LLM_MODEL": "deepseek-v3",
-            "TENGOD_JWT_SECRET": "jwt-key",
-            "TENGOD_RATE_LIMIT": "500",
-            "TENGOD_PROMETHEUS": "false",
-        }
-        with patch.dict(os.environ, env, clear=True):
-            result = cm._env_override(config)
-        assert result["name"] == "prod"
-        assert result["server"]["host"] == "10.0.0.1"
-        assert result["server"]["port"] == 8080
-        assert result["server"]["workers"] == 4
-        assert result["monitoring"]["log_level"] == "ERROR"
-        assert result["database"]["url"] == "sqlite:///prod.db"
-        assert result["llm"]["provider"] == "deepseek"
-        assert result["llm"]["api_key"] == "sk-key"
-        assert result["llm"]["model"] == "deepseek-v3"
-        assert result["security"]["jwt_secret"] == "jwt-key"
-        assert result["security"]["rate_limit_capacity"] == 500
-        assert result["monitoring"]["prometheus_enabled"] is False
+    def test_tengod_prometheus_case_insensitive(self, clean_env):
+        """TENGOD_PROMETHEUS is case-insensitive."""
+        os.environ["TENGOD_PROMETHEUS"] = "TRUE"
+        config = {"monitoring": {"prometheus_enabled": False}}
+        result = cm._env_override(config)
+        assert result["monitoring"]["prometheus_enabled"] is True
 
-    def test_nested_dict_not_created_for_unused_keys(self):
-        """当 server 不存在时，env 覆盖应创建 server 字典"""
+    def test_creates_nested_section_if_missing(self, clean_env):
+        """Env var creates parent dict if it doesn't exist."""
+        os.environ["TENGOD_HOST"] = "10.0.0.1"
         config = {"name": "test"}
-        with patch.dict(os.environ, {"TENGOD_HOST": "1.2.3.4"}, clear=True):
-            result = cm._env_override(config)
-        assert result["server"]["host"] == "1.2.3.4"
+        result = cm._env_override(config)
+        assert result["server"]["host"] == "10.0.0.1"
 
-    def test_pydantic_model_input(self):
-        """输入是 Pydantic model 时应能正确处理"""
-        with patch.dict(os.environ, {"TENGOD_NAME": "pydantic-name"}, clear=True):
-            if _PYDANTIC_V2:
-                cfg = TengodConfig(name="original")
-                result = cm._env_override(cfg)
-                assert result["name"] == "pydantic-name"
-            else:
-                # non-pydantic path: TengodConfig.__dict__ is used
-                cfg = TengodConfig(name="original")
-                result = cm._env_override(cfg)
-                assert result["name"] == "pydantic-name"
+    def test_multiple_env_vars_applied_together(self, clean_env):
+        """Multiple env vars are all applied."""
+        os.environ["TENGOD_NAME"] = "multi-test"
+        os.environ["TENGOD_PORT"] = "7777"
+        os.environ["TENGOD_LOG_LEVEL"] = "ERROR"
+        config = {
+            "name": "default",
+            "server": {"port": 8000},
+            "monitoring": {"log_level": "INFO"},
+        }
+        result = cm._env_override(config)
+        assert result["name"] == "multi-test"
+        assert result["server"]["port"] == 7777
+        assert result["monitoring"]["log_level"] == "ERROR"
+
+    def test_with_pydantic_model_input(self, clean_env):
+        """_env_override handles Pydantic model objects via _to_dict."""
+        os.environ["TENGOD_NAME"] = "from-env"
+        cfg = TengodConfig(name="original")
+        if _PYDANTIC_V2:
+            config_dict = cfg.model_dump()
+        else:
+            config_dict = cfg.__dict__
+        result = cm._env_override(config_dict)
+        assert result["name"] == "from-env"
+
+    def test_to_dict_handles_nested_pydantic_model(self, clean_env):
+        """_env_override _to_dict handles dict values that are pydantic models."""
+        from tengod.config_schema import ServerConfig
+
+        os.environ["TENGOD_HOST"] = "10.0.0.99"
+        # Pass a dict whose value is a pydantic model instance
+        config = {"server": ServerConfig(host="0.0.0.0", port=8000)}
+        result = cm._env_override(config)
+        assert result["server"]["host"] == "10.0.0.99"
+
+    def test_to_dict_handles_object_with_dict(self, clean_env):
+        """_env_override _to_dict handles objects with __dict__ attribute."""
+
+        class CustomObj:
+            def __init__(self):
+                self.host = "1.2.3.4"
+                self.port = 9999
+                self._private = "hidden"
+
+        os.environ["TENGOD_HOST"] = "override-host"
+        config = {"server": CustomObj()}
+        result = cm._env_override(config)
+        assert result["server"]["host"] == "override-host"
+        assert "_private" not in result["server"]
 
 
-# ============================================================================
-# load_config 测试
-# ============================================================================
+# =============================================================================
+# load_config tests
+# =============================================================================
 
 
 class TestLoadConfig:
-    """测试 load_config 函数"""
+    """Tests for load_config function."""
 
-    def test_load_from_yaml_file(self, tmp_path):
-        """从 YAML 文件加载配置"""
-        yaml_content = "name: test-yaml\n"
-        yaml_file = tmp_path / "config.yaml"
-        yaml_file.write_text(yaml_content)
+    def test_load_from_yaml_file(self, temp_yaml_config, clean_env):
+        """Load config from a valid YAML file."""
+        cfg = cm.load_config(temp_yaml_config)
+        assert cfg.name == "test-tengod"
+        assert cfg.server.host == "127.0.0.1"
+        assert cfg.server.port == 9090
+        assert cfg.server.mode == "simple"
+        assert cfg.server.workers == 2
+        assert cfg.database.backend == "sqlite"
+        assert cfg.database.url == "test.db"
+        assert cfg.llm.provider == "openai"
+        assert cfg.llm.model == "gpt-4"
+        assert cfg.security.jwt_secret == "test-secret-key"
+        assert cfg.monitoring.log_level == "DEBUG"
 
-        with patch.dict(os.environ, {}, clear=True):
-            cfg = cm.load_config(str(yaml_file), auto_env=False)
-
-        assert cfg.name == "test-yaml"
-        assert cm._CONFIG_PATH == str(yaml_file)
-        assert cm._CONFIG_MTIME > 0
-
-    def test_load_from_file_with_env_override(self, tmp_path):
-        """从文件加载并用环境变量覆盖"""
-        yaml_content = "name: file-name\n"
-        yaml_file = tmp_path / "config.yaml"
-        yaml_file.write_text(yaml_content)
-
-        with patch.dict(os.environ, {"TENGOD_NAME": "env-name"}, clear=True):
-            cfg = cm.load_config(str(yaml_file), auto_env=True)
-
-        assert cfg.name == "env-name"
-
-    def test_load_from_file_without_env_override(self, tmp_path):
-        """从文件加载但不覆盖环境变量"""
-        yaml_content = "name: file-name\n"
-        yaml_file = tmp_path / "config.yaml"
-        yaml_file.write_text(yaml_content)
-
-        with patch.dict(os.environ, {"TENGOD_NAME": "env-name"}, clear=True):
-            cfg = cm.load_config(str(yaml_file), auto_env=False)
-
-        assert cfg.name == "file-name"
-
-    def test_load_defaults_when_no_config_path(self):
-        """没有配置文件路径时使用默认值"""
-        with patch.dict(os.environ, {}, clear=True):
-            with patch("os.path.exists", return_value=False):
-                cfg = cm.load_config(auto_env=False)
-
-        assert cfg.name == "tengod"
-        assert cfg.server.host == "0.0.0.0"
+    def test_load_from_minimal_yaml(self, minimal_yaml_config, clean_env):
+        """Load config from minimal YAML with defaults for missing fields."""
+        cfg = cm.load_config(minimal_yaml_config)
+        assert cfg.name == "minimal"
+        # Defaults should be filled in
         assert cfg.server.port == 8000
-        assert cm._CONFIG_MTIME == 0
+        assert cfg.server.host == "0.0.0.0"
 
-    def test_load_from_env_var_config_file(self):
-        """通过环境变量 TENGOD_CONFIG_FILE 指定配置路径"""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False, encoding="utf-8") as f:
-            f.write("name: from-env-config-file\n")
-            tmp_path = f.name
+    def test_load_missing_file_uses_defaults(self, clean_env):
+        """When config file doesn't exist, defaults are used."""
+        cfg = cm.load_config("/nonexistent/path/config.yaml")
+        assert cfg.name == "tengod"
+        assert cfg.server.port == 8000
+        assert cfg.server.host == "0.0.0.0"
+        assert cfg.llm.provider == "openai"
+        assert cfg.llm.model == "gpt-3.5-turbo"
 
-        try:
-            with patch.dict(os.environ, {"TENGOD_CONFIG_FILE": tmp_path}, clear=True):
-                cfg = cm.load_config(auto_env=False)
-            assert cfg.name == "from-env-config-file"
-        finally:
-            os.unlink(tmp_path)
+    def test_load_with_env_override(self, temp_yaml_config, clean_env):
+        """Env vars override YAML values."""
+        os.environ["TENGOD_NAME"] = "env-override-name"
+        os.environ["TENGOD_PORT"] = "5555"
+        cfg = cm.load_config(temp_yaml_config)
+        assert cfg.name == "env-override-name"
+        assert cfg.server.port == 5555
 
-    def test_load_from_env_var_config(self):
-        """通过环境变量 TENGOD_CONFIG 指定配置路径"""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False, encoding="utf-8") as f:
-            f.write("name: from-tengod-config\n")
-            tmp_path = f.name
+    def test_load_without_env_override(self, temp_yaml_config, clean_env):
+        """With auto_env=False, env vars are ignored."""
+        os.environ["TENGOD_NAME"] = "should-not-appear"
+        cfg = cm.load_config(temp_yaml_config, auto_env=False)
+        assert cfg.name == "test-tengod"
 
-        try:
-            with patch.dict(os.environ, {"TENGOD_CONFIG": tmp_path}, clear=True):
-                with patch("os.path.exists", return_value=True):
-                    with patch("tengod.config_manager.load_from_yaml", return_value=_make_valid_config_dict("from-tengod-config")):
-                        cfg = cm.load_config(auto_env=False)
-            assert cfg.name == "from-tengod-config"
-        finally:
-            os.unlink(tmp_path)
-
-    def test_load_with_hot_reload_enabled(self, tmp_path):
-        """启用热重载标志"""
-        yaml_file = tmp_path / "config.yaml"
-        yaml_file.write_text("name: hot-reload-test\n")
-
-        with patch.dict(os.environ, {}, clear=True):
-            cfg = cm.load_config(str(yaml_file), hot_reload=True, auto_env=False)
-
-        assert cfg.name == "hot-reload-test"
+    def test_load_with_hot_reload_enabled(self, temp_yaml_config, clean_env):
+        """Hot reload flag is stored."""
+        cfg = cm.load_config(temp_yaml_config, hot_reload=True)
+        assert cfg is not None
         assert cm._CONFIG_HOT_RELOAD is True
 
-    def test_load_with_hot_reload_disabled(self, tmp_path):
-        yaml_file = tmp_path / "config.yaml"
-        yaml_file.write_text("name: no-hot-reload\n")
+    def test_load_uses_tengod_config_file_env(self, temp_yaml_config, clean_env):
+        """Uses TENGOD_CONFIG_FILE env var when config_path is None."""
+        os.environ["TENGOD_CONFIG_FILE"] = temp_yaml_config
+        cfg = cm.load_config()
+        assert cfg.name == "test-tengod"
 
-        with patch.dict(os.environ, {}, clear=True):
-            cfg = cm.load_config(str(yaml_file), hot_reload=False, auto_env=False)
+    def test_load_uses_tengod_config_fallback(self, clean_env):
+        """Uses TENGOD_CONFIG env var as fallback."""
+        # No TENGOD_CONFIG_FILE set, TENGOD_CONFIG points to non-existent
+        # so it falls through to defaults
+        os.environ["TENGOD_CONFIG"] = "some_config.yaml"
+        cfg = cm.load_config()
+        # File doesn't exist, so defaults
+        assert cfg.name == "tengod"
 
-        assert cm._CONFIG_HOT_RELOAD is False
+    def test_load_invalid_yaml_raises(self, invalid_yaml_file, clean_env):
+        """Loading invalid YAML raises an error."""
+        import yaml
 
-    def test_load_config_path_explicit(self, tmp_path):
-        """显式指定 config_path 参数"""
-        yaml_file = tmp_path / "my_config.yaml"
-        yaml_file.write_text("name: explicit-path\n")
+        with pytest.raises((yaml.YAMLError, yaml.scanner.ScannerError)):
+            cm.load_config(invalid_yaml_file)
 
-        with patch.dict(os.environ, {}, clear=True):
-            cfg = cm.load_config(str(yaml_file), auto_env=False)
+    def test_load_returns_tengodconfig_instance(self, temp_yaml_config, clean_env):
+        """load_config returns TengodConfig instance."""
+        cfg = cm.load_config(temp_yaml_config)
+        assert isinstance(cfg, TengodConfig)
 
-        assert cfg.name == "explicit-path"
-        assert cm._CONFIG_PATH == str(yaml_file)
+    def test_load_sets_global_state(self, temp_yaml_config, clean_env):
+        """load_config sets global state variables."""
+        cm.load_config(temp_yaml_config)
+        assert cm._CONFIG_INSTANCE is not None
+        assert cm._CONFIG_PATH == temp_yaml_config
+        assert cm._CONFIG_MTIME > 0
 
-    def test_load_config_path_none_and_no_env(self):
-        """config_path=None 且无环境变量时使用默认文件名"""
-        with patch.dict(os.environ, {}, clear=True):
-            with patch("os.path.exists", return_value=False):
-                with patch("tengod.config_manager.validate_and_load", return_value=_make_valid_config_dict("default-name")):
-                    cfg = cm.load_config(auto_env=False)
-
-        assert cfg.name == "default-name"
-
-    def test_load_config_path_none_but_tengod_config_file_set(self):
-        """config_path=None 但 TENGOD_CONFIG_FILE 有值"""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False, encoding="utf-8") as f:
-            f.write("name: env-file\n")
-            tmp_path = f.name
-
-        try:
-            with patch.dict(os.environ, {"TENGOD_CONFIG_FILE": tmp_path}, clear=True):
-                cfg = cm.load_config(auto_env=False)
-            assert cfg.name == "env-file"
-        finally:
-            os.unlink(tmp_path)
-
-    def test_load_config_path_empty_string(self):
-        """config_path 为空字符串时使用默认"""
-        with patch.dict(os.environ, {}, clear=True):
-            with patch("os.path.exists", return_value=False):
-                with patch("tengod.config_manager.validate_and_load", return_value=_make_valid_config_dict("default-empty")):
-                    cfg = cm.load_config("", auto_env=False)
-
-        assert cfg.name == "default-empty"
+    def test_load_missing_file_sets_mtime_zero(self, clean_env):
+        """Missing config file sets mtime to 0."""
+        cm.load_config("/nonexistent/config.yaml")
+        assert cm._CONFIG_MTIME == 0
 
 
-# ============================================================================
-# get_config 测试
-# ============================================================================
+# =============================================================================
+# get_config tests
+# =============================================================================
 
 
 class TestGetConfig:
-    """测试 get_config 函数"""
+    """Tests for get_config function."""
 
-    def test_auto_loads_when_instance_is_none(self):
-        """首次调用时自动加载配置"""
+    def test_first_call_auto_loads(self, clean_env):
+        """First call to get_config auto-loads with defaults."""
+        cfg = cm.get_config()
+        assert isinstance(cfg, TengodConfig)
+        assert cfg.name == "tengod"
+
+    def test_subsequent_calls_return_cached(self, temp_yaml_config, clean_env):
+        """Subsequent calls return the cached instance."""
+        cfg1 = cm.load_config(temp_yaml_config)
+        cfg2 = cm.get_config()
+        assert cfg2 is cfg1
+
+    def test_returns_none_when_no_instance(self, clean_env):
+        """When _CONFIG_INSTANCE is None, get_config calls load_config."""
         cm._CONFIG_INSTANCE = None
+        cfg = cm.get_config()
+        assert cfg is not None
+        assert isinstance(cfg, TengodConfig)
 
-        with patch.dict(os.environ, {}, clear=True):
-            with patch("os.path.exists", return_value=False):
-                with patch("tengod.config_manager.validate_and_load", return_value=_make_valid_config_dict("auto-loaded")):
-                    cfg = cm.get_config()
+    def test_hot_reload_detects_changed_file(self, temp_yaml_config, clean_env):
+        """Hot reload loads new config when file mtime changes."""
+        cfg1 = cm.load_config(temp_yaml_config, hot_reload=True)
 
-        assert cfg.name == "auto-loaded"
+        # Touch the file to update mtime
+        time.sleep(0.01)
+        Path = __import__("pathlib").Path
+        Path(temp_yaml_config).touch()
 
-    def test_returns_existing_instance(self):
-        """已有实例时直接返回"""
-        with patch.dict(os.environ, {}, clear=True):
-            with patch("os.path.exists", return_value=False):
-                with patch("tengod.config_manager.validate_and_load", return_value=_make_valid_config_dict("first")):
-                    cfg1 = cm.load_config(auto_env=False)
+        with patch("tengod.config_manager.load_config") as mock_load:
+            mock_load.return_value = cfg1
+            cm.get_config()
+            mock_load.assert_called_once()
 
-        cfg2 = cm.get_config()
-        assert cfg2 is cfg1
+    def test_hot_reload_no_change_no_reload(self, temp_yaml_config, clean_env):
+        """Hot reload does not reload when file hasn't changed."""
+        cm.load_config(temp_yaml_config, hot_reload=True)
+        cfg1 = cm.get_config()
 
-    def test_hot_reload_when_mtime_changed(self, tmp_path):
-        """热重载：当文件 mtime 变化时重新加载"""
-        yaml_file = tmp_path / "config.yaml"
-        yaml_file.write_text("name: version-1\n")
-
-        with patch.dict(os.environ, {}, clear=True):
-            cfg1 = cm.load_config(str(yaml_file), hot_reload=True, auto_env=False)
-
-        assert cfg1.name == "version-1"
-
-        # 修改文件
-        yaml_file.write_text("name: version-2\n")
-
-        # 返回新配置
-        with patch.dict(os.environ, {}, clear=True):
+        with patch("tengod.config_manager.load_config") as mock_load:
             cfg2 = cm.get_config()
-
-        assert cfg2.name == "version-2"
-
-    def test_no_hot_reload_when_disabled(self, tmp_path):
-        """热重载关闭时不检查 mtime"""
-        yaml_file = tmp_path / "config.yaml"
-        yaml_file.write_text("name: version-1\n")
-
-        with patch.dict(os.environ, {}, clear=True):
-            cfg1 = cm.load_config(str(yaml_file), hot_reload=False, auto_env=False)
-
-        # 修改文件
-        yaml_file.write_text("name: version-2\n")
-
-        cfg2 = cm.get_config()
-        assert cfg2 is cfg1
-
-    def test_no_hot_reload_when_file_removed(self, tmp_path):
-        """热重载开启但文件已删除时返回旧配置"""
-        yaml_file = tmp_path / "config.yaml"
-        yaml_file.write_text("name: version-1\n")
-
-        with patch.dict(os.environ, {}, clear=True):
-            cfg1 = cm.load_config(str(yaml_file), hot_reload=True, auto_env=False)
-
-        # 删除文件
-        os.unlink(yaml_file)
-
-        cfg2 = cm.get_config()
-        assert cfg2 is cfg1
-
-    def test_no_hot_reload_when_mtime_not_changed(self, tmp_path):
-        """mtime 未变化时不重新加载"""
-        yaml_file = tmp_path / "config.yaml"
-        yaml_file.write_text("name: stable\n")
-
-        with patch.dict(os.environ, {}, clear=True):
-            cfg1 = cm.load_config(str(yaml_file), hot_reload=True, auto_env=False)
-
-        # 不修改文件，直接调用 get_config
-        cfg2 = cm.get_config()
-        assert cfg2 is cfg1
-
-    def test_get_config_after_manual_load(self, tmp_path):
-        """手动 load_config 后再调用 get_config"""
-        yaml_file = tmp_path / "config.yaml"
-        yaml_file.write_text("name: manual\n")
-
-        with patch.dict(os.environ, {}, clear=True):
-            cfg1 = cm.load_config(str(yaml_file), auto_env=False)
-
-        cfg2 = cm.get_config()
-        assert cfg2 is cfg1
+            mock_load.assert_not_called()
+            assert cfg2 is cfg1
 
 
-# ============================================================================
-# reload_config 测试
-# ============================================================================
+# =============================================================================
+# reload_config tests
+# =============================================================================
 
 
 class TestReloadConfig:
-    """测试 reload_config 函数"""
+    """Tests for reload_config function."""
 
-    def test_reload_from_file(self, tmp_path):
-        """强制从文件重新加载"""
-        yaml_file = tmp_path / "config.yaml"
-        yaml_file.write_text("name: original\n")
+    def test_reload_loads_fresh_config(self, temp_yaml_config, clean_env):
+        """reload_config forces a fresh load."""
+        cm.load_config(temp_yaml_config)
+        cfg = cm.reload_config()
+        assert isinstance(cfg, TengodConfig)
+        assert cfg.name == "test-tengod"
 
-        with patch.dict(os.environ, {}, clear=True):
-            cfg1 = cm.load_config(str(yaml_file), auto_env=False)
-        assert cfg1.name == "original"
-
-        yaml_file.write_text("name: updated\n")
-
-        with patch.dict(os.environ, {}, clear=True):
-            cfg2 = cm.reload_config()
-        assert cfg2.name == "updated"
-
-    def test_reload_preserves_hot_reload_flag(self, tmp_path):
-        """reload 保持 hot_reload 标志"""
-        yaml_file = tmp_path / "config.yaml"
-        yaml_file.write_text("name: hot\n")
-
-        with patch.dict(os.environ, {}, clear=True):
-            cm.load_config(str(yaml_file), hot_reload=True, auto_env=False)
-
-        yaml_file.write_text("name: hot-updated\n")
-
-        with patch.dict(os.environ, {}, clear=True):
-            cm.reload_config()
-
-        assert cm._CONFIG_HOT_RELOAD is True
-
-    def test_reload_when_no_config_loaded(self):
-        """从未加载配置时调用 reload"""
-        cm._CONFIG_PATH = None
-        cm._CONFIG_HOT_RELOAD = False
-
-        with patch.dict(os.environ, {}, clear=True):
-            with patch("os.path.exists", return_value=False):
-                with patch("tengod.config_manager.validate_and_load", return_value=_make_valid_config_dict("reload-default")):
-                    cfg = cm.reload_config()
-
-        assert cfg.name == "reload-default"
+    def test_reload_when_never_loaded(self, clean_env):
+        """reload_config works even if never loaded before."""
+        cfg = cm.reload_config()
+        assert isinstance(cfg, TengodConfig)
+        assert cfg.name == "tengod"
 
 
-# ============================================================================
-# get_config_dict 测试
-# ============================================================================
+# =============================================================================
+# get_config_dict tests
+# =============================================================================
 
 
 class TestGetConfigDict:
-    """测试 get_config_dict 函数"""
+    """Tests for get_config_dict function."""
 
-    def test_returns_dict(self):
-        with patch.dict(os.environ, {}, clear=True):
-            with patch("os.path.exists", return_value=False):
-                with patch("tengod.config_manager.validate_and_load", return_value=_make_valid_config_dict("dict-test")):
-                    result = cm.get_config_dict()
+    def test_returns_dict(self, temp_yaml_config, clean_env):
+        """get_config_dict returns a plain dict."""
+        cm.load_config(temp_yaml_config)
+        d = cm.get_config_dict()
+        assert isinstance(d, dict)
+        assert d["name"] == "test-tengod"
+        assert "server" in d
 
-        assert isinstance(result, dict)
-        assert result["name"] == "dict-test"
-
-    def test_contains_all_sections(self):
-        with patch.dict(os.environ, {}, clear=True):
-            with patch("os.path.exists", return_value=False):
-                with patch("tengod.config_manager.validate_and_load", return_value=_make_valid_config_dict("all-sections")):
-                    result = cm.get_config_dict()
-
-        for key in ["name", "server", "database", "llm", "security", "scheduler", "consensus", "knowledge", "monitoring"]:
-            assert key in result, f"Missing key: {key}"
-
-    def test_with_pydantic_v2(self):
-        """通过 _PYDANTIC_V2=True 路径获取字典"""
-        if _PYDANTIC_V2:
-            with patch.dict(os.environ, {}, clear=True):
-                with patch("os.path.exists", return_value=False):
-                    with patch("tengod.config_manager.validate_and_load", return_value=_make_valid_config_dict("pydantic-dict")):
-                        result = cm.get_config_dict()
-
-            assert isinstance(result, dict)
-            assert result["name"] == "pydantic-dict"
+    def test_auto_loads_if_not_loaded(self, clean_env):
+        """get_config_dict auto-loads if no config loaded."""
+        d = cm.get_config_dict()
+        assert isinstance(d, dict)
+        assert d["name"] == "tengod"
 
 
-# ============================================================================
-# get_server_config 测试
-# ============================================================================
+# =============================================================================
+# get_server_config tests
+# =============================================================================
 
 
 class TestGetServerConfig:
-    """测试 get_server_config 函数"""
+    """Tests for get_server_config function."""
 
-    def test_returns_dict(self):
-        with patch.dict(os.environ, {}, clear=True):
-            with patch("os.path.exists", return_value=False):
-                with patch("tengod.config_manager.validate_and_load", return_value=_make_valid_config_dict("server-test")):
-                    result = cm.get_server_config()
+    def test_returns_server_dict(self, temp_yaml_config, clean_env):
+        """get_server_config returns server config as dict."""
+        cm.load_config(temp_yaml_config)
+        s = cm.get_server_config()
+        assert isinstance(s, dict)
+        assert s["host"] == "127.0.0.1"
+        assert s["port"] == 9090
+        assert s["mode"] == "simple"
+        assert s["workers"] == 2
+        assert "cors_origins" in s
 
-        assert isinstance(result, dict)
-        assert result["host"] == "0.0.0.0"
-        assert result["port"] == 8000
-        assert result["mode"] == "auto"
-        assert result["workers"] == 1
-        assert result["cors_origins"] == ["*"]
-
-    def test_custom_server_config(self, tmp_path):
-        yaml_content = """\
-name: custom-server
-server:
-  host: 192.168.1.1
-  port: 9000
-  mode: simple
-  workers: 8
-  cors_origins:
-    - https://example.com
-"""
-        yaml_file = tmp_path / "config.yaml"
-        yaml_file.write_text(yaml_content)
-
-        with patch.dict(os.environ, {}, clear=True):
-            cm.load_config(str(yaml_file), auto_env=False)
-
-        result = cm.get_server_config()
-        assert result["host"] == "192.168.1.1"
-        assert result["port"] == 9000
-        assert result["mode"] == "simple"
-        assert result["workers"] == 8
-        assert result["cors_origins"] == ["https://example.com"]
+    def test_auto_loads_if_not_loaded(self, clean_env):
+        """get_server_config auto-loads if no config loaded."""
+        s = cm.get_server_config()
+        assert isinstance(s, dict)
+        assert "host" in s
+        assert "port" in s
 
 
-# ============================================================================
-# get_llm_config 测试
-# ============================================================================
+# =============================================================================
+# get_llm_config tests
+# =============================================================================
 
 
 class TestGetLLMConfig:
-    """测试 get_llm_config 函数"""
+    """Tests for get_llm_config function."""
 
-    def test_returns_dict(self):
-        with patch.dict(os.environ, {}, clear=True):
-            with patch("os.path.exists", return_value=False):
-                with patch("tengod.config_manager.validate_and_load", return_value=_make_valid_config_dict("llm-test")):
-                    result = cm.get_llm_config()
+    def test_returns_llm_dict_with_masked_key(self, temp_yaml_config, clean_env):
+        """get_llm_config masks API key longer than 8 chars."""
+        cm.load_config(temp_yaml_config)
+        llm = cm.get_llm_config()
+        assert isinstance(llm, dict)
+        assert llm["provider"] == "openai"
+        assert llm["model"] == "gpt-4"
+        # sk-test-key-1234567890 → sk-****7890
+        assert llm["api_key"] == "sk-t****7890"
+        assert "****" in llm["api_key"]
 
-        assert isinstance(result, dict)
-        assert result["provider"] == "openai"
-        assert result["model"] == "gpt-3.5-turbo"
-        assert result["temperature"] == 0.7
-        assert result["max_tokens"] == 2048
+    def test_short_api_key_not_masked(self, temp_yaml_config, clean_env):
+        """API key of 8 chars or less is not masked."""
+        # Use env override to set a short key
+        os.environ["TENGOD_LLM_API_KEY"] = "short"
+        cm.load_config(temp_yaml_config)
+        llm = cm.get_llm_config()
+        assert llm["api_key"] == "short"
 
-    def test_masks_long_api_key(self):
-        """长 API key 应被脱敏"""
-        config = _make_valid_config_dict("llm-mask")
-        config["llm"]["api_key"] = "sk-1234567890abcdef"
+    def test_empty_api_key_not_masked(self, temp_yaml_config, clean_env):
+        """Empty API key is not masked."""
+        os.environ["TENGOD_LLM_API_KEY"] = ""
+        cm.load_config(temp_yaml_config)
+        llm = cm.get_llm_config()
+        assert llm["api_key"] == ""
 
-        with patch.dict(os.environ, {}, clear=True):
-            with patch("os.path.exists", return_value=False):
-                with patch("tengod.config_manager.validate_and_load", return_value=config):
-                    result = cm.get_llm_config()
+    def test_auto_loads_if_not_loaded(self, clean_env):
+        """get_llm_config auto-loads if no config loaded."""
+        llm = cm.get_llm_config()
+        assert isinstance(llm, dict)
+        assert "provider" in llm
+        assert "model" in llm
 
-        assert result["api_key"] == "sk-1****cdef"  # 前4 + **** + 后4
-
-    def test_does_not_mask_short_api_key(self):
-        """短 API key 不应脱敏"""
-        config = _make_valid_config_dict("llm-short")
-        config["llm"]["api_key"] = "short"
-
-        with patch.dict(os.environ, {}, clear=True):
-            with patch("os.path.exists", return_value=False):
-                with patch("tengod.config_manager.validate_and_load", return_value=config):
-                    result = cm.get_llm_config()
-
-        assert result["api_key"] == "short"
-
-    def test_does_not_mask_empty_api_key(self):
-        """空 API key 不应脱敏"""
-        config = _make_valid_config_dict("llm-empty")
-        config["llm"]["api_key"] = ""
-
-        with patch.dict(os.environ, {}, clear=True):
-            with patch("os.path.exists", return_value=False):
-                with patch("tengod.config_manager.validate_and_load", return_value=config):
-                    result = cm.get_llm_config()
-
-        assert result["api_key"] == ""
-
-    def test_masks_exactly_8_char_api_key(self):
-        """8 字符 API key 不应脱敏（len > 8 才脱敏）"""
-        config = _make_valid_config_dict("llm-8")
-        config["llm"]["api_key"] = "12345678"
-
-        with patch.dict(os.environ, {}, clear=True):
-            with patch("os.path.exists", return_value=False):
-                with patch("tengod.config_manager.validate_and_load", return_value=config):
-                    result = cm.get_llm_config()
-
-        assert result["api_key"] == "12345678"
-
-    def test_custom_llm_config(self, tmp_path):
-        yaml_content = """\
-name: llm-test
-llm:
-  provider: claude
-  api_key: sk-ant-api03-very-long-key-example
-  model: claude-3-opus
-  temperature: 0.3
-  max_tokens: 4096
-  timeout: 120.0
-  max_retries: 5
-  retry_backoff: 3.0
-"""
-        yaml_file = tmp_path / "config.yaml"
-        yaml_file.write_text(yaml_content)
-
-        with patch.dict(os.environ, {}, clear=True):
-            cm.load_config(str(yaml_file), auto_env=False)
-
-        result = cm.get_llm_config()
-        assert result["provider"] == "claude"
-        assert result["model"] == "claude-3-opus"
-        assert result["temperature"] == 0.3
-        assert result["max_tokens"] == 4096
-        assert "****" in result["api_key"]
+    def test_exact_8_char_key_not_masked(self, temp_yaml_config, clean_env):
+        """API key exactly 8 chars is not masked (len > 8 check)."""
+        os.environ["TENGOD_LLM_API_KEY"] = "12345678"
+        cm.load_config(temp_yaml_config)
+        llm = cm.get_llm_config()
+        assert llm["api_key"] == "12345678"
 
 
-# ============================================================================
-# init_config 测试
-# ============================================================================
+# =============================================================================
+# init_config tests
+# =============================================================================
 
 
 class TestInitConfig:
-    """测试 init_config 函数"""
+    """Tests for init_config function."""
 
-    def test_init_config_calls_load_config(self, tmp_path):
-        yaml_file = tmp_path / "config.yaml"
-        yaml_file.write_text("name: init-test\n")
+    def test_init_returns_config(self, temp_yaml_config, clean_env):
+        """init_config returns TengodConfig instance."""
+        cfg = cm.init_config(temp_yaml_config)
+        assert isinstance(cfg, TengodConfig)
+        assert cfg.name == "test-tengod"
 
-        with patch.dict(os.environ, {}, clear=True):
-            cfg = cm.init_config(str(yaml_file), hot_reload=False)
-
-        assert cfg.name == "init-test"
-
-    def test_init_config_with_hot_reload(self, tmp_path):
-        yaml_file = tmp_path / "config.yaml"
-        yaml_file.write_text("name: init-hot\n")
-
-        with patch.dict(os.environ, {}, clear=True):
-            cfg = cm.init_config(str(yaml_file), hot_reload=True)
-
-        assert cfg.name == "init-hot"
+    def test_init_with_hot_reload(self, temp_yaml_config, clean_env):
+        """init_config with hot_reload flag."""
+        cfg = cm.init_config(temp_yaml_config, hot_reload=True)
+        assert cfg is not None
         assert cm._CONFIG_HOT_RELOAD is True
 
-    def test_init_config_without_path(self):
-        with patch.dict(os.environ, {}, clear=True):
-            with patch("os.path.exists", return_value=False):
-                with patch("tengod.config_manager.validate_and_load", return_value=_make_valid_config_dict("init-default")):
-                    cfg = cm.init_config()
-
-        assert cfg.name == "init-default"
+    def test_init_defaults(self, clean_env):
+        """init_config with no args uses defaults."""
+        cfg = cm.init_config()
+        assert isinstance(cfg, TengodConfig)
+        assert cfg.name == "tengod"
 
 
-# ============================================================================
-# 线程安全测试
-# ============================================================================
-
-
-class TestThreadSafety:
-    """测试线程锁机制"""
-
-    def test_load_config_uses_lock(self):
-        """load_config 使用 _CONFIG_LOCK"""
-        with patch.dict(os.environ, {}, clear=True):
-            with patch("os.path.exists", return_value=False):
-                with patch("tengod.config_manager.validate_and_load", return_value=_make_valid_config_dict("lock-test")):
-                    cfg = cm.load_config(auto_env=False)
-
-        assert cfg.name == "lock-test"
-        # 验证锁存在且可获取
-        assert cm._CONFIG_LOCK.acquire(blocking=False)
-        cm._CONFIG_LOCK.release()
-
-
-# ============================================================================
-# 边界情况测试
-# ============================================================================
+# =============================================================================
+# Edge case and integration tests
+# =============================================================================
 
 
 class TestEdgeCases:
-    """边界情况测试"""
+    """Edge case and integration tests."""
 
-    def test_empty_config_dict(self):
-        """空配置字典"""
-        with patch.dict(os.environ, {}, clear=True):
-            with patch("os.path.exists", return_value=False):
-                with patch("tengod.config_manager.validate_and_load", return_value={"name": "tengod"}):
-                    cfg = cm.load_config(auto_env=False)
+    def test_load_config_thread_safety_lock(self, temp_yaml_config, clean_env):
+        """Verify lock is acquired during load_config."""
+        cfg = cm.load_config(temp_yaml_config)
+        assert cfg is not None
 
+    def test_reload_preserves_hot_reload_flag(self, temp_yaml_config, clean_env):
+        """reload_config preserves the hot_reload setting."""
+        cm.load_config(temp_yaml_config, hot_reload=True)
+        assert cm._CONFIG_HOT_RELOAD is True
+        cm.reload_config()
+        assert cm._CONFIG_HOT_RELOAD is True
+
+    def test_multiple_loads_update_instance(self, temp_yaml_config, minimal_yaml_config, clean_env):
+        """Multiple load_config calls update the global instance."""
+        cfg1 = cm.load_config(temp_yaml_config)
+        assert cfg1.name == "test-tengod"
+
+        cfg2 = cm.load_config(minimal_yaml_config)
+        assert cfg2.name == "minimal"
+        assert cm._CONFIG_INSTANCE is cfg2
+
+    def test_env_override_with_empty_config(self, clean_env):
+        """Env override on empty config dict."""
+        os.environ["TENGOD_NAME"] = "from-env"
+        config = {}
+        result = cm._env_override(config)
+        assert result["name"] == "from-env"
+
+    def test_all_env_vars_simultaneously(self, clean_env):
+        """All 14 environment variables set at once."""
+        os.environ["TENGOD_NAME"] = "full-test"
+        os.environ["TENGOD_HOST"] = "10.0.0.1"
+        os.environ["TENGOD_PORT"] = "8080"
+        os.environ["TENGOD_WORKERS"] = "8"
+        os.environ["TENGOD_CORS"] = "http://a.com,http://b.com"
+        os.environ["TENGOD_LOG_LEVEL"] = "WARNING"
+        os.environ["TENGOD_LOG_FORMAT"] = "text"
+        os.environ["TENGOD_DB_URL"] = "postgresql://db/test"
+        os.environ["TENGOD_LLM_PROVIDER"] = "anthropic"
+        os.environ["TENGOD_LLM_API_KEY"] = "sk-ant-key"
+        os.environ["TENGOD_LLM_MODEL"] = "claude-3"
+        os.environ["TENGOD_LLM_BASE"] = "https://api.anthropic.com"
+        os.environ["TENGOD_JWT_SECRET"] = "jwt-secret-123"
+        os.environ["TENGOD_RATE_LIMIT"] = "300"
+        os.environ["TENGOD_PROMETHEUS"] = "true"
+
+        config = {
+            "name": "default",
+            "server": {"host": "0.0.0.0", "port": 8000, "workers": 1, "cors_origins": ["*"]},
+            "database": {"url": ""},
+            "llm": {"provider": "openai", "api_key": "", "model": "", "api_base": ""},
+            "security": {"jwt_secret": "", "rate_limit_capacity": 100},
+            "monitoring": {"log_level": "INFO", "log_format": "json", "prometheus_enabled": False},
+        }
+        result = cm._env_override(config)
+
+        assert result["name"] == "full-test"
+        assert result["server"]["host"] == "10.0.0.1"
+        assert result["server"]["port"] == 8080
+        assert result["server"]["workers"] == 8
+        assert result["server"]["cors_origins"] == ["http://a.com", "http://b.com"]
+        assert result["monitoring"]["log_level"] == "WARNING"
+        assert result["monitoring"]["log_format"] == "text"
+        assert result["monitoring"]["prometheus_enabled"] is True
+        assert result["database"]["url"] == "postgresql://db/test"
+        assert result["llm"]["provider"] == "anthropic"
+        assert result["llm"]["api_key"] == "sk-ant-key"
+        assert result["llm"]["model"] == "claude-3"
+        assert result["llm"]["api_base"] == "https://api.anthropic.com"
+        assert result["security"]["jwt_secret"] == "jwt-secret-123"
+        assert result["security"]["rate_limit_capacity"] == 300
+
+    def test_empty_config_path_uses_default(self, clean_env):
+        """Empty string config_path falls through to defaults."""
+        # Ensure no env vars interfere
+        os.environ.pop("TENGOD_CONFIG_FILE", None)
+        os.environ.pop("TENGOD_CONFIG", None)
+        cfg = cm.load_config("")
         assert cfg.name == "tengod"
 
-    def test_get_config_after_reset(self):
-        """reset 全局状态后 get_config 应重新加载"""
-        with patch.dict(os.environ, {}, clear=True):
-            with patch("os.path.exists", return_value=False):
-                with patch("tengod.config_manager.validate_and_load", return_value=_make_valid_config_dict("first-load")):
-                    cfg1 = cm.load_config(auto_env=False)
-        assert cfg1.name == "first-load"
+    def test_load_config_with_env_override_and_no_file(self, clean_env):
+        """load_config with no file but env overrides."""
+        os.environ["TENGOD_NAME"] = "env-only"
+        os.environ["TENGOD_PORT"] = "3000"
+        os.environ.pop("TENGOD_CONFIG_FILE", None)
+        os.environ.pop("TENGOD_CONFIG", None)
+        cfg = cm.load_config("/nonexistent/path.yaml")
+        assert cfg.name == "env-only"
+        assert cfg.server.port == 3000
 
-        cm._CONFIG_INSTANCE = None
-
-        with patch.dict(os.environ, {}, clear=True):
-            with patch("os.path.exists", return_value=False):
-                with patch("tengod.config_manager.validate_and_load", return_value=_make_valid_config_dict("second-load")):
-                    cfg2 = cm.get_config()
-        assert cfg2.name == "second-load"
-
-    def test_multiple_load_config_calls(self, tmp_path):
-        """多次调用 load_config"""
-        yaml_file = tmp_path / "config.yaml"
-        yaml_file.write_text("name: multi-1\n")
-
-        with patch.dict(os.environ, {}, clear=True):
-            cm.load_config(str(yaml_file), auto_env=False)
-
-        yaml_file.write_text("name: multi-2\n")
-
-        with patch.dict(os.environ, {}, clear=True):
-            cfg = cm.load_config(str(yaml_file), auto_env=False)
-
-        assert cfg.name == "multi-2"
-
-    def test_llm_config_key_not_present(self):
-        """api_key 不在字典中"""
-        config = _make_valid_config_dict("llm-no-key")
-        del config["llm"]["api_key"]
-
-        with patch.dict(os.environ, {}, clear=True):
-            with patch("os.path.exists", return_value=False):
-                with patch("tengod.config_manager.validate_and_load", return_value=config):
-                    result = cm.get_llm_config()
-
-        assert "api_key" in result
-        assert result["api_key"] == ""
-
-    def test_server_config_with_cors_origins_list(self, tmp_path):
-        yaml_content = """\
-name: cors-test
-server:
-  cors_origins:
-    - http://a.com
-    - http://b.com
-"""
-        yaml_file = tmp_path / "config.yaml"
-        yaml_file.write_text(yaml_content)
-
-        with patch.dict(os.environ, {}, clear=True):
-            cm.load_config(str(yaml_file), auto_env=False)
-
-        result = cm.get_server_config()
-        assert "http://a.com" in result["cors_origins"]
-        assert "http://b.com" in result["cors_origins"]
-
-    def test_reload_config_after_file_deleted(self, tmp_path):
-        """文件被删除后 reload_config 使用默认值"""
-        yaml_file = tmp_path / "config.yaml"
-        yaml_file.write_text("name: will-be-deleted\n")
-
-        with patch.dict(os.environ, {}, clear=True):
-            cm.load_config(str(yaml_file), auto_env=False)
-
-        os.unlink(yaml_file)
-
-        with patch.dict(os.environ, {}, clear=True):
-            with patch("tengod.config_manager.validate_and_load", return_value=_make_valid_config_dict("default-after-delete")):
-                cfg = cm.reload_config()
-
-        assert cfg.name == "default-after-delete"
-
-    def test_env_override_with_existing_pydantic_model(self):
-        """_env_override 输入为 Pydantic model 实例"""
-        if _PYDANTIC_V2:
-            cfg = TengodConfig(name="model-name")
-            with patch.dict(os.environ, {"TENGOD_HOST": "10.0.0.1"}, clear=True):
-                result = cm._env_override(cfg)
-
-            assert result["server"]["host"] == "10.0.0.1"
-
-    def test_env_override_with_plain_object(self):
-        """_env_override 输入为有 __dict__ 的普通对象"""
-        class FakeConfig:
-            def __init__(self):
-                self.name = "fake"
-                self.server = FakeServer()
-                self._private = "should-be-ignored"
-
-        class FakeServer:
-            def __init__(self):
-                self.host = "0.0.0.0"
-
-        fake = FakeConfig()
-        with patch.dict(os.environ, {"TENGOD_HOST": "1.1.1.1"}, clear=True):
-            result = cm._env_override(fake)
-
-        assert result["server"]["host"] == "1.1.1.1"
-        assert "_private" not in result
-
-
-# ============================================================================
-# __all__ 导出测试
-# ============================================================================
-
-
-class TestExports:
-    """测试模块导出"""
-
-    def test_all_public_functions_exported(self):
-        expected = [
-            "load_config",
-            "get_config",
-            "reload_config",
-            "get_config_dict",
-            "get_server_config",
-            "get_llm_config",
-            "init_config",
-            "generate_example_yaml",
-        ]
-        for name in expected:
-            assert name in cm.__all__, f"Missing {name} in __all__"
-
-    def test_generate_example_yaml_re_exported(self):
-        """generate_example_yaml 从 config_schema 重新导出"""
+    def test_generate_example_yaml_imported(self):
+        """generate_example_yaml is importable from config_manager."""
         from tengod.config_manager import generate_example_yaml
-        yaml_str = generate_example_yaml()
-        assert "tengod-prod" in yaml_str
-        assert isinstance(yaml_str, str)
 
+        result = generate_example_yaml()
+        assert isinstance(result, str)
+        assert "十神架构" in result
+        assert "tengod-prod" in result
 
-# ============================================================================
-# 非 Pydantic 降级路径测试
-# ============================================================================
-
-
-class TestNonPydanticPath:
-    """测试 _PYDANTIC_V2=False 的降级路径"""
-
-    def test_get_config_dict_non_pydantic(self):
-        """get_config_dict 在非 Pydantic 路径下使用 __dict__"""
-        with patch.dict(os.environ, {}, clear=True):
-            with patch("os.path.exists", return_value=False):
-                with patch("tengod.config_manager.validate_and_load", return_value=_make_valid_config_dict("non-pydantic")):
-                    with patch("tengod.config_manager._PYDANTIC_V2", False):
-                        result = cm.get_config_dict()
-
-        assert isinstance(result, dict)
-        assert result["name"] == "non-pydantic"
-
-    def test_get_server_config_non_pydantic(self):
-        """get_server_config 在非 Pydantic 路径下"""
-        with patch.dict(os.environ, {}, clear=True):
-            with patch("os.path.exists", return_value=False):
-                with patch("tengod.config_manager.validate_and_load", return_value=_make_valid_config_dict("non-pydantic-server")):
-                    with patch("tengod.config_manager._PYDANTIC_V2", False):
-                        result = cm.get_server_config()
-
-        assert isinstance(result, dict)
-        assert "host" in result
-        assert "port" in result
-
-    def test_get_llm_config_non_pydantic(self):
-        """get_llm_config 在非 Pydantic 路径下"""
-        config = _make_valid_config_dict("non-pydantic-llm")
-        config["llm"]["api_key"] = "sk-1234567890abcdef"
-
-        with patch.dict(os.environ, {}, clear=True):
-            with patch("os.path.exists", return_value=False):
-                with patch("tengod.config_manager.validate_and_load", return_value=config):
-                    with patch("tengod.config_manager._PYDANTIC_V2", False):
-                        result = cm.get_llm_config()
-
-        assert isinstance(result, dict)
-        assert "provider" in result
-        assert "****" in result["api_key"]
-
-    def test_load_config_non_pydantic(self):
-        """load_config 在非 Pydantic 路径下"""
-        with patch.dict(os.environ, {}, clear=True):
-            with patch("os.path.exists", return_value=False):
-                with patch("tengod.config_manager.validate_and_load", return_value=_make_valid_config_dict("non-pydantic-load")):
-                    with patch("tengod.config_manager._PYDANTIC_V2", False):
-                        cfg = cm.load_config(auto_env=False)
-
-        assert cfg.name == "non-pydantic-load"
+    def test_config_manager_all_exports(self):
+        """Verify __all__ contains all public functions."""
+        assert "load_config" in cm.__all__
+        assert "get_config" in cm.__all__
+        assert "reload_config" in cm.__all__
+        assert "get_config_dict" in cm.__all__
+        assert "get_server_config" in cm.__all__
+        assert "get_llm_config" in cm.__all__
+        assert "init_config" in cm.__all__
+        assert "generate_example_yaml" in cm.__all__

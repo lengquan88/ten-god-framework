@@ -982,7 +982,7 @@ class TestGetSimilarCases:
             assert scores == sorted(scores, reverse=True)
 
     def test_get_similar_cases_case_without_bazi_data(self):
-        """案例没有 bazi_data 字段"""
+        """案例没有 bazi_data 字段时，gender 均为 None 也会匹配（score=1）"""
         repo = CaseRepository()
         mock_db = make_mock_db()
         mock_db.list_cases.return_value = [
@@ -992,8 +992,10 @@ class TestGetSimilarCases:
         with patch("tengod.case_repository.is_persistent", return_value=True), \
              patch("tengod.case_repository.get_db", return_value=mock_db):
             result = repo.get_similar_cases({"day_master": "辛金"})
-            # 没有 bazi_data 字段，score 为 0，不加入结果
-            assert result == []
+            # 没有 bazi_data 字段 → day_master 不匹配，但 gender 同为 None，score=1
+            assert len(result) == 1
+            assert result[0]["score"] == 1
+            assert result[0]["case"]["id"] == 1
 
 
 # ══════════════════════════════════════════════════════════════
