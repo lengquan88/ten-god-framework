@@ -1,12 +1,12 @@
 {
   "status": "running",
   "db": "ok",
-  "users": 108,
-  "records": 18,
+  "users": 72,
+  "records": 12,
   "cases": 0,
   "metrics": {
-    "timestamp": "2026-06-27T10:15:08.348230+00:00",
-    "uptime_seconds": 53.9,
+    "timestamp": "2026-06-27T15:51:59.198744+00:00",
+    "uptime_seconds": 67.1,
     "requests": {
       "total": 0,
       "errors": 0,
@@ -28,10 +28,10 @@
     },
     "system": {
       "cpu_percent": 0.0,
-      "memory_percent": 40.3,
-      "memory_used_mb": 1581.29,
-      "disk_percent": 82.6
+      "memory_percent": 47.8,
+      "memory_used_mb": 1876.79,
+      "disk_percent": 82.8
     }
   },
-  "timestamp": "2026-06-27T10:15:08.348257+00:00"
+  "timestamp": "2026-06-27T15:51:59.198768+00:00"
 }
