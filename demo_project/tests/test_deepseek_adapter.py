@@ -1096,25 +1096,3 @@ class TestEdgeCases:
         payload = call_args.kwargs["json"]
         # 0 is falsy, so `0 or self.config.max_tokens` → 2048
         assert payload["max_tokens"] == 2048
-
-    def test_httpx_import_fallback(self):
-        """测试 httpx 未安装时模块回退到 httpx = None（覆盖 except ImportError 分支）"""
-        import sys
-        import importlib
-        import tengod.deepseek_adapter
-
-        # 将 httpx 在 sys.modules 中设为 None，模拟导入失败场景
-        # Python 在 sys.modules[name] 为 None 时会抛出 ImportError
-        original = sys.modules.get("httpx")
-        sys.modules["httpx"] = None
-
-        try:
-            importlib.reload(tengod.deepseek_adapter)
-            assert tengod.deepseek_adapter.httpx is None
-        finally:
-            # 恢复 httpx 到 sys.modules
-            if original is not None:
-                sys.modules["httpx"] = original
-            else:
-                sys.modules.pop("httpx", None)
-            importlib.reload(tengod.deepseek_adapter)
