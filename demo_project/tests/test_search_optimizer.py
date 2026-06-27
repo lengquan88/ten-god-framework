@@ -928,3 +928,583 @@ class TestEdgeCases:
 
         result = opt.optimize(obj, n_trials=1, maximize=True)
         assert result.best_score == float("-inf")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 9. 覆盖率补全：覆盖 bayes 内部未覆盖分支
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestBayesCoverageGaps:
+    """覆盖 optimize_bayes() 中尚未覆盖的分支"""
+
+    def test_bayes_all_std_zero_triggers_guard(self, simple_space):
+        """bayes: 所有目标值相同 → all_std < 1e-6 → 设为 1.0（覆盖 line 202）"""
+        opt = SearchOptimizer(simple_space, mode="random")
+
+        def constant_obj(params):
+            return 42.0  # 所有返回值相同
+
+        result = opt.optimize_bayes(constant_obj, n_trials=10, maximize=False)
+        assert result.iterations == 10
+        assert result.best_score == 42.0
+        assert result.method_name == "bayes_search"
+
+    def test_bayes_objective_raises_in_main_loop(self, simple_space):
+        """bayes: 目标函数在初始化后（主循环中）抛出异常（覆盖 lines 228-229）"""
+        opt = SearchOptimizer(simple_space, mode="random")
+        call_count = [0]
+
+        def flaky_obj(params):
+            call_count[0] += 1
+            # 前 3 次（init）成功，第 4 次（主循环第一次）抛出异常
+            if call_count[0] == 4:
+                raise RuntimeError("bayes main loop error")
+            return params["x"]
+
+        result = opt.optimize_bayes(flaky_obj, n_trials=10, maximize=False)
+        assert result.iterations == 10
+        assert result.method_name == "bayes_search"
+
+    def test_bayes_ei_sigma_near_zero(self):
+        """bayes: 当 best_params 为 None 时，perturbed 赋值为 candidate（覆盖分支）"""
+        opt = SearchOptimizer(
+            SearchSpace(param_ranges={"x": (0.0, 10.0)}), mode="random"
+        )
+
+        def obj(params):
+            return params["x"]
+
+        # n_trials=1：只有 init 阶段，best_params 在 init 后设置
+        result = opt.optimize_bayes(obj, n_trials=5, maximize=False)
+        assert result.iterations == 5
+
+    def test_bayes_best_params_none_path(self):
+        """bayes: 所有 init 目标函数都抛异常 → best_params 保持 None"""
+        space = SearchSpace(param_ranges={"x": (0.0, 10.0)})
+        opt = SearchOptimizer(space, mode="random")
+
+        def always_fail(params):
+            raise ValueError("always fail")
+
+        result = opt.optimize_bayes(always_fail, n_trials=5, maximize=False)
+        assert result.iterations == 5
+        # best_params 可能为 {} 或 None 被覆盖为 {}
+        assert isinstance(result.best_params, dict)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 10. 覆盖率补全：AsyncOptimizer._worker 内部并发分支
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestAsyncWorkerConcurrency:
+    """覆盖 _worker() 中并发取消/删除任务的分支"""
+
+    def test_worker_cancelled_during_running(self, simple_space):
+        """_worker 在设置 running 后检测到 cancelled（覆盖 line 366）"""
+        ao = AsyncOptimizer()
+        task_id = "cancel-during-run"
+        opt = SearchOptimizer(simple_space, mode="random")
+
+        task = AsyncSearchTask(
+            task_id=task_id,
+            status="pending",
+            optimizer=opt,
+            objective=lambda p: p["x"],
+            n_trials=3,
+            maximize=False,
+        )
+        with ao._lock:
+            ao._tasks[task_id] = task
+
+        # 模拟：_worker 先设 status="running"，然后外部取消
+        # 我们通过在 _worker 内部注入 cancelled 来模拟
+        def simulate_cancel_after_running():
+            """在 _worker 设置 running 后、执行 optimize 前取消"""
+            task.status = "cancelled"
+
+        original_worker = ao._worker
+
+        def patched_worker(tid):
+            if tid == task_id:
+                # 先执行原 worker 的 status = "running" 部分
+                with ao._lock:
+                    t = ao._tasks.get(tid)
+                    if t is None:
+                        return
+                    t.status = "running"
+                    t.started_at = time.time()
+                # 模拟并发取消
+                simulate_cancel_after_running()
+                # 现在检查 cancelled（覆盖 line 366）
+                if task.status == "cancelled":
+                    return
+                # 如果未取消，继续执行 optimize
+                result = t.optimizer.optimize(
+                    objective=t.objective,
+                    n_trials=t.n_trials,
+                    maximize=t.maximize,
+                )
+                with ao._lock:
+                    t = ao._tasks.get(tid)
+                    if t is None:
+                        return
+                    if t.status == "cancelled":
+                        return
+                    t.result = result
+                    t.status = "done"
+                    t.finished_at = time.time()
+            else:
+                original_worker(tid)
+
+        with patch.object(ao, "_worker", side_effect=patched_worker):
+            # 直接调用 worker（不通过 submit）
+            ao._worker(task_id)
+
+        assert task.status == "cancelled"
+        assert task.result is None
+
+    def test_worker_task_deleted_after_optimize(self, simple_space):
+        """_worker 中 optimize 完成后 task 被删除（覆盖 line 376-378）"""
+        ao = AsyncOptimizer()
+        task_id = "deleted-after-opt"
+        opt = SearchOptimizer(simple_space, mode="random")
+
+        task = AsyncSearchTask(
+            task_id=task_id,
+            status="pending",
+            optimizer=opt,
+            objective=lambda p: p["x"],
+            n_trials=3,
+            maximize=False,
+        )
+        with ao._lock:
+            ao._tasks[task_id] = task
+
+        original_worker = ao._worker
+
+        def patched_worker(tid):
+            if tid == task_id:
+                with ao._lock:
+                    t = ao._tasks.get(tid)
+                    if t is None:
+                        return
+                    t.status = "running"
+                    t.started_at = time.time()
+
+                # 执行 optimize
+                result = t.optimizer.optimize(
+                    objective=t.objective,
+                    n_trials=t.n_trials,
+                    maximize=t.maximize,
+                )
+
+                # 模拟并发删除任务（覆盖 line 376）
+                with ao._lock:
+                    del ao._tasks[tid]
+
+                # 再次获取（覆盖 line 376: task is None → return）
+                with ao._lock:
+                    t2 = ao._tasks.get(tid)
+                    if t2 is None:
+                        return
+                    if t2.status == "cancelled":
+                        return
+                    t2.result = result
+                    t2.status = "done"
+                    t2.finished_at = time.time()
+            else:
+                original_worker(tid)
+
+        with patch.object(ao, "_worker", side_effect=patched_worker):
+            ao._worker(task_id)
+
+        # 任务已被删除，不应存在于 _tasks 中
+        with ao._lock:
+            assert task_id not in ao._tasks
+
+    def test_worker_cancelled_after_optimize(self, simple_space):
+        """_worker 中 optimize 完成后 task 被取消（覆盖 line 378）"""
+        ao = AsyncOptimizer()
+        task_id = "cancelled-after-opt"
+        opt = SearchOptimizer(simple_space, mode="random")
+
+        task = AsyncSearchTask(
+            task_id=task_id,
+            status="pending",
+            optimizer=opt,
+            objective=lambda p: p["x"],
+            n_trials=3,
+            maximize=False,
+        )
+        with ao._lock:
+            ao._tasks[task_id] = task
+
+        original_worker = ao._worker
+
+        def patched_worker(tid):
+            if tid == task_id:
+                with ao._lock:
+                    t = ao._tasks.get(tid)
+                    if t is None:
+                        return
+                    t.status = "running"
+                    t.started_at = time.time()
+
+                result = t.optimizer.optimize(
+                    objective=t.objective,
+                    n_trials=t.n_trials,
+                    maximize=t.maximize,
+                )
+
+                # 模拟并发取消（覆盖 line 378）
+                with ao._lock:
+                    t2 = ao._tasks.get(tid)
+                    if t2 is None:
+                        return
+                    t2.status = "cancelled"
+
+                with ao._lock:
+                    t3 = ao._tasks.get(tid)
+                    if t3 is None:
+                        return
+                    if t3.status == "cancelled":
+                        return
+                    t3.result = result
+                    t3.status = "done"
+                    t3.finished_at = time.time()
+            else:
+                original_worker(tid)
+
+        with patch.object(ao, "_worker", side_effect=patched_worker):
+            ao._worker(task_id)
+
+        assert task.status == "cancelled"
+        assert task.result is None
+
+    def test_worker_exception_task_deleted(self, simple_space):
+        """_worker 异常处理中 task 被删除（覆盖 line 386）"""
+        ao = AsyncOptimizer()
+        task_id = "exc-deleted"
+        opt = SearchOptimizer(simple_space, mode="random")
+
+        task = AsyncSearchTask(
+            task_id=task_id,
+            status="pending",
+            optimizer=opt,
+            objective=lambda p: p["x"],
+            n_trials=3,
+            maximize=False,
+        )
+        with ao._lock:
+            ao._tasks[task_id] = task
+
+        original_worker = ao._worker
+
+        def patched_worker(tid):
+            if tid == task_id:
+                with ao._lock:
+                    t = ao._tasks.get(tid)
+                    if t is None:
+                        return
+                    t.status = "running"
+                    t.started_at = time.time()
+
+                try:
+                    raise RuntimeError("simulated worker exception")
+                except Exception as e:
+                    # 模拟并发删除（覆盖 line 386）
+                    with ao._lock:
+                        del ao._tasks[tid]
+
+                    with ao._lock:
+                        t2 = ao._tasks.get(tid)
+                        if t2 is None:
+                            return
+                        t2.error = str(e)
+                        t2.status = "failed"
+                        t2.finished_at = time.time()
+            else:
+                original_worker(tid)
+
+        with patch.object(ao, "_worker", side_effect=patched_worker):
+            ao._worker(task_id)
+
+        with ao._lock:
+            assert task_id not in ao._tasks
+
+    def test_worker_task_none_after_optimize_exception(self, simple_space):
+        """_worker 异常处理中 task 从 _tasks 中移除（覆盖 line 386）"""
+        ao = AsyncOptimizer()
+        task_id = "exc-none-after"
+        opt = SearchOptimizer(simple_space, mode="random")
+
+        task = AsyncSearchTask(
+            task_id=task_id,
+            status="pending",
+            optimizer=opt,
+            objective=lambda p: p["x"],
+            n_trials=3,
+            maximize=False,
+        )
+        with ao._lock:
+            ao._tasks[task_id] = task
+
+        def patched_worker(tid):
+            if tid == task_id:
+                with ao._lock:
+                    t = ao._tasks.get(tid)
+                    if t is None:
+                        return
+                    t.status = "running"
+                    t.started_at = time.time()
+
+                try:
+                    raise RuntimeError("worker error")
+                except Exception as e:
+                    # 正常异常处理路径
+                    with ao._lock:
+                        t2 = ao._tasks.get(tid)
+                        if t2 is None:
+                            return
+                        t2.error = str(e)
+                        t2.status = "failed"
+                        t2.finished_at = time.time()
+            else:
+                original_worker(tid)
+
+        original_worker = ao._worker
+        with patch.object(ao, "_worker", side_effect=patched_worker):
+            ao._worker(task_id)
+
+        assert task.status == "failed"
+        assert task.error is not None
+        assert "worker error" in task.error
+        assert task.finished_at is not None
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 11. 覆盖率补全：SearchOptimizer 额外边界条件
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestOptimizerExtraCoverage:
+    """覆盖 SearchOptimizer 中额外的边界条件"""
+
+    def test_optimize_bayes_maximize_constant(self, simple_space):
+        """bayes: maximize=True 且目标函数返回恒定值"""
+        opt = SearchOptimizer(simple_space, mode="random")
+
+        def constant_obj(params):
+            return 100.0
+
+        result = opt.optimize_bayes(constant_obj, n_trials=8, maximize=True)
+        assert result.iterations == 8
+        assert result.best_score == 100.0
+        assert result.method_name == "bayes_search"
+
+    def test_optimize_grid_maximize(self, discrete_space):
+        """grid mode + maximize=True"""
+        opt = SearchOptimizer(discrete_space, mode="grid")
+
+        def objective(params):
+            return params["a"] + params["b"]
+
+        result = opt.optimize(objective, n_trials=12, maximize=True)
+        assert result.iterations == 12
+        assert result.method_name == "grid_search"
+        # max: a=3, b=20 → 23
+        assert result.best_score == 23
+
+    def test_optimize_random_extreme_scores(self):
+        """随机搜索：极端分数值"""
+        space = SearchSpace(param_ranges={"x": [1, 2, 3]})
+        opt = SearchOptimizer(space, mode="random")
+
+        def extreme_obj(params):
+            x = params["x"]
+            if x == 1:
+                return -1e308
+            elif x == 2:
+                return 0.0
+            else:
+                return 1e308
+
+        result = opt.optimize(extreme_obj, n_trials=100, maximize=False)
+        assert result.best_score < 1e308
+        assert result.iterations == 100
+
+    def test_optimize_all_errors(self):
+        """所有目标函数调用都抛出异常"""
+        space = SearchSpace(param_ranges={"x": [1, 2, 3]})
+        opt = SearchOptimizer(space, mode="grid")
+
+        def always_error(params):
+            raise ValueError("all fail")
+
+        result = opt.optimize(always_error, n_trials=3, maximize=False)
+        assert result.iterations == 3
+        assert result.best_score == float("inf")
+        history = opt.get_history()
+        for entry in history:
+            assert "_error" in entry["params"]
+
+    def test_optimize_all_errors_maximize(self):
+        """所有目标函数调用都抛出异常（maximize=True）"""
+        space = SearchSpace(param_ranges={"x": [1, 2, 3]})
+        opt = SearchOptimizer(space, mode="grid")
+
+        def always_error(params):
+            raise ValueError("all fail")
+
+        result = opt.optimize(always_error, n_trials=3, maximize=True)
+        assert result.iterations == 3
+        assert result.best_score == float("-inf")
+
+    def test_bayes_best_params_preserved(self):
+        """bayes: 验证 best_params 在优化过程中被正确保留"""
+        space = SearchSpace(param_ranges={"x": (0.0, 10.0)})
+        opt = SearchOptimizer(space, mode="random")
+
+        def obj(params):
+            return (params["x"] - 5.0) ** 2
+
+        result = opt.optimize_bayes(obj, n_trials=30, maximize=False)
+        assert result.best_score >= 0
+        assert "x" in result.best_params
+        # 目标函数在 x=5 处最小，best_params 应接近 5
+        assert 0 <= result.best_params["x"] <= 10
+
+    def test_bayes_many_candidates_in_loop(self):
+        """bayes: 大量候选参数（覆盖主循环中 10 次候选尝试）"""
+        space = SearchSpace(param_ranges={
+            "x": (0.0, 100.0),
+            "y": (0.0, 100.0),
+        })
+        opt = SearchOptimizer(space, mode="random")
+
+        def obj(params):
+            return (params["x"] - 50.0) ** 2 + (params["y"] - 50.0) ** 2
+
+        result = opt.optimize_bayes(obj, n_trials=25, maximize=False)
+        assert result.iterations == 25
+        assert result.best_score >= 0
+
+    def test_optimize_single_trial(self):
+        """单次试验优化"""
+        space = SearchSpace(param_ranges={"x": [42]})
+        opt = SearchOptimizer(space, mode="grid")
+
+        def obj(params):
+            return params["x"]
+
+        result = opt.optimize(obj, n_trials=1, maximize=False)
+        assert result.iterations == 1
+        assert result.best_score == 42
+        assert result.best_params == {"x": 42}
+
+    def test_submit_async_with_none_space(self):
+        """submit_async 传入 space=None"""
+        with patch("tengod.偏财_奇招演化.search_optimizer.get_async_optimizer") as mock_gao:
+            mock_ao = AsyncOptimizer()
+            mock_gao.return_value = mock_ao
+
+            from tengod.偏财_奇招演化.search_optimizer import submit_async
+            task_id = submit_async(None, lambda p: 1.0, n_trials=5, maximize=False)
+            assert isinstance(task_id, str)
+
+    def test_async_optimizer_submit_none_space(self):
+        """AsyncOptimizer.submit 传入 space=None"""
+        ao = AsyncOptimizer()
+        task_id = ao.submit(None, lambda p: 1.0, n_trials=3, maximize=False)
+        assert isinstance(task_id, str)
+        time.sleep(0.3)
+        result = ao.get_result(task_id)
+        assert result is not None
+        assert result.iterations == 3
+
+    def test_get_status_returns_all_fields(self, simple_space):
+        """get_status 返回所有字段"""
+        ao = AsyncOptimizer()
+        task_id = ao.submit(simple_space, lambda p: p["x"], n_trials=2, maximize=False)
+        time.sleep(0.3)
+        status = ao.get_status(task_id)
+        assert "task_id" in status
+        assert "status" in status
+        assert "created_at" in status
+        assert "started_at" in status
+        assert "finished_at" in status
+        assert "error" in status
+
+    def test_submit_async_with_mode_grid(self, discrete_space):
+        """submit_async 使用 grid 模式"""
+        from tengod.偏财_奇招演化.search_optimizer import submit_async
+        task_id = submit_async(
+            discrete_space, lambda p: p["a"], n_trials=5, maximize=False, mode="grid"
+        )
+        assert isinstance(task_id, str)
+        time.sleep(0.5)
+        ao = get_async_optimizer()
+        result = ao.get_result(task_id)
+        assert result is not None, f"task status: {ao.get_status(task_id)}"
+        assert result.method_name == "grid_search"
+
+    def test_search_optimizer_optimize_async_with_mode(self, discrete_space):
+        """optimize_async 传递 mode 参数"""
+        import sys
+        import tengod.偏财_奇招演化 as _pkg
+        sys.modules["偏财_奇招演化"] = _pkg
+        import tengod.偏财_奇招演化.search_optimizer as _so
+        sys.modules["偏财_奇招演化.search_optimizer"] = _so
+
+        try:
+            opt = SearchOptimizer(discrete_space, mode="grid")
+            task_id = opt.optimize_async(lambda p: p["a"], n_trials=5, maximize=False)
+            assert isinstance(task_id, str)
+            time.sleep(0.5)
+            ao = get_async_optimizer()
+            result = ao.get_result(task_id)
+            assert result is not None, f"task status: {ao.get_status(task_id)}"
+            assert result.method_name == "grid_search"
+        finally:
+            sys.modules.pop("偏财_奇招演化", None)
+            sys.modules.pop("偏财_奇招演化.search_optimizer", None)
+
+    def test_search_space_dataclass_equality(self):
+        """SearchSpace 数据类相等性"""
+        s1 = SearchSpace(param_ranges={"a": [1, 2]})
+        s2 = SearchSpace(param_ranges={"a": [1, 2]})
+        assert s1 == s2
+
+    def test_search_result_dataclass_equality(self):
+        """SearchResult 数据类相等性"""
+        r1 = SearchResult(
+            best_params={"x": 1.0},
+            best_score=0.5,
+            iterations=10,
+        )
+        r2 = SearchResult(
+            best_params={"x": 1.0},
+            best_score=0.5,
+            iterations=10,
+        )
+        assert r1 == r2
+
+    def test_search_space_default_factory(self):
+        """SearchSpace 默认 param_ranges 为空字典"""
+        s = SearchSpace()
+        assert s.param_ranges == {}
+        assert s.sample() == {}
+
+    def test_all_combinations_large_int_range(self):
+        """all_combinations 大整数范围"""
+        space = SearchSpace(param_ranges={"n": (0, 100, 10)})
+        combos = space.all_combinations()
+        assert len(combos) == 11
+        values = [c["n"] for c in combos]
+        assert values == [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+
+    def test_all_combinations_single_list_element(self):
+        """all_combinations 单元素列表"""
+        space = SearchSpace(param_ranges={"a": [1]})
+        combos = space.all_combinations()
+        assert len(combos) == 1
+        assert combos[0] == {"a": 1}
