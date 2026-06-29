@@ -94,12 +94,25 @@ jobs:
           python -c "from tengod import llm_adapter; print('✅ LLM适配器')"
           python -c "from tengod import metrics_collector; print('✅ 监控采集')"
 
-      # ── 模块导入测试 ─────────────────────────────────────────────
+      # ── 模块导入测试（动态扫描子目录）────────────────────────────────
       - name: 模块导入测试
         run: |
-          for mod in 比肩_架构协同 劫财_攻防边界 食神_创生输出 正印_滋养守护 伤官_破界创新 正财_知识固化 偏财_奇招演化 正官_法度调度 七杀_品质裁决 偏印_桥接通变 元辰_本源定位 太极_阴阳调和; do
-            python -c "import sys; sys.path.insert(0, 'tengod'); import ${mod}" || { echo "FAILED: ${mod}"; exit 1; }
-          done
+          python -c "
+          import os, sys
+          sys.path.insert(0, 'tengod')
+          Tengod_DIR = 'tengod'
+          for entry in os.listdir(Tengod_DIR):
+              full = os.path.join(Tengod_DIR, entry)
+              if os.path.isdir(full) and not entry.startswith('.') and not entry.startswith('_'):
+                  sys.path.insert(0, full)
+                  try:
+                      __import__(entry)
+                      print(f'✅ {entry}')
+                  except Exception as e:
+                      print(f'❌ {entry}: {e}')
+                      sys.exit(1)
+          print('✅ 所有模块导入成功')
+          "
 
       # ── 功能测试 ─────────────────────────────────────────────────
       - name: 功能测试
@@ -171,7 +184,7 @@ jobs:
             --ignore=tests/test_api_integration.py \
             --cov=tengod \
             --cov-fail-under=40 \
-            -v --tb=short || true
+            -v --tb=short
 
       # ── 上传覆盖率 ─────────────────────────────────────────────────
       - name: 上传覆盖率报告
@@ -180,15 +193,6 @@ jobs:
         with:
           name: coverage-report
           path: demo_project/htmlcov/
-
-  # ── Docker 独立构建 ───────────────────────────────────────────────
-  docker:
-    name: Docker Build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build
-        run: docker build -t tengod:test ./demo_project --progress=plain || echo "Dockerfile may need adjustment"
 
   # ── 构建阶段 ──────────────────────────────────────────────────────
   build:
@@ -232,6 +236,16 @@ jobs:
     if: github.ref == 'refs/heads/main'
     environment: production
 
+    env:
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/opt/tengod' }}
+      DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY || '' }}
+    secrets:
+      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+      DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+
     steps:
       - uses: actions/checkout@v4
 
@@ -252,22 +266,31 @@ jobs:
           cat > deploy/deploy.sh << 'EOF'
           #!/bin/bash
           set -e
-          
-          echo "🔄 开始部署..."
-          
+
+          DEPLOY_PATH="${DEPLOY_PATH:-/opt/tengod}"
+          DOCKER_REGISTRY="${DOCKER_REGISTRY:-}"
+
+          echo "🔄 开始部署到 ${DEPLOY_PATH}..."
+
+          # 登录私有仓库（如配置了 registry）
+          if [[ -n "$DOCKER_REGISTRY" && -n "$DOCKER_USERNAME" && -n "$DOCKER_PASSWORD" ]]; then
+            echo "🔐 登录 Docker 仓库 ${DOCKER_REGISTRY}"
+            echo "$DOCKER_PASSWORD" | docker login "$DOCKER_REGISTRY" -u "$DOCKER_USERNAME" --password-stdin
+          fi
+
           # 拉取最新代码
-          cd /opt/tengod
+          cd "$DEPLOY_PATH"
           git pull origin main
-          
+
           # 构建镜像
           docker-compose build tengod-api
-          
+
           # 重启服务
           docker-compose up -d tengod-api
-          
+
           # 等待服务启动
           sleep 10
-          
+
           # 健康检查
           if curl -sf http://localhost/api/health > /dev/null; then
             echo "✅ 部署成功！服务运行正常"
@@ -276,7 +299,7 @@ jobs:
             docker-compose logs tengod-api
             exit 1
           fi
-          
+
           echo "📊 当前状态:"
           docker-compose ps
           EOF
