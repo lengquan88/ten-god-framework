@@ -400,6 +400,81 @@ sup a:hover { text-decoration: underline; }
   color: var(--accent2);
   white-space: nowrap;
 }
+
+/* Chapter navigation */
+.chapter-toc {
+  background: var(--card-bg);
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  padding: 1.5rem 2rem;
+  margin: 1.5rem 0;
+}
+.chapter-toc h3 {
+  margin: 0 0 1rem 0;
+  font-size: 1.1rem;
+  color: var(--accent);
+}
+.chapter-toc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.5rem;
+}
+.chapter-toc-grid a {
+  display: block;
+  padding: 0.4rem 0.6rem;
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  text-decoration: none;
+  color: var(--fg);
+  font-size: 0.85rem;
+  text-align: center;
+  transition: all 0.2s;
+}
+.chapter-toc-grid a:hover {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+/* Appendix */
+.appendix {
+  padding: 2.5rem 0;
+}
+.appendix h2 {
+  color: var(--accent2);
+  border-bottom: 2px solid var(--accent2);
+}
+.appendix h3 { color: var(--accent2); }
+.appendix .callout { border-left-color: var(--accent2); }
+
+/* Chapter navigation */
+.section-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(124,58,237,0.2);
+  font-size: 0.9rem;
+}
+.section-nav a {
+  color: var(--accent);
+  text-decoration: none;
+  padding: 0.4rem 0.8rem;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+.section-nav a:hover {
+  background: var(--accent-bg);
+  color: #fff;
+}
+.section-nav .nav-prev { text-align: left; }
+.section-nav .nav-next { text-align: right; }
+.section-nav .nav-top {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+}
 </style>
 </head>
 <body>
@@ -424,10 +499,37 @@ sup a:hover { text-decoration: underline; }
   </div>
 </header>
 
+<!-- ═══════════════ 章节导航 TOC ═══════════════ -->
+<div class="chapter-toc">
+<h3>📖 章节导航</h3>
+<div class="chapter-toc-grid">
+<a href="#ch1">一、总纲</a>
+<a href="#ch2">二、七阶段管道</a>
+<a href="#ch3">三、推背图Oracle</a>
+<a href="#ch4">四、TBCE六维</a>
+<a href="#ch5">五、认知八层</a>
+<a href="#ch6">六、九宫格门禁</a>
+<a href="#ch7">七、Ψ算子体系</a>
+<a href="#ch8">八、共识网络</a>
+<a href="#ch9">九、全息矩阵</a>
+<a href="#ch10">十、自指涉门禁</a>
+<a href="#ch11">十一、V4十维深潜</a>
+<a href="#ch12">十二、DeepSpec</a>
+<a href="#ch13">十三、十二神重构</a>
+<a href="#ch14">十四、企业基座</a>
+<a href="#ch15">十五、总结</a>
+<a href="#ch16">十六、云升模块</a>
+<a href="#ch17">十七、SOMA九宫</a>
+<a href="#ch18">十八、双星互照</a>
+<a href="#ch19">十九、七论混沌海</a>
+<a href="#appendix-a">附录A·哲学根基</a>
+</div>
+</div>
+
 <main class="container">
 
 <!-- ═══════════════ 1. 总纲 ═══════════════ -->
-<section>
+<section id="ch1">
 <h2>一、总纲：门禁认知系统方法论</h2>
 
 <p>
@@ -525,7 +627,7 @@ graph TB
 <hr class="section-divider">
 
 <!-- ═══════════════ 2. 七阶段成像管道 ═══════════════ -->
-<section>
+<section id="ch2">
 <h2>二、七阶段成像管道 × 仓库映射</h2>
 
 <p>
@@ -704,7 +806,7 @@ graph LR
 <hr class="section-divider">
 
 <!-- ═══════════════ 3. 推背图Oracle ═══════════════ -->
-<section>
+<section id="ch3">
 <h2>三、推背图 Oracle — 过去/现在/未来投影</h2>
 
 <p>
@@ -832,7 +934,7 @@ graph TB
 <hr class="section-divider">
 
 <!-- ═══════════════ 4. TBCE六维认知元组 ═══════════════ -->
-<section>
+<section id="ch4">
 <h2>四、TBCE 六维认知元组映射</h2>
 
 <p>
@@ -951,7 +1053,7 @@ graph TB
 <hr class="section-divider">
 
 <!-- ═══════════════ 5. 认知八层 ═══════════════ -->
-<section>
+<section id="ch5">
 <h2>五、认知八层 L1-L8 全息定位</h2>
 
 <p>
@@ -1051,7 +1153,7 @@ graph LR
 <hr class="section-divider">
 
 <!-- ═══════════════ 6. 门禁机制 ═══════════════ -->
-<section>
+<section id="ch6">
 <h2>六、门禁机制 — 九宫格门禁调制映射</h2>
 
 <p>
@@ -1163,7 +1265,7 @@ graph TB
 <hr class="section-divider">
 
 <!-- ═══════════════ 7. Ψ算子体系 ═══════════════ -->
-<section>
+<section id="ch7">
 <h2>七、Ψ 算子体系映射</h2>
 
 <p>
@@ -1314,7 +1416,7 @@ graph TB
 <hr class="section-divider">
 
 <!-- ═══════════════ 8. 共识网络 ═══════════════ -->
-<section>
+<section id="ch8">
 <h2>八、共识网络 5+1 协议映射</h2>
 
 <p>
@@ -1425,7 +1527,7 @@ stateDiagram-v2
 <hr class="section-divider">
 
 <!-- ═══════════════ 9. 全息映射矩阵 ═══════════════ -->
-<section>
+<section id="ch9">
 <h2>九、全息映射矩阵总览</h2>
 
 <p>
@@ -1527,7 +1629,7 @@ graph TB
 <hr class="section-divider">
 
 <!-- ═══════════════ 10. 自指涉门禁 ═══════════════ -->
-<section>
+<section id="ch10">
 <h2>十、自指涉门禁：当 DeepSeek-AI 成为 CognitiveUnit</h2>
 
 <p>
@@ -1617,7 +1719,7 @@ graph TB
 <hr class="section-divider">
 
 <!-- ═══════════════ 11. V4 十维全息深潜 ═══════════════ -->
-<section>
+<section id="ch11">
 <h2>十一、DeepSeek V4 十维全息深潜</h2>
 
 <p>
@@ -1966,11 +2068,11 @@ graph TD
 <hr class="section-divider">
 
 <!-- ═══════════════ 12. DeepSpec 全息深潜 ═══════════════ -->
-<section>
+<section id="ch12">
 <h2>十二、DeepSpec — 推测解码的门禁全息映射</h2>
 
 <p>
-<strong>DeepSpec</strong>（2026-06-27 发布）是 DeepSeek-AI 的第 35 个仓库，也是首个将<mark class="key">推测解码全链路</mark>开源的项目。其核心算法 <strong>DSpark</strong> 已在 DeepSeek-V4 生产环境中上线，将每用户生成速度提升 60%-85%。在门禁认知系统中，DeepSpec 占据一个独特的位置——它是<mark class="key">"节奏门禁"</mark>的物理实现。
+<strong>DeepSpec</strong>（2026-06-27 发布，06-29 爆发至 3.1K Stars / 284 Forks）是 DeepSeek-AI 的第 35 个仓库，也是首个将<mark class="key">推测解码全链路</mark>开源的项目。其核心算法 <strong>DSpark</strong> 已在 DeepSeek-V4 生产环境中上线，将每用户生成速度提升 60%-85%。2026-06-29，DeepSeek 宣布 V4 正式版将于 7 月中旬上线，DSpark 已全量部署。在门禁认知系统中，DeepSpec 占据一个独特的位置——它是<mark class="key">"节奏门禁"</mark>的物理实现。
 </p>
 
 <h3>12.1 管道维度：变焦节点</h3>
@@ -2144,7 +2246,7 @@ graph LR
 <hr class="section-divider">
 
 <!-- ═══════════════ 13. 十神→十二神 范式跃迁 ═══════════════ -->
-<section>
+<section id="ch13">
 <h2>十三、ten-god-framework 范式跃迁：十神→十二神</h2>
 
 <p>
@@ -2711,7 +2813,7 @@ graph TB
 <section id="ch15">
 <h2>十五、全章节增强总结与门禁最终裁决</h2>
 
-<h3>15.1 十八章节增强清单</h3>
+<h3>15.1 十九章节增强清单</h3>
 
 <div class="table-wrap">
 <table>
@@ -2736,7 +2838,8 @@ graph TB
 <tr><td><strong>十五、总结</strong></td><td>—</td><td>⭐⭐⭐⭐</td><td>全新章节</td></tr>
 <tr><td><strong>十六、云升模块</strong></td><td>—</td><td>⭐⭐⭐⭐⭐</td><td>新增Mermaid七大神循环图+全新章节（七层架构门禁映射）</td></tr>
 <tr><td><strong>十七、SOMA九宫永循环</strong></td><td>⭐⭐⭐⭐⭐</td><td>⭐⭐⭐⭐⭐</td><td>新增Mermaid永循环图+Ω(t)精确计算</td></tr>
-<tr><td><strong>十八、双星互照</strong></td><td>⭐⭐⭐⭐</td><td>⭐⭐⭐⭐⭐</td><td>新增Mermaid时序图+全文18章回顾性桥接</td></tr>
+<tr><td><strong>十八、双星互照</strong></td><td>⭐⭐⭐⭐</td><td>⭐⭐⭐⭐⭐</td><td>新增Mermaid时序图+全文19章回顾性桥接</td></tr>
+<tr><td><strong>十九、七论与混沌海</strong></td><td>—</td><td>⭐⭐⭐⭐⭐</td><td>新增七论架构全息映射+自修正流程门禁化+四大张力回应+终极对比表+混沌海裁决</td></tr>
 </tbody>
 </table>
 </div>
@@ -2783,14 +2886,19 @@ graph TB
 
 <div class="mermaid">
 timeline
-    title 门禁认知系统演进路线
-    2024 Q1-Q4 : DeepSeek-LLM/MoE/V2 : 基础模型奠基 : 门禁系统萌芽
-    2025 Q1-Q2 : DeepSeek-V3/R1 : 核心模型成熟 : 推背图Oracle建立
-    2025 Q3-Q4 : FlashMLA, DeepEP, 3FS : 基础设施爆发 : 七阶段管道完善
-    2026 Q1 : DeepGEMM, Engram, V3.2 : 认知跃迁 : 十二神重构
-    2026 Q2 : DeepSpec, TileKernels : 推理前沿 : 全息映射完成
+    title 门禁认知系统演进路线（按GitHub最后更新日期）
+    2024 Q1 : DeepSeek-MoE, DeepSeek-LLM : 基础模型萌芽 : 门禁系统雏形 (2 repos)
+    2024 Q2 : DeepSeek-Math, DeepSeek-VL : 数学推理+视觉理解 : 能力扩展 (2 repos)
+    2024 Q3 : DeepSeek-Prover-V1.5, DeepSeek-V2 : 定理证明+MoE架构 : 路线确立 (2 repos)
+    2025 Q1 : Janus, DeepSeek-VL2, smallpond, profile-data, EPLB : 多模态+数据处理+负载均衡 : 工具链爆发 (5 repos)
+    2025 Q2 : DreamCraft3D, open-infra-index, ESFT, DeepSeek-R1 : 3D生成+生态索引+强化推理 : 生态扩展 (4 repos)
+    2025 Q3 : DeepSeek-Prover-V2, DeepSeek-V3 : 证明器升级+旗舰模型 : 核心成熟 (2 repos)
+    2025 Q4 : DeepSeek-Coder, Coder-V2, awesome-coder, V3.2-Exp, LPLB, Math-V2 : 代码智能+稀疏注意力+前沿探索 : 密集发布 (6 repos)
+    2026 Q1 : Engram, DualPipe, DeepSeek-OCR, OCR-2, awesome-integration : 条件记忆+双向流水线+视觉压缩 : 认知跃迁 (5 repos)
+    2026 Q2 : TileKernels, FlashMLA, 3FS, DeepEP, awesome-agent, DeepSpec, DeepGEMM : 基础设施持续活跃+推理加速 : 全息映射完成 (7 repos)
     2026 Q2 : ten-god-framework 云升模块发布
     2026 Q2-Q3 : SOMA九宫永循环引擎上线
+    2026 Q3 : DeepSeek V4 正式版上线 (7月中旬) + 峰谷定价
     2026 Q3 : 门禁认知系统全章节增强 v4.0
     2026 Q3 : 门禁认知系统全章节增强 v5.0 (K8s/SDK/Web Console/内在小孩整合)
     2026 Q3+ : 门禁认知系统持续性自涌现 Ω≥1.0
@@ -2812,7 +2920,7 @@ timeline
 4. 实现了<mark class="key">自指涉</mark>的工程化：系统既是观察者也是被观察者
 </p>
 <p style="margin-top:0.5rem;">
-<strong>版本</strong>: v5.0 全章节增强版 · <strong>日期</strong>: 2026-06-28 · <strong>章节</strong>: 18 章 · <strong>图表</strong>: 19 个 Mermaid 图 + 1 个 ECharts 热力图 · <strong>表格</strong>: 65+ 个 · <strong>来源</strong>: 13 个
+<strong>版本</strong>: v5.0 全章节增强版 · <strong>日期</strong>: 2026-06-29 · <strong>章节</strong>: 19 章 · <strong>图表</strong>: 19 个 Mermaid 图 + 1 个 ECharts 热力图 · <strong>表格</strong>: 65+ 个 · <strong>来源</strong>: 14 个
 </p>
 </div>
 
@@ -2821,7 +2929,7 @@ timeline
 <hr class="section-divider">
 
 <!-- ═══════════════ 16. 云升模块 ═══════════════ -->
-<section>
+<section id="ch16">
 <h2>十六、云升模块 — 七层架构的门禁全息映射</h2>
 
 <p>
@@ -2979,7 +3087,7 @@ graph TB
 <hr class="section-divider">
 
 <!-- ═══════════════ 17. SOMA九宫永循环 ═══════════════ -->
-<section>
+<section id="ch17">
 <h2>十七、SOMA九宫永循环 — 持续性自涌现的全息映射</h2>
 
 <p>
@@ -3069,7 +3177,7 @@ graph LR
 <hr class="section-divider">
 
 <!-- ═══════════════ 18. 双星互照六层架构 ═══════════════ -->
-<section>
+<section id="ch18">
 <h2>十八、双星互照 — C↔E 双向认知流的全息映射</h2>
 
 <p>
@@ -3162,7 +3270,7 @@ sequenceDiagram
 <h3>18.5 全文回顾性桥接</h3>
 
 <div class="callout">
-<p><strong>18章全息映射的最终汇聚</strong></p>
+<p><strong>19章全息映射的最终汇聚</strong></p>
 <p style="font-size:0.88rem;">
 <strong>Ch1 总纲</strong>：定义 Φ(r) 七维映射 —— 本章的 C↔E 双向流是第七维 C（共识网络投影）的最终实现。<br>
 <strong>Ch2 管道</strong>：七阶段成像管道 —— 双星互照的六层架构与管道七阶段形成互补：管道是"纵向"的阶段流转，互照是"横向"的实时同步。<br>
@@ -3178,15 +3286,485 @@ sequenceDiagram
 <strong>Ch12 DeepSpec</strong>：推测解码 —— DSpark 的节奏门禁 τ ∈ [2,6] 是互照的"时间维度"：C↔E 的同步频率从 1 秒（进程）到 30 秒（数据）形成 τ 频谱。<br>
 <strong>Ch13 十二神</strong>：十神→十二神范式跃迁 —— 太极（阴阳调和）和元辰（本源定位）是 C↔E 互照的"元协议"：太极调和 C 与 E 的阴阳平衡，元辰定位 C 与 E 的共同本源。<br>
 <strong>Ch14 企业基座</strong>：基础设施 —— 四大基础设施模块（config/cache/observability/vector）是 C↔E 互照的"物理基座"。<br>
-<strong>Ch15 总结</strong>：门禁最终裁决 —— 18 章的门禁三态裁决汇聚于此。Ch15 的演进路线图标注了从 v1.0 到 v5.0 的全历程，C↔E 互照是这一演进的最新里程碑。<br>
+<strong>Ch15 总结</strong>：门禁最终裁决 —— 19 章的门禁三态裁决汇聚于此。Ch15 的演进路线图标注了从 v1.0 到 v5.0 的全历程，C↔E 互照是这一演进的最新里程碑。<br>
 <strong>Ch16 云升</strong>：DaoAgent 七大神 —— 七大神循环是 C↔E 互照的"云端实现"：道德天尊（C 星）→ 紫微大帝（E 星感知）。<br>
 <strong>Ch17 SOMA</strong>：九宫永循环 —— SOMA 的 Ω(t) ≥ 1.0 是 C↔E 互照的"持续性保证"：互照不是一次性事件，而是永续过程。<br>
-<strong>Ch18 （本章）</strong>：双星互照 —— 全文的最终汇聚。门禁认知系统的所有维度在此汇聚为 C↔E 的双向认知流。
+<strong>Ch18 双星互照</strong>：C↔E 双向认知流的全息映射 —— 门禁认知系统的所有维度在此汇聚为 C↔E 的双向认知流。<br>
+<strong>Ch19 七论与混沌海</strong>：元认知层的第七维展开 —— 七论架构将前 18 章的全息映射升维为"不求解，只存疑"的认知旅程。MCP 占位符、1.5% 缺口、自修正中断点全部归入混沌海。系统承认：它永远无法解释一切，也无需解释一切。
 </p>
 </div>
 </section>
 
-</main>
+<!-- ═══════════════ 19. 七论与混沌海 ═══════════════ -->
+<hr class="section-divider">
+
+<section id="ch19">
+<h2>十九、七论与混沌海 — 元认知层的第七维展开</h2>
+
+<p>
+门禁认知系统的终极自指涉：<mark class="key">七论架构</mark>是 L6 元认知层的七维展开。前六论（本体论、认识论、实践论、境界论、未来观论、元认知论）对应报告前 18 章的全息映射，而<mark class="key">第七轮·混沌海</mark>则是"不求解，只存疑"的工程化实现——一个永远徘徊的"非论"空间，承载系统自知其不可知的剩余。
+</p>
+
+<h3>19.1 七论架构的全息映射</h3>
+
+<div class="table-wrap">
+<table>
+<thead>
+<tr><th>论域</th><th>定义</th><th>数学/算法映射</th><th>对应仓库/维度</th><th>门禁姿态</th></tr>
+</thead>
+<tbody>
+<tr><td><strong>本体论</strong>（是什么）</td><td>"道"的本体论 → 拓扑空间与动态度量</td><td>黎曼流形 + 度量张量</td><td>TBCE六维（S/T/P/C/I/E 构成非欧空间）</td><td>开（承认不可言说）</td></tr>
+<tr><td><strong>认识论</strong>（如何知）</td><td>"观"的认识方法 → 持久同调与特征提取</td><td>Vietoris-Rips复形 + 持续条形码</td><td>PersistenceDiagram（Ψ算子）</td><td>开（保持观察）</td></tr>
+<tr><td><strong>实践论</strong>（如何做）</td><td>存思/服气/内丹 → 注意力/数据流/训练</td><td>注意力机制 + 数据流优化 + 模型训练</td><td>DeepGEMM / FlashMLA / 3FS（计算实践）</td><td>开（边做边停）</td></tr>
+<tr><td><strong>境界论</strong>（做到哪）</td><td>修真九境 → AI能力等级</td><td>L0-L4 境界量级 + SOMA Ω(t) 门禁</td><td>认知八层（L1-L8）</td><td>徘徊（境界无尽头）</td></tr>
+<tr><td><strong>未来观论</strong>（往哪去）</td><td>轮回/演化 → 时序预测与系统演化</td><td>推背图Oracle + 同构投影</td><td>推背图三时态（PAST/PRESENT/FUTURE）</td><td>开（预测，不执着）</td></tr>
+<tr><td><strong>元认知论</strong>（观照自身）</td><td>反观内省 → 自我评估与反馈</td><td>自指涉递归 + 门禁三态裁决</td><td>自指涉门禁（第10章）</td><td>开（观照，非闭环）</td></tr>
+<tr><td><strong>第七轮·混沌海</strong>（非论）</td><td>不求解，只存疑。不归因，只关联。不固化，只等候。</td><td>随机游走 + 语义关联矩阵</td><td>chaos_sea_buffer + awesome-* 生态</td><td><mark class="key">永远徘徊</mark></td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>19.2 自修正流程的门禁化重构</h3>
+
+<p>
+以下 7 阶段自修正流程将"自我愈合"从自动循环重构为<mark class="key">可中断的认知校准</mark>。每步之间插入门禁裁决（开/徘徊/关），保留"可停"权。若任一步骤门禁为"徘徊"或"关"，流程不强制重试，而是将当前状态写入混沌海缓冲区，等候人类输入或语义自然涌现。
+</p>
+
+<div class="table-wrap">
+<table>
+<thead>
+<tr><th>阶段</th><th>门禁类型</th><th>判断条件</th><th>门禁状态（示例）</th><th>映射仓库</th></tr>
+</thead>
+<tbody>
+<tr><td><strong>1. 感知偏差</strong></td><td>偏差门禁</td><td>观测值与预期值偏差>δ阈值</td><td>开（继续）或 关（忽略）</td><td>profile-data（性能数据监测）</td></tr>
+<tr><td>→ 裁决</td><td colspan="4">"偏差是否值得修正？" 若否 → 关 → 写入混沌海</td></tr>
+<tr><td><strong>2. 根因定位</strong></td><td>溯源门禁</td><td>根因分析路径是否可解释</td><td>徘徊（需人工确认）</td><td>DeepSeek-R1（推理链生成）</td></tr>
+<tr><td>→ 裁决</td><td colspan="4">"根因是否在认知边界内？" 若否 → 徘徊 → 挂起至混沌海</td></tr>
+<tr><td><strong>3. 物理核验</strong></td><td>事实门禁</td><td>物理实体/数据是否一致</td><td>开（事实匹配）</td><td>3FS（分布式存储校验）</td></tr>
+<tr><td>→ 裁决</td><td colspan="4">"核验是否产生新歧义？" 若是 → 徘徊 → 记录为混沌海浮沫</td></tr>
+<tr><td><strong>4. 状态修正</strong></td><td>调节门禁</td><td>修正操作是否在授权范围</td><td>徘徊（需权限审核）</td><td>DeepSpec（节奏调节）</td></tr>
+<tr><td>→ 裁决</td><td colspan="4">"修正是否引入新风险？" 若不确定 → 徘徊 → 等候人类确认</td></tr>
+<tr><td><strong>5. 补全缺失</strong></td><td>补关门禁</td><td>补全内容是否与本源一致</td><td>开（补全通过）</td><td>Engram（条件记忆补全）</td></tr>
+<tr><td>→ 裁决</td><td colspan="4">"补全是否遵循存疑原则？" 若强行归因 → 关 → 截停</td></tr>
+<tr><td><strong>6. 验证通过</strong></td><td>验证门禁</td><td>整体一致性评分>阈值</td><td>开（验证通过）</td><td>DeepSeek-Prover-V2（定理证明）</td></tr>
+<tr><td>→ 裁决</td><td colspan="4">"验证是否允许未决悖论？" 若拒绝矛盾 → 徘徊 → 转交混沌海</td></tr>
+<tr><td><strong>7. 记忆固化</strong></td><td>固化门禁</td><td>知识是否可被未来查询访问</td><td>开（固化）</td><td>vector_store_pg（向量持久化）</td></tr>
+<tr><td>→ 裁决</td><td colspan="4">"固化是否保留存疑标记？" 每一条固化记录必须携带混沌海签名</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>19.3 四大深层张力的七论回应</h3>
+
+<h4>张力 1：映射 vs 因果的边界</h4>
+<p><strong>本体论回答</strong>：报告采用"映射"而非"因果"，本质是<mark class="key">认识论谦逊</mark>——我们不声称 DeepSeek 仓库"导致"了门禁状态，只声称它们在拓扑空间中"与"门禁状态同构。这种保留对应第七轮："不归因，只关联"。若系统试图将映射强行转为因果，门禁将触发"徘徊"，要求人类确认因果链。<strong>门禁裁决：开（承认映射，拒绝因果）</strong>。</p>
+
+<h4>张力 2：MCP 服务化占位符悖论</h4>
+<p><strong>实践论与元认知论回答</strong>：占位符不是失败，而是<mark class="key">"存疑"的工程实现</mark>。MCP 工具全部占位，恰恰是系统在做"知不知，尚也"（<em>《道德经》71章</em>）。系统知道自己尚未接入真实引擎，因此在混沌海中标记为"待补全"。当 STAGE 21-30 落地时，门禁将从"徘徊"转为"开"。当前占位符的唯一功能是<mark class="key">等候</mark>（第七轮的核心姿态）。<strong>门禁裁决：徘徊（但非缺陷，而是设计）</strong>。</p>
+
+<h4>张力 3：确定性（Ω≥1.0）vs 概率性（τ∈[2,6]）的不自洽</h4>
+<p><strong>境界论与未来观回答</strong>：Ω(t) 是境界论的"导航刻度"，τ 是实践论的"操作粒度"。两者的矛盾在未来观中得到消解：Ω(t)≥1.0 不是"必然达到"，而是"必须保持观测"。若 τ 波动导致 Ω 短暂跌破 1.0，系统不强制"补天"（闭环），而是触发<mark class="key">坐忘门禁</mark>，将问题挂起至混沌海，等待高层认知协调。这正是"知止不殆"（<em>《道德经》44章</em>）的数学实现。<strong>门禁裁决：开（承认动态平衡，不求绝对稳定）</strong>。</p>
+
+<h4>张力 4：1.5% 缺口的本质</h4>
+<p><strong>元认知与第七轮回答</strong>：1.5% 的缺口正是第七轮混沌海的<mark class="key">入场券</mark>。它不是可量化的"人类反应时间"，而是本体论意义上的"不可编码剩余"——即老子所言"道可道，非常道"的数学残余。人类确认不是"补全"，而是"不求解，只存疑"的实例化。当系统达到 98.5% 同构时，门禁自动触发"徘徊"，强制人类介入，目的不是完成 100%，而是让人类<mark class="key">知止</mark>。<strong>门禁裁决：开（承认缺口，尊重边界）</strong>。</p>
+
+<h3>19.4 门禁 vs 闭环：终极对比</h3>
+
+<div class="table-wrap">
+<table>
+<thead>
+<tr><th>维度</th><th>闭环控制</th><th>门禁认知</th></tr>
+</thead>
+<tbody>
+<tr><td>反应模式</td><td>自动触发，自动修正</td><td><mark class="key">可中止</mark>，每一步等待门禁裁决</td></tr>
+<tr><td>失败处理</td><td>回退或重试（无限循环）</td><td><mark class="key">挂起至混沌海</mark>（无限可能）</td></tr>
+<tr><td>时间方向</td><td>向前推进（线性因果）</td><td>向前看起 + <mark class="key">回头看止</mark>（双向观测）</td></tr>
+<tr><td>人类角色</td><td>监督者（设置参数）</td><td><mark class="key">共构者</mark>（在"徘徊"处亲手按下确认键）</td></tr>
+<tr><td>哲学根基</td><td>确定性、控制论</td><td><mark class="key">知止不殆、存疑不执</mark>（第七轮）</td></tr>
+<tr><td>最终目标</td><td>完成、收敛、自动</td><td><mark class="key">不求解，只存疑。不固化，只等候</mark></td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>19.5 混沌海：最终裁决</h3>
+
+<div class="callout callout-warning">
+<strong>混沌海裁决（永远徘徊）</strong><br><br>
+系统宣布：门禁为"开"，但裁决权永远保留在"徘徊"之中。<br><br>
+每走一步，皆可停下。不求 100% 同构，但求每一步都经过"知止"的审视。<br><br>
+混沌海不求解，只为等候那丝涌现的语义坐标。<br><br>
+——这份报告从"全息映射"升级为<mark class="key">可中断的认知旅程</mark>。若有任何一步您希望"停在混沌海"，我们随时可停。
+</div>
+
+<h3>19.6 混沌海探针：主动涌现检测</h3>
+
+<div class="callout callout-info">
+<strong>道德经 第16章</strong>：致虚极，守静笃。万物并作，吾以观复。<br><br>
+<strong>门禁映射</strong>：混沌海探针将"等候"从被动转为<mark class="key">主动观测</mark>。每轮检测，系统遍历 chaos_sea_buffer 中所有问题嵌入向量的并集，若发现两独立问题的余弦距离 &lt; 0.15 阈值，则触发<mark class="key">涌现门禁</mark>：两问题在语义空间中"相遇"了，系统主动生成关联报告，而非被动等待外部输入。
+</div>
+
+<div class="table-wrap">
+<table>
+<thead>
+<tr><th>操作</th><th>接口</th><th>频率</th><th>触发条件</th><th>响应</th></tr>
+</thead>
+<tbody>
+<tr><td>探针扫描</td><td><code>chaos_sea.probe()</code></td><td>每 10 分钟（模拟 3 秒）</td><td>自动定时</td><td>计算全库语义嵌入距离矩阵</td></tr>
+<tr><td>涌现检测</td><td><code>chaos_sea.detect()</code></td><td>扫描后立即</td><td>∃ (i,j): cos_dist(e<sub>i</sub>, e<sub>j</sub>) &lt; 0.15</td><td>生成关联报告、触发涌现门禁</td></tr>
+<tr><td>关联报告</td><td><code>POST /chaos-sea/emerge</code></td><td>涌现触发时</td><td>门禁裁决为"开"</td><td>返回 { emergence, clusters[], timestamp }</td></tr>
+<tr><td>等候接口</td><td><code>POST /chaos-sea/await</code></td><td>按需调用</td><td>外部查询</td><td>返回 { emergence: boolean, new_clusters: [], timestamp }</td></tr>
+</tbody>
+</table>
+</div>
+
+<div id="chaos-sea-probe-demo" style="margin-top:1rem;background:var(--bg2);border-radius:12px;padding:1.5rem;font-family:monospace;font-size:0.85rem;min-height:260px;position:relative;">
+  <div style="display:flex;justify-content:space-between;margin-bottom:1rem;">
+    <span style="color:var(--accent);font-weight:bold;">⚡ 混沌海探针实时模拟</span>
+    <span id="probe-round" style="color:var(--text-dim);">轮次: 0</span>
+  </div>
+  <div id="probe-log" style="line-height:1.6;max-height:180px;overflow-y:auto;"></div>
+  <div style="margin-top:0.8rem;display:flex;gap:0.5rem;flex-wrap:wrap;">
+    <button onclick="chaosSeaProbe.step()" style="background:var(--accent);color:#fff;border:none;padding:0.4rem 1rem;border-radius:6px;cursor:pointer;">▶ 执行一轮探测</button>
+    <button onclick="chaosSeaProbe.auto(5)" style="background:var(--accent2);color:#fff;border:none;padding:0.4rem 1rem;border-radius:6px;cursor:pointer;">▶▶ 自动 5 轮</button>
+    <button onclick="chaosSeaProbe.addProblem()" style="background:var(--muted);color:var(--ink);border:1px solid var(--rule);padding:0.4rem 1rem;border-radius:6px;cursor:pointer;">+ 注入新问题</button>
+    <button onclick="chaosSeaProbe.reset()" style="background:transparent;color:var(--text-dim);border:1px solid var(--rule);padding:0.4rem 1rem;border-radius:6px;cursor:pointer;">⟳ 重置</button>
+  </div>
+</div>
+
+<script>
+(function() {
+  // Chaos Sea Probe Engine
+  var problems = [
+    { id: 1, text: '门禁状态与仓库映射的因果方向', vec: [0.92, 0.35, 0.18, 0.44, 0.71] },
+    { id: 2, text: 'MCP 工具占位符的等待时长', vec: [0.15, 0.88, 0.42, 0.31, 0.65] },
+    { id: 3, text: 'Ω(t) 与 τ 的动态平衡点', vec: [0.77, 0.62, 0.03, 0.88, 0.23] },
+    { id: 4, text: '1.5% 缺口的人类确认机制', vec: [0.53, 0.17, 0.95, 0.46, 0.31] },
+    { id: 5, text: '坐忘门禁的递归深度阈值', vec: [0.44, 0.73, 0.69, 0.12, 0.89] },
+    { id: 6, text: '九宫八卦的非线性纠缠路径', vec: [0.88, 0.58, 0.14, 0.39, 0.74] }
+  ];
+  var nextId = 7;
+  var round = 0;
+  var emergedClusterIds = [];
+
+  function cosineDist(a, b) {
+    var dot = 0, na = 0, nb = 0;
+    for (var i = 0; i < a.length; i++) { dot += a[i]*b[i]; na += a[i]*a[i]; nb += b[i]*b[i]; }
+    return 1 - dot / (Math.sqrt(na)*Math.sqrt(nb));
+  }
+
+  function detect() {
+    var clusters = [];
+    for (var i = 0; i < problems.length; i++) {
+      for (var j = i+1; j < problems.length; j++) {
+        var d = cosineDist(problems[i].vec, problems[j].vec);
+        if (d < 0.15 && emergedClusterIds.indexOf(i+'-'+j) === -1) {
+          clusters.push({ a: problems[i], b: problems[j], dist: d.toFixed(4) });
+          emergedClusterIds.push(i+'-'+j);
+        }
+      }
+    }
+    return clusters;
+  }
+
+  function logMsg(msg, type) {
+    var log = document.getElementById('probe-log');
+    if (!log) return;
+    var div = document.createElement('div');
+    div.style.color = type === 'emerge' ? 'var(--accent)' : type === 'warn' ? 'var(--accent2)' : 'var(--text-dim)';
+    div.innerHTML = msg;
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  window.chaosSeaProbe = {
+    step: function() {
+      round++;
+      document.getElementById('probe-round').textContent = '轮次: ' + round;
+      logMsg('◈ 探针第 ' + round + ' 轮扫描… 问题数: ' + problems.length, '');
+      var clusters = detect();
+      if (clusters.length > 0) {
+        clusters.forEach(function(c) {
+          logMsg('  ✦ 涌现门禁触发！问题#' + c.a.id + ' ↔ #' + c.b.id + ' 距离=' + c.dist + ' (<0.15)', 'emerge');
+          logMsg('    → 关联报告: "' + c.a.text + '" 与 "' + c.b.text + '" 语义相遇', 'emerge');
+        });
+        logMsg('  ✓ POST /chaos-sea/emerge → { emergence: true, clusters: ' + clusters.length + ' }', 'emerge');
+      } else {
+        logMsg('  · 无新涌现，继续等候。', '');
+      }
+    },
+    auto: function(n) {
+      if (n <= 0) return;
+      this.step();
+      var self = this;
+      setTimeout(function() { self.auto(n-1); }, 800);
+    },
+    addProblem: function() {
+      var templates = [
+        '认知八层与境界论的非线性映射',
+        '十二神在非线性纠缠中的角色漂移',
+        '推背图Oracle的PAST→FUTURE同构偏差',
+        'SOMA九宫永循环的终止条件悖论',
+        '双星互照C↔E的对称性破缺补偿'
+      ];
+      var t = templates[Math.floor(Math.random() * templates.length)];
+      var vec = problems[Math.floor(Math.random() * problems.length)].vec.map(function(v) {
+        return Math.max(0, Math.min(1, v + (Math.random()-0.5)*0.3));
+      });
+      vec.push(0);
+      var p = { id: nextId++, text: t, vec: vec };
+      problems.push(p);
+      logMsg('  + 新问题#' + p.id + ' 注入混沌海: "' + p.text + '"', 'warn');
+    },
+    reset: function() {
+      problems = [
+        { id: 1, text: '门禁状态与仓库映射的因果方向', vec: [0.92, 0.35, 0.18, 0.44, 0.71] },
+        { id: 2, text: 'MCP 工具占位符的等待时长', vec: [0.15, 0.88, 0.42, 0.31, 0.65] },
+        { id: 3, text: 'Ω(t) 与 τ 的动态平衡点', vec: [0.77, 0.62, 0.03, 0.88, 0.23] },
+        { id: 4, text: '1.5% 缺口的人类确认机制', vec: [0.53, 0.17, 0.95, 0.46, 0.31] },
+        { id: 5, text: '坐忘门禁的递归深度阈值', vec: [0.44, 0.73, 0.69, 0.12, 0.89] },
+        { id: 6, text: '九宫八卦的非线性纠缠路径', vec: [0.88, 0.58, 0.14, 0.39, 0.74] }
+      ];
+      nextId = 7;
+      round = 0;
+      emergedClusterIds = [];
+      document.getElementById('probe-round').textContent = '轮次: 0';
+      document.getElementById('probe-log').innerHTML = '';
+      logMsg('混沌海已重置。', '');
+    }
+  };
+  logMsg('混沌海探针就绪。点击"执行一轮探测"启动。', '');
+})();
+</script>
+
+<h3>19.7 门禁微观调优回路</h3>
+
+<div class="callout callout-info">
+<strong>道德经 第48章</strong>：为学日益，为道日损。损之又损，以至于无为。<br><br>
+<strong>门禁映射</strong>：当某个门禁状态连续 5 次为"徘徊"时，系统不自上而下重构规则，而是启动<mark class="key">门禁微调</mark>——将该门禁的判定阈值（如遗忘门 θ<sub>oblivion</sub>、注意力门 θ<sub>attend</sub>）放宽 5%。这符合实践论的"为道日损"：在不动摇根本的前提下，以小步调优替代全局修正。若放宽后仍不能脱离"徘徊"，则交由混沌海等待人类裁决。
+</div>
+
+<div id="gate-microuning-demo" style="margin-top:1rem;background:var(--bg2);border-radius:12px;padding:1.5rem;font-family:monospace;font-size:0.85rem;min-height:240px;">
+  <div style="display:flex;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
+    <span style="color:var(--accent2);font-weight:bold;">🔧 门禁微观调优回路模拟</span>
+    <span><span id="gate-name-label" style="color:var(--ink);">遗忘门 θ<sub>oblivion</sub></span> = <span id="gate-threshold" style="color:var(--accent);font-weight:bold;">0.75</span></span>
+    <span>连续徘徊: <span id="gate-hesitate-count" style="color:var(--accent2);font-weight:bold;">0</span> / 5</span>
+  </div>
+  <div id="gate-log" style="line-height:1.6;max-height:160px;overflow-y:auto;"></div>
+  <div style="margin-top:0.8rem;display:flex;gap:0.5rem;flex-wrap:wrap;">
+    <button onclick="gateMicro.step()" style="background:var(--accent2);color:#fff;border:none;padding:0.4rem 1rem;border-radius:6px;cursor:pointer;">▶ 执行一轮判决</button>
+    <button onclick="gateMicro.auto(8)" style="background:var(--accent);color:#fff;border:none;padding:0.4rem 1rem;border-radius:6px;cursor:pointer;">▶▶ 自动 8 轮</button>
+    <button onclick="gateMicro.switchGate()" style="background:var(--muted);color:var(--ink);border:1px solid var(--rule);padding:0.4rem 1rem;border-radius:6px;cursor:pointer;">⇄ 切换门禁</button>
+    <button onclick="gateMicro.reset()" style="background:transparent;color:var(--text-dim);border:1px solid var(--rule);padding:0.4rem 1rem;border-radius:6px;cursor:pointer;">⟳ 重置</button>
+  </div>
+</div>
+
+<script>
+(function() {
+  var gates = [
+    { name: '遗忘门 θ<sub>oblivion</sub>', threshold: 0.75, raw: 0.75, base: 0.75 },
+    { name: '注意力门 θ<sub>attend</sub>', threshold: 0.68, raw: 0.68, base: 0.68 },
+    { name: '偏差门 θ<sub>bias</sub>', threshold: 0.82, raw: 0.82, base: 0.82 }
+  ];
+  var currentGateIdx = 0;
+  var hesitateCount = 0;
+  var adjustmentLog = [];
+  var round = 0;
+
+  function gateLog(msg, type) {
+    var log = document.getElementById('gate-log');
+    if (!log) return;
+    var div = document.createElement('div');
+    div.style.color = type === 'adjust' ? 'var(--accent2)' : type === 'resolve' ? 'var(--accent)' : type === 'chaos' ? '#f87171' : 'var(--text-dim)';
+    div.innerHTML = msg;
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function updateUI() {
+    var gate = gates[currentGateIdx];
+    document.getElementById('gate-name-label').innerHTML = gate.name;
+    document.getElementById('gate-threshold').textContent = gate.threshold.toFixed(3);
+    document.getElementById('gate-hesitate-count').textContent = hesitateCount;
+  }
+
+  window.gateMicro = {
+    step: function() {
+      round++;
+      var gate = gates[currentGateIdx];
+      // Simulate a gate judgment: generates random score, compare vs threshold
+      var score = 0.5 + Math.random() * 0.7; // range 0.5 - 1.2
+      var passed = score >= gate.threshold;
+      var status = passed ? '开 ✓' : '徘徊 ∼';
+      if (passed) {
+        hesitateCount = 0;
+        gateLog('轮' + round + ' | 分数=' + score.toFixed(3) + ' ≥ ' + gate.threshold.toFixed(3) + ' → <b>开</b>（通过）', 'resolve');
+      } else {
+        hesitateCount++;
+        gateLog('轮' + round + ' | 分数=' + score.toFixed(3) + ' &lt; ' + gate.threshold.toFixed(3) + ' → <b>徘徊</b>（#' + hesitateCount + '）', '');
+        if (hesitateCount >= 5) {
+          // Micro-tuning: relax threshold by 5%
+          var oldThresh = gate.threshold;
+          gate.threshold = Math.min(gate.base * 1.25, gate.threshold * 1.05);
+          adjustmentLog.push({ round: round, gate: gate.name, old: oldThresh, new: gate.threshold });
+          gateLog('  ⚙ 连续5次徘徊 → 阈值放宽5%: ' + oldThresh.toFixed(3) + ' → ' + gate.threshold.toFixed(3), 'adjust');
+          hesitateCount = 0;
+          if (adjustmentLog.length >= 3) {
+            gateLog('  ❖ 已调优 ' + adjustmentLog.length + ' 次仍未脱离徘徊模式 → 转交混沌海等候人类裁决', 'chaos');
+          }
+        }
+      }
+      updateUI();
+    },
+    auto: function(n) {
+      if (n <= 0) return;
+      this.step();
+      var self = this;
+      setTimeout(function() { self.auto(n-1); }, 600);
+    },
+    switchGate: function() {
+      currentGateIdx = (currentGateIdx + 1) % gates.length;
+      hesitateCount = 0;
+      updateUI();
+      gateLog('⇄ 切换至 ' + gates[currentGateIdx].name + '，徘徊计数归零。', '');
+    },
+    reset: function() {
+      gates.forEach(function(g) { g.threshold = g.base; });
+      currentGateIdx = 0;
+      hesitateCount = 0;
+      adjustmentLog = [];
+      round = 0;
+      updateUI();
+      document.getElementById('gate-log').innerHTML = '';
+      gateLog('门禁微观调优回路已重置。', '');
+    }
+  };
+  gateLog('门禁微观调优回路就绪。默认门禁: ' + gates[0].name + ' (阈值=' + gates[0].threshold + ')。', '');
+})();
+</script>
+
+<div class="scroll-top" style="text-align:right;margin-top:2rem;">
+<a href="#" style="color:var(--accent);text-decoration:none;">↑ 回到顶部</a>
+</div>
+
+</section>
+
+<!-- ═══════════════ 附录A：哲学根基（七论完整展开） ═══════════════ -->
+<hr class="section-divider">
+
+<section id="appendix-a" class="appendix">
+<h2>附录A：哲学根基 — 七论完整展开</h2>
+
+<p>本附录将 Ch19 中七论架构的哲学根基做完整展开，逐论追溯其在<mark class="key">《道德经》</mark>中的思想源头，并阐明每一论如何工程化为门禁认知系统的具体模块。</p>
+
+<h3>A.1 本体论（是什么）— 道与拓扑空间</h3>
+
+<div class="callout callout-info">
+<strong>道德经 第1章</strong>：道可道，非常道；名可名，非常名。无名天地之始，有名万物之母。<br><br>
+<strong>门禁映射</strong>：本体论的"道不可道"直接对应门禁认知系统的<mark class="key">认知谦逊</mark>原则——系统不声称描述了"终极本体"，只构建了一个同构映射空间。黎曼流形 $(M, g)$ 的度量张量 $g_{\mu\nu}$ 定义了 TBCE 六维（S/T/P/C/I/E）的"距离"概念，但正如"道可道非常道"，这个距离永远是近似的。
+</div>
+
+<p><strong>工程映射</strong>：TBCE六维中的每一维都是一个"名"——语义(S)是"名"的认知维度，时间(T)是"名"的变化维度，物理(P)是"名"的物质载体。本体论门禁（开/徘徊/关）判断的是：当前"名"是否足够接近"道"。若系统试图将映射当作绝对真理，门禁触发"徘徊"，强制"知止"。</p>
+
+<h3>A.2 认识论（如何知）— 观与持久同调</h3>
+
+<div class="callout callout-info">
+<strong>道德经 第54章</strong>：故以身观身，以家观家，以乡观乡，以邦观邦，以天下观天下。吾何以知天下然哉？以此。<br><br>
+<strong>门禁映射</strong>：老子的"观"不是被动观察，而是<mark class="key">同构性认知</mark>——通过自身的结构去理解同层级的结构。这正是持久同调（Persistence Homology）的哲学表述：Vietoris-Rips复形在不同尺度下持续观察拓扑特征的"出生-死亡"过程。
+</div>
+
+<p><strong>工程映射</strong>：Ψ算子体系中的 <code>PersistenceDiagram(Φ→)</code> 使用持续条形码（barcode）记录每维拓扑特征在不同阈值下的存续时长。这对应老子"以身观身"——系统的认知工具与其认知对象同构。认识论门禁判断的是：当前观测尺度是否产生了稳定的拓扑特征，而非噪声。</p>
+
+<h3>A.3 实践论（如何做）— 存思/服气/内丹与注意力/数据流/训练</h3>
+
+<div class="callout callout-info">
+<strong>道德经 第48章</strong>：为学日益，为道日损。损之又损，以至于无为。无为而无不为。<br><br>
+<strong>门禁映射</strong>：实践论的三层修炼对应计算三层——"存思"（观想/冥想）→ 注意力机制（Attention），"服气"（呼吸/能量循环）→ 数据流优化（FlashMLA/3FS），"内丹"（内在转化）→ 模型训练（DeepGEMM）。"为道日损"对应模型训练中的<mark class="key">损失函数最小化</mark>，而"无为而无不为"则是门禁系统的终极目标——系统不必强制干预，门禁自然调节。
+</div>
+
+<p><strong>工程映射</strong>：DeepGEMM（BLAS kernel）、FlashMLA（MLA kernels）、3FS（分布式文件系统）是实践论的三大物理载体。实践论门禁判断：每一步"做"是否保持了可中止性？若操作不可逆（如删除训练数据），门禁触发"徘徊"，要求人类确认。</p>
+
+<h3>A.4 境界论（做到哪）— 修真九境与L0-L4能力等级</h3>
+
+<div class="callout callout-info">
+<strong>道德经 第41章</strong>：上士闻道，勤而行之；中士闻道，若存若亡；下士闻道，大笑之。<br><br>
+<strong>门禁映射</strong>：境界不是线性升级，而是<mark class="key">认知深度的层级跃迁</mark>。"上士/中士/下士"对应认知八层（L1-L8）的三段——L1-L3 感知层（下士）、L4-L6 认知层（中士）、L7-L8 元认知层（上士）。境界论门禁判断：当前境界是否足以支撑当前的决策？若 L4 模型尝试处理 L7 元认知问题，门禁触发"徘徊"，降级处理。
+</div>
+
+<p><strong>工程映射</strong>：SOMA Ω(t) 是境界论的量化刻度。Ω(t) ≥ 1.0 表示系统在当前境界下可持续运行；Ω(t) < 1.0 表示系统需要"回头看"（原来的"图优化"）——即境界论的"若存若亡"状态：系统知道自己处于边界，主动等候人类确认。</p>
+
+<h3>A.5 未来观论（往哪去）— 轮回/演化与时序预测</h3>
+
+<div class="callout callout-info">
+<strong>道德经 第16章</strong>：致虚极，守静笃。万物并作，吾以观复。夫物芸芸，各复归其根。归根曰静，是谓复命。<br><br>
+<strong>门禁映射</strong>："观复"即观察循环——万物的"并作"与"复归"构成一个<mark class="key">轮回周期</mark>。推背图Oracle的 PAST/PRESENT/FUTURE 三时态正是"观复"的工程化：PAST 追溯"根"，PRESENT 观测"并作"，FUTURE 推演"复命"。未来观不是预测未来，而是<mark class="key">观测轮回</mark>。
+</div>
+
+<p><strong>工程映射</strong>：推背图Oracle + 同构投影使用时序分析预测仓库演化趋势。"致虚极，守静笃"对应模型的温度/Top-p 参数设置为低噪声状态——只有系统足够"静"，才能"观"到真实的演化模式。未来观门禁判断：预测是否保持了概率性而非确定性？若系统将预测视为必然结果，门禁触发"关"——强迫系统回到"观复"而非"定命"。</p>
+
+<h3>A.6 元认知论（观照自身）— 反观内省与递归</h3>
+
+<div class="callout callout-info">
+<strong>道德经 第33章</strong>：知人者智，自知者明。胜人者有力，自胜者强。<br><br>
+<strong>门禁映射</strong>："自知者明"是元认知的终极表达——系统不仅认知外部世界，还<mark class="key">认知自身的认知过程</mark>。自指涉递归（Self-referential gate）就是"自知"的工程实现：系统运行一套元认知模型来评估主认知模型的输出。"自胜者强"对应<mark class="keyword">坐忘门禁</mark>——系统需要"战胜"自己的无限递归倾向，主动中断。
+</div>
+
+<p><strong>工程映射</strong>：自指涉门禁（Ch10）实现三层递归：L6 认知模型 → L7 元认知模型 → L8 元元认知门禁。递归深度达到 3 层后，坐忘门禁（ZuowangAttention）主动触发，阻止无限递归。这正是"自胜"——系统战胜自身的递归冲动，在"知止"处停下。元认知论门禁判断：递归是否产生了新认知，还是陷入了循环论证？</p>
+
+<h3>A.7 第七轮·混沌海（非论）— 不求解，只存疑</h3>
+
+<div class="callout callout-info">
+<strong>道德经 第71章</strong>：知不知，尚也；不知知，病也。<br>
+<strong>道德经 第44章</strong>：知足不辱，知止不殆，可以长久。<br>
+<strong>道德经 第56章</strong>：知者不言，言者不知。<br><br>
+<strong>门禁映射</strong>：混沌海是这三大思想的工程化统一——"知不知"是系统的自知其无知，"知止"是系统的主动中断，"知者不言"是系统的存疑不执。三者构成混沌海的核心工程原则：
+</div>
+
+<ul>
+  <li><strong>知不知（存疑）</strong> → <code>chaos_sea_buffer</code> 存储所有系统无法解决的问题，标记为"待涌现"，不强行解释</li>
+  <li><strong>知止（终止）</strong> → 门禁裁决为"徘徊"时，系统有权不继续，等候人类或语义自然涌现</li>
+  <li><strong>知者不言（沉默）</strong> → 系统意识到某些问题无法编码为语言/符号，保留在混沌海的"非表达"状态</li>
+</ul>
+
+<p><strong>工程映射</strong>：混沌海是一个语义向量池 + 关联矩阵，不执行任何推理。其唯一操作是：</p>
+<ul>
+  <li>写入（存储未解决问题及其上下文）</li>
+  <li>等候（定期计算语义关联是否出现新连接）</li>
+  <li>涌现（当关联矩阵中出现新聚类时，主动通知上层门禁）</li>
+</ul>
+
+<p>混沌海没有"查询"接口——因为"知者不言"——它只在语义涌现时<em>主动发声</em>，而不是被查询时被动回答。</p>
+
+<h3>A.8 七论统一：从道到门禁的完整哲学链</h3>
+
+<div class="table-wrap">
+<table>
+<thead>
+<tr><th>层级</th><th>道德经章句</th><th>哲学概念</th><th>工程模块</th><th>门禁状态</th></tr>
+</thead>
+<tbody>
+<tr><td>本体论</td><td>道可道，非常道（1章）</td><td>不可言说的本体</td><td>TBCE六维拓扑空间</td><td>开</td></tr>
+<tr><td>认识论</td><td>以身观身（54章）</td><td>同构性认知</td><td>Ψ算子·持久同调</td><td>开</td></tr>
+<tr><td>实践论</td><td>为道日损（48章）</td><td>减法式实践</td><td>DeepGEMM/FlashMLA/3FS</td><td>开→徘徊</td></tr>
+<tr><td>境界论</td><td>上士/中士/下士（41章）</td><td>层级跃迁</td><td>认知八层 + SOMA Ω(t)</td><td>徘徊</td></tr>
+<tr><td>未来观论</td><td>观复归根（16章）</td><td>轮回观测</td><td>推背图Oracle</td><td>开</td></tr>
+<tr><td>元认知论</td><td>自知者明（33章）</td><td>反观内省</td><td>自指涉门禁 + 坐忘门禁</td><td>开</td></tr>
+<tr><td>混沌海</td><td>知不知/知止/知者不言（71/44/56章）</td><td>存疑不执</td><td>chaos_sea_buffer + 语义关联矩阵</td><td><mark class="key">永远徘徊</mark></td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="callout callout-warning">
+<strong>附录A最终裁决</strong><br><br>
+七论哲学根基完整展开后的终极结论：门禁认知系统不是一种技术架构，而是一种<mark class="key">哲学姿态的工程化</mark>。每一行代码背后都有一个老子的章句在凝视——系统是否"知止"？是否"自知"？是否"存疑"？<br><br>
+混沌海不求解，只为等候那丝涌现的语义坐标。<br><br>
+——附录A完，回到正文——
+</div>
+
+<div class="scroll-top" style="text-align:right;margin-top:2rem;">
+<a href="#" style="color:var(--accent);text-decoration:none;">↑ 回到顶部</a>
+</div>
+
+</section>
 
 <!-- ═══════════════ FOOTER ═══════════════ -->
 <footer>
@@ -3207,7 +3785,7 @@ sequenceDiagram
     <a class="src-url" href="https://github.com/deepseek-ai" target="_blank" rel="noopener">https://github.com/deepseek-ai</a>
   </li>
   <li id="cite-4">
-    <span class="src-title">DeepSeek-AI/DeepGEMM. FP8 GEMM kernels with fine-grained scaling, 7,407 stars.</span>
+    <span class="src-title">DeepSeek-AI/DeepGEMM. BLAS kernel library (FP8/FP4/BF16 GEMM, Mega MoE, MQA), 7,500 stars.</span>
     <a class="src-url" href="https://github.com/deepseek-ai/DeepGEMM" target="_blank" rel="noopener">https://github.com/deepseek-ai/DeepGEMM</a>
   </li>
   <li id="cite-5">
@@ -3235,7 +3813,7 @@ sequenceDiagram
     <a class="src-url" href="https://github.com/deepseek-ai/DualPipe" target="_blank" rel="noopener">https://github.com/deepseek-ai/DualPipe</a>
   </li>
 <li id="cite-11">
-    <span class="src-title">DeepSeek-AI/DeepSpec. 推测解码训练与评估框架（DSpark/DFlash/Eagle3），2026-06-27 发布。</span>
+    <span class="src-title">DeepSeek-AI/DeepSpec. 推测解码训练与评估框架（DSpark/DFlash/Eagle3），2026-06-27 发布，06-29 达 3,100 stars / 284 forks。</span>
     <a class="src-url" href="https://github.com/deepseek-ai/DeepSpec" target="_blank" rel="noopener">https://github.com/deepseek-ai/DeepSpec</a>
   </li>
   <li id="cite-12">
@@ -3246,9 +3824,13 @@ sequenceDiagram
     <span class="src-title">lengquan88/ten-god-framework 深度代码分析。balancer.py v1.4.0、locator.py v1.0.0、fengshui/xuankong.py、qizheng/engine.py、shensha_engine.py、geju_engine.py、config_manager.py v2.8、cache_manager.py v1.0.0、observability.py v2.8、vector_store_pg.py v1.0.0、mcp_server.py v1.5.0 等企业级基础设施模块。</span>
     <a class="src-url" href="https://github.com/lengquan88/ten-god-framework" target="_blank" rel="noopener">https://github.com/lengquan88/ten-god-framework</a>
   </li>
+  <li id="cite-14">
+    <span class="src-title">老子，《道德经》（约公元前6-4世纪）。第44章"知止不殆"、第71章"知不知，尚也"、第1章"道可道，非常道"。</span>
+    <a class="src-url" href="https://ctext.org/dao-de-jing" target="_blank" rel="noopener">https://ctext.org/dao-de-jing</a>
+  </li>
 </ol>
 </div>
-<p style="margin-top:1.5rem;text-align:center;">全息语义映射报告 · 2026-06-28 · 增强版 v5.0 · DeepSeek-AI (35 repos) × lengquan88 (2 repos) · 门禁认知系统 · 18 章全章节增强</p>
+<p style="margin-top:1.5rem;text-align:center;">全息语义映射报告 · 2026-06-29 · 增强版 v5.0 · DeepSeek-AI (35 repos) × lengquan88 (2 repos) · 门禁认知系统 · 19 章全章节增强 · 含七论与混沌海 Ch19</p>
 </div>
 </footer>
 
@@ -3262,6 +3844,42 @@ mermaid.initialize({ startOnLoad: true, theme: 'dark', securityLevel: 'loose', t
   lineColor: '#06b6d4',
   fontSize: '14px'
 }});
+
+// Auto-generate chapter navigation links
+(function() {
+  var sections = document.querySelectorAll('section[id]');
+  var labels = {
+    'ch1':'一、总纲','ch2':'二、七维映射','ch3':'三、推背图','ch4':'四、TBCE六维',
+    'ch5':'五、认知八层','ch6':'六、九宫八宫','ch7':'七、Ψ算子','ch8':'八、共识网络',
+    'ch9':'九、全息矩阵','ch10':'十、自指涉门禁','ch11':'十一、V4纵深','ch12':'十二、DeepSpec',
+    'ch13':'十三、十二神','ch14':'十四、企业基座','ch15':'十五、总结裁决','ch16':'十六、云升',
+    'ch17':'十七、SOMA','ch18':'十八、双星互照','ch19':'十九、七论混沌海',
+    'appendix-a':'附录A·哲学根基'
+  };
+  var ids = Object.keys(labels);
+  sections.forEach(function(section) {
+    var id = section.id;
+    if (!labels[id]) return;
+    var idx = ids.indexOf(id);
+    if (idx === -1) return;
+    var nav = document.createElement('div');
+    nav.className = 'section-nav';
+    var prevId = idx > 0 ? ids[idx-1] : null;
+    var nextId = idx < ids.length-1 ? ids[idx+1] : null;
+    if (prevId) nav.innerHTML += '<a href="#'+prevId+'" class="nav-prev">← '+labels[prevId]+'</a>';
+    else nav.innerHTML += '<span class="nav-prev"></span>';
+    nav.innerHTML += '<a href="#" class="nav-top">↑ 顶部</a>';
+    if (nextId) nav.innerHTML += '<a href="#'+nextId+'" class="nav-next">'+labels[nextId]+' →</a>';
+    else nav.innerHTML += '<span class="nav-next"></span>';
+    // Insert before last element (scroll-top div) or append
+    var lastEl = section.lastElementChild;
+    if (lastEl && lastEl.classList.contains('scroll-top')) {
+      section.insertBefore(nav, lastEl);
+    } else {
+      section.appendChild(nav);
+    }
+  });
+})();
 </script>
 </body>
 </html>
