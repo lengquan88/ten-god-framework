@@ -441,6 +441,8 @@ app.add_middleware(GZipMiddleware, minimum_size=1024)
 app.add_middleware(AuthMiddleware)
 # 阶段十三：JWT 用户认证中间件
 from tengod.auth import auth_middleware
+# 集中密钥管理
+from tengod.secrets import get_secret
 app.middleware("http")(auth_middleware)
 # 请求日志
 app.middleware("http")(log_middleware)
@@ -3462,9 +3464,9 @@ async def v2_ai_stream(req: AIStreamRequest, request: Request):
             f"问题：{req.question or '请综合分析此命盘'}"
         )
 
-        api_key = os.environ.get("DEEPSEEK_API_KEY", "")
+        api_key = get_secret("DEEPSEEK_API_KEY")
         if not api_key:
-            raise HTTPException(status_code=503, detail="DEEPSEEK_API_KEY 未配置")
+            raise HTTPException(status_code=503, detail="DEEPSEEK_API_KEY 未配置（请在 .env 文件中设置）")
 
         async def generate():
             client = DeepseekClient(DeepseekConfig(api_key=api_key))

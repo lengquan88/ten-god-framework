@@ -11,11 +11,11 @@ services:
       - "8000:8000"
     environment:
       - PYTHONUNBUFFERED=1
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - JWT_SECRET=${JWT_SECRET:-default-dev-secret-change-in-prod}
       - DB_PATH=/data/knowledge.db
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    # 密钥通过 .env 文件加载，不通过环境变量传递
+    # 详见 demo_project/tengod/secrets.py
     volumes:
       - ./data:/data          # 知识库持久化
       - ./logs:/logs          # 日志

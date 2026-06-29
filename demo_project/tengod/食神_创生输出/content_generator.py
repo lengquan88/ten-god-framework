@@ -13,6 +13,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable, Dict, Iterator, List, Optional
 
+from tengod.secrets import get_secret
+
 
 class OutputFormat(Enum):
     """输出格式"""
@@ -63,7 +65,7 @@ class ContentGenerator:
         self._name = name
         self._cache: Dict[str, str] = {}
         self._history: List[Dict[str, Any]] = []
-        self._api_key = api_key or os.environ.get("OPENAI_API_KEY", "")
+        self._api_key = api_key or get_secret("OPENAI_API_KEY")
         self._custom_generator: Optional[Callable] = None
         # 会话管理：session_id -> [{"role": "user"/"assistant", "content": str}, ...]
         self._sessions: Dict[str, List[Dict[str, str]]] = {}

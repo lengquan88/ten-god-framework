@@ -79,7 +79,7 @@ log_step "步骤 2/6：配置检查"
 if [ ! -f .env ]; then
     log_warn ".env 文件不存在，创建示例配置..."
     cp .env.example .env
-    log_warn "请编辑 .env 文件配置 DEEPSEEK_API_KEY 等敏感信息"
+    log_warn "请编辑 .env 文件配置 DEEPSEEK_API_KEY、IMA_OPENAPI_APIKEY 等敏感信息"
     echo ""
     echo "  vim .env"
     echo ""
@@ -88,7 +88,7 @@ fi
 
 # 检查必要的 API Key
 if grep -q "your_api_key_here" .env 2>/dev/null; then
-    log_warn ".env 中 DEEPSEEK_API_KEY 仍为占位符，AI 分析功能将不可用"
+    log_warn ".env 中 API Key 仍为占位符，AI 分析功能将不可用"
 fi
 
 log_success "配置检查完成"

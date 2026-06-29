@@ -31,14 +31,16 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import AsyncGenerator, Dict, List, Optional
 
+from .secrets import get_secret
+
 # ============================================================================
 # 配置
 # ============================================================================
 
 LLM_BACKEND = os.environ.get("TENGOD_LLM_BACKEND", "mock")
 LLM_MODEL = os.environ.get("TENGOD_LLM_MODEL", "gpt-4o-mini")
-LLM_API_KEY = os.environ.get("TENGOD_LLM_API_KEY", os.environ.get("OPENAI_API_KEY", ""))
-LLM_API_BASE = os.environ.get("TENGOD_LLM_API_BASE", os.environ.get("OPENAI_API_BASE", ""))
+LLM_API_KEY = os.environ.get("TENGOD_LLM_API_KEY", get_secret("OPENAI_API_KEY"))
+LLM_API_BASE = os.environ.get("TENGOD_LLM_API_BASE", get_secret("OPENAI_BASE_URL", ""))
 LLM_MAX_TOKENS = int(os.environ.get("TENGOD_LLM_MAX_TOKENS", "2048"))
 LLM_TEMPERATURE = float(os.environ.get("TENGOD_LLM_TEMPERATURE", "0.7"))
 

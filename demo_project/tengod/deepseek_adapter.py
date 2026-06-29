@@ -9,11 +9,12 @@ Deepseek AI 适配器 v2.0
 - 自动重试与错误处理
 """
 
-import os
 import json
 from typing import Optional, AsyncIterator, List, Dict, Any
 from dataclasses import dataclass, field
 from datetime import datetime
+
+from .secrets import get_secret
 
 try:
     import httpx
@@ -24,7 +25,7 @@ except ImportError:
 @dataclass
 class DeepseekConfig:
     """Deepseek 配置"""
-    api_key: str = field(default_factory=lambda: os.getenv("DEEPSEEK_API_KEY", ""))
+    api_key: str = field(default_factory=lambda: get_secret("DEEPSEEK_API_KEY"))
     base_url: str = "https://api.deepseek.com/v1"
     model: str = "deepseek-chat"
     max_tokens: int = 2048
