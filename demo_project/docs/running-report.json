@@ -1,12 +1,12 @@
 {
   "status": "running",
   "db": "ok",
-  "users": 140,
-  "records": 24,
+  "users": 16,
+  "records": 3,
   "cases": 0,
   "metrics": {
-    "timestamp": "2026-06-28T16:35:21.869487+00:00",
-    "uptime_seconds": 54.5,
+    "timestamp": "2026-06-29T17:08:21.348175+00:00",
+    "uptime_seconds": 60.3,
     "requests": {
       "total": 0,
       "errors": 0,
@@ -16,11 +16,11 @@
       "top_endpoints": {}
     },
     "business": {
-      "bazi_calcs": 2,
-      "ziwei_calcs": 2,
-      "liuyao_calcs": 2,
+      "bazi_calcs": 1,
+      "ziwei_calcs": 1,
+      "liuyao_calcs": 1,
       "qimen_calcs": 0,
-      "name_analyses": 2,
+      "name_analyses": 1,
       "marriage_analyses": 0,
       "ai_chats": 2,
       "ai_reports": 0,
@@ -28,10 +28,10 @@
     },
     "system": {
       "cpu_percent": 0.0,
-      "memory_percent": 46.4,
-      "memory_used_mb": 1821.09,
-      "disk_percent": 82.8
+      "memory_percent": 24.1,
+      "memory_used_mb": 1439.37,
+      "disk_percent": 14.7
     }
   },
-  "timestamp": "2026-06-28T16:35:21.869515+00:00"
+  "timestamp": "2026-06-29T17:08:21.348194+00:00"
 }
