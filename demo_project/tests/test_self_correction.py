@@ -251,53 +251,29 @@ class TestCorrectFullFlow:
         assert step7.step_index == 7
         assert step7.output_state.get("consolidated") is True
 
-    def test_enable_gate_true_mock_passed(self):
-        """enable_gate=True 使用 mock 门禁（通过）— 通过 correct() 完整流程"""
-        mock_verdict = MagicMock()
-        mock_verdict.confidence = 0.9
-        mock_verdict.passed = True
-        mock_verdict.retreat_reason = ""
+    def test_enable_gate_true_with_seven_theories(self):
+        """enable_gate=True 使用七论裁决器（完整流程）"""
+        daemon = SelfCorrectionDaemon()
+        state = {"output": 0.5, "confidence": 0.8, "uncertainty": 0.3}
+        _, report = daemon.correct(state, enable_gate=True)
+        assert report.success is True
+        assert len(report.steps) == 7
+        step7 = report.steps[6]
+        assert step7.step_index == 7
+        assert step7.status == "completed"
+        assert step7.gate_verdict is not None
+        assert "verdicts" in step7.gate_verdict
 
-        mock_tianmen = MagicMock()
-        mock_tianmen.guard.return_value = (None, mock_verdict)
-
-        mock_module = MagicMock()
-        mock_module.get_tianmen = MagicMock(return_value=mock_tianmen)
-
-        import sys
-        with patch.dict(sys.modules, {"tengod.tiangan_gate": mock_module}):
-            daemon = SelfCorrectionDaemon()
+    def test_enable_gate_true_gate_interrupted(self):
+        """enable_gate=True 门禁中断时提前返回"""
+        daemon = SelfCorrectionDaemon()
+        # 使用极低置信度引发偏差，但关键是用 mock 模拟 step 的中断
+        with patch.object(daemon, "_judge_step", return_value=False):
             state = {"output": 0.5, "confidence": 0.8, "uncertainty": 0.3}
             _, report = daemon.correct(state, enable_gate=True)
-            assert report.success is True
-            step7 = report.steps[6]
-            assert step7.step_index == 7
-            assert step7.status == "completed"
-            assert step7.output_state.get("consolidated") is True
-
-    def test_enable_gate_true_mock_failed(self):
-        """enable_gate=True 使用 mock 门禁（失败/回退）— 通过 correct() 完整流程"""
-        mock_verdict = MagicMock()
-        mock_verdict.confidence = 0.3
-        mock_verdict.passed = False
-        mock_verdict.retreat_reason = "低置信度，天门退守"
-
-        mock_tianmen = MagicMock()
-        mock_tianmen.guard.return_value = (None, mock_verdict)
-
-        mock_module = MagicMock()
-        mock_module.get_tianmen = MagicMock(return_value=mock_tianmen)
-
-        import sys
-        with patch.dict(sys.modules, {"tengod.tiangan_gate": mock_module}):
-            daemon = SelfCorrectionDaemon()
-            state = {"output": 0.5, "confidence": 0.8, "uncertainty": 0.3}
-            _, report = daemon.correct(state, enable_gate=True)
-            assert report.success is True
-            step7 = report.steps[6]
-            assert step7.step_index == 7
-            assert step7.status == "completed"
-            assert step7.output_state.get("consolidated") is False
+            assert report.success is False
+            assert report.gate_stats['interrupted'] >= 1
+            assert report.gate_stats['chaos_sea'] >= 1
 
     def test_step1_fails_early_return(self):
         """步骤1失败时提前返回"""
@@ -1000,70 +976,68 @@ class TestStepConsolidate:
         assert step.confidence == 0.9
         assert step.delta == 0.05
 
-    def test_enable_gate_true_import_error(self):
-        """enable_gate=True 但 import 失败（异常处理）"""
+    def test_enable_gate_true_falls_back_to_seven_theories(self):
+        """enable_gate=True 使用七论裁决器（替代旧门禁）"""
+        daemon = SelfCorrectionDaemon()
+        state = {"output": 0.5, "confidence": 0.8}
+        step = daemon._step_consolidate(state, True)
+
+        assert step.step_index == 7
+        assert step.name == "铭文刻骨"
+        assert step.tech_name == "记忆固化"
+        assert step.status == "completed"
+        assert step.output_state["consolidated"] is True
+        assert "memory_key" in step.output_state
+        assert step.confidence == 0.9
+        assert step.delta == 0.05
+        assert step.gate_verdict is not None
+
+    def test_enable_gate_true_seven_theories_import_error(self):
+        """enable_gate=True 但七论裁决器导入失败（降级通过）"""
         daemon = SelfCorrectionDaemon()
         state = {"output": 0.5}
 
-        # 直接 patch 内置 __import__ 来触发异常路径
-        with patch("builtins.__import__", side_effect=ImportError("No module named 'tiangan_gate'")):
+        with patch("builtins.__import__", side_effect=ImportError("No module")):
             step = daemon._step_consolidate(state, True)
 
-            # import 失败时状态为 failed
-            assert step.status == "failed"
-            assert "No module" in step.error
-
-    def test_enable_gate_true_mock_passed(self):
-        """enable_gate=True 门禁通过"""
-        daemon = SelfCorrectionDaemon()
-        state = {"output": 0.5}
-
-        mock_verdict = MagicMock()
-        mock_verdict.confidence = 0.9
-        mock_verdict.passed = True
-        mock_verdict.retreat_reason = ""
-
-        mock_tianmen = MagicMock()
-        mock_tianmen.guard.return_value = ("output", mock_verdict)
-
-        mock_module = MagicMock()
-        mock_module.get_tianmen = MagicMock(return_value=mock_tianmen)
-
-        import sys
-        with patch.dict(sys.modules, {"tengod.tiangan_gate": mock_module}):
-            step = daemon._step_consolidate(state, True)
-
+            # 导入失败时降级：直接固化
             assert step.status == "completed"
             assert step.output_state["consolidated"] is True
-            assert "memory_key" in step.output_state
-            assert step.confidence == 0.9
-            assert step.delta == 0.05
 
-    def test_enable_gate_true_mock_failed(self):
-        """enable_gate=True 门禁拒绝"""
-        daemon = SelfCorrectionDaemon()
-        state = {"output": 0.5}
+    def test_enable_gate_true_seven_theories_closed(self):
+        """enable_gate=True 七论裁决为关时拒绝固化"""
+        from tengod.seven_theories_judge import SevenTheoriesVerdict, TheoryVerdict
+        from tengod.tbce_unit import GateState
 
-        mock_verdict = MagicMock()
-        mock_verdict.confidence = 0.3
-        mock_verdict.passed = False
-        mock_verdict.retreat_reason = "低置信度，天门退守"
+        mock_verdict = SevenTheoriesVerdict(
+            unit_id="test",
+            verdicts=[
+                TheoryVerdict("本体论", 1, GateState.CLOSED, 0.3, "S=0.30"),
+                TheoryVerdict("认识论", 2, GateState.CLOSED, 0.2, "P=0.20"),
+                TheoryVerdict("实践论", 3, GateState.CLOSED, 0.2, "I=0.20"),
+                TheoryVerdict("境界论", 4, GateState.CLOSED, 0.3, "L1"),
+                TheoryVerdict("未来观论", 5, GateState.CLOSED, 0.2, "T=0.20"),
+                TheoryVerdict("元认知论", 6, GateState.CLOSED, 0.2, "综合=0.20"),
+                TheoryVerdict("混沌海", 7, GateState.OPEN, 0.8, "chaos"),
+            ],
+            overall_state=GateState.CLOSED,
+            interrupted=True,
+            interrupted_at=1,
+        )
 
-        mock_tianmen = MagicMock()
-        mock_tianmen.guard.return_value = ("blocked", mock_verdict)
+        mock_judge = MagicMock()
+        mock_judge.judge.return_value = mock_verdict
 
-        mock_module = MagicMock()
-        mock_module.get_tianmen = MagicMock(return_value=mock_tianmen)
-
-        import sys
-        with patch.dict(sys.modules, {"tengod.tiangan_gate": mock_module}):
+        with patch("tengod.seven_theories_judge.get_seven_judge", return_value=mock_judge):
+            daemon = SelfCorrectionDaemon()
+            state = {"output": 0.5, "confidence": 0.8}
             step = daemon._step_consolidate(state, True)
 
             assert step.status == "completed"
             assert step.output_state["consolidated"] is False
-            assert step.output_state["reason"] == "低置信度，天门退守"
-            assert step.confidence == 0.3
-            assert step.delta == 0.0
+            assert "七论裁决" in step.output_state["reason"]
+            assert step.output_state["verdict"] is not None
+            assert step.gate_passed is False
 
 
 # ============================================================================
@@ -1312,9 +1286,10 @@ class TestEdgeCases:
     def test_step_consolidate_exception(self):
         """_step_consolidate 异常处理"""
         daemon = SelfCorrectionDaemon()
-        # enable_gate=True 触发 import，异常被捕获
+        # 传入异常对象来触发内部 try/except 中的异常
         with patch("builtins.__import__", side_effect=RuntimeError("unexpected error")):
             step = daemon._step_consolidate({}, True)
+            # 异常被 except Exception 捕获，status 为 failed
             assert step.status == "failed"
             assert "unexpected error" in step.error
 
@@ -1427,3 +1402,282 @@ class TestCorrectIntegration:
         # 这个值应反映在最终状态中
         assert report.final_state is not None
         assert isinstance(result_state, dict)
+
+
+# ============================================================================
+# 17. v2.23.0 门禁化新增功能测试
+# ============================================================================
+
+class TestGateification:
+    """v2.23.0 门禁化新功能测试"""
+
+    def test_correction_step_gate_fields(self):
+        """CorrectionStep 新增门禁字段"""
+        from tengod.tbce_unit import TBCECoordinates, CognitiveUnit
+
+        step = CorrectionStep(1, "观自在", "感知偏差检测")
+        assert step.gate_verdict is None
+        assert step.gate_passed is True
+        assert step.interrupted_reason == ""
+        assert step.cognitive_unit is None
+        assert step.chaos_sea_entry is None
+
+    def test_correction_step_with_gate_verdict(self):
+        """CorrectionStep 带门禁裁决结果"""
+        from tengod.tbce_unit import TBCECoordinates, CognitiveUnit
+
+        unit = CognitiveUnit(
+            unit_id="test.step1", name="测试", module_path="test.step1",
+            coordinates=TBCECoordinates.default(),
+            cognitive_layer=1, psi_operator="EmbeddingProvider",
+        )
+
+        step = CorrectionStep(
+            step_index=1, name="观自在", tech_name="感知偏差检测",
+            gate_verdict={"overall_state": "open", "verdicts": []},
+            gate_passed=True, interrupted_reason="",
+            cognitive_unit=unit, chaos_sea_entry=None,
+        )
+        assert step.gate_verdict["overall_state"] == "open"
+        assert step.gate_passed is True
+        assert step.cognitive_unit is unit
+
+    def test_correction_step_interrupted(self):
+        """CorrectionStep 中断状态"""
+        step = CorrectionStep(
+            step_index=3, name="以物验道", tech_name="物理核验",
+            status="interrupted", gate_passed=False,
+            interrupted_reason="七论裁决中断于第2论：认识论",
+        )
+        assert step.status == "interrupted"
+        assert step.gate_passed is False
+        assert "认识论" in step.interrupted_reason
+
+    def test_correction_report_gate_stats(self):
+        """CorrectionReport 门禁统计"""
+        report = CorrectionReport(session_id="test")
+        assert report.gate_stats == {"passed": 0, "interrupted": 0, "chaos_sea": 0}
+
+    def test_correction_report_to_dict_gate_fields(self):
+        """CorrectionReport.to_dict() 包含门禁字段"""
+        report = CorrectionReport(
+            session_id="test",
+            gate_stats={"passed": 5, "interrupted": 2, "chaos_sea": 2},
+        )
+        d = report.to_dict()
+        assert d["gate_stats"]["passed"] == 5
+        assert d["gate_stats"]["interrupted"] == 2
+        assert d["gate_stats"]["chaos_sea"] == 2
+
+    def test_create_cognitive_unit(self):
+        """_create_cognitive_unit 创建认知单元"""
+        daemon = SelfCorrectionDaemon()
+        unit = daemon._create_cognitive_unit(1, "观自在", "session_001", {"confidence": 0.8})
+
+        assert unit.unit_id == "correction.session_001.step1"
+        assert unit.name == "自修正·观自在"
+        assert unit.module_path == "tengod.self_correction._step_1"
+        assert unit.cognitive_layer == 5
+        assert unit.psi_operator == "ZuowangAttention"
+        assert unit.palace_id == 1
+        assert unit.tense == "present"
+        assert unit.confidence == 0.8
+        assert unit.metadata["session_id"] == "session_001"
+
+    def test_create_cognitive_unit_all_steps(self):
+        """所有7步的认知单元创建"""
+        daemon = SelfCorrectionDaemon()
+        for i in range(1, 8):
+            unit = daemon._create_cognitive_unit(i, f"Step{i}", "sess", {})
+            assert unit.unit_id == f"correction.sess.step{i}"
+            assert unit.cognitive_layer == daemon.STEP_COGNITIVE_LAYERS[i]
+            assert unit.psi_operator == daemon.STEP_PSI_OPERATORS[i]
+            assert unit.palace_id == daemon.STEP_PALACES[i]
+            assert unit.coordinates.S > 0
+            assert unit.coordinates.T > 0
+
+    def test_judge_step_integration(self):
+        """_judge_step 与七论裁决器集成"""
+        daemon = SelfCorrectionDaemon()
+        step = CorrectionStep(1, "观自在", "感知偏差检测")
+        state = {"confidence": 0.8}
+
+        result = daemon._judge_step(step, "test_session", state)
+        assert result is True  # 坐标已校准，应通过
+        assert step.gate_verdict is not None
+        assert "verdicts" in step.gate_verdict
+        assert step.cognitive_unit is not None
+
+    def test_judge_step_stores_on_failure(self):
+        """_judge_step 失败时存入混沌海"""
+        from tengod.seven_theories_judge import SevenTheoriesVerdict, TheoryVerdict
+        from tengod.tbce_unit import GateState
+
+        mock_verdict = SevenTheoriesVerdict(
+            unit_id="test",
+            verdicts=[
+                TheoryVerdict("本体论", 1, GateState.CLOSED, 0.2, "S=0.20"),
+                TheoryVerdict("认识论", 2, GateState.CLOSED, 0.1, "P=0.10"),
+                TheoryVerdict("实践论", 3, GateState.CLOSED, 0.1, "I=0.10"),
+                TheoryVerdict("境界论", 4, GateState.CLOSED, 0.2, "L1"),
+                TheoryVerdict("未来观论", 5, GateState.CLOSED, 0.1, "T=0.10"),
+                TheoryVerdict("元认知论", 6, GateState.CLOSED, 0.1, "综合=0.10"),
+                TheoryVerdict("混沌海", 7, GateState.OPEN, 0.8, "chaos"),
+            ],
+            overall_state=GateState.CLOSED,
+            interrupted=True,
+            interrupted_at=1,
+        )
+
+        mock_judge = MagicMock()
+        mock_judge.judge.return_value = mock_verdict
+        mock_judge.THEORY_NAMES = ["本体论", "认识论", "实践论", "境界论", "未来观论", "元认知论", "混沌海"]
+
+        with patch("tengod.seven_theories_judge.get_seven_judge", return_value=mock_judge):
+            daemon = SelfCorrectionDaemon()
+            step = CorrectionStep(1, "观自在", "感知偏差检测")
+            state = {"confidence": 0.3}
+
+            result = daemon._judge_step(step, "test_session", state)
+            assert result is False
+            assert step.status == "interrupted"
+            assert step.gate_passed is False
+            assert step.chaos_sea_entry is not None
+            assert step.chaos_sea_entry["step_name"] == "观自在"
+            assert len(daemon._chaos_sea_entries) == 1
+
+    def test_store_chaos_sea(self):
+        """_store_chaos_sea 存入混沌海"""
+        from tengod.seven_theories_judge import SevenTheoriesVerdict, TheoryVerdict
+        from tengod.tbce_unit import GateState
+
+        daemon = SelfCorrectionDaemon()
+        assert len(daemon._chaos_sea_entries) == 0
+
+        step = CorrectionStep(1, "观自在", "感知偏差检测")
+        verdict = SevenTheoriesVerdict(
+            unit_id="test", verdicts=[], overall_state=GateState.CLOSED,
+        )
+
+        daemon._store_chaos_sea(step, verdict)
+        assert len(daemon._chaos_sea_entries) == 1
+        assert daemon._chaos_sea_entries[0]["step_name"] == "观自在"
+        assert step.chaos_sea_entry is not None
+
+    def test_get_chaos_sea_entries(self):
+        """get_chaos_sea_entries 获取混沌海记录"""
+        daemon = SelfCorrectionDaemon()
+        assert daemon.get_chaos_sea_entries() == []
+
+        daemon._chaos_sea_entries.append({"step_name": "test"})
+        entries = daemon.get_chaos_sea_entries()
+        assert len(entries) == 1
+        assert entries[0]["step_name"] == "test"
+
+    def test_get_stats_includes_chaos_sea(self):
+        """get_stats 包含混沌海条目数"""
+        daemon = SelfCorrectionDaemon()
+        daemon._chaos_sea_entries = [{"a": 1}, {"b": 2}]
+        stats = daemon.get_stats()
+        assert stats["chaos_sea_entries"] == 2
+
+    def test_reset_daemon(self):
+        """reset_daemon 重置全局守护进程"""
+        from tengod.self_correction import reset_daemon, get_daemon
+        import tengod.self_correction as sc
+
+        old = get_daemon()
+        sc._daemon = None
+        reset_daemon()
+        new = get_daemon()
+        assert old is not new
+
+    def test_correct_with_gate_disabled(self):
+        """enable_gate=False 不触发门禁裁决"""
+        daemon = SelfCorrectionDaemon()
+        state = {"output": 0.5, "confidence": 0.8, "uncertainty": 0.3}
+        _, report = daemon.correct(state, enable_gate=False)
+
+        assert report.success is True
+        assert report.gate_stats["passed"] == 7
+        assert report.gate_stats["interrupted"] == 0
+        for s in report.steps:
+            assert s.gate_verdict is None
+            assert s.cognitive_unit is None
+
+    def test_correct_with_gate_enabled(self):
+        """enable_gate=True 每步都经过七论裁决"""
+        daemon = SelfCorrectionDaemon()
+        state = {"output": 0.5, "confidence": 0.8, "uncertainty": 0.3}
+        _, report = daemon.correct(state, enable_gate=True)
+
+        assert report.success is True
+        assert report.gate_stats["passed"] == 7
+        for s in report.steps:
+            assert s.gate_verdict is not None
+            assert s.cognitive_unit is not None
+            assert s.gate_passed is True
+
+    def test_gate_interrupts_early(self):
+        """门禁中断提前返回"""
+        daemon = SelfCorrectionDaemon()
+        with patch.object(daemon, "_judge_step", return_value=False):
+            state = {"output": 0.5, "confidence": 0.8, "uncertainty": 0.3}
+            _, report = daemon.correct(state, enable_gate=True)
+
+            assert report.success is False
+            assert report.gate_stats["interrupted"] == 1
+            assert report.gate_stats["chaos_sea"] == 1
+            assert len(report.steps) == 1  # 第一步就中断了
+
+    def test_step_coordinates_valid(self):
+        """所有步骤的坐标都通过七论裁决"""
+        daemon = SelfCorrectionDaemon()
+        for i in range(1, 8):
+            coords = daemon.STEP_COORDINATES[i]
+            # 验证坐标取值在有效范围内
+            assert 0 <= coords.S <= 1
+            assert 0 <= coords.T <= 1
+            assert 0 <= coords.P <= 1
+            assert 0 <= coords.C <= 1
+            assert 0 <= coords.I <= 1
+            assert 0 <= coords.E <= 1
+
+    def test_step_coordinates_pass_seven_theories(self):
+        """验证所有步骤坐标都通过七论裁决的最低要求"""
+        from tengod.seven_theories_judge import SevenTheoriesJudge
+        from tengod.tbce_unit import CognitiveUnit, GateState
+
+        daemon = SelfCorrectionDaemon()
+        judge = SevenTheoriesJudge()
+
+        for i in range(1, 8):
+            unit = daemon._create_cognitive_unit(i, f"Step{i}", "validate", {})
+            verdict = judge.judge(unit, interruptible=True)
+            # 不能是 closed（会中断），必须是 open 或 pending
+            assert verdict.overall_state != GateState.CLOSED, \
+                f"Step {i} 坐标未通过七论裁决: {verdict.to_dict()}"
+            assert not verdict.interrupted, \
+                f"Step {i} 被七论中断: {verdict.to_dict()}"
+
+    def test_correct_state_enhanced_with_uncertainty(self):
+        """修正后不确定性降低"""
+        import math
+        daemon = SelfCorrectionDaemon()
+        state = {"output": 0.5, "confidence": 0.8, "uncertainty": 0.8}
+        result_state, report = daemon.correct(state, enable_gate=True)
+
+        assert report.success is True
+        # 不确定性应该从 0.8 降低到 0.6
+        assert math.isclose(result_state["uncertainty"], 0.6, rel_tol=1e-9)
+
+    def test_correction_step_to_dict_gate_fields(self):
+        """验证 CorrectionReport.to_dict() 包含所有门禁字段"""
+        daemon = SelfCorrectionDaemon()
+        _, report = daemon.correct({"output": 0.5}, enable_gate=True)
+
+        d = report.to_dict()
+        for step_dict in d["steps"]:
+            assert "gate_passed" in step_dict
+            assert "gate_verdict" in step_dict
+            assert "interrupted_reason" in step_dict
