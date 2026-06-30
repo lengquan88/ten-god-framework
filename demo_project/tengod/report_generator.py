@@ -1,1016 +1,570 @@
-#!/usr/bin/env python3
 """
-report_generator.py — 食神·创生输出 · 命理报告自然语言生成器 v1.0.0
+report_generator.py — 门禁报告生成器 v2.34.0
+=================================================
+道曰："信言不美，美言不信。"
 
-整合所有阶段产出，生成结构化的自然语言命理分析报告。
+自动生成门禁报告：十二神裁决、七论可视化、混沌海存疑。
 
-输入源：
-  - 第一阶段：BaziAnalyzer（八字排盘/五行/十神/大运/流年）
-  - 第四阶段：ShenshaEngine（神煞）、GejuEngine（格局）、YongshenEngine（喜用神）
-  - 第五阶段：VectorStore（知识检索增强）
-
-输出格式：
-  - 纯文本报告（text_report）
-  - Markdown 报告（markdown_report）
-  - JSON 结构化报告（json_report）
-  - HTML 单文件报告（html_report）
-
-用法：
-  >>> from tengod.report_generator import BaziReportGenerator
-  >>> gen = BaziReportGenerator(bazi_analyzer)
-  >>> print(gen.text_report())
+核心能力：
+  - 自动生成门禁裁决报告（Markdown/JSON）
+  - 七论裁决可视化数据
+  - 混沌海存疑汇总
+  - 十二神门禁综合评估
+  - 五行生克影响分析
+  - 报告版本化与归档
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Tuple
 import json
-from datetime import datetime
-from typing import Any, Dict, List
+import time
+import uuid
 
-__all__ = [
-    "BaziReportGenerator",
-    "ComprehensiveReportGenerator",
-    "generate_report",
-    "generate_html_report",
-]
-__version__ = "1.0.0"
+from .tbce_unit import GateState
+from .twelve_gods_base import TwelveGods, FiveElements, GOD_ELEMENT_MAP
 
 
 # ============================================================================
-# 五行/天干基础数据
+# 报告组件
 # ============================================================================
 
-WUXING_COLORS = {
-    "木": "#4CAF50", "火": "#F44336", "土": "#FF9800",
-    "金": "#FFD700", "水": "#2196F3",
-}
+@dataclass
+class GateReportSection:
+    """门禁报告章节"""
+    title: str
+    level: int  # 1-6 Header级别
+    content: str
+    data: Optional[Dict] = None
+    subsections: List["GateReportSection"] = field(default_factory=list)
 
-WUXING_EMOJI = {"木": "🌳", "火": "🔥", "土": "🏔️", "金": "⚜️", "水": "💧"}
+    def to_dict(self) -> Dict:
+        return {
+            "title": self.title,
+            "level": self.level,
+            "content": self.content,
+            "data": self.data,
+            "subsections": [s.to_dict() for s in self.subsections],
+        }
 
-SHIGAN_DESC = {
-    "比肩": "同辈助力，竞争意识强，自我主张明确",
-    "劫财": "社交活跃，但需防破财，合作需谨慎",
-    "食神": "才艺出众，温和善良，享受生活",
-    "伤官": "聪明叛逆，创造力强，但需防口舌是非",
-    "正财": "稳定收入，勤俭持家，财运稳健",
-    "偏财": "意外之财，投资运强，但不稳定",
-    "正官": "正直守法，事业心强，易得贵人相助",
-    "七杀": "果断刚强，行动力强，但需防冲动",
-    "正印": "学业有成，贵人扶持，心地善良",
-    "偏印": "特殊才能，思维独特，但个性孤僻",
-}
 
-SHIGAN_ADVICE = {
-    "比肩": "宜团队合作，忌单打独斗",
-    "劫财": "宜理财规划，忌冲动消费",
-    "食神": "宜发挥才艺，忌懒散懈怠",
-    "伤官": "宜创新突破，忌锋芒过露",
-    "正财": "宜稳健投资，忌投机冒险",
-    "偏财": "宜灵活应变，忌贪心不足",
-    "正官": "宜遵纪守法，忌越权行事",
-    "七杀": "宜果断决策，忌鲁莽冲动",
-    "正印": "宜学习进修，忌纸上谈兵",
-    "偏印": "宜深度钻研，忌标新立异",
-}
+@dataclass
+class GateReport:
+    """门禁综合报告"""
+    report_id: str
+    title: str
+    version: str = "2.34.0"
+    generated_at: float = field(default_factory=time.time)
+    sections: List[GateReportSection] = field(default_factory=list)
+    summary: str = ""
+    recommendations: List[str] = field(default_factory=list)
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
-WUXING_ADVICE = {
-    "木": "宜教育、文化、医疗行业，培养耐心与包容心",
-    "火": "宜能源、餐饮、娱乐行业，注意情绪管理",
-    "土": "宜地产、建筑、农业行业，培养诚信与稳重",
-    "金": "宜金融、法律、科技行业，培养决断力与正义感",
-    "水": "宜物流、贸易、传媒行业，培养智慧与变通能力",
-}
+    def to_dict(self) -> Dict:
+        return {
+            "report_id": self.report_id,
+            "title": self.title,
+            "version": self.version,
+            "generated_at": self.generated_at,
+            "sections": [s.to_dict() for s in self.sections],
+            "summary": self.summary,
+            "recommendations": self.recommendations,
+            "metadata": self.metadata,
+        }
 
 
 # ============================================================================
 # 报告生成器
 # ============================================================================
 
-class BaziReportGenerator:
-    """八字命理综合报告生成器
+class ReportGenerator:
+    """门禁报告生成器 v2.34.0
 
-    整合八字排盘、神煞、格局、喜用神、调候等全部信息，
-    生成结构化的自然语言命理分析报告。
-
-    支持 lang 参数实现多语言报告（zh-CN / zh-TW / en）。
+    自动生成门禁裁决报告，支持：
+    - 十二神门禁综合评估
+    - 七论裁决可视化
+    - 混沌海存疑汇总
+    - 五行生克影响分析
+    - Markdown/JSON 双格式输出
     """
 
-    def __init__(self, bazi_analyzer=None, lang: str = "zh-CN"):
-        """
+    VERSION = "2.34.0"
+
+    def __init__(self):
+        self._report_history: List[GateReport] = []
+        self._max_history = 100
+
+    # ── 报告生成 ──────────────────────────────────────────────────────
+
+    def generate_report(
+        self,
+        title: str = "十二神门禁综合评估报告",
+        gate_verdicts: Optional[Dict[str, Any]] = None,
+        unit_info: Optional[Dict[str, Any]] = None,
+        include_seven_theories: bool = True,
+        include_chaos_sea: bool = True,
+        include_element_analysis: bool = True,
+    ) -> GateReport:
+        """生成门禁综合报告
+
         Args:
-            bazi_analyzer: BaziAnalyzer 实例（可选，可后续通过 set_* 方法设置）
-            lang: 报告语言（zh-CN / zh-TW / en）
+            title: 报告标题
+            gate_verdicts: 门禁裁决结果 {god_name: verdict_dict}
+            unit_info: 认知单元信息
+            include_seven_theories: 是否包含七论分析
+            include_chaos_sea: 是否包含混沌海分析
+            include_element_analysis: 是否包含五行分析
+
+        Returns:
+            GateReport 完整报告
         """
-        self._analyzer = bazi_analyzer
-        self._shensha = None
-        self._geju = None
-        self._yongshen = None
-        self._tiaohou = None
-        self._vector_store = None
-        self._lang = lang
-
-        if bazi_analyzer is not None:
-            self._extract_basic()
-
-    def _t(self, text: str, lang: str = None) -> str:
-        """使用 i18n 引擎翻译文本"""
-        try:
-            from tengod.i18n import t
-            return t(text, lang or self._lang)
-        except ImportError:
-            return text
-
-    # ── 设置器 ──────────────────────────────────────────────────────────
-
-    def set_analyzer(self, bazi_analyzer) -> None:
-        self._analyzer = bazi_analyzer
-        self._extract_basic()
-
-    def set_shensha(self, shensha_result) -> None:
-        self._shensha = shensha_result
-
-    def set_geju(self, geju_result) -> None:
-        self._geju = geju_result
-
-    def set_yongshen(self, yongshen_result) -> None:
-        self._yongshen = yongshen_result
-
-    def set_tiaohou(self, tiaohou_result) -> None:
-        self._tiaohou = tiaohou_result
-
-    def set_vector_store(self, store) -> None:
-        self._vector_store = store
-
-    # ── 数据提取 ──────────────────────────────────────────────────────────
-
-    def _extract_basic(self) -> None:
-        a = self._analyzer
-        self._year = a.year
-        self._month = a.month
-        self._day = a.day
-        self._hour = a.hour
-        self._minute = a.minute
-        self._is_male = a.is_male
-        self._longitude = a.longitude
-        self._chart = a.chart
-        self._analysis = a.analysis
-
-    def _safe_get(self, d, key, default=""):
-        """安全获取字典值"""
-        try:
-            return d.get(key, default)
-        except AttributeError:
-            return getattr(d, key, default)
-
-    # ── 文本报告 ──────────────────────────────────────────────────────────
-
-    def text_report(self) -> str:
-        """生成纯文本综合命理报告"""
-        lines = []
-        lines.extend(self._header_text())
-        lines.append("")
-        lines.extend(self._basic_info_text())
-        lines.append("")
-        lines.extend(self._pillars_text())
-        lines.append("")
-        lines.extend(self._wuxing_text())
-        lines.append("")
-        lines.extend(self._shigan_text())
-        lines.append("")
-        lines.extend(self._shensha_text())
-        lines.append("")
-        lines.extend(self._geju_text())
-        lines.append("")
-        lines.extend(self._yongshen_text())
-        lines.append("")
-        lines.extend(self._dayun_text())
-        lines.append("")
-        lines.extend(self._liunian_text())
-        lines.append("")
-        lines.extend(self._advice_text())
-        lines.append("")
-        lines.extend(self._footer_text())
-        return "\n".join(lines)
-
-    def _header_text(self) -> List[str]:
-        t = self._t
-        return [
-            "╔" + "═" * 58 + "╗",
-            "║" + f"  {t('八字命理综合分析报告')}".center(52) + "║",
-            "║" + "  食神·创生输出  v2.4".center(58) + "║",
-            "╚" + "═" * 58 + "╝",
-        ]
-
-    def _basic_info_text(self) -> List[str]:
-        a = self._analysis
-        t = self._t
-        gender = t("男命") if self._is_male else t("女命")
-        return [
-            f"▎{t('一、基本信息')}",
-            f"  {t('出生时间')}：{self._year}年{self._month:02d}月{self._day:02d}日 "
-            f"{self._hour:02d}:{self._minute:02d}（{gender}）",
-            f"  {t('真太阳时')}：{self._chart.true_hour:02d}:{self._chart.true_minute:02d} "
-            f"（{t('经度')} {self._longitude}°）",
-            f"  {t('八字四柱')}：{a['pillars']['year']} {a['pillars']['month']} "
-            f"{a['pillars']['day']} {a['pillars']['hour']}",
-            f"  {t('日主')}：{t(a['day_master'])}",
-        ]
-
-    def _pillars_text(self) -> List[str]:
-        a = self._analysis
-        t = self._t
-        lines = [f"▎{t('二、四柱分析')}"]
-        pillar_names = [
-            (t("年柱"), "year", "year_gan"),
-            (t("月柱"), "month", "month_gan"),
-            (t("日柱"), "day", "day"),
-            (t("时柱"), "hour", "hour_gan"),
-        ]
-        for label, pk, sk in pillar_names:
-            pillar = a['pillars'][pk]
-            if pk == "day":
-                shigan = f"{t('日主')} {t(pillar[0])}"
-            else:
-                shigan = t(a['shigan_map'].get(sk, ""))
-            lines.append(f"  {label}：{pillar}  │  {t('十神')}：{shigan}")
-        return lines
-
-    def _wuxing_text(self) -> List[str]:
-        a = self._analysis
-        t = self._t
-        lines = [f"▎{t('三、五行分析')}"]
-        lines.append(f"  {t('五行分布')}：")
-        for wx in ["木", "火", "土", "金", "水"]:
-            score = a['wuxing_score'].get(wx, "-")
-            lines.append(f"    {t(wx)}：{score}")
-
-        sorted_wx = sorted(a['wuxing'].items(), key=lambda x: -x[1])
-        if sorted_wx:
-            top_wx = sorted_wx[0][0]
-            lines.append(f"  {t('最旺五行')}：{t(top_wx)}")
-
-        missing = [wx for wx in ["木", "火", "土", "金", "水"] if a['wuxing'].get(wx, 0) == 0]
-        if missing:
-            missing_t = '、'.join(t(wx) for wx in missing)
-            lines.append(f"  {t('缺失五行')}：{missing_t}")
-
-        return lines
-
-    def _shigan_text(self) -> List[str]:
-        a = self._analysis
-        t = self._t
-        lines = [f"▎{t('四、十神分析')}"]
-        good = sum(a['shigan_count'].get(s, 0) for s in ["正官", "正印", "正财", "食神", "比肩"])
-        bad = sum(a['shigan_count'].get(s, 0) for s in ["七杀", "伤官", "劫财", "偏印", "偏财"])
-        lines.append(f"  {t('善神')}：{good} 个  │  {t('凶神')}：{bad} 个")
-
-        lines.append(f"  {t('十神分布')}：")
-        for sg, cnt in sorted(a['shigan_count'].items(), key=lambda x: -x[1]):
-            lines.append(f"    {t(sg)}：{cnt} 个")
-
-        return lines
-
-    def _shensha_text(self) -> List[str]:
-        t = self._t
-        lines = [f"▎{t('五、神煞分析')}"]
-        if self._shensha is None:
-            lines.append(f"  （{t('未加载神煞数据')}）")
-            return lines
-
-        s = self._shensha
-        all_s = s.all_shensha
-        ji_list = [(n, v) for n, v in all_s.items() if v.get("cat") in ("吉神", "吉")]
-        xiong_list = [(n, v) for n, v in all_s.items() if v.get("cat") in ("凶", "大凶")]
-
-        lines.append(f"  {t('共')} {len(all_s)} {t('种神煞')}：{t('吉神')} {len(ji_list)} 个，{t('凶神')} {len(xiong_list)} 个")
-
-        if ji_list:
-            lines.append(f"  【{t('吉神')}】")
-            for name, info in ji_list[:8]:
-                lines.append(f"    ☆ {t(name)}：{info.get('desc', '')}")
-
-        if xiong_list:
-            lines.append(f"  【{t('凶神')}】")
-            for name, info in xiong_list[:6]:
-                lines.append(f"    ✗ {t(name)}：{info.get('desc', '')}")
-
-        return lines
-
-    def _geju_text(self) -> List[str]:
-        t = self._t
-        lines = [f"▎{t('六、格局分析')}"]
-        if self._geju is None:
-            lines.append(f"  （{t('未加载格局数据')}）")
-            return lines
-
-        g = self._geju
-        lines.append(f"  {t('格局名称')}：{t(g.geju_name)}")
-        lines.append(f"  {t('格局类型')}：{g.geju_type}")
-        lines.append(f"  {t('格局纯度')}：{g.score:.1f}/100")
-        lines.append(f"  {t('格局解读')}：{g.geju_desc}")
-
-        if g.is_cong:
-            lines.append(f"  {t('特殊格局')}：{t('从格')}")
-        if g.is_huaqi:
-            lines.append(f"  {t('特殊格局')}：{t('化气格')}")
-
-        if g.shiyongshen:
-            lines.append(f"  {t('适用神')}：{', '.join(t(s) for s in g.shiyongshen)}")
-        if g.jishen:
-            lines.append(f"  {t('忌神')}：{', '.join(t(s) for s in g.jishen)}")
-
-        return lines
-
-    def _yongshen_text(self) -> List[str]:
-        t = self._t
-        lines = [f"▎{t('七、喜用神与调候')}"]
-        if self._yongshen is None and self._tiaohou is None:
-            lines.append(f"  （{t('未加载喜用神数据')}）")
-            return lines
-
-        if self._yongshen:
-            y = self._yongshen
-            lines.append(f"  {t('日主旺衰')}：{y.wang_shuai}（{t('强度')}：{y.wang_shuai_level:.0f}/100）")
-            if y.yong_shen:
-                lines.append(f"  {t('用神')}：{', '.join(t(s) for s in y.yong_shen)}")
-            if y.ji_shen:
-                lines.append(f"  {t('忌神')}：{', '.join(t(s) for s in y.ji_shen)}")
-            lines.append(f"  {t('分析')}：{y.yongshen_desc}")
-
-        if self._tiaohou:
-            t2 = self._tiaohou
-            lines.append(f"  {t('调候需求')}：{'需要' if t2.required_tiaohou else '不需'}{t('调候')}（{t('季节')}：{t2.season}）")
-            if t2.tiaohou_shens:
-                lines.append(f"  {t('调候用神')}：{', '.join(t(s) for s in t2.tiaohou_shens)}")
-            if t2.desc:
-                lines.append(f"  {t('调候说明')}：{t2.desc}")
-
-        return lines
-
-    def _dayun_text(self) -> List[str]:
-        a = self._analysis
-        t = self._t
-        lines = [f"▎{t('八、大运分析')}"]
-        try:
-            from tengod.dayun_liunian import derive_shigan
-        except ImportError:
-            def derive_shigan(dm, g):
-                return ""
-
-        for du in a['dayuns'][:5]:
-            lines.append(
-                f"  {du['age']:>3d}-{du['age']+9:>3d}{t('岁')} "
-                f"（{du['start_year']}-{du['start_year']+9}）"
-                f"  {du['pillar']}"
-            )
-        return lines
-
-    def _liunian_text(self) -> List[str]:
-        a = self._analysis
-        t = self._t
-        lines = [f"▎{t('九、近期流年')}"]
-        for ln in a['liunians'][:6]:
-            lines.append(
-                f"  {ln['year']}{t('年')}：{ln['pillar']}  [{t(ln['gan_shigan'])}]"
-            )
-        return lines
-
-    def _advice_text(self) -> List[str]:
-        t = self._t
-        lines = [f"▎{t('十、综合建议')}"]
-        a = self._analysis
-        day_master = a['day_master']
-
-        try:
-            from tengod.dayun_liunian import GAN_WUXING
-            dm_wx = GAN_WUXING.get(day_master, "")
-        except ImportError:
-            dm_wx = ""
-
-        if dm_wx:
-            lines.append(f"  {t('日主')}{t(day_master)}{t('属')}{t(dm_wx)}")
-
-        if self._yongshen:
-            y = self._yongshen
-            if y.yong_shen:
-                lines.append(f"  {t('宜补充')}：{', '.join(t(s) for s in y.yong_shen)}")
-            if y.ji_shen:
-                lines.append(f"  {t('宜避免')}：{', '.join(t(s) for s in y.ji_shen)}")
-
-        missing = [wx for wx in ["木", "火", "土", "金", "水"] if a['wuxing'].get(wx, 0) == 0]
-        if missing:
-            missing_t = '、'.join(t(wx) for wx in missing)
-            lines.append(f"  {t('补缺建议')}：{t('命局缺少')}{missing_t}")
-
-        return lines
-
-    def _footer_text(self) -> List[str]:
-        t = self._t
-        return [
-            "",
-            "─" * 60,
-            f"{t('报告生成时间')}：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-            f"{t('本报告由食神创生输出引擎自动生成')}",
-            "─" * 60,
-        ]
-
-    # ── Markdown 报告 ──────────────────────────────────────────────────────
-
-    def markdown_report(self) -> str:
-        """生成 Markdown 格式报告"""
-        t = self._t
-        lines = []
-        lines.append(f"# {t('八字命理综合分析报告')}")
-        lines.append("")
-        lines.append(f"> {t('生成时间')}：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        lines.append(f"> {t('引擎版本')}：食神·创生输出 v2.4")
-        lines.append("")
-
-        gender = t("男命") if self._is_male else t("女命")
-        a = self._analysis
-
-        lines.append(f"## {t('一、基本信息')}")
-        lines.append("")
-        lines.append(f"- **{t('出生时间')}**：{self._year}年{self._month:02d}月{self._day:02d}日 {self._hour:02d}:{self._minute:02d}（{gender}）")
-        lines.append(f"- **{t('真太阳时')}**：{self._chart.true_hour:02d}:{self._chart.true_minute:02d}（{t('经度')} {self._longitude}°）")
-        lines.append(f"- **{t('八字四柱')}**：`{a['pillars']['year']}` `{a['pillars']['month']}` `{a['pillars']['day']}` `{a['pillars']['hour']}`")
-        lines.append(f"- **{t('日主')}**：{t(a['day_master'])}")
-        lines.append("")
-
-        lines.append(f"## {t('二、四柱分析')}")
-        lines.append("")
-        pillar_names = [
-            (t("年柱"), "year", "year_gan"), (t("月柱"), "month", "month_gan"),
-            (t("日柱"), "day", "day"), (t("时柱"), "hour", "hour_gan"),
-        ]
-        for label, pk, sk in pillar_names:
-            pillar = a['pillars'][pk]
-            if pk == "day":
-                shigan = f"{t('日主')} {t(pillar[0])}"
-            else:
-                shigan = t(a['shigan_map'].get(sk, ""))
-            lines.append(f"- **{label}**：`{pillar}` — {shigan}")
-        lines.append("")
-
-        lines.append(f"## {t('三、五行分析')}")
-        lines.append("")
-        lines.append(f"| {t('五行')} | {t('数量')} | {t('评分')} | {t('状态')} |")
-        lines.append("|------|------|------|------|")
-        for wx in ["木", "火", "土", "金", "水"]:
-            count = a['wuxing'].get(wx, 0)
-            score = a['wuxing_score'].get(wx, "-")
-            lines.append(f"| {t(wx)} | {count} | {score} | |")
-        lines.append("")
-
-        lines.append(f"## {t('四、十神分析')}")
-        lines.append("")
-        for sg, cnt in sorted(a['shigan_count'].items(), key=lambda x: -x[1]):
-            lines.append(f"- **{t(sg)}**：{cnt} 个")
-        lines.append("")
-
-        if self._shensha:
-            lines.append(f"## {t('五、神煞分析')}")
-            lines.append("")
-            all_s = self._shensha.all_shensha
-            ji_list = [(n, v) for n, v in all_s.items() if v.get("cat") in ("吉神", "吉")]
-            xiong_list = [(n, v) for n, v in all_s.items() if v.get("cat") in ("凶", "大凶")]
-            lines.append(f"{t('共')} {len(all_s)} {t('种神煞')}（{t('吉神')} {len(ji_list)} / {t('凶神')} {len(xiong_list)}）")
-            lines.append("")
-            if ji_list:
-                lines.append(f"### {t('吉神')}")
-                for name, info in ji_list[:5]:
-                    lines.append(f"- **{t(name)}**：{info.get('desc', '')}")
-            if xiong_list:
-                lines.append(f"### {t('凶神')}")
-                for name, info in xiong_list[:5]:
-                    lines.append(f"- **{t(name)}**：{info.get('desc', '')}")
-            lines.append("")
-
-        if self._geju:
-            g = self._geju
-            lines.append(f"## {t('六、格局分析')}")
-            lines.append("")
-            lines.append(f"- **{t('格局')}**：{t(g.geju_name)}（{g.geju_type}）")
-            lines.append(f"- **{t('纯度')}**：{g.score:.1f}/100")
-            lines.append("")
-
-        if self._yongshen:
-            y = self._yongshen
-            lines.append(f"## {t('七、喜用神与调候')}")
-            lines.append("")
-            lines.append(f"- **{t('日主状态')}**：{y.wang_shuai}")
-            if y.yong_shen:
-                lines.append(f"- **{t('用神')}**：{', '.join(t(s) for s in y.yong_shen)}")
-            if y.ji_shen:
-                lines.append(f"- **{t('忌神')}**：{', '.join(t(s) for s in y.ji_shen)}")
-            lines.append("")
-
-        lines.append(f"## {t('八、综合建议')}")
-        lines.append("")
-        if self._yongshen and self._yongshen.yong_shen:
-            lines.append(f"{t('宜补充')}：{', '.join(t(s) for s in self._yongshen.yong_shen)}")
-        lines.append("")
-
-        lines.append("---")
-        lines.append(f"*{t('报告生成时间')}：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*")
-        lines.append(f"*{t('本报告由食神创生输出引擎自动生成')}*")
-
-        return "\n".join(lines)
-
-    # ── JSON 报告 ──────────────────────────────────────────────────────────
-
-    def json_report(self) -> Dict[str, Any]:
-        """生成 JSON 结构化报告"""
-        t = self._t
-        a = self._analysis
-        report = {
-            "meta": {
-                "version": __version__,
-                "generated_at": datetime.now().isoformat(),
-                "engine": "食神·创生输出",
-                "lang": self._lang,
+        report_id = f"report_{uuid.uuid4().hex[:12]}"
+        report = GateReport(
+            report_id=report_id,
+            title=title,
+            metadata={
+                "unit_info": unit_info or {},
+                "gate_count": len(gate_verdicts) if gate_verdicts else 0,
             },
-            "basic": {
-                "year": self._year,
-                "month": self._month,
-                "day": self._day,
-                "hour": self._hour,
-                "minute": self._minute,
-                "is_male": self._is_male,
-                "longitude": self._longitude,
-                "true_solar_time": f"{self._chart.true_hour:02d}:{self._chart.true_minute:02d}",
-                "pillars": a['pillars'],
-                "day_master": t(a['day_master']),
-            },
-            "wuxing": {
-                "distribution": {t(k): v for k, v in a['wuxing'].items()},
-                "scores": {t(k): v for k, v in a['wuxing_score'].items()},
-            },
-            "shigan": {
-                "distribution": {t(k): v for k, v in a['shigan_count'].items()},
-                "map": {k: t(v) for k, v in a['shigan_map'].items() if k != "day"},
-            },
-            "shensha": self._shensha.json_report() if self._shensha else None,
-            "geju": {
-                "name": t(self._geju.geju_name),
-                "type": self._geju.geju_type,
-                "desc": self._geju.geju_desc,
-                "score": self._geju.score,
-                "is_cong": self._geju.is_cong,
-                "is_huaqi": self._geju.is_huaqi,
-            } if self._geju else None,
-            "yongshen": {
-                "wang_shuai": self._yongshen.wang_shuai,
-                "yong_shen": [t(s) for s in self._yongshen.yong_shen],
-                "ji_shen": [t(s) for s in self._yongshen.ji_shen],
-                "desc": self._yongshen.yongshen_desc,
-            } if self._yongshen else None,
-            "tiaohou": {
-                "required": self._tiaohou.required_tiaohou,
-                "tiaohou_shens": [t(s) for s in self._tiaohou.tiaohou_shens],
-                "season": self._tiaohou.season,
-                "desc": self._tiaohou.desc,
-            } if self._tiaohou else None,
-            "dayun": a['dayuns'][:5],
-            "liunian": a['liunians'][:6],
-            "conclusion": a['conclusion'],
-        }
+        )
+
+        # 1. 摘要
+        if gate_verdicts:
+            report.summary = self._generate_summary(gate_verdicts)
+            report.recommendations = self._generate_recommendations(gate_verdicts)
+
+        # 2. 十二神门禁裁决
+        if gate_verdicts:
+            report.sections.append(self._build_gate_verdicts_section(gate_verdicts))
+
+        # 3. 五行生克分析
+        if include_element_analysis and gate_verdicts:
+            report.sections.append(self._build_element_analysis_section(gate_verdicts))
+
+        # 4. 七论裁决
+        if include_seven_theories:
+            report.sections.append(self._build_seven_theories_section())
+
+        # 5. 混沌海存疑
+        if include_chaos_sea:
+            report.sections.append(self._build_chaos_sea_section())
+
+        # 6. 综合建议
+        if report.recommendations:
+            report.sections.append(self._build_recommendations_section(report.recommendations))
+
+        self._report_history.append(report)
+        if len(self._report_history) > self._max_history:
+            self._report_history = self._report_history[-self._max_history:]
+
         return report
 
-    # ── HTML 报告 ──────────────────────────────────────────────────────────
+    # ── 摘要生成 ──────────────────────────────────────────────────────
 
-    def html_report(self) -> str:
-        """生成 HTML 单文件报告"""
-        t = self._t
-        gender = t("男命") if self._is_male else t("女命")
-        return _HTML_TEMPLATE.format(
-            lang=self._lang,
-            title=f"{self._year}-{self._month:02d}-{self._day:02d} "
-                  f"{gender}{t('八字命理报告')}",
-            version=__version__,
-            generated_at=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            body=self.markdown_report(),
-        )
+    def _generate_summary(self, verdicts: Dict[str, Any]) -> str:
+        """生成报告摘要"""
+        total = len(verdicts)
+        open_count = sum(1 for v in verdicts.values() if v.get("state") == GateState.OPEN)
+        pending_count = sum(1 for v in verdicts.values() if v.get("state") == GateState.PENDING)
+        closed_count = sum(1 for v in verdicts.values() if v.get("state") == GateState.CLOSED)
 
+        pass_rate = open_count / max(1, total)
 
-# ============================================================================
-# HTML 模板
-# ============================================================================
+        # 五行通过率
+        elem_stats = {}
+        for name, v in verdicts.items():
+            elem = v.get("element", "未知")
+            if elem not in elem_stats:
+                elem_stats[elem] = {"total": 0, "open": 0}
+            elem_stats[elem]["total"] += 1
+            if v.get("state") == GateState.OPEN:
+                elem_stats[elem]["open"] += 1
 
-_HTML_TEMPLATE = """<!DOCTYPE html>
-<html lang="{lang}">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{title}</title>
-<style>
-  * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-  body {{
-    font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
-    background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
-    color: #e0e0e0; min-height: 100vh; padding: 20px;
-    line-height: 1.8;
-  }}
-  .container {{ max-width: 900px; margin: 0 auto; }}
-  h1 {{
-    text-align: center; font-size: 28px; margin: 20px 0 10px;
-    background: linear-gradient(90deg, #f5d76e, #e8b14f);
-    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  }}
-  h2 {{
-    font-size: 18px; color: #f5d76e; margin: 24px 0 12px;
-    border-bottom: 1px solid rgba(245,215,110,0.2); padding-bottom: 6px;
-  }}
-  blockquote {{
-    border-left: 3px solid rgba(245,215,110,0.3); padding: 4px 12px;
-    margin: 8px 0; color: #8e9aaf; font-size: 13px;
-  }}
-  table {{ width: 100%; border-collapse: collapse; margin: 8px 0; }}
-  th, td {{
-    padding: 8px 12px; border: 1px solid rgba(255,255,255,0.1);
-    text-align: left; font-size: 14px;
-  }}
-  th {{ background: rgba(245,215,110,0.1); color: #f5d76e; }}
-  code {{
-    background: rgba(255,255,255,0.06); padding: 1px 6px;
-    border-radius: 4px; font-size: 14px; color: #fff5d6;
-  }}
-  ul, ol {{ padding-left: 20px; }}
-  li {{ margin: 4px 0; font-size: 14px; }}
-  hr {{ border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 20px 0; }}
-  .footer {{ text-align: center; color: #6e7a8f; font-size: 12px; margin-top: 30px; }}
-</style>
-</head>
-<body>
-<div class="container">
-<h1>{title}</h1>
-<div class="footer">引擎版本：{version} | 生成时间：{generated_at}</div>
-<hr>
-{body}
-</div>
-</body>
-</html>"""
-
-
-# ============================================================================
-# 便捷函数
-# ============================================================================
-
-def generate_report(bazi_analyzer,
-                    shensha_result=None,
-                    geju_result=None,
-                    yongshen_result=None,
-                    tiaohou_result=None,
-                    lang: str = "zh-CN") -> str:
-    """便捷函数：生成完整文本报告
-
-    Args:
-        bazi_analyzer: BaziAnalyzer 实例
-        shensha_result: ShenshaResult 实例（可选）
-        geju_result: GejuResult 实例（可选）
-        yongshen_result: YongshenResult 实例（可选）
-        tiaohou_result: TiaohouResult 实例（可选）
-        lang: 报告语言（zh-CN / zh-TW / en）
-
-    Returns:
-        str: 完整的文本报告
-    """
-    gen = BaziReportGenerator(bazi_analyzer, lang=lang)
-    if shensha_result:
-        gen.set_shensha(shensha_result)
-    if geju_result:
-        gen.set_geju(geju_result)
-    if yongshen_result:
-        gen.set_yongshen(yongshen_result)
-    if tiaohou_result:
-        gen.set_tiaohou(tiaohou_result)
-    return gen.text_report()
-
-
-def generate_html_report(bazi_analyzer,
-                         shensha_result=None,
-                         geju_result=None,
-                         yongshen_result=None,
-                         tiaohou_result=None,
-                         lang: str = "zh-CN") -> str:
-    """便捷函数：生成 HTML 报告
-
-    Args:
-        bazi_analyzer: BaziAnalyzer 实例
-        shensha_result: ShenshaResult 实例
-        geju_result: GejuResult 实例
-        yongshen_result: YongshenResult 实例
-        tiaohou_result: TiaohouResult 实例
-        lang: 报告语言（zh-CN / zh-TW / en）
-
-    Returns:
-        str: HTML 报告字符串
-    """
-    gen = BaziReportGenerator(bazi_analyzer, lang=lang)
-    if shensha_result:
-        gen.set_shensha(shensha_result)
-    if geju_result:
-        gen.set_geju(geju_result)
-    if yongshen_result:
-        gen.set_yongshen(yongshen_result)
-    if tiaohou_result:
-        gen.set_tiaohou(tiaohou_result)
-    return gen.html_report()
-
-
-# ============================================================================
-# 自测
-# ============================================================================
-
-if __name__ == "__main__":
-    import sys
-    sys.path.insert(0, ".")
-
-    from tengod.bazi_analyzer import BaziAnalyzer
-    from tengod.shensha_engine import calc_all_shensha
-    from tengod.geju_engine import calc_geju, calc_yongshen, calc_tiaohou
-
-    # 示例八字
-    analyzer = BaziAnalyzer(1990, 6, 15, 10, 30, is_male=True, longitude=116.4)
-    shensha = calc_all_shensha(analyzer.analysis['pillars'])
-    geju = calc_geju(analyzer.analysis['pillars'])
-    yongshen = calc_yongshen(analyzer.analysis['pillars'])
-    tiaohou = calc_tiaohou(analyzer.analysis['pillars'])
-
-    gen = BaziReportGenerator(analyzer)
-    gen.set_shensha(shensha)
-    gen.set_geju(geju)
-    gen.set_yongshen(yongshen)
-    gen.set_tiaohou(tiaohou)
-
-    print(gen.text_report())
-    print("\n\n=== JSON Report ===")
-    print(json.dumps(gen.json_report(), ensure_ascii=False, indent=2))
-
-
-# ============================================================================
-# 阶段二十四：多体系综合报告生成器
-# ============================================================================
-
-class ComprehensiveReportGenerator:
-    """
-    多体系综合报告生成器
-
-    输入：ComprehensiveResult.to_dict() 字典
-    输出：text / markdown / html / json 格式综合报告
-
-    用法：
-        >>> from tengod.report_generator import ComprehensiveReportGenerator
-        >>> gen = ComprehensiveReportGenerator(comp_result.to_dict())
-        >>> print(gen.markdown_report())
-    """
-
-    def __init__(self, comp_dict: Dict[str, Any], lang: str = "zh-CN"):
-        self._d = comp_dict
-        self._birth = comp_dict.get("birth_info", {})
-        self._systems = comp_dict.get("systems", {})
-        self._cross = comp_dict.get("cross_validation", {})
-        self._consensus = comp_dict.get("consensus", {})
-        self._raw_report = comp_dict.get("comprehensive_report", "")
-        self._lang = lang
-
-    def _t(self, text: str) -> str:
-        try:
-            from tengod.i18n import t
-            return t(text, self._lang)
-        except ImportError:
-            return text
-
-    def _level_bar(self, score: int) -> str:
-        """将 0-100 分数转换为星级条"""
-        filled = min(5, max(0, round(score / 20)))
-        return "★" * filled + "☆" * (5 - filled)
-
-    def text_report(self) -> str:
-        """纯文本综合报告"""
-        t = self._t
-        lines = []
-        gender_cn = "男" if self._birth.get("gender") == "male" else "女"
-        year = self._birth.get("target_year", "")
-
-        lines.append("=" * 60)
-        lines.append(f"      {t('多体系综合命理分析报告')}")
-        lines.append(f"      {t('分析年份')}：{year}  |  {t('性别')}：{gender_cn}")
-        lines.append("=" * 60)
-        lines.append("")
-
-        # 共识运势
-        overall = self._consensus.get("overall", "—")
-        score = self._consensus.get("score", 0)
-        lines.append(f"【{t('共识运势')}】")
-        lines.append(f"  {t('综合等级')}：{overall}  {self._level_bar(score)}")
-        lines.append(f"  {t('综合评分')}：{score}/100")
-        lines.append("")
-        for label, key in [
-            (t("事业"), "career"), (t("财运"), "wealth"),
-            (t("感情"), "relationships"), (t("健康"), "health"),
-        ]:
-            val = self._consensus.get(key, "—") or "—"
-            lines.append(f"  {label}：{val}")
-        strengths = self._consensus.get("key_strengths", [])
-        if strengths:
-            lines.append(f"  {t('优势')}：{'、'.join(strengths)}")
-        risks = self._consensus.get("key_risks", [])
-        if risks:
-            lines.append(f"  {t('风险')}：{'、'.join(risks)}")
-        best = self._consensus.get("best_timing", [])
-        if best:
-            lines.append(f"  {t('最佳时机')}：{'、'.join(best)}")
-        lines.append("")
-
-        # 交叉验证
-        cross_score = self._cross.get("score", 0)
-        cross_level = self._cross.get("level", "—")
-        lines.append(f"【{t('交叉验证')}】")
-        lines.append(f"  {t('一致性')}：{cross_score}/100  ({cross_level})")
-        agreed = self._cross.get("agreements", [])
-        conflicts = self._cross.get("conflicts", [])
-        if agreed:
-            lines.append(f"  {t('一致体系')}：{'、'.join(agreed)}")
-        if conflicts:
-            lines.append(f"  {t('分歧体系')}：{'、'.join(conflicts)}")
-        interp = self._cross.get("interpretations", [])
-        for p in interp:
-            lines.append(f"  解读：{p}")
-        lines.append("")
-
-        # 各体系结果
-        lines.append(f"【{t('各体系分析结果')}】")
-        for name, sys_data in self._systems.items():
-            if isinstance(sys_data, dict):
-                lines.append(f"  ■ {name}")
-                if sys_data.get("available") is False:
-                    lines.append(f"    [不可用] {sys_data.get('error', '')}")
-                else:
-                    summary = sys_data.get("summary", "")
-                    if summary:
-                        lines.append(f"    {summary}")
-                lines.append("")
-        lines.append("")
-
-        # 原始报告
-        if self._raw_report:
-            lines.append(f"【{t('综合分析')}】")
-            lines.append(self._raw_report[:600])
-            if len(self._raw_report) > 600:
-                lines.append(f"  ... (共 {len(self._raw_report)} 字)")
-        lines.append("")
-        lines.append("=" * 60)
-        lines.append("  本报告由多体系综合分析引擎生成，仅供参考")
-        lines.append("=" * 60)
-        return "\n".join(lines)
-
-    def markdown_report(self) -> str:
-        """Markdown 格式综合报告"""
-        gender_cn = "男" if self._birth.get("gender") == "male" else "女"
-        year = self._birth.get("target_year", "")
-        overall = self._consensus.get("overall", "—")
-        score = self._consensus.get("score", 0)
-        cross_score = self._cross.get("score", 0)
-        cross_level = self._cross.get("level", "—")
-
-        md = [
-            "# 多体系综合命理分析报告",
-            "",
-            f"**分析年份**：{year}  &nbsp;&nbsp; **性别**：{gender_cn}",
-            "",
-            "---",
-            "",
-            "## 一、共识运势",
-            "",
-            "| 等级 | 评分 | ★评级 |",
-            "| --- | --- | --- |",
-            f"| {overall} | {score}/100 | {self._level_bar(score)} |",
-            "",
-            "### 分项研判",
-            "",
-            "| 事业 | 财运 | 感情 | 健康 |",
-            "| --- | --- | --- | --- |",
-            f"| {self._consensus.get('career', '—')} | "
-            f"{self._consensus.get('wealth', '—')} | "
-            f"{self._consensus.get('relationships', '—')} | "
-            f"{self._consensus.get('health', '—')} |",
-            "",
+        summary_parts = [
+            f"## 执行摘要",
+            f"",
+            f"- **裁决时间**: {time.strftime('%Y-%m-%d %H:%M:%S')}",
+            f"- **门禁总数**: {total}（十二神门禁体系）",
+            f"- **通过**: {open_count} | **待定**: {pending_count} | **关闭**: {closed_count}",
+            f"- **整体通过率**: {pass_rate:.1%}",
+            f"",
         ]
 
-        strengths = self._consensus.get("key_strengths", [])
-        if strengths:
-            md.append(f"**核心优势**：{'、'.join(strengths)}")
-        risks = self._consensus.get("key_risks", [])
-        if risks:
-            md.append(f"**核心风险**：{'、'.join(risks)}")
-        best = self._consensus.get("best_timing", [])
-        if best:
-            md.append(f"**最佳时机**：{'、'.join(best)}")
-        md.append("")
+        if closed_count > 0:
+            closed_gates = [n for n, v in verdicts.items() if v.get("state") == GateState.CLOSED]
+            summary_parts.append(f"- **未通过门禁**: {', '.join(closed_gates)}")
+            summary_parts.append("")
 
-        md.extend([
-            "---",
-            "",
-            "## 二、交叉验证",
-            "",
-            f"**一致性**：{cross_score}/100（{cross_level}）",
-            "",
-        ])
-        agreed = self._cross.get("agreements", [])
-        conflicts = self._cross.get("conflicts", [])
-        if agreed:
-            md.append(f"**一致体系**：{'、'.join(agreed)}")
-        if conflicts:
-            md.append(f"**分歧体系**：{'、'.join(conflicts)}")
-        interp = self._cross.get("interpretations", [])
-        for p in interp:
-            md.append(f"- {p}")
-        md.append("")
+        # 五行分布
+        summary_parts.append("### 五行分布")
+        summary_parts.append("")
+        summary_parts.append("| 五行 | 通过率 | 状态 |")
+        summary_parts.append("|------|--------|------|")
+        for elem, stats in sorted(elem_stats.items()):
+            rate = stats["open"] / max(1, stats["total"])
+            status = "✅" if rate >= 0.5 else "⚠️" if rate > 0 else "❌"
+            summary_parts.append(f"| {elem} | {rate:.0%} | {status} |")
 
-        md.extend([
-            "---",
-            "",
-            "## 三、各体系分析结果",
-            "",
-        ])
-        for name, sys_data in self._systems.items():
-            if isinstance(sys_data, dict):
-                available = sys_data.get("available", True)
-                status = "✅" if available else "❌"
-                summary = sys_data.get("summary", "（无摘要）")
-                md.append(f"### {status} {name}")
-                md.append(f"{summary}")
-                if not available:
-                    md.append(f"> 错误：{sys_data.get('error', '')}")
-                md.append("")
+        if pass_rate >= 0.7:
+            summary_parts.append("")
+            summary_parts.append("**结论**: 系统整体健康，门禁体系运行正常。")
+        elif pass_rate >= 0.5:
+            summary_parts.append("")
+            summary_parts.append("**结论**: 系统存在一定风险，建议关注未通过门禁。")
+        else:
+            summary_parts.append("")
+            summary_parts.append("**结论**: 系统存在严重问题，需要立即干预。")
 
-        if self._raw_report:
-            md.extend([
-                "---",
-                "",
-                "## 四、综合分析",
-                "",
-                self._raw_report,
-                "",
-            ])
+        return "\n".join(summary_parts)
 
-        md.extend([
-            "---",
-            "",
-            "*本报告由多体系综合分析引擎生成，仅供参考*",
-        ])
-        return "\n".join(md)
+    # ── 建议生成 ──────────────────────────────────────────────────────
 
-    def json_report(self) -> Dict[str, Any]:
-        """JSON 格式综合报告"""
-        return {
-            "birth_info": self._birth,
-            "consensus": self._consensus,
-            "cross_validation": self._cross,
-            "systems": {
-                k: v if isinstance(v, dict) else {}
-                for k, v in self._systems.items()
-            },
-            "raw_report": self._raw_report,
-            "summary": {
-                "overall": self._consensus.get("overall", "—"),
-                "score": self._consensus.get("score", 0),
-                "cross_score": self._cross.get("score", 0),
-                "agreed_count": len(self._cross.get("agreements", [])),
-                "system_count": len(self._systems),
-            },
-        }
+    def _generate_recommendations(self, verdicts: Dict[str, Any]) -> List[str]:
+        """生成建议"""
+        recs = []
 
-    def html_report(self) -> str:
-        """HTML 格式综合报告（单文件，可直接用浏览器打开）"""
-        md = self.markdown_report()
-        # 简单 Markdown → HTML 转换（完整版需引入 markdown 库）
-        html_body = md.replace("# ", "<h1>").replace("\n## ", "</h1>\n<h2>").replace(
-            "\n### ", "</h2>\n<h3>").replace("\n", "<br/>")
-        html_body = (
-            html_body.replace("**", "")
-            .replace("| ", "<tr><td>").replace(" |", "</td></tr>")
-            .replace(" | ", "</td><td>")
-            .replace("---\n", "<hr/>")
+        for name, v in verdicts.items():
+            state = v.get("state", GateState.CLOSED)
+            score = v.get("score", 0.0)
+            reason = v.get("reason", "")
+
+            if state == GateState.CLOSED:
+                recs.append(f"**{name}门禁关闭**: {reason[:100]}，建议优先修复")
+            elif state == GateState.PENDING:
+                if score < 0.5:
+                    recs.append(f"**{name}门禁待定**: 分数 {score:.2f}，建议复查")
+
+        # 检查五行平衡
+        element_issues = self._check_element_balance(verdicts)
+        recs.extend(element_issues)
+
+        if not recs:
+            recs.append("所有门禁运行正常，无需特别关注。")
+
+        return recs
+
+    def _check_element_balance(self, verdicts: Dict[str, Any]) -> List[str]:
+        """检查五行平衡"""
+        recs = []
+        elem_stats = {}
+        for name, v in verdicts.items():
+            elem = v.get("element", "未知")
+            if elem not in elem_stats:
+                elem_stats[elem] = {"total": 0, "open": 0}
+            elem_stats[elem]["total"] += 1
+            if v.get("state") == GateState.OPEN:
+                elem_stats[elem]["open"] += 1
+
+        for elem, stats in elem_stats.items():
+            rate = stats["open"] / max(1, stats["total"])
+            if rate == 0 and stats["total"] > 0:
+                recs.append(f"**{elem}行失衡**: 所有{elem}行门禁均未通过，五行生克链断裂")
+            elif rate < 0.5:
+                recs.append(f"**{elem}行偏弱**: {elem}行门禁通过率仅{rate:.0%}")
+
+        return recs
+
+    # ── 报告章节构建 ──────────────────────────────────────────────────
+
+    def _build_gate_verdicts_section(
+        self, verdicts: Dict[str, Any]
+    ) -> GateReportSection:
+        """构建门禁裁决章节"""
+        section = GateReportSection(
+            title="十二神门禁裁决",
+            level=1,
+            content="以下为十二神门禁体系对当前认知单元的裁决结果。",
+            data={"verdicts": verdicts},
         )
-        return f"""<!DOCTYPE html>
-<html lang="zh">
-<head>
-<meta charset="utf-8"/>
-<title>多体系综合命理分析报告</title>
-<style>
-body{{font-family:serif;max-width:800px;margin:2rem auto;padding:0 1rem;
-      background:#1a1a1a;color:#c9b99a;line-height:1.8}}
-h1,h2,h3{{color:#d4af37;border-bottom:1px solid #4a4a4a;padding-bottom:.3em}}
-h1{{font-size:1.6em;text-align:center}}h2{{font-size:1.2em}}h3{{font-size:1em}}
-table{{border-collapse:collapse;width:100%;margin:.5rem 0}}
-td,th{{border:1px solid #4a4a4a;padding:.4rem .6rem}}
-hr{{border:none;border-top:1px solid #4a4a4a;margin:1.5rem 0}}
-blockquote{{background:#252525;border-left:3px solid #d4af37;padding:.5rem 1rem}}
-</style>
-</head>
-<body>
-{html_body}
-</body>
-</html>"""
+
+        # 按元素分组
+        by_element: Dict[str, List[Tuple[str, Dict]]] = {}
+        for name, v in verdicts.items():
+            elem = v.get("element", "未知")
+            if elem not in by_element:
+                by_element[elem] = []
+            by_element[elem].append((name, v))
+
+        for elem, items in sorted(by_element.items()):
+            # 统计
+            total = len(items)
+            open_count = sum(1 for _, v in items if v.get("state") == GateState.OPEN)
+            pass_rate = open_count / total
+
+            content_lines = [
+                f"### {elem}行门禁（通过率: {pass_rate:.0%}）",
+                "",
+                "| 神位 | 状态 | 分数 | 五行加成 | 裁决理由 |",
+                "|------|------|------|----------|----------|",
+            ]
+
+            for name, v in items:
+                state = v.get("state", "closed")
+                state_icon = "✅" if state == GateState.OPEN else "⏳" if state == GateState.PENDING else "❌"
+                score = v.get("score", 0.0)
+                boost = v.get("element_boost", 0.0)
+                reason = v.get("reason", "")[:60]
+
+                content_lines.append(
+                    f"| {name} | {state_icon} | {score:.2f} | {boost:+.2f} | {reason} |"
+                )
+
+            subsection = GateReportSection(
+                title=f"{elem}行门禁",
+                level=2,
+                content="\n".join(content_lines),
+                data={"element": elem, "pass_rate": pass_rate},
+            )
+            section.subsections.append(subsection)
+
+        return section
+
+    def _build_element_analysis_section(
+        self, verdicts: Dict[str, Any]
+    ) -> GateReportSection:
+        """构建五行生克分析章节"""
+        section = GateReportSection(
+            title="五行生克影响分析",
+            level=1,
+            content="分析五行生克关系对门禁裁决的加成影响。",
+        )
+
+        # 计算生克加成
+        generating_cycle = {"木": "火", "火": "土", "土": "金", "金": "水", "水": "木"}
+        overcoming_cycle = {"木": "土", "土": "水", "水": "火", "火": "金", "金": "木"}
+
+        content_lines = [
+            "### 相生链（生成→被生）",
+            "",
+            "| 生者五行 | 被生五行 | 生者通过率 | 被生者通过率 | 加成效果 |",
+            "|----------|----------|------------|-------------|----------|",
+        ]
+
+        for gen, gened in generating_cycle.items():
+            gen_verdicts = [v for n, v in verdicts.items() if v.get("element") == gen]
+            gened_verdicts = [v for n, v in verdicts.items() if v.get("element") == gened]
+
+            gen_rate = (sum(1 for v in gen_verdicts if v.get("state") == GateState.OPEN) /
+                        max(1, len(gen_verdicts)))
+            gened_rate = (sum(1 for v in gened_verdicts if v.get("state") == GateState.OPEN) /
+                          max(1, len(gened_verdicts)))
+
+            boost = min(gen_rate * 0.15, 0.15)  # 最大加成15%
+            effect = "✅ 有效" if boost > 0.05 else "⚠️ 不足" if gen_rate > 0 else "❌ 无加成"
+
+            content_lines.append(
+                f"| {gen} | {gened} | {gen_rate:.0%} | {gened_rate:.0%} | {boost:.2f} {effect} |"
+            )
+
+        content_lines.extend([
+            "",
+            "### 相克链（克制→被克）",
+            "",
+            "| 克者五行 | 被克五行 | 克者通过率 | 被克者通过率 | 抑制效果 |",
+            "|----------|----------|------------|-------------|----------|",
+        ])
+
+        for over, overed in overcoming_cycle.items():
+            over_verdicts = [v for n, v in verdicts.items() if v.get("element") == over]
+            overed_verdicts = [v for n, v in verdicts.items() if v.get("element") == overed]
+
+            over_rate = (sum(1 for v in over_verdicts if v.get("state") == GateState.OPEN) /
+                         max(1, len(over_verdicts)))
+            overed_rate = (sum(1 for v in overed_verdicts if v.get("state") == GateState.OPEN) /
+                           max(1, len(overed_verdicts)))
+
+            penalty = min(over_rate * 0.1, 0.1)
+            effect = "⚠️ 抑制" if penalty > 0.03 else "— 正常"
+
+            content_lines.append(
+                f"| {over} | {overed} | {over_rate:.0%} | {overed_rate:.0%} | {penalty:.2f} {effect} |"
+            )
+
+        section.content = "\n".join(content_lines)
+        return section
+
+    def _build_seven_theories_section(self) -> GateReportSection:
+        """构建七论裁决章节"""
+        section = GateReportSection(
+            title="七论裁决器分析",
+            level=1,
+            content="认知成像的七论裁决器分析结果。",
+        )
+
+        try:
+            from .seven_theories_judge import get_seven_theories_judge
+            judge = get_seven_theories_judge()
+            history = judge.get_verdict_history()
+
+            if history:
+                content_lines = [
+                    "| 论域 | 裁决数 | 通过数 | 通过率 | 状态 |",
+                    "|------|--------|--------|--------|------|",
+                ]
+
+                theories = ["ontology", "epistemology", "practice", "realm",
+                           "future", "metacognition", "chaos_sea"]
+                theory_names = ["本体论", "认识论", "实践论", "境界论",
+                               "未来论", "元认知", "混沌海"]
+
+                for t, name in zip(theories, theory_names):
+                    t_records = [r for r in history if r.get("theory") == t]
+                    total = len(t_records)
+                    passed = sum(1 for r in t_records if r.get("passed"))
+                    rate = passed / max(1, total)
+                    status = "✅" if rate >= 0.7 else "⚠️" if rate >= 0.4 else "❌"
+
+                    content_lines.append(
+                        f"| {name} | {total} | {passed} | {rate:.0%} | {status} |"
+                    )
+
+                section.content = "\n".join(content_lines)
+            else:
+                section.content = "七论裁决器尚无裁决记录。"
+        except Exception:
+            section.content = "七论裁决器不可用。"
+
+        return section
+
+    def _build_chaos_sea_section(self) -> GateReportSection:
+        """构建混沌海存疑章节"""
+        section = GateReportSection(
+            title="混沌海存疑汇总",
+            level=1,
+            content="",
+        )
+
+        try:
+            from .hundun_sea import HundunSea
+            sea = HundunSea()
+            trails = sea.get_trails(limit=20)
+
+            if trails:
+                content_lines = [
+                    f"混沌海共收录 **{len(trails)}** 条存疑记录。",
+                    "",
+                    "| 路径 | 置信度 | 时间 |",
+                    "|------|--------|------|",
+                ]
+
+                for t in trails:
+                    route = t.get("route", "未知")[:50]
+                    conf = t.get("confidence", 0.0)
+                    ts = t.get("timestamp", 0)
+                    time_str = time.strftime("%m-%d %H:%M", time.localtime(ts)) if ts else "—"
+
+                    content_lines.append(f"| {route} | {conf:.2f} | {time_str} |")
+
+                section.content = "\n".join(content_lines)
+            else:
+                section.content = "混沌海当前无存疑记录。系统运行正常。"
+        except Exception:
+            section.content = "混沌海不可用。"
+
+        return section
+
+    def _build_recommendations_section(
+        self, recommendations: List[str]
+    ) -> GateReportSection:
+        """构建综合建议章节"""
+        content_lines = ["## 综合建议", ""]
+        for i, rec in enumerate(recommendations, 1):
+            content_lines.append(f"{i}. {rec}")
+
+        return GateReportSection(
+            title="综合建议",
+            level=1,
+            content="\n".join(content_lines),
+            data={"recommendations": recommendations},
+        )
+
+    # ── 输出格式 ──────────────────────────────────────────────────────
+
+    def to_markdown(self, report: GateReport) -> str:
+        """将报告转换为 Markdown 格式"""
+        lines = [
+            f"# {report.title}",
+            f"",
+            f"**报告ID**: {report.report_id}",
+            f"**版本**: {report.version}",
+            f"**生成时间**: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(report.generated_at))}",
+            f"",
+            "---",
+            f"",
+        ]
+
+        # 摘要
+        lines.append(report.summary)
+        lines.append("")
+        lines.append("---")
+        lines.append("")
+
+        # 各章节
+        for section in report.sections:
+            lines.append(self._section_to_markdown(section))
+
+        return "\n".join(lines)
+
+    def _section_to_markdown(self, section: GateReportSection) -> str:
+        """将章节转换为 Markdown"""
+        prefix = "#" * min(section.level, 6)
+        lines = [f"{prefix} {section.title}", ""]
+
+        if section.content:
+            lines.append(section.content)
+            lines.append("")
+
+        for sub in section.subsections:
+            lines.append(self._section_to_markdown(sub))
+
+        return "\n".join(lines)
+
+    def to_json(self, report: GateReport) -> str:
+        """将报告转换为 JSON 格式"""
+        return json.dumps(report.to_dict(), ensure_ascii=False, indent=2, default=str)
+
+    # ── 报告查询 ──────────────────────────────────────────────────────
+
+    def get_report(self, report_id: str) -> Optional[Dict]:
+        """按ID获取报告"""
+        for report in self._report_history:
+            if report.report_id == report_id:
+                return report.to_dict()
+        return None
+
+    def get_recent_reports(self, limit: int = 10) -> List[Dict]:
+        """获取最近报告"""
+        return [r.to_dict() for r in self._report_history[-limit:]]
+
+    def reset(self) -> None:
+        """重置报告生成器"""
+        self._report_history.clear()
+
+
+# ============================================================================
+# 全局单例
+# ============================================================================
+
+_report_generator: Optional[ReportGenerator] = None
+
+
+def get_report_generator() -> ReportGenerator:
+    global _report_generator
+    if _report_generator is None:
+        _report_generator = ReportGenerator()
+    return _report_generator
+
+
+def reset_report_generator() -> None:
+    global _report_generator
+    _report_generator = None
+
+
+__all__ = [
+    "GateReportSection",
+    "GateReport",
+    "ReportGenerator",
+    "get_report_generator",
+    "reset_report_generator",
+]
