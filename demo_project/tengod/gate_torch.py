@@ -393,8 +393,8 @@ class ZuowangAttentionTorch:
       - 当 max(softmax(attention_weights)) < theta → 门禁关闭，触发坐忘
       - theta 默认 0.7（与现有 zuowang_attention 对齐）
 
-    使用 PyTorch MultiheadAttention 加速（torch 可用时），
-    否则退化为 numpy 点积注意力。
+    注意：当 torch 不可用时，使用余弦相似度作为注意力（而非随机 QKV），
+    确保语义相近的 query/history 对能正确通过坐忘门禁。
     """
 
     def __init__(self, embed_dim: int = 768, num_heads: int = 12, theta: float = 0.7):
@@ -428,22 +428,33 @@ class ZuowangAttentionTorch:
               gate_state: "开" | "徘徊"
               attn_output: (embed_dim,) 注意力输出
         """
+        # 空 history 或无有效历史 → 跳过坐忘门禁，直接放行
+        h = _ensure_numpy(history_embs)
+        if h.ndim == 1:
+            h = h.reshape(1, -1)
+        if h.shape[0] == 0 or np.allclose(h, 0) or np.linalg.norm(h) < 1e-6:
+            return GateState.OPEN, _ensure_numpy(query_emb).reshape(-1)
+
         if self._use_torch:
             return self._forward_torch(query_emb, history_embs)
         else:
             return self._forward_numpy(query_emb, history_embs)
 
     def _forward_torch(self, query_emb: Any, history_embs: Any) -> Tuple[str, np.ndarray]:
-        q = _to_tensor(query_emb).float().unsqueeze(0).unsqueeze(0)  # (1, 1, dim)
-        h = _to_tensor(history_embs).float()
-        if h.dim() == 2:
-            h = h.unsqueeze(0)  # (1, seq_len, dim)
+        q = _to_tensor(query_emb).float()                    # (dim,)
+        h = _to_tensor(history_embs).float()                  # (seq_len, dim)
+        if h.dim() == 1:
+            h = h.unsqueeze(0)
 
-        attn_out, attn_weights = self._attn(q, h, h)  # attn_weights: (1, 1, seq_len)
-        max_attn = float(attn_weights.max().item())
+        # 余弦相似度作为注意力（语义感知，非随机 QKV）
+        q_norm = torch.nn.functional.normalize(q.unsqueeze(0), dim=1)  # (1, dim)
+        h_norm = torch.nn.functional.normalize(h, dim=1)               # (seq_len, dim)
+        cosine_sim = q_norm @ h_norm.T                                  # (1, seq_len)
+        weights = torch.softmax(cosine_sim, dim=-1)                     # (1, seq_len)
+        max_attn = float(weights.max().item())
 
         gate_state = GateState.PENDING if max_attn < self.theta else GateState.OPEN
-        output = attn_out.squeeze(0).squeeze(0).detach().cpu().numpy()
+        output = (weights @ h).squeeze(0).detach().cpu().numpy()        # (dim,)
         return gate_state, output
 
     def _forward_numpy(self, query_emb: Any, history_embs: Any) -> Tuple[str, np.ndarray]:
@@ -452,13 +463,17 @@ class ZuowangAttentionTorch:
         if h.ndim == 1:
             h = h.reshape(1, -1)
 
-        # 缩放点积注意力
-        scores = q @ h.T / math.sqrt(self.embed_dim)       # (1, seq_len)
-        weights = np.exp(scores - scores.max()) / np.exp(scores - scores.max()).sum()
+        # 余弦相似度作为注意力（而非随机 QKV 投影）
+        q_norm = q / (np.linalg.norm(q, axis=1, keepdims=True) + 1e-8)
+        h_norm = h / (np.linalg.norm(h, axis=1, keepdims=True) + 1e-8)
+        cosine_sim = q_norm @ h_norm.T                       # (1, seq_len)
+        # softmax
+        sim_max = cosine_sim.max()
+        weights = np.exp(cosine_sim - sim_max) / np.exp(cosine_sim - sim_max).sum()
         max_attn = float(weights.max())
 
         gate_state = GateState.PENDING if max_attn < self.theta else GateState.OPEN
-        output = (weights @ h).reshape(-1)                  # (dim,)
+        output = (weights @ h).reshape(-1)                    # (dim,)
         return gate_state, output
 
 
@@ -477,6 +492,15 @@ class IntentDisambiguator:
     INTENT_LABELS = [
         "八字命理", "紫微斗数", "六爻占卜", "风水堪舆", "姓名学",
     ]
+
+    # 每个意图的关键词（用于冷启动启发式）
+    INTENT_KEYWORDS = {
+        0: ["八字", "排盘", "年柱", "月柱", "日柱", "时柱", "天干", "地支", "十神", "命理", "算命", "命", "五行", "大运", "流年", "用神", "日主"],
+        1: ["紫微", "斗数", "命盘", "十二宫", "命宫", "星曜", "四化", "三方四正", "紫微星", "天府", "七杀"],
+        2: ["六爻", "起卦", "占卜", "铜钱", "卦", "爻", "世应", "动爻", "变卦", "预测"],
+        3: ["风水", "堪舆", "峦头", "理气", "玄空", "飞星", "罗盘", "九宫", "旺山", "布局", "方位"],
+        4: ["姓名", "取名", "改名", "名字", "五格", "数理", "字义", "笔画", "三才", "起名"],
+    }
 
     def __init__(
         self,
@@ -508,12 +532,14 @@ class IntentDisambiguator:
         self,
         query_emb: Any,
         history_embs: Any,
+        query_text: str = "",
     ) -> Tuple[str, Dict[str, Any]]:
         """意图歧义消解
 
         Args:
             query_emb: (embed_dim,) 当前 query embedding
             history_embs: (seq_len, embed_dim) 历史上下文 embeddings
+            query_text: 原始 query 文本（用于关键词启发式）
 
         Returns:
             (action, result)
@@ -528,8 +554,8 @@ class IntentDisambiguator:
                 "message": "我发现了多种可能，请选择一种",
             }
 
-        # 2. 意图分类
-        probs = self._classify_intents(attn_out)
+        # 2. 意图分类（融合随机分类器 + 关键词启发式）
+        probs = self._classify_intents(attn_out, query_text)
         max_prob = float(probs.max())
         max_idx = int(probs.argmax())
 
@@ -560,19 +586,39 @@ class IntentDisambiguator:
                 "confidence": max_prob,
             }
 
-    def _classify_intents(self, attn_out: np.ndarray) -> np.ndarray:
-        """意图分类 → softmax 概率分布"""
+    def _classify_intents(self, attn_out: np.ndarray, query_text: str = "") -> np.ndarray:
+        """意图分类 → softmax 概率分布（融合随机分类器 + 关键词启发式）"""
         x = attn_out.reshape(1, -1)
+
+        # 随机分类器输出
         if self._use_torch:
             x_t = torch.from_numpy(x).float()
             logits = self._intent_classifier(x_t)
-            probs = F.softmax(logits, dim=-1)
-            return probs.detach().cpu().numpy().reshape(-1)
+            base_probs = F.softmax(logits, dim=-1).detach().cpu().numpy().reshape(-1)
         else:
             logits = x @ self._intent_np
             logits = logits - logits.max()
-            probs = np.exp(logits) / np.exp(logits).sum()
-            return probs.reshape(-1)
+            base_probs = np.exp(logits) / np.exp(logits).sum()
+            base_probs = base_probs.reshape(-1)
+
+        # 关键词启发式：boost 匹配意图的置信度
+        if query_text:
+            boost = np.zeros(self.num_intents, dtype=np.float32)
+            for intent_id, keywords in self.INTENT_KEYWORDS.items():
+                hits = sum(1 for kw in keywords if kw in query_text)
+                if hits > 0:
+                    boost[intent_id] = min(hits * 0.3, 0.9)  # 每命中一个关键词 +0.3，上限 0.9
+            # 融合：base_probs * 0.3 + boost * 0.7
+            if boost.sum() > 0:
+                probs = base_probs * 0.3 + boost * 0.7
+                # 重新归一化
+                probs = probs / probs.sum()
+            else:
+                probs = base_probs
+        else:
+            probs = base_probs
+
+        return probs
 
 
 # ============================================================================

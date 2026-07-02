@@ -17,6 +17,7 @@ open_source_bridge.py — 开源方案集成桥接层 v3.1.0
 from __future__ import annotations
 
 import json
+import hashlib
 import math
 import os
 import time
@@ -38,6 +39,7 @@ from .gate_torch import (
     geodesic_distance,
     _HAS_TORCH,
 )
+from .local_embedding import LocalEmbedder, create_embedder
 
 # ── 可选开源包导入 ────────────────────────────────────────────────
 _HAS_THREEFS = False
@@ -101,18 +103,23 @@ class ThreeFSClient:
     def _seed_mock_data(self) -> None:
         """预置 mock 知识库数据"""
         mock_texts = [
-            ("八字排盘：年柱月柱日柱时柱，天干地支六十甲子。", "八字命理"),
-            ("紫微斗数十二宫：命宫、兄弟宫、夫妻宫、子女宫、财帛宫、疾厄宫、迁移宫、交友宫、官禄宫、田宅宫、福德宫、父母宫。", "紫微斗数"),
-            ("六爻起卦：三枚铜钱摇六次，记录正反面，得本卦与变卦。", "六爻占卜"),
-            ("玄空飞星：九宫飞布，山向两星，旺山旺向。", "风水堪舆"),
-            ("五格数理：天格、人格、地格、外格、总格，三才配置。", "姓名学"),
+            ("八字排盘 年柱月柱日柱时柱 天干地支六十甲子 五行生克 十神定位 大运流年", "八字命理"),
+            ("紫微斗数十二宫 命宫兄弟宫夫妻宫 星曜分布 四化飞星 三方四正", "紫微斗数"),
+            ("六爻起卦方法 三枚铜钱摇六次 本卦变卦互卦 世爻应爻动爻", "六爻占卜"),
+            ("玄空飞星风水 九宫飞布 山向两星 旺山旺向 三元九运", "风水堪舆"),
+            ("姓名学五格数理 天格人格地格外格总格 三才配置 81数理吉凶", "姓名学"),
         ]
         for i, (text, topic) in enumerate(mock_texts):
             cid = f"chunk_{i:04d}"
+            # 使用文本 hash 生成确定性 embedding（384维）
+            seed = int(hashlib.md5(text.encode()).hexdigest()[:8], 16)
+            rng = np.random.RandomState(seed)
+            emb = rng.randn(384).astype(np.float32)
+            emb = emb / np.linalg.norm(emb)
             self._chunks[cid] = MockChunk(
                 chunk_id=cid,
                 text=text,
-                embedding=np.random.RandomState(42 + i).randn(768).astype(np.float32),
+                embedding=emb,
                 metadata={"topic": topic, "source": "mock"},
             )
 
@@ -300,17 +307,21 @@ class GateCognitiveEngine:
 
     def __init__(
         self,
-        embed_dim: int = 768,
+        embed_dim: int = 384,
         fs_endpoint: str = "http://3fs-cluster:8080",
         deepseek_api_key: str = "",
     ):
         self.embed_dim = embed_dim
 
-        # 门禁层
-        self.projector = TBCESixDimProjector(dim=embed_dim)
-        self.gate_filter = GateFilter(dim=embed_dim)
+        # 嵌入层：优先 SentenceTransformer → TF-IDF+SVD → 随机投影
+        self._embedder = create_embedder(dim=embed_dim, mode="auto", fit_corpus=True)
+        self.embed_dim = self._embedder.get_dim()  # 可能与输入不同
+
+        # 门禁层（维度对齐嵌入器输出）
+        self.projector = TBCESixDimProjector(dim=self.embed_dim)
+        self.gate_filter = GateFilter(dim=self.embed_dim)
         self.disambiguator = IntentDisambiguator(
-            embed_dim=embed_dim, num_intents=5, confidence_threshold=0.6,
+            embed_dim=self.embed_dim, num_intents=5, confidence_threshold=0.4,
         )
 
         # 开源层
@@ -376,7 +387,7 @@ class GateCognitiveEngine:
         query_emb = self._embed(query)
         history_embs = np.stack([self._embed(h) for h in history[-10:]]) if history else np.zeros((1, self.embed_dim), dtype=np.float32)
 
-        intent_action, intent_result = self.disambiguator.forward(query_emb, history_embs)
+        intent_action, intent_result = self.disambiguator.forward(query_emb, history_embs, query_text=query)
 
         if intent_action == "澄清":
             return {
@@ -518,8 +529,8 @@ if __name__ == "__main__":
     print("  门禁认知引擎 v3.1.0 — 三链合一自检")
     print("=" * 60)
 
-    # 创建引擎
-    engine = GateCognitiveEngine(embed_dim=768)
+    # 创建引擎（默认 384 维，与 TF-IDF+SVD 对齐）
+    engine = GateCognitiveEngine(embed_dim=384)
     stats = engine.get_stats()
     print(f"\n  引擎状态: torch={stats['torch_available']}, "
           f"3FS={stats['threefs_available']}, "
@@ -530,9 +541,13 @@ if __name__ == "__main__":
     # 测试 1: 正常查询
     print("\n── 测试 1: 八字命理查询 ──")
     result = engine.process("帮我算一下八字", system_load=0.3)
-    print(f"  action={result['action']}, intent={result.get('intent', {}).get('intent_name', 'N/A')}")
-    print(f"  gate={result.get('gate_state')}, retrieved={result.get('retrieved_count')}, tau={result.get('tau')}")
-    print(f"  causal_acceptance={result.get('causal_acceptance')}")
+    print(f"  action={result['action']}")
+    if result.get("gate_details"):
+        gd = result["gate_details"]
+        print(f"  gates: auth={gd['auth_gate']}, resource={gd['resource_gate']}, causal={gd['causal_score']:.3f}→{gd['causal_gate']}")
+    if result.get("retrieved"):
+        print(f"  retrieved={result['retrieved_count']}, tau={result['tau']}")
+        print(f"  causal_acceptance={result['causal_acceptance']}")
 
     # 测试 2: 多轮对话
     print("\n── 测试 2: 多轮对话（歧义消解）──")

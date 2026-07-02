@@ -406,26 +406,26 @@ class TestGateCognitiveEngine:
     """门禁认知引擎总控测试"""
 
     def test_creation(self):
-        engine = GateCognitiveEngine(embed_dim=768)
-        assert engine.embed_dim == 768
+        engine = GateCognitiveEngine(embed_dim=384)
+        assert engine.embed_dim == 384
         assert engine.projector is not None
         assert engine.gate_filter is not None
         assert engine.disambiguator is not None
 
     def test_process_normal(self):
-        engine = GateCognitiveEngine(embed_dim=768)
+        engine = GateCognitiveEngine(embed_dim=384)
         result = engine.process("帮我算一下八字", system_load=0.3)
         assert "session_id" in result
         assert "action" in result
         assert result["action"] in ("clarify", "reject", "pending", "generate")
 
     def test_process_high_load(self):
-        engine = GateCognitiveEngine(embed_dim=768)
+        engine = GateCognitiveEngine(embed_dim=384)
         result = engine.process("测试查询", system_load=0.95)
         assert result["action"] in ("clarify", "reject", "pending", "generate")
 
     def test_process_with_history(self):
-        engine = GateCognitiveEngine(embed_dim=768)
+        engine = GateCognitiveEngine(embed_dim=384)
         result = engine.process(
             "这个命怎么样",
             history=["帮我算一下八字", "好的，请提供出生日期"],
@@ -434,7 +434,7 @@ class TestGateCognitiveEngine:
         assert "session_id" in result
 
     def test_session_persistence(self):
-        engine = GateCognitiveEngine(embed_dim=768)
+        engine = GateCognitiveEngine(embed_dim=384)
         sid = "test_session_001"
         result1 = engine.process("第一条消息", session_id=sid)
         result2 = engine.process("第二条消息", session_id=sid)
@@ -444,14 +444,14 @@ class TestGateCognitiveEngine:
         assert session["message_count"] == 2
 
     def test_session_topics(self):
-        engine = GateCognitiveEngine(embed_dim=768)
+        engine = GateCognitiveEngine(embed_dim=384)
         sid = "test_session_002"
         engine.process("帮我算八字", session_id=sid)
         session = engine.get_session(sid)
         assert isinstance(session["topics_covered"], set)
 
     def test_stats(self):
-        engine = GateCognitiveEngine(embed_dim=768)
+        engine = GateCognitiveEngine(embed_dim=384)
         stats = engine.get_stats()
         assert "torch_available" in stats
         assert "threefs_available" in stats
@@ -460,31 +460,31 @@ class TestGateCognitiveEngine:
         assert "storage_stats" in stats
 
     def test_set_embedding_fn(self):
-        engine = GateCognitiveEngine(embed_dim=768)
+        engine = GateCognitiveEngine(embed_dim=384)
 
         def mock_embed(text: str) -> np.ndarray:
-            return np.ones(768, dtype=np.float32)
+            return np.ones(384, dtype=np.float32)
 
         engine.set_embedding_fn(mock_embed)
         result = engine.process("测试")
         assert result["action"] in ("clarify", "reject", "pending", "generate")
 
     def test_multiple_sessions_independent(self):
-        engine = GateCognitiveEngine(embed_dim=768)
+        engine = GateCognitiveEngine(embed_dim=384)
         result_a = engine.process("消息A", session_id="sess_a")
         result_b = engine.process("消息B", session_id="sess_b")
         assert result_a["session_id"] == "sess_a"
         assert result_b["session_id"] == "sess_b"
 
     def test_prompt_structure(self):
-        engine = GateCognitiveEngine(embed_dim=768)
+        engine = GateCognitiveEngine(embed_dim=384)
         result = engine.process("帮我算八字", system_load=0.3)
         if result["action"] == "generate":
             assert "prompt" in result
             assert "系统角色" in result["prompt"]
 
     def test_retrieved_format(self):
-        engine = GateCognitiveEngine(embed_dim=768)
+        engine = GateCognitiveEngine(embed_dim=384)
         result = engine.process("帮我算八字", system_load=0.3)
         if result["action"] == "generate":
             assert "retrieved" in result
@@ -503,7 +503,7 @@ class TestEndToEndPipeline:
 
     def test_full_pipeline_mock(self):
         """全管道 mock 模式运行"""
-        engine = GateCognitiveEngine(embed_dim=768)
+        engine = GateCognitiveEngine(embed_dim=384)
 
         # 模拟多轮对话
         queries = [
@@ -534,7 +534,7 @@ class TestEndToEndPipeline:
 
     def test_engine_availability_flags(self):
         """引擎应正确报告可用性"""
-        engine = GateCognitiveEngine(embed_dim=768)
+        engine = GateCognitiveEngine(embed_dim=384)
         stats = engine.get_stats()
         assert isinstance(stats["torch_available"], bool)
         assert isinstance(stats["threefs_available"], bool)
