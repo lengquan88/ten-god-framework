@@ -221,6 +221,23 @@ class KGGateBridge:
         """获取所有已知实体"""
         return list(self._entity_map.keys())
 
+    def search_entities(self, text: str, max_results: int = 5) -> List[str]:
+        """从文本中搜索已知实体（v4.3.0）
+
+        Args:
+            text: 查询文本
+            max_results: 最多返回实体数
+
+        Returns:
+            匹配到的实体名称列表，按匹配长度降序
+        """
+        found = []
+        for entity in self._entity_map:
+            if entity in text:
+                found.append((len(entity), entity))
+        found.sort(reverse=True)  # 长实体优先
+        return [e for _, e in found[:max_results]]
+
     def get_stats(self) -> Dict[str, Any]:
         """获取桥接统计"""
         categories = {}

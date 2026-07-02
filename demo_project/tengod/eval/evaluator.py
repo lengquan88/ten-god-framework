@@ -211,26 +211,29 @@ class GateCognitiveEvaluator:
             if self.engine:
                 response = self.engine.process(
                     query=query.query,
-                    context=query.context or "",
-                    query_id=query.id,
+                    history=[query.context] if query.context else [],
+                    session_id=query.id,
                 )
 
-                # 意图
-                result.predicted_intent = response.get("intent", "")
-                result.intent_confidence = response.get("intent_confidence", 0.0)
+                # 意图（engine 返回 intent dict）
+                intent_data = response.get("intent", {})
+                result.predicted_intent = intent_data.get("intent_name", "")
+                result.intent_confidence = intent_data.get("confidence", 0.0)
                 result.intent_correct = (
                     result.predicted_intent == query.intent or
                     query.intent in result.predicted_intent
                 )
 
-                # 检索
-                result.retrieved_ids = response.get("retrieved_ids", [])[:10]
+                # 检索（engine 返回 retrieved 列表）
+                retrieved = response.get("retrieved", [])
+                result.retrieved_ids = [r.get("id", "") for r in retrieved[:10]]
                 result.hit_at_1 = bool(set(result.retrieved_ids[:1]) & query.relevant_ids)
                 result.hit_at_3 = bool(set(result.retrieved_ids[:3]) & query.relevant_ids)
                 result.hit_at_5 = bool(set(result.retrieved_ids[:5]) & query.relevant_ids)
 
                 # 门禁
-                result.gate_passed = response.get("gate_passed", True)
+                gate_state = response.get("gate_state", {})
+                result.gate_passed = gate_state.get("passed", True) if isinstance(gate_state, dict) else True
 
                 # 生成
                 result.generated_text = response.get("answer", "") or response.get("result", {}).get("text", "")
@@ -293,6 +296,7 @@ class GateCognitiveEvaluator:
         intents_pred = [r.predicted_intent for r in self.results]
         intents_true = [r.expected_intent for r in self.results]
         intents_conf = [r.intent_confidence for r in self.results]
+        intent_correct = sum(1 for r in self.results if r.intent_correct)
         ambiguous = sum(1 for r in self.results if r.expected_intent in ("歧义", "多义"))
         disambiguated = sum(1 for r in self.results if r.expected_intent in ("歧义", "多义") and r.intent_correct)
 
@@ -309,7 +313,7 @@ class GateCognitiveEvaluator:
         # 综合评分（加权平均）
         retrieval_score = np.mean([p1, p3, p5, r5, mrr_val, ndcg_val, hr5])
         gate_score = gate_f1(tp, fp, fn)
-        intent_score = intent_accuracy(intents_pred, intents_true)
+        intent_score = intent_correct / n if n > 0 else 0.0
         gen_score = np.mean(sem_sims) if sem_sims else 0.0
         overall = 0.35 * retrieval_score + 0.30 * gate_score + 0.20 * intent_score + 0.15 * gen_score
 

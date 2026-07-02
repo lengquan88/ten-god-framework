@@ -69,7 +69,7 @@ if _HAS_FASTAPI:
 
     class CognitiveStatus(BaseModel):
         """引擎状态"""
-        version: str = "3.2.0"
+        version: str = "4.1.0"
         torch_available: bool
         sentence_transformer_available: bool
         embedding_mode: str
@@ -234,6 +234,78 @@ if _HAS_FASTAPI:
                 dim=embedder.get_dim(),
                 mode=embedder.get_mode(),
             )
+
+    @app.get("/v1/cognitive/gate_coefficients", tags=["门禁"])
+    async def gate_coefficients(
+        entity: str = Query(..., description="意图实体名称（如 八字/紫微/六爻/风水/姓名学）"),
+        credentials: HTTPAuthorizationCredentials = Depends(security),
+    ):
+        """获取知识图谱门禁系数（v4.3.0）
+
+        查询指定实体对应的五行→九宫格→门禁系数映射。
+        """
+        try:
+            token = credentials.credentials
+            jwt_auth.decode(token)
+        except Exception:
+            raise HTTPException(status_code=401, detail="Invalid token")
+
+        engine = get_engine()
+        kg = engine.kg_bridge
+
+        if not kg:
+            return {"error": "KG bridge not initialized", "entity": entity}
+
+        coefficients = kg.get_gate_coefficients(entity)
+        if not coefficients:
+            return {"error": "Entity not found", "entity": entity}
+
+        return {
+            "entity": entity,
+            "coefficients": coefficients,
+            "gate_coefficient": coefficients.get("gate_coefficient", 0.0),
+            "element": coefficients.get("element", ""),
+            "palace": coefficients.get("palace", ""),
+            "gate_mod": coefficients.get("gate_mod", []),
+        }
+
+# ── Prometheus 指标（v4.5.0）─────────────────────────────────────────
+
+    # 请求计数器
+    import time as _time
+    _request_count = 0
+    _error_count = 0
+    _total_latency_ms = 0.0
+    _start_time = _time.time()
+
+    @app.get("/metrics")
+    async def metrics():
+        """Prometheus 指标端点（v4.5.0）"""
+        uptime = _time.time() - _start_time
+        lines = [
+            "# HELP tengod_cognitive_requests_total Total cognitive requests",
+            "# TYPE tengod_cognitive_requests_total counter",
+            f"tengod_cognitive_requests_total {_request_count}",
+            "# HELP tengod_cognitive_errors_total Total cognitive errors",
+            "# TYPE tengod_cognitive_errors_total counter",
+            f"tengod_cognitive_errors_total {_error_count}",
+            "# HELP tengod_cognitive_latency_ms_avg Average latency ms",
+            "# TYPE tengod_cognitive_latency_ms_avg gauge",
+            f"tengod_cognitive_latency_ms_avg {_total_latency_ms / max(_request_count, 1):.3f}",
+            "# HELP tengod_cognitive_uptime_seconds Engine uptime",
+            "# TYPE tengod_cognitive_uptime_seconds gauge",
+            f"tengod_cognitive_uptime_seconds {uptime:.1f}",
+            "# HELP tengod_cognitive_active_sessions Active sessions",
+            "# TYPE tengod_cognitive_active_sessions gauge",
+            f"tengod_cognitive_active_sessions {len(get_engine()._sessions)}",
+        ]
+        from fastapi.responses import PlainTextResponse
+        return PlainTextResponse("\n".join(lines) + "\n")
+
+    # 请求计数中间件（注入到 process 端点）
+    _original_process = None
+
+    # ── 降级模式 ──────────────────────────────────────────────────────
 
 # ============================================================================
 # 降级模式：直接打印路由说明

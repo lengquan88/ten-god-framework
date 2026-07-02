@@ -1,5 +1,5 @@
 """
-benchmark.py — 性能基准测试 v2.36.0
+benchmark.py — 性能基准测试 v4.1.0
 ========================================
 道曰："天下难事，必作于易；天下大事，必作于细。"
 
@@ -501,7 +501,10 @@ class BenchmarkRunner:
         # 5. 十二神门禁
         suite.results.append(self.benchmark_twelve_gates(iterations=30))
 
-        # 6. 负载测试
+        # 6. 门禁认知引擎（v4.5.0）
+        suite.results.append(self.benchmark_cognitive_engine(iterations=20))
+
+        # 7. 负载测试
         if include_load_test:
             def light_task():
                 sum(i * i for i in range(100))
@@ -513,6 +516,43 @@ class BenchmarkRunner:
         suite.total_duration_ms = (time.time() - start) * 1000
         self._suites.append(suite)
         return suite
+
+    # ── 门禁认知引擎基准（v4.5.0）─────────────────────────────────────
+
+    def benchmark_cognitive_engine(
+        self,
+        iterations: int = 20,
+        embed_dim: int = 384,
+    ) -> BenchmarkResult:
+        """门禁认知引擎端到端延迟基准"""
+
+        from .open_source_bridge import GateCognitiveEngine
+
+        engine = GateCognitiveEngine(embed_dim=embed_dim)
+
+        queries = [
+            "什么是天干五合？",
+            "我的八字喜用神是什么？",
+            "紫微星坐命宫代表什么？",
+            "六爻中如何看财运？",
+            "这个房子风水好不好？",
+            "正官格的人有什么特点？",
+            "地支三合局有哪些？",
+            "今年运势如何？",
+        ]
+
+        def run_cognitive():
+            q = queries[hash(str(iterations)) % len(queries)]
+            engine.process(query=q)
+
+        return self.run(
+            name="cognitive_engine_e2e",
+            description="门禁认知引擎端到端处理延迟",
+            func=run_cognitive,
+            iterations=iterations,
+        )
+
+    # ── 回归报告 ──────────────────────────────────────────────────────
 
     def get_regression_report(self) -> Dict[str, Any]:
         """获取回归检测报告"""

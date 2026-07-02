@@ -1,5 +1,5 @@
 """
-open_source_bridge.py — 开源方案集成桥接层 v3.1.0
+open_source_bridge.py — 开源方案集成桥接层 v4.1.0
 =====================================================
 道曰："工欲善其事，必先利其器。"
 
@@ -40,6 +40,9 @@ from .gate_torch import (
     _HAS_TORCH,
 )
 from .local_embedding import LocalEmbedder, create_embedder
+
+# ── 知识图谱门禁桥接 ──────────────────────────────────────────────
+from .kg_gate_bridge import KGGateBridge
 
 # ── 可选开源包导入 ────────────────────────────────────────────────
 _HAS_THREEFS = False
@@ -293,7 +296,7 @@ class DSparkScheduler:
 # ============================================================================
 
 class GateCognitiveEngine:
-    """门禁认知引擎总控 v3.4.0
+    """门禁认知引擎总控 v4.1.0
 
     三链合一：
       1. 语义向量检索：六维投影 + 测地线门禁
@@ -345,6 +348,9 @@ class GateCognitiveEngine:
 
         # 命理引擎实例（v3.4.0，延迟加载）
         self._engines: Dict[str, Any] = {}
+
+        # 知识图谱门禁桥接（v4.3.0）
+        self.kg_bridge = KGGateBridge()
 
     def _get_engine(self, engine_key: str) -> Any:
         """延迟加载命理引擎"""
@@ -471,7 +477,22 @@ class GateCognitiveEngine:
                 "reason": intent_result.get("reason", "坐忘门禁"),
             }
 
-        # Step 2: RAG 门禁预过滤
+        # Step 2: 知识图谱门禁桥接（v4.3.0）
+        # 从意图名称或查询中提取实体，查询 KG 门禁系数
+        gate_coefficients = None
+        intent_name = intent_result.get("intent_name", "")
+        if intent_name:
+            # 尝试用意图名称直接查询
+            gate_coefficients = self.kg_bridge.get_gate_coefficients(intent_name)
+            if not gate_coefficients:
+                # 尝试从查询文本中提取实体
+                entities = self.kg_bridge.search_entities(query)
+                if entities:
+                    gate_coefficients = self.kg_bridge.get_gate_coefficients(entities[0])
+                    if gate_coefficients:
+                        gate_coefficients["entity"] = entities[0]
+
+        # Step 3: RAG 门禁预过滤
         gate_state, gate_details = self.gate_filter.forward(
             query_emb, query_text=query, system_load=system_load,
         )
@@ -538,6 +559,7 @@ class GateCognitiveEngine:
             "intent": intent_result,
             "gate_state": gate_state,
             "gate_details": gate_details,
+            "gate_coefficients": gate_coefficients,  # v4.3.0
             "retrieved_count": len(retrieved),
             "retrieved": retrieved,
             "tau": tau,
