@@ -537,17 +537,80 @@ class KnowledgeBase:
 
         # 按分数降序
         candidates.sort(key=lambda x: x[1], reverse=True)
-        top = candidates[:top_k]
 
         return [
             {
-                "id": n.id,
-                "name": n.name,
-                "node_type": n.node_type,
-                "score": round(s, 4),
-                "node": n,
+                "id": cid,
+                "name": node.name,
+                "node_type": node.node_type,
+                "score": round(score, 4),
+                "node": node,
             }
-            for _, s, n in top
+            for cid, score, node in candidates[:top_k]
+        ]
+
+    # ── 门禁化检索（v3.3.0）─────────────────────────────────────────
+
+    def query_with_gates(
+        self,
+        query: str,
+        top_k: int = 10,
+        node_type: Optional[str] = None,
+        threshold: float = 0.3,
+    ) -> List[Dict[str, Any]]:
+        """门禁化检索：六维投影 + 测地线距离（替代 n-gram cosine）
+
+        v3.3.0: 知识库门禁化，用 TBCE 六维投影 + 黎曼测地线距离
+        替代原 n-gram cosine 相似度。门禁系数可随九宫格调整。
+
+        Args:
+            query: 查询文本
+            top_k: 返回数量
+            node_type: 可选的节点类型过滤
+            threshold: 测地线距离阈值
+
+        Returns:
+            [{id, name, node_type, score, node}, ...]
+        """
+        from ..gate_torch import TBCESixDimProjector, retrieve_with_gates, geodesic_distance
+        from ..local_embedding import LocalEmbedder
+
+        if not query or not self._nodes:
+            return []
+
+        # 嵌入查询
+        embedder = LocalEmbedder(dim=384, mode="tfidf_svd")
+        embedder.fit([query] + [self._node_text(n) for n in self._nodes.values()])
+        query_emb = embedder.encode(query)
+
+        # 嵌入所有节点
+        chunks = []
+        node_map = {}
+        for node_id, node in self._nodes.items():
+            if node_type and node.node_type != node_type:
+                continue
+            text = self._node_text(node)
+            emb = embedder.encode(text)
+            chunks.append((node_id, emb))
+            node_map[node_id] = node
+
+        # 门禁检索
+        projector = TBCESixDimProjector(dim=embedder.get_dim())
+        results = retrieve_with_gates(
+            query_emb, chunks, projector=projector,
+            threshold=threshold, top_k=top_k,
+        )
+
+        return [
+            {
+                "id": cid,
+                "name": node_map[cid].name,
+                "node_type": node_map[cid].node_type,
+                "score": 1.0 - min(dist, 1.0),  # 距离转相似度
+                "node": node_map[cid],
+            }
+            for cid, dist in results
+            if cid in node_map
         ]
 
     # -------- 便捷批量导入 --------

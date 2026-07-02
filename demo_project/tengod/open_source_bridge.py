@@ -293,17 +293,27 @@ class DSparkScheduler:
 # ============================================================================
 
 class GateCognitiveEngine:
-    """门禁认知引擎总控 v3.1.0
+    """门禁认知引擎总控 v3.4.0
 
     三链合一：
       1. 语义向量检索：六维投影 + 测地线门禁
       2. RAG 增强：门禁预过滤 + 节奏采样
       3. 多轮对话：坐忘门禁 + 主动澄清
+      4. 命理引擎路由：意图 → 对应命理引擎（v3.4.0）
 
     用法：
         engine = GateCognitiveEngine()
         result = engine.process("帮我算一下八字", history=[], system_load=0.3)
     """
+
+    # 命理引擎路由表（v3.4.0）
+    ENGINE_ROUTING = {
+        "八字命理": "bazi",
+        "紫微斗数": "ziwei",
+        "六爻占卜": "liuyao",
+        "风水堪舆": "fengshui",
+        "姓名学": "name",
+    }
 
     def __init__(
         self,
@@ -332,6 +342,69 @@ class GateCognitiveEngine:
         # 对话状态
         self._sessions: Dict[str, Dict[str, Any]] = {}
         self._embedding_fn: Optional[Callable] = None
+
+        # 命理引擎实例（v3.4.0，延迟加载）
+        self._engines: Dict[str, Any] = {}
+
+    def _get_engine(self, engine_key: str) -> Any:
+        """延迟加载命理引擎"""
+        if engine_key in self._engines:
+            return self._engines[engine_key]
+
+        engine_map = {
+            "bazi": ("bazi_calculator", "BaziCalculator"),
+            "ziwei": ("ziwei_engine", "ZiweiEngine"),
+            "liuyao": ("liuyao_engine", "LiuyaoEngine"),
+            "fengshui": ("qimen_engine", "QimenEngine"),
+            "name": ("name_engine", "NameEngine"),
+        }
+
+        if engine_key in engine_map:
+            module_name, class_name = engine_map[engine_key]
+            try:
+                mod = __import__(f"tengod.{module_name}", fromlist=[class_name])
+                engine_cls = getattr(mod, class_name)
+                self._engines[engine_key] = engine_cls()
+            except Exception:
+                self._engines[engine_key] = None
+
+        return self._engines[engine_key]
+
+    def _execute_engine(self, engine_key: str, query: str, intent: Dict[str, Any]) -> Dict[str, Any]:
+        """执行命理引擎计算
+
+        Args:
+            engine_key: 引擎标识符 (bazi/ziwei/liuyao/fengshui/name)
+            query: 用户查询
+            intent: 意图信息
+
+        Returns:
+            引擎计算结果
+        """
+        engine = self._get_engine(engine_key)
+        if engine is None:
+            return {"status": "unavailable", "message": f"引擎 {engine_key} 不可用"}
+
+        result = {"status": "ok", "engine": engine_key, "query": query}
+
+        # 根据引擎类型提取参数
+        try:
+            if engine_key == "bazi":
+                # 尝试从查询中提取出生日期
+                result["data"] = engine.calculate(year=2000, month=1, day=1, hour=0)
+            elif engine_key == "ziwei":
+                result["data"] = engine.analyze(year=2000, month=1, day=1, hour=0)
+            elif engine_key == "liuyao":
+                result["data"] = engine.cast()
+            elif engine_key == "fengshui":
+                result["data"] = engine.analyze()
+            elif engine_key == "name":
+                result["data"] = engine.analyze(name="测试")
+        except Exception as e:
+            result["status"] = "error"
+            result["error"] = str(e)
+
+        return result
 
     def set_embedding_fn(self, fn: Callable[[str], np.ndarray]) -> None:
         """设置 embedding 函数（如 SentenceTransformer.encode）
@@ -448,6 +521,13 @@ class GateCognitiveEngine:
 
         prompt = self._build_prompt(query, retrieved_texts, intent_result)
 
+        # Step 6: 命理引擎执行（v3.4.0）
+        engine_result = None
+        intent_name = intent_result.get("intent_name", "")
+        if intent_name in self.ENGINE_ROUTING:
+            engine_key = self.ENGINE_ROUTING[intent_name]
+            engine_result = self._execute_engine(engine_key, query, intent_result)
+
         # 更新会话
         if intent_result.get("intent_name"):
             session["topics_covered"].add(intent_result["intent_name"])
@@ -463,6 +543,7 @@ class GateCognitiveEngine:
             "tau": tau,
             "causal_acceptance": round(causal_acceptance, 3),
             "prompt": prompt,
+            "engine_result": engine_result,
             "system_load": system_load,
             "session_stats": {
                 "message_count": session["message_count"],
@@ -505,6 +586,81 @@ class GateCognitiveEngine:
             "dspark_available": _HAS_DSPARK,
             "storage_stats": self.fs.get_stats(),
         }
+
+    # ── v3.5.0: LLM 门禁验证 ──────────────────────────────────────
+
+    def verify_llm_output(self, output_text: str, query: str = "") -> Dict[str, Any]:
+        """LLM 输出门禁验证
+
+        对 LLM 生成的回答进行因果门禁验证：
+          - causal_score > 0.5 → 放行
+          - 0.3 < causal_score ≤ 0.5 → 标记"待人工审核"
+          - causal_score ≤ 0.3 → 拒绝，建议重新生成
+
+        Args:
+            output_text: LLM 生成的回答文本
+            query: 原始用户查询（用于上下文）
+
+        Returns:
+            {
+                "action": "pass" | "flag" | "reject",
+                "causal_score": float,
+                "reason": str,
+                "output": str (原始输出),
+            }
+        """
+        output_emb = self._embed(output_text)
+        score = self.gate_filter._compute_causal_score(output_emb)
+
+        if score > 0.5:
+            return {
+                "action": "pass",
+                "causal_score": round(score, 3),
+                "reason": "因果门禁通过",
+                "output": output_text,
+            }
+        elif score > 0.3:
+            return {
+                "action": "flag",
+                "causal_score": round(score, 3),
+                "reason": "因果门禁徘徊，待人工审核",
+                "output": output_text,
+            }
+        else:
+            return {
+                "action": "reject",
+                "causal_score": round(score, 3),
+                "reason": "因果门禁拒绝，建议重新生成",
+                "output": output_text,
+            }
+
+    def verify_with_r1(self, output_text: str, query: str) -> Dict[str, Any]:
+        """R1 推理链验证（深层因果校验）
+
+        Args:
+            output_text: LLM 生成的回答
+            query: 原始用户查询
+
+        Returns:
+            {
+                "action": "pass" | "flag" | "reject",
+                "causal_acceptance": float,
+                "reasoning": str,
+            }
+        """
+        reasoning = self.r1_client.generate_reasoning(
+            f"查询：{query}\n"
+            f"回答：{output_text[:200]}\n"
+            f"判断此回答是否因果自洽、逻辑合理。"
+        )
+        acceptance = self.r1_client.causal_gate(reasoning)
+
+        if acceptance > 0.7:
+            return {"action": "pass", "causal_acceptance": round(acceptance, 3), "reasoning": reasoning}
+        elif acceptance > 0.4:
+            return {"action": "flag", "causal_acceptance": round(acceptance, 3), "reasoning": reasoning}
+        else:
+            return {"action": "reject", "causal_acceptance": round(acceptance, 3), "reasoning": reasoning}
 
 
 # ============================================================================

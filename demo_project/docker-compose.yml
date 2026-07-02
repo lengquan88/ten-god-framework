@@ -1,18 +1,24 @@
-# TenGod Framework v2.0 — 生产部署 docker-compose
+# TenGod Framework v4.0.0 — 生产部署 docker-compose
+# ============================================================================
+# 中华文明数字永生体 · 门禁认知系统 v4.0.0「评估与部署」
 #
 # 启动:
 #   docker-compose up -d
 #
 # 查看日志:
 #   docker-compose logs -f api
+#   docker-compose logs -f cognitive
 #
 # 停止:
 #   docker-compose down
 #
-# v2.0 升级:
-#   - 内在小孩健康检查端点
-#   - 环境变量支持 v2.16.1 参数
-#   - 镜像标签统一为 v2.16.1
+# v4.0.0 升级:
+#   - 门禁认知引擎服务 (cognitive)
+#   - 向量存储服务 (SQLite + FAISS)
+#   - 评估框架集成
+#   - 知识图谱桥接
+#   - 经典语料库预加载
+#   - 镜像标签统一为 v4.0.0
 
 version: "3.9"
 
@@ -22,7 +28,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: tengod:v2.16.1
+    image: tengod:v4.0.0
     container_name: tengod-api
     restart: unless-stopped
     ports:
@@ -35,12 +41,14 @@ services:
       - API_KEY=${API_KEY:-}
       - MAX_REQUESTS_PER_MINUTE=${MAX_REQUESTS_PER_MINUTE:-100}
       - ENABLE_CORS=${ENABLE_CORS:-true}
-      # v2.16.1 内在小孩参数
+      # v4.0.0 门禁认知参数
       - INNER_CHILD_ALERTNESS=${INNER_CHILD_ALERTNESS:-32.0}
       - INNER_CHILD_PHI_LIMIT=${INNER_CHILD_PHI_LIMIT:-0.8}
       - INNER_CHILD_BETA_LIMIT=${INNER_CHILD_BETA_LIMIT:-0.7}
       - INNER_CHILD_LAMBDA=${INNER_CHILD_LAMBDA:-0.4}
       - INNER_CHILD_GAMMA=${INNER_CHILD_GAMMA:-0.2}
+      # 门禁认知引擎地址
+      - COGNITIVE_ENGINE_URL=${COGNITIVE_ENGINE_URL:-http://cognitive:8001}
     volumes:
       - tengod_data:/data
       - ./logs:/app/logs
@@ -50,6 +58,46 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+    networks:
+      - tengod-net
+
+  # ── 门禁认知引擎服务 ─────────────────────────────────────────
+  cognitive:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: tengod-cognitive:v4.0.0
+    container_name: tengod-cognitive
+    restart: unless-stopped
+    command: python -m tengod.gate_cognitive_api
+    ports:
+      - "127.0.0.1:8001:8001"
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - EMBEDDING_BACKEND=${EMBEDDING_BACKEND:-sentence_transformer}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-all-MiniLM-L6-v2}
+      - EMBEDDING_DIM=${EMBEDDING_DIM:-384}
+      - VECTOR_STORE_BACKEND=${VECTOR_STORE_BACKEND:-sqlite_faiss}
+      - VECTOR_STORE_PATH=/data/vectors.db
+      - CORPUS_PATH=/app/tengod/corpus/
+      - GATE_THRESHOLD=${GATE_THRESHOLD:-0.6}
+      - ZUOWANG_THRESHOLD=${ZUOWANG_THRESHOLD:-0.3}
+      - RHYTHM_TAU_MIN=${RHYTHM_TAU_MIN:-2}
+      - RHYTHM_TAU_MAX=${RHYTHM_TAU_MAX:-6}
+      - MAX_CONTEXT_LENGTH=${MAX_CONTEXT_LENGTH:-4096}
+      # 评估参数
+      - EVAL_DATASET_PATH=/data/benchmark.json
+      - EVAL_AUTO_RUN=${EVAL_AUTO_RUN:-false}
+    volumes:
+      - cognitive_data:/data
+      - ./logs:/app/logs
+      - ./tengod/corpus:/app/tengod/corpus:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/v1/cognitive/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     networks:
       - tengod-net
 
@@ -68,11 +116,15 @@ services:
     depends_on:
       api:
         condition: service_healthy
+      cognitive:
+        condition: service_healthy
     networks:
       - tengod-net
 
 volumes:
   tengod_data:
+    driver: local
+  cognitive_data:
     driver: local
   nginx_logs:
     driver: local
