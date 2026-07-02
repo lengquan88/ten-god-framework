@@ -1,4 +1,4 @@
-"""classics_search.py — 古籍全文检索 v2.3.0
+"""classics_search.py — 古籍全文检索 v4.6.0
 
 对接《四库全书》《中华经典古籍库》API，使正财成为真实知识中枢。
 """

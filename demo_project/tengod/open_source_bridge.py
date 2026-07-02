@@ -44,6 +44,14 @@ from .local_embedding import LocalEmbedder, create_embedder
 # ── 知识图谱门禁桥接 ──────────────────────────────────────────────
 from .kg_gate_bridge import KGGateBridge
 
+# ── 向量存储与语料库（v4.7.0）─────────────────────────────────────
+from .vector_store.sqlite_faiss import SQLiteFAISSVectorStore, VectorEntry
+from .corpus.classics_corpus import ClassicsCorpus
+from .corpus.importer import CorpusImporter
+
+# ── 知识库门禁化（v4.7.0）─────────────────────────────────────────
+from .正财_知识固化.knowledge_base import KnowledgeBase
+
 # ── 可选开源包导入 ────────────────────────────────────────────────
 _HAS_THREEFS = False
 _HAS_DEEPSEEK = False
@@ -60,6 +68,71 @@ try:
     _HAS_DEEPSEEK = True
 except ImportError:
     pass
+
+# 真实 DeepSeek API 客户端（v4.8.0）
+# 使用 httpx 直接调用，无需 deepseek_ai 包
+try:
+    import httpx
+    _HAS_HTTPX = True
+except ImportError:
+    _HAS_HTTPX = False
+
+
+class _RealDeepSeekClient:
+    """真实 DeepSeek API 客户端（v4.8.0）
+
+    使用 httpx 直接调用 DeepSeek API，无需额外 SDK。
+    支持 DeepSeek 官方 API 和兼容端点（如 Ollama、vLLM）。
+    """
+
+    def __init__(self, api_key: str = "", endpoint: str = "https://api.deepseek.com"):
+        self.api_key = api_key or os.environ.get("DEEPSEEK_API_KEY", "")
+        self.endpoint = endpoint.rstrip("/")
+        self.model = os.environ.get("DEEPSEEK_MODEL", "deepseek-chat")
+
+    def generate_answer(self, prompt: str, max_tokens: int = 1024) -> str:
+        """调用 DeepSeek API 生成回答"""
+        if not _HAS_HTTPX or not self.api_key:
+            return ""
+
+        try:
+            url = f"{self.endpoint}/v1/chat/completions"
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+            }
+            payload = {
+                "model": self.model,
+                "messages": [
+                    {"role": "system", "content": "你是一位精通中华传统命理学的专家，擅长八字、紫微斗数、六爻、风水和姓名学。请用专业但易懂的语言回答问题。"},
+                    {"role": "user", "content": prompt[:8192]},  # 截断过长的 prompt
+                ],
+                "max_tokens": max_tokens,
+                "temperature": 0.7,
+            }
+
+            with httpx.Client(timeout=30.0) as client:
+                response = client.post(url, json=payload, headers=headers)
+                if response.status_code == 200:
+                    data = response.json()
+                    return data["choices"][0]["message"]["content"]
+                return f"[API Error: {response.status_code}]"
+        except Exception as e:
+            return f"[API Error: {str(e)[:100]}]"
+
+    def generate_reasoning(self, prompt: str, max_tokens: int = 256) -> str:
+        """生成推理链"""
+        return self.generate_answer(prompt, max_tokens=max_tokens)
+
+    def causal_gate(self, reasoning: str) -> float:
+        """因果门禁：基于推理链判断"""
+        if "置信度：高" in reasoning:
+            return 0.85
+        elif "置信度：中" in reasoning:
+            return 0.65
+        elif "置信度：低" in reasoning:
+            return 0.35
+        return 0.5
 
 try:
     from deepseek_ai import DSparkScheduler as _RealDSparkScheduler
@@ -193,10 +266,10 @@ class DeepSeekR1Client:
     def __init__(self, api_key: str = "", endpoint: str = "https://api.deepseek.com/v1"):
         self.api_key = api_key or os.environ.get("DEEPSEEK_API_KEY", "mock_key")
         self.endpoint = endpoint
-        self._use_real = _HAS_DEEPSEEK and self.api_key != "mock_key"
+        self._use_real = self.api_key != "mock_key" and self.api_key != ""
 
         if self._use_real:
-            self._client = _RealR1Client(api_key=self.api_key)
+            self._client = _RealDeepSeekClient(api_key=self.api_key, endpoint=endpoint)
         else:
             self._mock_cache: Dict[str, str] = {}
 
@@ -256,6 +329,37 @@ class DeepSeekR1Client:
             return 0.35
         else:
             return 0.5
+
+    def generate_answer(self, prompt: str, max_tokens: int = 1024) -> str:
+        """生成回答（v4.8.0）
+
+        调用 DeepSeek API 生成最终回答。若无 API Key，返回 mock 回答。
+
+        Args:
+            prompt: 完整 prompt（含 system + context + query）
+            max_tokens: 最大生成长度
+
+        Returns:
+            生成的回答文本
+        """
+        if self._use_real:
+            return self._client.generate_answer(prompt, max_tokens=max_tokens)
+
+        # Mock: 基于 prompt 中关键词生成简短回答
+        if "天干" in prompt or "地支" in prompt:
+            return "天干五合为甲己合土、乙庚合金、丙辛合水、丁壬合木、戊癸合火。地支三合为申子辰合水、亥卯未合木、寅午戌合火、巳酉丑合金。"
+        elif "十神" in prompt or "正官" in prompt or "七杀" in prompt:
+            return "十神以日干为我，生我者为印，我生者为食伤，克我者为官杀，我克者为财，同我者为比劫。正官为克我之异性，主贵气、自律。"
+        elif "紫微" in prompt or "主星" in prompt:
+            return "紫微斗数十四主星分为北斗六星（紫微、天机、太阳、武曲、天同、廉贞）和南斗八星（天府、太阴、贪狼、巨门、天相、天梁、七杀、破军）。"
+        elif "六爻" in prompt or "起卦" in prompt:
+            return "六爻预测以世爻为我、应爻为事，取用神看旺衰，结合月建日辰和动爻变爻综合判断吉凶应期。"
+        elif "风水" in prompt or "玄空" in prompt:
+            return "玄空飞星以洛书九宫为基础，根据元运将九星飞布九宫。一白贪狼、二黑巨门、三碧禄存、四绿文曲、五黄廉贞、六白武曲、七赤破军、八白左辅、九紫右弼。"
+        elif "姓名" in prompt or "五格" in prompt:
+            return "姓名学五格为天格（祖运）、人格（主运）、地格（前运）、外格（副运）、总格（后运）。三才配置需五行相生为吉。"
+        else:
+            return "根据您的查询，建议明确具体命理方向（八字/紫微/六爻/风水/姓名学），以便提供更精准的分析。"
 
 
 # ============================================================================
@@ -352,6 +456,18 @@ class GateCognitiveEngine:
         # 知识图谱门禁桥接（v4.3.0）
         self.kg_bridge = KGGateBridge()
 
+        # 向量存储（v4.7.0）
+        vector_store_path = os.environ.get(
+            "VECTOR_STORE_PATH",
+            os.path.join(os.path.dirname(__file__), "..", "data", "vectors.db"),
+        )
+        self.vector_store = SQLiteFAISSVectorStore(vector_store_path, dim=embed_dim)
+        self._vector_store_ready = False
+
+        # 知识库（v4.7.0）
+        self.knowledge_base = KnowledgeBase()
+        self._kb_ready = False
+
     def _get_engine(self, engine_key: str) -> Any:
         """延迟加载命理引擎"""
         if engine_key in self._engines:
@@ -419,6 +535,46 @@ class GateCognitiveEngine:
             fn: 接受文本，返回 (dim,) numpy 向量
         """
         self._embedding_fn = fn
+
+    def _ensure_vector_store(self, force_reload: bool = False):
+        """确保向量存储已初始化并灌入语料库（v4.7.0）
+
+        首次调用时自动：
+        1. 连接 SQLiteFAISSVectorStore
+        2. 加载 ClassicsCorpus 语料库
+        3. 通过 CorpusImporter 灌入向量存储
+        """
+        if self._vector_store_ready and not force_reload:
+            return
+
+        try:
+            self.vector_store.connect()
+        except Exception:
+            return  # 无法连接，静默降级
+
+        # 仅当向量存储为空时灌入
+        existing = getattr(self.vector_store, '_ids', None)
+        if existing and len(existing) > 0 and not force_reload:
+            self._vector_store_ready = True
+            return
+
+        try:
+            corpus = ClassicsCorpus().load_all()
+            importer = CorpusImporter(corpus, self.vector_store, self.embedder)
+            stats = importer.import_all()
+            self._vector_store_ready = stats["imported"] > 0
+        except Exception:
+            pass  # 导入失败，静默降级
+
+    def _ensure_knowledge_base(self):
+        """确保知识库已初始化（v4.7.0）"""
+        if self._kb_ready:
+            return
+        try:
+            # 知识库节点已内建，无需额外加载
+            self._kb_ready = len(self.knowledge_base._nodes) > 0
+        except Exception:
+            pass
 
     def _embed(self, text: str) -> np.ndarray:
         """文本 → embedding"""
@@ -512,15 +668,43 @@ class GateCognitiveEngine:
                 "gate_details": gate_details,
             }
 
-        # Step 3: 节奏检索 + 测地线排序
+        # Step 3: 节奏检索 + 知识库门禁化（v4.7.0）
         tau = self.scheduler.adjust_tau(system_load)
-        all_chunks = self.fs.read_all_embeddings()
-        retrieved = retrieve_with_gates(
-            query_emb, all_chunks,
-            projector=self.projector,
-            threshold=0.5,
-            top_k=tau,
-        )
+
+        # 3a. 向量存储检索（SQLite + FAISS）
+        self._ensure_vector_store()
+        retrieved = []
+        if self._vector_store_ready:
+            try:
+                retrieved = self.vector_store.search_with_gates(
+                    query_emb,
+                    projector=self.projector,
+                    threshold=0.5,
+                    top_k=tau,
+                )
+            except Exception:
+                pass  # 存储检索失败，继续
+
+        # 3b. 知识库门禁化检索（v4.7.0）
+        self._ensure_knowledge_base()
+        kb_results = []
+        if self._kb_ready:
+            try:
+                kb_results = self.knowledge_base.query_with_gates(
+                    query, top_k=min(tau, 5), threshold=0.3,
+                )
+            except Exception:
+                pass
+
+        # 3c. 降级：无向量存储时用 ThreeFS mock
+        if not retrieved and not kb_results:
+            all_chunks = self.fs.read_all_embeddings()
+            retrieved = retrieve_with_gates(
+                query_emb, all_chunks,
+                projector=self.projector,
+                threshold=0.5,
+                top_k=tau,
+            )
 
         # Step 4: 因果门禁验证（R1 推理链）
         if intent_result.get("intent_name"):
@@ -549,6 +733,9 @@ class GateCognitiveEngine:
             engine_key = self.ENGINE_ROUTING[intent_name]
             engine_result = self._execute_engine(engine_key, query, intent_result)
 
+        # Step 7: LLM 答案生成（v4.8.0）
+        answer = self.r1_client.generate_answer(prompt, max_tokens=1024)
+
         # 更新会话
         if intent_result.get("intent_name"):
             session["topics_covered"].add(intent_result["intent_name"])
@@ -561,10 +748,13 @@ class GateCognitiveEngine:
             "gate_details": gate_details,
             "gate_coefficients": gate_coefficients,  # v4.3.0
             "retrieved_count": len(retrieved),
+            "kb_results_count": len(kb_results),  # v4.7.0
             "retrieved": retrieved,
+            "kb_results": kb_results[:5],  # v4.7.0
             "tau": tau,
             "causal_acceptance": round(causal_acceptance, 3),
             "prompt": prompt,
+            "answer": answer,  # v4.8.0
             "engine_result": engine_result,
             "system_load": system_load,
             "session_stats": {

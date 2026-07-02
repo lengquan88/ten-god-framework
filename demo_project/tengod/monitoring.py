@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-monitoring.py — 十神项目可观测性 v2.17.0
+monitoring.py — 十神项目可观测性 v4.6.0
 ========================================
 性能监控与可观测性模块，提供 Prometheus 风格指标收集。
 

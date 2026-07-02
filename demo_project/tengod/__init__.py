@@ -1,7 +1,7 @@
 """
-TenGod — Chinese Fortune Telling System v4.1.0
+TenGod — Chinese Fortune Telling System v4.6.0
 ===================================================
-中华文明数字永生体 · 门禁认知系统 v4.1.0「集成贯通」
+中华文明数字永生体 · 门禁认知系统 v4.6.0「集成贯通」
 
 核心模块：
 - 八字排盘 (bazi_calculator)      - 紫微斗数 (ziwei_engine)
@@ -12,10 +12,10 @@ TenGod — Chinese Fortune Telling System v4.1.0
 - 评估框架 (eval/)                  - 基准数据集 (eval/benchmark_dataset)
 - 知识图谱融合 (knowledge_fusion)    - 国际化 (i18n)
 
-版本: 4.1.0
+版本: 4.6.0
 """
 
-__version__ = "4.1.0"
+__version__ = "4.6.0"
 __author__ = "TenGod Team"
 
 from .core import get_core, create_app

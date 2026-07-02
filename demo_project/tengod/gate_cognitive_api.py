@@ -1,5 +1,5 @@
 """
-gate_cognitive_api.py — 门禁认知引擎 REST API v3.2.0
+gate_cognitive_api.py — 门禁认知引擎 REST API v4.6.0
 =========================================================
 正官主理法度，对外暴露门禁认知引擎 REST 接口。
 
@@ -161,7 +161,7 @@ if _HAS_FASTAPI:
         engine = get_engine()
         stats = engine.get_stats()
         return CognitiveStatus(
-            version="3.2.0",
+            version="4.6.0",
             torch_available=stats["torch_available"],
             sentence_transformer_available=stats["threefs_available"],
             embedding_mode=engine._embedder.get_mode(),
@@ -191,12 +191,22 @@ if _HAS_FASTAPI:
             raise HTTPException(status_code=401, detail="Invalid token")
 
         engine = get_engine()
+
+        # 请求计数（v4.9.0）
+        import time as _time
+        t_start = _time.time()
+
         result = engine.process(
             query=request.query,
             history=request.history or [],
             system_load=request.system_load,
             session_id=request.session_id,
         )
+
+        # 更新指标
+        _request_count += 1
+        _total_latency_ms += (_time.time() - t_start) * 1000
+
         return ProcessResponse(**result)
 
     @app.post("/v1/cognitive/embedding", response_model=EmbeddingResponse, tags=["嵌入"])

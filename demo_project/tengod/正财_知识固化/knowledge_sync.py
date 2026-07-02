@@ -1,4 +1,4 @@
-"""knowledge_sync.py — 知识库同步插件 v2.2.0
+"""knowledge_sync.py — 知识库同步插件 v4.6.0
 
 支持从 Wikipedia、百度百科、古籍数据库自动抓取知识。
 """
