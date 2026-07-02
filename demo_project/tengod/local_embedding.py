@@ -37,6 +37,10 @@ try:
 except ImportError:
     pass
 
+# 设置 HF 镜像（国内加速）
+_HF_MIRROR = os.environ.get("HF_ENDPOINT", "https://hf-mirror.com")
+os.environ.setdefault("HF_ENDPOINT", _HF_MIRROR)
+
 # ── 核心：sklearn ──────────────────────────────────────────────────
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.decomposition import TruncatedSVD
@@ -101,7 +105,7 @@ class LocalEmbedder:
 
         if self._actual_mode == "sentence_transformer":
             self._model: Any = _SENTENCE_MODEL
-            self.dim = self._model.get_sentence_embedding_dimension()
+            self.dim = self._model.get_embedding_dimension()
         elif self._actual_mode == "tfidf_svd":
             self._pipeline = Pipeline([
                 ("tfidf", TfidfVectorizer(
@@ -123,19 +127,24 @@ class LocalEmbedder:
             raise ValueError(f"未知模式: {self._actual_mode}")
 
     def _try_load_model(self, model_name: str) -> bool:
-        """尝试加载 SentenceTransformer 模型（仅本地缓存）"""
+        """尝试加载 SentenceTransformer 模型
+
+        优先级：
+          1. 本地缓存加载（local_files_only=True）
+          2. 镜像下载（hf-mirror.com）
+        """
         global _SENTENCE_MODEL
         if _SENTENCE_MODEL is not None:
             return True
         try:
-            # 只尝试本地加载，不联网
-            _SENTENCE_MODEL = SentenceTransformer(
-                model_name,
-                local_files_only=True,
-            )
+            _SENTENCE_MODEL = SentenceTransformer(model_name, local_files_only=True)
             return True
         except Exception:
-            return False
+            try:
+                _SENTENCE_MODEL = SentenceTransformer(model_name)
+                return True
+            except Exception:
+                return False
 
     def _init_torch_projection(self) -> None:
         """初始化 torch 随机正交投影"""
