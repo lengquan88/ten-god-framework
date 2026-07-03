@@ -321,7 +321,7 @@ class ShiShenHandler(StageHandler):
             f"分析结果：\n"
             f"基于十神架构的深度分析，结合知识图谱与多策略搜索，"
             f"为您提供关于「{query}」的综合分析。\n\n"
-            f"---\n管道版本：v2.17.0 | 请求ID：{ctx.request_id}"
+            f"---\n管道版本：v4.6.0 | 请求ID：{ctx.request_id}"
         )
 
         ctx.generated_content = content

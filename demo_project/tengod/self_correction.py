@@ -5,7 +5,7 @@ self_correction.py — 自修正守护进程（道体自愈）v4.6.0
 
 把"出错"当成常态，把"修正"当成修行。
 
-v2.23.0 门禁化改造：
+v4.6.0 门禁化改造：
   每一步修正都经过七论门禁裁决，裁决不通过则中断修正，存入混沌海。
   修正步骤不再是"自动执行"，而是"门禁护航"。
 
@@ -113,7 +113,7 @@ class CorrectionReport:
 class SelfCorrectionDaemon:
     """自修正守护进程 — 道体自愈 + 七论门禁护航
 
-    v2.23.0 门禁化改造：
+    v4.6.0 门禁化改造：
     - 每一步修正都经过七论门禁裁决
     - 裁决不通过则中断修正，存入混沌海
     - 每步拥有独立的TBCE认知坐标
@@ -610,7 +610,7 @@ class SelfCorrectionDaemon:
     def _step_consolidate(self, state: Dict, enable_gate: bool) -> CorrectionStep:
         """铭文刻骨：记忆固化 — 七论裁决后写入长期记忆
 
-        v2.23.0 门禁化：使用七论裁决器而非单一门禁
+        v4.6.0 门禁化：使用七论裁决器而非单一门禁
         """
         step = CorrectionStep(7, "铭文刻骨", "记忆固化")
         start = time.time()

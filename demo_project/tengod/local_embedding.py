@@ -309,7 +309,7 @@ def create_embedder(
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("  本地语义嵌入引擎 v3.1.0")
+    print("  本地语义嵌入引擎 v4.6.0")
     print("=" * 60)
 
     embedder = create_embedder(dim=384)

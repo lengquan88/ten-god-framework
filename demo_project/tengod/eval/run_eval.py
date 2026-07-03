@@ -1,5 +1,5 @@
 """
-eval/run_eval.py — 一键评估脚本 v4.4.0
+eval/run_eval.py — 一键评估脚本 v4.6.0
 ===========================================
 道曰："知不知，尚矣；不知知，病也。"
 
@@ -66,7 +66,7 @@ def run_evaluation(
 
     if verbose:
         print("=" * 60)
-        print("  门禁认知系统评估 v4.4.0")
+        print("  门禁认知系统评估 v4.6.0")
         print("=" * 60)
         print(f"\n  数据集: {ds.count} 条查询")
         print(f"  类别: {ds.categories}")

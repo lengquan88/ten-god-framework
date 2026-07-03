@@ -224,9 +224,19 @@ class GateCognitiveEvaluator:
                     query.intent in result.predicted_intent
                 )
 
-                # 检索（engine 返回 retrieved 列表）
+                # 检索（engine 返回 retrieved 列表，格式可能是 tuple/dict/str）
                 retrieved = response.get("retrieved", [])
-                result.retrieved_ids = [r.get("id", "") for r in retrieved[:10]]
+                retrieved_ids = []
+                for r in retrieved[:10]:
+                    if isinstance(r, tuple):
+                        retrieved_ids.append(str(r[0]))  # (id, distance)
+                    elif isinstance(r, dict):
+                        retrieved_ids.append(r.get("id", "") or r.get("_id", ""))
+                    elif isinstance(r, str):
+                        retrieved_ids.append(r)
+                    else:
+                        retrieved_ids.append(str(r))
+                result.retrieved_ids = retrieved_ids
                 result.hit_at_1 = bool(set(result.retrieved_ids[:1]) & query.relevant_ids)
                 result.hit_at_3 = bool(set(result.retrieved_ids[:3]) & query.relevant_ids)
                 result.hit_at_5 = bool(set(result.retrieved_ids[:5]) & query.relevant_ids)

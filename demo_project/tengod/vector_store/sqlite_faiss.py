@@ -357,7 +357,7 @@ class SQLiteFAISSVectorStore:
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("  SQLite + FAISS 向量存储 v3.7.0")
+    print("  SQLite + FAISS 向量存储 v4.6.0")
     print("=" * 60)
 
     import tempfile

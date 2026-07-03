@@ -1376,7 +1376,7 @@ def print_registry_summary(space: Optional[ObjectSpaceManager] = None) -> None:
     coord_dist = space.get_coordinate_distribution()
 
     print("=" * 60)
-    print(f"  物方空间注册表 v2.21.0")
+    print(f"  物方空间注册表 v4.6.0")
     print("=" * 60)
     print(f"  总注册单元: {stats['total_units']}")
     print(f"  门禁状态:")

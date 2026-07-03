@@ -31,7 +31,7 @@ class EvaluationReporter:
         m = self.metrics.to_dict()
 
         lines = [
-            "# 门禁认知系统评估报告 v3.9.0",
+            "# 门禁认知系统评估报告 v4.6.0",
             "",
             f"**评估时间**: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(self.metrics.timestamp))}",
             f"**查询数量**: {self.metrics.num_queries}",
@@ -146,7 +146,7 @@ class EvaluationReporter:
             "",
             "---",
             "",
-            f"*报告由 GateCognitiveEvaluator v3.9.0 自动生成*",
+            f"*报告由 GateCognitiveEvaluator v4.6.0 自动生成*",
         ])
 
         return "\n".join(lines)

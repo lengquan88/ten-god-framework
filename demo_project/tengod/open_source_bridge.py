@@ -1,5 +1,5 @@
 """
-open_source_bridge.py — 开源方案集成桥接层 v4.1.0
+open_source_bridge.py — 开源方案集成桥接层 v5.1.0
 =====================================================
 道曰："工欲善其事，必先利其器。"
 
@@ -406,14 +406,14 @@ class GateCognitiveEngine:
       1. 语义向量检索：六维投影 + 测地线门禁
       2. RAG 增强：门禁预过滤 + 节奏采样
       3. 多轮对话：坐忘门禁 + 主动澄清
-      4. 命理引擎路由：意图 → 对应命理引擎（v3.4.0）
+      4. 命理引擎路由：意图 → 对应命理引擎（v4.6.0）
 
     用法：
         engine = GateCognitiveEngine()
         result = engine.process("帮我算一下八字", history=[], system_load=0.3)
     """
 
-    # 命理引擎路由表（v3.4.0）
+    # 命理引擎路由表（v4.6.0）
     ENGINE_ROUTING = {
         "八字命理": "bazi",
         "紫微斗数": "ziwei",
@@ -450,7 +450,7 @@ class GateCognitiveEngine:
         self._sessions: Dict[str, Dict[str, Any]] = {}
         self._embedding_fn: Optional[Callable] = None
 
-        # 命理引擎实例（v3.4.0，延迟加载）
+        # 命理引擎实例（v4.6.0，延迟加载）
         self._engines: Dict[str, Any] = {}
 
         # 知识图谱门禁桥接（v4.3.0）
@@ -560,7 +560,7 @@ class GateCognitiveEngine:
 
         try:
             corpus = ClassicsCorpus().load_all()
-            importer = CorpusImporter(corpus, self.vector_store, self.embedder)
+            importer = CorpusImporter(corpus, self.vector_store, self._embedder)
             stats = importer.import_all()
             self._vector_store_ready = stats["imported"] > 0
         except Exception:
@@ -726,7 +726,7 @@ class GateCognitiveEngine:
 
         prompt = self._build_prompt(query, retrieved_texts, intent_result)
 
-        # Step 6: 命理引擎执行（v3.4.0）
+        # Step 6: 命理引擎执行（v4.6.0）
         engine_result = None
         intent_name = intent_result.get("intent_name", "")
         if intent_name in self.ENGINE_ROUTING:
@@ -799,7 +799,7 @@ class GateCognitiveEngine:
             "storage_stats": self.fs.get_stats(),
         }
 
-    # ── v3.5.0: LLM 门禁验证 ──────────────────────────────────────
+    # ── v4.6.0: LLM 门禁验证 ──────────────────────────────────────
 
     def verify_llm_output(self, output_text: str, query: str = "") -> Dict[str, Any]:
         """LLM 输出门禁验证
@@ -894,7 +894,7 @@ def _ensure_numpy(x: Any) -> np.ndarray:
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("  门禁认知引擎 v3.1.0 — 三链合一自检")
+    print("  门禁认知引擎 v5.1.0 — 三链合一自检")
     print("=" * 60)
 
     # 创建引擎（默认 384 维，与 TF-IDF+SVD 对齐）
