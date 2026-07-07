@@ -278,42 +278,6 @@ class GateFilter:
         # 授权白名单（可动态更新）
         self._auth_whitelist: List[str] = []
 
-        # v7.4.0: 因果门禁原型（意图原型嵌入）
-        self._prototypes: Dict[str, np.ndarray] = {}
-        self._is_fitted: bool = False
-
-    def fit(self, queries: List[str], intents: List[str]) -> int:
-        """v7.4.0: 训练因果门禁 — 为每个意图构建原型嵌入
-
-        Args:
-            queries: 训练查询文本
-            intents: 对应的意图标签
-
-        Returns:
-            原型数量
-        """
-        from collections import defaultdict
-        import hashlib
-
-        # 按意图分组
-        groups: Dict[str, List[np.ndarray]] = defaultdict(list)
-        for q, intent in zip(queries, intents):
-            # 确定性哈希嵌入（模拟语义嵌入）
-            seed = int(hashlib.md5(q.encode()).hexdigest()[:8], 16)
-            rng = np.random.RandomState(seed)
-            emb = rng.randn(self.dim).astype(np.float32)
-            emb = emb / (np.linalg.norm(emb) + 1e-8)
-            groups[intent].append(emb)
-
-        # 每个意图的原型 = 平均嵌入
-        for intent, embs in groups.items():
-            proto = np.mean(embs, axis=0)
-            proto = proto / (np.linalg.norm(proto) + 1e-8)
-            self._prototypes[intent] = proto
-
-        self._is_fitted = True
-        return len(self._prototypes)
-
     def set_whitelist(self, patterns: List[str]) -> None:
         """设置授权白名单"""
         self._auth_whitelist = patterns
@@ -364,19 +328,8 @@ class GateFilter:
             return GateState.CLOSED, details
 
     def _compute_causal_score(self, query_emb: Any) -> float:
-        """因果门禁：query 语义是否自洽（v7.4.0: 原型余弦相似度）"""
+        """因果门禁：query 语义是否自洽"""
         x = _ensure_numpy(query_emb).reshape(1, -1)
-
-        # v7.4.0: 如果已训练，使用原型余弦相似度
-        if self._is_fitted and self._prototypes:
-            x_norm = x / (np.linalg.norm(x) + 1e-8)
-            max_sim = 0.0
-            for proto in self._prototypes.values():
-                sim = float(np.dot(x_norm, proto.reshape(1, -1).T).item())
-                max_sim = max(max_sim, sim)
-            # 相似度映射到 [0, 1]，阈值 0.3
-            return max(0.0, min(1.0, (max_sim + 1.0) / 2.0))
-
         if self._use_torch:
             x_t = torch.from_numpy(x).float()
             score = torch.sigmoid(self._causal_score(x_t))
@@ -583,20 +536,6 @@ class IntentDisambiguator:
         self.confidence_threshold = confidence_threshold
         self.theta = theta
 
-        # v7.7.0: 歧义查询模式 — 匹配这些模式的查询直接判定为歧义
-        self.AMBIGUITY_PATTERNS = [
-            (r"什么是.{0,4}(命理|命运|算命|预测)", "歧义"),
-            (r"怎么看.{0,4}(运势|命运|前程)", "歧义"),
-            (r"帮我.{0,6}(算|看|测|分析)", "歧义"),
-            (r"(算命|占卜|预测|风水).{0,4}(怎么|如何|怎样)", "歧义"),
-            (r"这个.{0,4}(怎么|如何|怎样).{0,4}(看|算|解)", "歧义"),
-            (r"(紫微|八字|六爻|风水|姓名).{0,2}(还是|或者).{0,2}(紫微|八字|六爻|风水|姓名)", "歧义"),
-            (r"(算一卦|占一卦|卜一卦)", "歧义"),
-            (r"(帮我|给我|我想).{0,4}(看看|算算|测测)", "歧义"),
-            (r"(问|测|算).{0,4}(感情|事业|财运|健康|婚姻)", "歧义"),
-            (r"(最近|今年|明年).{0,4}(运势|运气|财运)", "歧义"),
-        ]
-
         # 坐忘门禁
         self._zuowang = ZuowangAttentionTorch(
             embed_dim=embed_dim, num_heads=12, theta=theta,
@@ -670,17 +609,8 @@ class IntentDisambiguator:
             }
 
     def _classify_intents(self, attn_out: np.ndarray, query_text: str = "") -> np.ndarray:
-        """意图分类 → softmax 概率分布（融合随机分类器 + 关键词启发式）
-
-        v7.7.0: 增强歧义检测 — 歧义模式匹配 + >=2 字符过滤 + 均匀化概率
-        """
+        """意图分类 → softmax 概率分布（融合随机分类器 + 关键词启发式）"""
         x = attn_out.reshape(1, -1)
-
-        # v7.7.0: 歧义模式检测 → 均匀概率分布
-        import re
-        for pattern, _ in self.AMBIGUITY_PATTERNS:
-            if re.search(pattern, query_text):
-                return np.ones(self.num_intents) / self.num_intents
 
         # 随机分类器输出
         if self._use_torch:
@@ -697,7 +627,7 @@ class IntentDisambiguator:
         if query_text:
             boost = np.zeros(self.num_intents, dtype=np.float32)
             for intent_id, keywords in self.INTENT_KEYWORDS.items():
-                hits = sum(1 for kw in keywords if len(kw) >= 2 and kw in query_text)
+                hits = sum(1 for kw in keywords if kw in query_text)
                 if hits > 0:
                     boost[intent_id] = min(hits * 0.3, 0.9)  # 每命中一个关键词 +0.3，上限 0.9
             # 融合：base_probs * 0.3 + boost * 0.7

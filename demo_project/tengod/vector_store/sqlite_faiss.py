@@ -19,7 +19,6 @@ SQLite + FAISS 向量存储，支持：
 from __future__ import annotations
 
 import json
-import math
 import os
 import sqlite3
 from typing import Any, Dict, List, Optional, Tuple
@@ -314,107 +313,6 @@ class SQLiteFAISSVectorStore:
 
         results.sort(key=lambda x: x[0])
         return [r for _, r in results[:top_k]]
-
-    def search_hybrid(
-        self,
-        query_embedding: np.ndarray,
-        query_text: str = "",
-        top_k: int = 10,
-        alpha: float = 0.7,
-        category: Optional[str] = None,
-        kg_expansions: Optional[List[str]] = None,
-    ) -> List[Dict[str, Any]]:
-        """v7.8.0：混合检索 — 向量搜索（余弦） + BM25 + KG 增强
-
-        Args:
-            kg_expansions: KG 扩展词列表，文档包含这些词可获得额外加分
-        """
-        assert self._conn is not None
-
-        # 1. 向量余弦相似度
-        cursor = self._conn.cursor()
-        if category:
-            cursor.execute(
-                "SELECT id, text, category, embedding FROM vectors WHERE category = ?",
-                (category,),
-            )
-        else:
-            cursor.execute("SELECT id, text, category, embedding FROM vectors")
-
-        all_docs = []
-        vec_scores = {}
-        q_norm = np.linalg.norm(query_embedding) + 1e-8
-        for id_, text, cat, blob in cursor.fetchall():
-            emb = np.frombuffer(blob, dtype=np.float32)
-            sim = float(np.dot(query_embedding, emb) / (q_norm * (np.linalg.norm(emb) + 1e-8)))
-            vec_scores[id_] = sim
-            all_docs.append((id_, text, cat, emb, {}))
-
-        # 构建 doc_map（id -> doc info）
-        doc_map = {d[0]: d for d in all_docs}
-
-        # 2. BM25 关键词匹配
-        bm25_scores = {}
-        if query_text:
-            tokens = [query_text[i:i+2] for i in range(len(query_text)-1)]
-            tokens.extend(list(query_text))
-            idf = {}
-            for tok in set(tokens):
-                if len(tok) < 1:
-                    continue
-                cursor.execute(
-                    "SELECT COUNT(*) FROM vectors WHERE text LIKE ?", (f"%{tok}%",)
-                )
-                df = cursor.fetchone()[0]
-                idf[tok] = math.log((len(all_docs) + 1) / (df + 1)) + 1.0 if df > 0 else 0.0
-
-            for doc_id, text, _, _, _ in all_docs:
-                score = 0.0
-                for tok in tokens:
-                    if len(tok) < 1:
-                        continue
-                    tf = text.count(tok)
-                    if tf > 0:
-                        score += idf.get(tok, 0.0) * (tf / (1.0 + tf))
-                bm25_scores[doc_id] = score
-
-        # 3. 混合排序
-        max_bm25 = max(bm25_scores.values()) if bm25_scores else 1.0
-        hybrid = []
-        for doc_id in vec_scores:
-            vs = vec_scores[doc_id]
-            bs = bm25_scores.get(doc_id, 0.0) / max(max_bm25, 0.001)
-            combined = alpha * vs + (1 - alpha) * bs
-
-            # v7.8.0: KG 乘法重排序 — 文档包含 KG 扩展词时按比例放大得分
-            kg_factor = 1.0
-            if kg_expansions:
-                doc_text = doc_map.get(doc_id, ("", "", "", None, {}))[1]
-                kg_matches = 0
-                for exp in kg_expansions:
-                    exp_tokens = exp.split("·")
-                    for tok in exp_tokens:
-                        # 只匹配长度>=2的实体词，过滤单字噪声（金木水火土等）
-                        if tok and len(tok) >= 2 and tok in doc_text:
-                            kg_matches += 1
-                if kg_matches > 0:
-                    kg_factor = 1.0 + min(kg_matches * 0.10, 0.60)  # 每个匹配词 +10%，上限 60%
-
-            combined *= kg_factor
-            hybrid.append((combined, doc_id))
-
-        hybrid.sort(reverse=True)
-        return [
-            {
-                "id": doc_id,
-                "text": doc_map[doc_id][1],
-                "category": doc_map[doc_id][2],
-                "score": score,
-                "vector_sim": vec_scores.get(doc_id, 0.0),
-                "bm25_score": bm25_scores.get(doc_id, 0.0),
-            }
-            for score, doc_id in hybrid[:top_k]
-        ]
 
     def delete(self, entry_id: str) -> bool:
         """删除条目"""

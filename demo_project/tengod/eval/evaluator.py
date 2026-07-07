@@ -121,9 +121,6 @@ class GateCognitiveEvaluator:
         self.results = []
         self.latencies = []
 
-        # v7.4.0: 灌入 benchmark 数据到向量存储
-        self._seed_benchmark_to_engine()
-
         total = len(self.dataset.queries)
         for i, query in enumerate(self.dataset.queries):
             result = self._evaluate_single(query)
@@ -134,49 +131,6 @@ class GateCognitiveEvaluator:
                 print(f"  [{i+1}/{total}] 已完成...")
 
         return self._compute_metrics()
-
-    def _seed_benchmark_to_engine(self) -> int:
-        """v7.4.0: 将 benchmark 数据灌入引擎的向量存储，使检索评估有意义"""
-        if self.engine is None:
-            return 0
-
-        from ..vector_store.sqlite_faiss import VectorEntry
-        import hashlib
-
-        count = 0
-        try:
-            self.engine.vector_store.connect()
-        except Exception:
-            pass
-
-        entries = []
-        for q in self.dataset.queries:
-            if not q.expected_answer:
-                continue
-            try:
-                # 使用确定性 hash 投影（与引擎 _embed 一致）
-                seed = int(hashlib.md5(q.expected_answer.encode()).hexdigest()[:8], 16)
-                rng = np.random.RandomState(seed)
-                emb = rng.randn(384).astype(np.float32)
-                entries.append(VectorEntry(
-                    id=q.id,
-                    text=q.expected_answer,
-                    embedding=emb,
-                    category=q.category,
-                    metadata={"intent": q.intent, "category": q.category},
-                ))
-                count += 1
-            except Exception:
-                pass
-
-        if entries:
-            try:
-                self.engine.vector_store.add(entries)
-            except Exception:
-                pass
-
-        self.engine._vector_store_ready = True
-        return count
 
     def evaluate_category(self, category: str, verbose: bool = False) -> EvaluationMetrics:
         """按类别评估"""
