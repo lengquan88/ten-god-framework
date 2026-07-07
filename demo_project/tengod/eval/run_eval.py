@@ -86,6 +86,15 @@ def run_evaluation(
 
     # ── 运行评估 ───────────────────────────────────────────────
     if verbose:
+        print(f"\n  训练因果门禁（意图原型）...")
+
+    # v7.4.0: 训练因果门禁
+    n_prototypes = engine.gate_filter.fit(
+        [q.query for q in ds.queries],
+        [q.intent for q in ds.queries],
+    )
+    if verbose:
+        print(f"  因果门禁已训练: {n_prototypes} 个意图原型")
         print(f"\n  运行评估（{ds.count} 条）...")
 
     t0 = time.time()

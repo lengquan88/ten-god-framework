@@ -577,7 +577,7 @@ class GateCognitiveEngine:
             pass
 
     def _embed(self, text: str) -> np.ndarray:
-        """文本 → embedding"""
+        """文本 → embedding（确定性 hash 投影）"""
         if self._embedding_fn is not None:
             emb = self._embedding_fn(text)
             return _ensure_numpy(emb)
@@ -628,6 +628,11 @@ class GateCognitiveEngine:
             return {
                 "session_id": session_id,
                 "action": "clarify",
+                "intent": {
+                    "intent_name": "歧义",  # v7.7.0: 歧义查询的意图名称
+                    "confidence": 0.0,
+                },
+                "gate_state": {"passed": True, "state": "open"},  # v7.7.0: 歧义查询仍放行
                 "message": intent_result.get("message", "请澄清您的意图"),
                 "candidates": intent_result.get("candidates", []),
                 "reason": intent_result.get("reason", "坐忘门禁"),
@@ -671,16 +676,25 @@ class GateCognitiveEngine:
         # Step 3: 节奏检索 + 知识库门禁化（v4.7.0）
         tau = self.scheduler.adjust_tau(system_load)
 
-        # 3a. 向量存储检索（SQLite + FAISS）
+        # 3a. 向量存储检索（v7.8.0: KG 增强混合检索）
         self._ensure_vector_store()
         retrieved = []
         if self._vector_store_ready:
             try:
-                retrieved = self.vector_store.search_with_gates(
+                # v7.8.0: KG 实体识别 → 扩展词
+                kg_entities = self.kg_bridge.search_entities(query)
+                kg_expansions = [
+                    self.kg_bridge.ENTITY_SYNONYMS[e]
+                    for e in kg_entities
+                    if e in self.kg_bridge.ENTITY_SYNONYMS
+                ] if kg_entities else None
+
+                retrieved = self.vector_store.search_hybrid(
                     query_emb,
-                    projector=self.projector,
-                    threshold=0.5,
+                    query_text=query,
                     top_k=tau,
+                    alpha=0.20,
+                    kg_expansions=kg_expansions,
                 )
             except Exception:
                 pass  # 存储检索失败，继续
@@ -719,10 +733,17 @@ class GateCognitiveEngine:
 
         # Step 5: 构建结构化 Prompt
         retrieved_texts = []
-        for cid, dist in retrieved:
-            chunk = self.fs.read_chunk(cid)
-            if chunk:
-                retrieved_texts.append(f"- [{dist:.3f}] {chunk['text']}")
+        for item in retrieved:
+            if isinstance(item, dict):
+                cid, dist = item.get("id", ""), item.get("score", 0.0)
+                text = item.get("text", "")
+                if text:
+                    retrieved_texts.append(f"- [{dist:.3f}] {text}")
+            else:
+                cid, dist = item
+                chunk = self.fs.read_chunk(cid)
+                if chunk:
+                    retrieved_texts.append(f"- [{dist:.3f}] {chunk['text']}")
 
         prompt = self._build_prompt(query, retrieved_texts, intent_result)
 
