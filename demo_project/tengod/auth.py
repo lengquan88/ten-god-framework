@@ -19,6 +19,7 @@ import hashlib
 import base64
 import json
 import time
+import threading
 import secrets
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -131,11 +132,12 @@ class JWTManager:
 
     @classmethod
     def _sign(cls, message: str) -> str:
-        return hmac.new(
+        digest = hmac.new(
             JWT_SECRET.encode("utf-8"),
             message.encode("utf-8"),
             hashlib.sha256
-        ).hexdigest()
+        ).digest()
+        return cls._b64encode(digest)
 
     @classmethod
     def create_token(cls, user_id: int, username: str, role: str,
@@ -343,6 +345,7 @@ class QuotaManager:
     """API 配额管理器（内存版，生产环境可用 Redis）"""
 
     _usage: Dict[str, Dict[str, int]] = {}  # {user_id: {date: count}}
+    _lock = threading.Lock()
 
     @classmethod
     def _today(cls) -> str:
@@ -357,37 +360,42 @@ class QuotaManager:
         today = cls._today()
         key = str(user_id)
 
-        if key not in cls._usage:
-            cls._usage[key] = {}
+        with cls._lock:
+            if key not in cls._usage:
+                cls._usage[key] = {}
 
-        # 清理旧日期
-        cls._usage[key] = {d: c for d, c in cls._usage[key].items() if d >= today}
+            cls._usage[key] = {d: c for d, c in cls._usage[key].items() if d >= today}
 
-        used = cls._usage[key].get(today, 0)
-        remaining = max(0, quota - used)
+            used = cls._usage[key].get(today, 0)
+            remaining = max(0, quota - used)
 
-        if used >= quota:
-            return False, used, 0
-        return True, used, remaining
+            if used >= quota:
+                return False, used, 0
+            return True, used, remaining
 
     @classmethod
     def consume(cls, user_id: int):
         """消耗一次配额"""
         today = cls._today()
         key = str(user_id)
-        if key not in cls._usage:
-            cls._usage[key] = {}
-        cls._usage[key][today] = cls._usage[key].get(today, 0) + 1
+        with cls._lock:
+            if key not in cls._usage:
+                cls._usage[key] = {}
+            cls._usage[key][today] = cls._usage[key].get(today, 0) + 1
 
     @classmethod
     def get_usage(cls, user_id: int) -> Dict[str, int]:
         """获取用户使用情况"""
-        return cls._usage.get(str(user_id), {})
+        key = str(user_id)
+        with cls._lock:
+            return cls._usage.get(key, {}).copy()
 
     @classmethod
     def reset(cls, user_id: int):
         """重置用户配额"""
-        cls._usage.pop(str(user_id), None)
+        key = str(user_id)
+        with cls._lock:
+            cls._usage.pop(key, None)
 
 
 # ============================================================================
@@ -515,13 +523,12 @@ def load_users_from_db() -> int:
     if not is_persistent():
         return 0
 
-    # 由于用户数据存储在内存中，这里做种子用户初始化
-    # 检查是否已有用户
     count = 0
     import os
-    admin_pass = os.environ.get("ADMIN_PASSWORD", "admin123")
-    sync_user_to_db("admin", admin_pass, "admin")
-    count += 1
+    admin_pass = os.environ.get("ADMIN_PASSWORD")
+    if admin_pass:
+        sync_user_to_db("admin", admin_pass, "admin")
+        count += 1
 
     return count
 

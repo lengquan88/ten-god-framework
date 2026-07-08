@@ -33,6 +33,11 @@ import tempfile
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+try:
+    from fastapi import Request
+except ImportError:
+    Request = None
+
 
 # ============================================================================
 # 1. Pydantic 数据模型
@@ -702,7 +707,7 @@ def create_admin_app(
         title: 应用标题。
     """
     try:
-        from fastapi import FastAPI, HTTPException, Query
+        from fastapi import FastAPI, HTTPException, Query, Request, Depends
     except Exception as e:
         raise ImportError(
             f"create_admin_app 需要 fastapi: {e}\n"
@@ -717,6 +722,26 @@ def create_admin_app(
 
     app = FastAPI(title=title, version=__version__)
 
+    HAS_AUTH = False
+    authorize_func = None
+
+    try:
+        from tengod.auth import auth_middleware, authorize
+        from starlette.middleware.base import BaseHTTPMiddleware
+        app.add_middleware(BaseHTTPMiddleware, dispatch=auth_middleware)
+        authorize_func = authorize
+        HAS_AUTH = True
+    except Exception:
+        pass
+
+    def require_admin(request):
+        if not HAS_AUTH:
+            raise HTTPException(status_code=500, detail="认证模块不可用")
+        user = authorize_func(request, "*", consume_quota=False)
+        if user.role != "admin":
+            raise HTTPException(status_code=403, detail="需要管理员权限")
+        return user
+
     # ── 健康检查 ─────────────────────────────────────────────
     @app.get("/api/admin/health", tags=["系统"])
     async def health():
@@ -724,7 +749,12 @@ def create_admin_app(
 
     # ── 统计信息 ───────────────────────────────────────────
     @app.get("/api/admin/stats", tags=["系统"])
-    async def get_stats():
+    async def get_stats(request: Request):
+        if not HAS_AUTH:
+            raise HTTPException(status_code=500, detail="认证模块不可用")
+        user = authorize_func(request, "*", consume_quota=False)
+        if user.role != "admin":
+            raise HTTPException(status_code=403, detail="需要管理员权限")
         try:
             return admin_service.get_system_stats()
         except Exception as e:
@@ -733,13 +763,24 @@ def create_admin_app(
     # ── 八字记录 CRUD ─────────────────────────────────────
     @app.get("/api/admin/records", tags=["八字记录"])
     async def list_records(
+        request: Request,
         limit: int = Query(50, ge=1, le=500),
         offset: int = Query(0, ge=0),
     ):
+        if not HAS_AUTH:
+            raise HTTPException(status_code=500, detail="认证模块不可用")
+        user = authorize_func(request, "*", consume_quota=False)
+        if user.role != "admin":
+            raise HTTPException(status_code=403, detail="需要管理员权限")
         return admin_service.get_records_paginated(limit=limit, offset=offset)
 
     @app.post("/api/admin/records", tags=["八字记录"], status_code=201)
-    async def create_record_endpoint(payload: BaziRecordInput):
+    async def create_record_endpoint(request: Request, payload: BaziRecordInput):
+        if not HAS_AUTH:
+            raise HTTPException(status_code=500, detail="认证模块不可用")
+        user = authorize_func(request, "*", consume_quota=False)
+        if user.role != "admin":
+            raise HTTPException(status_code=403, detail="需要管理员权限")
         result = admin_service.create_record(payload)
         if result is None or isinstance(result, dict) and result.get("error"):
             raise HTTPException(
@@ -749,21 +790,36 @@ def create_admin_app(
         return result
 
     @app.get("/api/admin/records/{record_id}", tags=["八字记录"])
-    async def get_record_endpoint(record_id: int):
+    async def get_record_endpoint(request: Request, record_id: int):
+        if not HAS_AUTH:
+            raise HTTPException(status_code=500, detail="认证模块不可用")
+        user = authorize_func(request, "*", consume_quota=False)
+        if user.role != "admin":
+            raise HTTPException(status_code=403, detail="需要管理员权限")
         result = admin_service.get_record(record_id)
         if result is None:
             raise HTTPException(status_code=404, detail=f"记录 {record_id} 不存在")
         return result
 
     @app.patch("/api/admin/records/{record_id}", tags=["八字记录"])
-    async def update_record_endpoint(record_id: int, payload: BaziRecordUpdate):
+    async def update_record_endpoint(request: Request, record_id: int, payload: BaziRecordUpdate):
+        if not HAS_AUTH:
+            raise HTTPException(status_code=500, detail="认证模块不可用")
+        user = authorize_func(request, "*", consume_quota=False)
+        if user.role != "admin":
+            raise HTTPException(status_code=403, detail="需要管理员权限")
         ok = admin_service.update_record(record_id, payload)
         if not ok:
             raise HTTPException(status_code=404, detail=f"记录 {record_id} 不存在或无可更新字段")
         return {"ok": True, "id": record_id}
 
     @app.delete("/api/admin/records/{record_id}", tags=["八字记录"])
-    async def delete_record_endpoint(record_id: int):
+    async def delete_record_endpoint(request: Request, record_id: int):
+        if not HAS_AUTH:
+            raise HTTPException(status_code=500, detail="认证模块不可用")
+        user = authorize_func(request, "*", consume_quota=False)
+        if user.role != "admin":
+            raise HTTPException(status_code=403, detail="需要管理员权限")
         ok = admin_service.delete_record(record_id)
         if not ok:
             raise HTTPException(status_code=404, detail=f"记录 {record_id} 不存在")
@@ -772,30 +828,35 @@ def create_admin_app(
     # ── 案例管理 ───────────────────────────────────────────
     @app.get("/api/admin/cases", tags=["案例管理"])
     async def list_cases(
+        request: Request,
         limit: int = Query(50, ge=1, le=500),
         offset: int = Query(0, ge=0),
         category: Optional[str] = Query(None),
     ):
+        require_admin(request)
         return admin_service.get_cases_paginated(
             limit=limit, offset=offset, category=category,
         )
 
     @app.post("/api/admin/cases", tags=["案例管理"], status_code=201)
-    async def create_case_endpoint(payload: CaseInput):
+    async def create_case_endpoint(request: Request, payload: CaseInput):
+        require_admin(request)
         result = admin_service.create_case(payload)
         if isinstance(result, dict) and result.get("error"):
             raise HTTPException(status_code=400, detail=result["error"])
         return result
 
     @app.patch("/api/admin/cases/{case_id}", tags=["案例管理"])
-    async def update_case_endpoint(case_id: int, payload: CaseUpdate):
+    async def update_case_endpoint(request: Request, case_id: int, payload: CaseUpdate):
+        require_admin(request)
         ok = admin_service.update_case(case_id, payload)
         if not ok:
             raise HTTPException(status_code=404, detail=f"案例 {case_id} 不存在")
         return {"ok": True, "id": case_id}
 
     @app.delete("/api/admin/cases/{case_id}", tags=["案例管理"])
-    async def delete_case_endpoint(case_id: int):
+    async def delete_case_endpoint(request: Request, case_id: int):
+        require_admin(request)
         ok = admin_service.delete_case(case_id)
         if not ok:
             raise HTTPException(status_code=404, detail=f"案例 {case_id} 不存在")
@@ -803,18 +864,21 @@ def create_admin_app(
 
     # ── 用户管理 ───────────────────────────────────────────
     @app.get("/api/admin/users", tags=["用户管理"])
-    async def list_users_endpoint(limit: int = Query(50, ge=1, le=500)):
+    async def list_users_endpoint(request: Request, limit: int = Query(50, ge=1, le=500)):
+        require_admin(request)
         return admin_service.get_users(limit=limit)
 
     @app.get("/api/admin/users/{user_id}", tags=["用户管理"])
-    async def get_user_endpoint(user_id: int):
+    async def get_user_endpoint(request: Request, user_id: int):
+        require_admin(request)
         result = admin_service.get_user(user_id)
         if result is None:
             raise HTTPException(status_code=404, detail=f"用户 {user_id} 不存在")
         return result
 
     @app.patch("/api/admin/users/{user_id}", tags=["用户管理"])
-    async def update_user_endpoint(user_id: int, payload: UserUpdate):
+    async def update_user_endpoint(request: Request, user_id: int, payload: UserUpdate):
+        require_admin(request)
         ok = admin_service.update_user(user_id, payload)
         if not ok:
             raise HTTPException(status_code=404, detail=f"用户 {user_id} 不存在")
@@ -822,7 +886,8 @@ def create_admin_app(
 
     # ── 高级分析 ───────────────────────────────────────────
     @app.post("/api/admin/analysis/trajectory", tags=["高级分析"])
-    async def trajectory_endpoint(query: TrajectoryQuery):
+    async def trajectory_endpoint(request: Request, query: TrajectoryQuery):
+        require_admin(request)
         q = query.model_dump(exclude_none=True)
         if q.get("bazi_record_id"):
             result = admin_service.get_trajectory(
@@ -846,14 +911,16 @@ def create_admin_app(
         return result
 
     @app.post("/api/admin/analysis/batch", tags=["高级分析"])
-    async def batch_endpoint(query: BatchBaziQuery):
+    async def batch_endpoint(request: Request, query: BatchBaziQuery):
+        require_admin(request)
         result = admin_service.batch_bazi(query.records)
         if isinstance(result, dict) and result.get("error"):
             raise HTTPException(status_code=400, detail=result["error"])
         return result
 
     @app.post("/api/admin/analysis/compare", tags=["高级分析"])
-    async def compare_endpoint(query: CompareQuery):
+    async def compare_endpoint(request: Request, query: CompareQuery):
+        require_admin(request)
         result = admin_service.compare_cases(query.record_a_id, query.record_b_id)
         if isinstance(result, dict) and result.get("error"):
             raise HTTPException(status_code=400, detail=result["error"])
@@ -861,14 +928,16 @@ def create_admin_app(
 
     # ── 配置管理 ───────────────────────────────────────────
     @app.post("/api/admin/config", tags=["系统"])
-    async def set_config_endpoint(payload: ConfigUpdate):
+    async def set_config_endpoint(request: Request, payload: ConfigUpdate):
+        require_admin(request)
         ok = admin_service.set_config(payload.key, payload.value)
         if not ok:
             raise HTTPException(status_code=400, detail="写入失败")
         return {"key": payload.key, "value": payload.value, "ok": True}
 
     @app.get("/api/admin/config", tags=["系统"])
-    async def list_config_endpoint():
+    async def list_config_endpoint(request: Request):
+        require_admin(request)
         return admin_service.list_config()
 
     return app
