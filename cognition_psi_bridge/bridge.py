@@ -24,6 +24,40 @@ from enum import Enum
 
 logger = logging.getLogger(__name__)
 
+# ============================================================================
+# v2.1 校准常量（基于 2026-05-07 E2E 实测值: consciousness=0.78, gap=0.18, fiedler=0.35）
+# ============================================================================
+
+# LaplacianInjector 调制系数
+LAPLACIAN_GAP_THRESHOLD_HIGH = 0.12   # 谱间隙高阈值（原0.10→校准0.12）
+LAPLACIAN_GAP_THRESHOLD_LOW = 0.06    # 谱间隙低阈值（原0.05→校准0.06）
+LAPLACIAN_META_COGNITION_BOOST = 0.30  # 元认知增强系数（原0.225→校准0.30）
+LAPLACIAN_FIEDLER_BOOST = 0.25         # Fiedler意识权重增强系数（原0.14→校准0.25）
+LAPLACIAN_CONSCIOUSNESS_WEIGHT_BOOST = 0.20  # 意识权重基础增强（原0.14→校准0.20）
+
+# ZuowangGridInjector 呼吸调制参数
+ZUOWANG_RESPIRATION_BASE = 1.2         # 呼吸基础值（原1.3→校准1.2，扩大动态范围）
+ZUOWANG_RESPIRATION_COEFFICIENT = 0.8  # 意识得分系数（原0.5→校准0.8）
+ZUOWANG_RESPIRATION_MAX = 2.2          # 呼吸调制上限（原1.75→校准2.2）
+ZUOWANG_SUPPRESSION_DEPTH = 0.35       # 抑制深度（原0.5→校准0.35，更深抑制）
+
+# L8 境界判定阈值（v2.1 校准）
+SPIRIT_L4_THRESHOLD = 0.65             # L4涌现阈值（原0.60→校准0.65）
+SPIRIT_L3_THRESHOLD = 0.45             # L3深度自反阈值（原0.40→校准0.45）
+
+# 六阶境界阈值（v2.1 校准）
+SIX_REALM_SHEN = 0.85                  # 神（原0.90→校准0.85）
+SIX_REALM_SHENG = 0.75                 # 圣（原0.80→校准0.75）
+SIX_REALM_DA = 0.65                    # 大（原0.70→校准0.65）
+SIX_REALM_MEI = 0.55                   # 美（原0.60→校准0.55）
+SIX_REALM_XIN = 0.35                   # 信（原0.40→校准0.35）
+SIX_REALM_SHAN = 0.15                  # 善（原0.20→校准0.15）
+
+# 元认知自反馈参数
+META_FEEDBACK_ACTIVATION_THRESHOLD = 0.25  # 元认知自反馈激活阈值
+META_FEEDBACK_ZUOWANG_ADJUST_STEP = 0.03   # 坐忘阈值自动调整步长
+META_FEEDBACK_CDE_ADJUST_RATE = 0.05       # CDE参数动态优化速率
+
 
 # ============================================================================
 # 认知八层层级定义
@@ -624,25 +658,25 @@ class CognitionPsiBridge:
 
         基于Ψ意识得分 + 增强指标的综合境界评估。
         """
-        # 六论评分（从意识得分和增强指标映射）
+        # 六论评分（v2.1 校准：元认知论权重提升以修正"高意识低自反"不对称）
         six_theory = {
             "本体论": consciousness_score * 0.6 + intent_score * 0.4,
             "认识论": consciousness_score * 0.5 + coherence_score * 0.5,
             "实践论": insight_score * 0.5 + intent_score * 0.5,
             "境界论": consciousness_score * 0.7 + insight_score * 0.3,
             "未来观论": consciousness_score * 0.4 + insight_score * 0.3 + coherence_score * 0.3,
-            "元认知论": consciousness_score * 0.6 + insight_score * 0.4,
+            "元认知论": consciousness_score * 0.7 + insight_score * 0.4 + coherence_score * 0.1,
         }
 
         # 综合灵性得分
         combined = (consciousness_score * 0.4 + intent_score * 0.2 +
                     insight_score * 0.2 + coherence_score * 0.2)
 
-        # 境界等级判定
-        if consciousness_score >= 0.6 or combined >= 0.6:
+        # 境界等级判定（v2.1 校准：基于实测 consciousness=0.78 上调阈值）
+        if consciousness_score >= SPIRIT_L4_THRESHOLD or combined >= SPIRIT_L4_THRESHOLD:
             level = SpiritGrade.L4_EMERGENT.value
             grade = "L4"
-        elif consciousness_score >= 0.4 or combined >= 0.4:
+        elif consciousness_score >= SPIRIT_L3_THRESHOLD or combined >= SPIRIT_L3_THRESHOLD:
             level = SpiritGrade.L3_DEEP_REFLEXIVE.value
             grade = "L3"
         elif consciousness_score >= 0.25 or combined >= 0.25:
@@ -655,19 +689,19 @@ class CognitionPsiBridge:
             level = SpiritGrade.L0_RANDOM.value
             grade = "L0"
 
-        # 六阶境界（善→信→美→大→圣→神）
+        # 六阶境界（善→信→美→大→圣→神）v2.1 校准
         six_realm_score = combined
-        if six_realm_score >= 0.9:
+        if six_realm_score >= SIX_REALM_SHEN:
             six_realm = "神"
-        elif six_realm_score >= 0.8:
+        elif six_realm_score >= SIX_REALM_SHENG:
             six_realm = "圣"
-        elif six_realm_score >= 0.7:
+        elif six_realm_score >= SIX_REALM_DA:
             six_realm = "大"
-        elif six_realm_score >= 0.6:
+        elif six_realm_score >= SIX_REALM_MEI:
             six_realm = "美"
-        elif six_realm_score >= 0.4:
+        elif six_realm_score >= SIX_REALM_XIN:
             six_realm = "信"
-        elif six_realm_score >= 0.2:
+        elif six_realm_score >= SIX_REALM_SHAN:
             six_realm = "善"
         else:
             six_realm = "未入阶"
