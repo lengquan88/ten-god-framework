@@ -40,6 +40,35 @@ DB_PATH = os.environ.get("TENGOD_DB_PATH", "tengod.db")
 
 SCHEMA_VERSION = 1
 
+ALLOWED_TABLES = {
+    "cases": {
+        "id", "name", "bazi_data", "analysis", "tags", "category",
+        "metadata", "created_at", "updated_at"
+    },
+    "feedback": {
+        "id", "session_id", "domain", "accuracy", "satisfaction",
+        "usefulness", "comment", "analysis_type", "corrections",
+        "tags", "created_at"
+    },
+    "conversations": {
+        "id", "session_id", "role", "message", "intent", "created_at"
+    },
+    "kg_nodes": {
+        "id", "domain", "concept", "confidence", "properties",
+        "sources", "created_at", "updated_at"
+    },
+    "kg_edges": {
+        "id", "source_id", "target_id", "relation", "weight",
+        "confidence", "created_at"
+    },
+    "users": {
+        "id", "username", "api_key", "role", "quota_used",
+        "quota_limit", "metadata", "created_at", "updated_at"
+    },
+}
+
+EXPORT_TABLES = ["cases", "feedback", "conversations", "kg_nodes", "kg_edges", "users"]
+
 CREATE_TABLES_SQL = [
     # ── 案例表 ──
     """
@@ -232,8 +261,8 @@ class DatabaseManager:
         """获取数据库统计"""
         with self._cursor() as cur:
             stats = {}
-            for table in ["cases", "feedback", "conversations", "kg_nodes", "kg_edges", "users"]:
-                cur.execute(f"SELECT COUNT(*) FROM {table}")
+            for table in EXPORT_TABLES:
+                cur.execute(f'SELECT COUNT(*) FROM "{table}"')
                 stats[table] = cur.fetchone()[0]
             return stats
 
@@ -634,25 +663,30 @@ class DatabaseManager:
         """导出全部数据为 JSON"""
         with self._cursor() as cur:
             tables = {}
-            for table in ["cases", "feedback", "conversations", "kg_nodes", "kg_edges", "users"]:
-                cur.execute(f"SELECT * FROM {table}")
+            for table in EXPORT_TABLES:
+                cur.execute(f'SELECT * FROM "{table}"')
                 tables[table] = [dict(row) for row in cur.fetchall()]
             return {"schema_version": SCHEMA_VERSION, "exported_at": time.time(), "tables": tables}
 
     def import_all(self, data: Dict[str, Any]) -> Dict[str, int]:
-        """从 JSON 导入全部数据"""
+        """从 JSON 导入全部数据（仅允许白名单内的表和列）"""
         counts = {}
         tables = data.get("tables", {})
         for table_name, rows in tables.items():
+            if table_name not in ALLOWED_TABLES:
+                raise ValueError(f"Invalid table name: {table_name}")
             if not rows:
                 counts[table_name] = 0
                 continue
+            allowed_cols = ALLOWED_TABLES[table_name]
             with self._cursor() as cur:
-                columns = list(rows[0].keys())
+                columns = [c for c in rows[0].keys() if c in allowed_cols]
+                if not columns:
+                    raise ValueError(f"No valid columns for table: {table_name}")
                 placeholders = ", ".join(["?"] * len(columns))
-                col_names = ", ".join(columns)
-                sql = f"INSERT OR REPLACE INTO {table_name} ({col_names}) VALUES ({placeholders})"
-                cur.executemany(sql, [tuple(r[c] for c in columns) for r in rows])
+                col_names = ", ".join(f'"{c}"' for c in columns)
+                sql = f'INSERT OR REPLACE INTO "{table_name}" ({col_names}) VALUES ({placeholders})'
+                cur.executemany(sql, [tuple(r.get(c) for c in columns) for r in rows])
                 counts[table_name] = len(rows)
         return counts
 
@@ -696,4 +730,7 @@ __all__ = [
     "is_persistent",
     "STORAGE_BACKEND",
     "DB_PATH",
+    "ALLOWED_TABLES",
+    "EXPORT_TABLES",
+    "SCHEMA_VERSION",
 ]
