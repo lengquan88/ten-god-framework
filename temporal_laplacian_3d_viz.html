@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>语义嵌入空间拓扑演化 - 3D可视化</title>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+<style>
+  :root {
+    --bg-primary: #0a0a14;
+    --bg-panel: #111122;
+    --bg-card: #16162a;
+    --border: #2a2a4a;
+    --text-primary: #e0e0f0;
+    --text-secondary: #8888aa;
+    --accent-cyan: #00e5ff;
+    --accent-green: #00e676;
+    --accent-orange: #ff9100;
+    --accent-pink: #ff4081;
+    --accent-blue: #448aff;
+    --accent-purple: #b388ff;
+    --cluster1: #ff6e40;
+    --cluster2: #40c4ff;
+    --cluster3: #69f0ae;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg-primary);
+    font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    color: var(--text-primary);
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+  }
+  #app {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-rows: 72px 1fr 1fr 1fr;
+    gap: 8px;
+    padding: 8px;
+    height: 100vh;
+    width: 100vw;
+  }
+  /* 顶部指标面板 */
+  #metrics-panel {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 0 20px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  #metrics-panel .title {
+    font-size: 18px;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    white-space: nowrap;
+    margin-right: 12px;
+  }
+  #metrics-panel .metric {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 6px 14px;
+    background: var(--bg-card);
+    border-radius: 6px;
+    border: 1px solid var(--border);
+  }
+  #metrics-panel .metric .label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  #metrics-panel .metric .value {
+    font-size: 16px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  }
+  .metric .value.highlight { color: var(--accent-cyan); }
+  .metric .value.green { color: var(--accent-green); }
+  .metric .value.orange { color: var(--accent-orange); }
+  .metric .value.pink { color: var(--accent-pink); }
+  .metric .value.purple { color: var(--accent-purple); }
+
+  /* 3D视图 */
+  #three-container {
+    grid-column: 1 / 3;
+    grid-row: 2 / 5;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    position: relative;
+    overflow: hidden;
+    cursor: grab;
+  }
+  #three-container:active { cursor: grabbing; }
+  #three-container canvas { display: block; }
+  #three-container .view-label {
+    position: absolute;
+    top: 12px;
+    left: 16px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    letter-spacing: 1px;
+    pointer-events: none;
+    z-index: 10;
+  }
+  #three-container .legend {
+    position: absolute;
+    bottom: 16px;
+    left: 16px;
+    display: flex;
+    gap: 16px;
+    pointer-events: none;
+    z-index: 10;
+  }
+  #three-container .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+  #three-container .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+
+  /* 图表面板 */
+  .chart-panel {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    position: relative;
+    overflow: hidden;
+  }
+  .chart-panel .chart-label {
+    position: absolute;
+    top: 8px;
+    left: 14px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    letter-spacing: 0.8px;
+    z-index: 10;
+    pointer-events: none;
+  }
+  #chart-eigenvalues { grid-column: 3; grid-row: 2; }
+  #chart-h1h0 { grid-column: 3; grid-row: 3; }
+  #chart-persistence { grid-column: 3; grid-row: 4; }
+
+  /* 响应式 */
+  @media (max-width: 900px) {
+    #app {
+      grid-template-columns: 1fr;
+      grid-template-rows: auto 300px 200px 200px 200px;
+    }
+    #three-container { grid-column: 1; grid-row: 2; min-height: 300px; }
+    #chart-eigenvalues { grid-column: 1; grid-row: 3; }
+    #chart-h1h0 { grid-column: 1; grid-row: 4; }
+    #chart-persistence { grid-column: 1; grid-row: 5; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- 指标面板 -->
+  <div id="metrics-panel">
+    <span class="title">🔬 拉普拉斯拓扑演化分析</span>
+    <div class="metric"><span class="label">谱隙</span><span class="value highlight">0.18</span></div>
+    <div class="metric"><span class="label">Fiedler值</span><span class="value green">0.35</span></div>
+    <div class="metric"><span class="label">谱熵</span><span class="value orange">0.75</span></div>
+    <div class="metric"><span class="label">特征值比</span><span class="value pink">5.67</span></div>
+    <div class="metric"><span class="label">节点数</span><span class="value purple">30</span></div>
+  </div>
+
+  <!-- 3D散点图 -->
+  <div id="three-container">
+    <div class="view-label">三维语义嵌入空间 · 拉普拉斯特征映射</div>
+    <div class="legend">
+      <div class="legend-item"><span class="legend-dot" style="background:#ff6e40;"></span>聚类 1 (中心 +3)</div>
+      <div class="legend-item"><span class="legend-dot" style="background:#40c4ff;"></span>聚类 2 (中心 −2)</div>
+      <div class="legend-item"><span class="legend-dot" style="background:#69f0ae;"></span>聚类 3 (中心 &nbsp;0)</div>
+    </div>
+  </div>
+
+  <!-- 拉普拉斯特征值谱 -->
+  <div class="chart-panel" id="chart-eigenvalues">
+    <div class="chart-label">拉普拉斯特征值谱</div>
+  </div>
+
+  <!-- H1/H0比率演化 -->
+  <div class="chart-panel" id="chart-h1h0">
+    <div class="chart-label">H₁/H₀ 比率演化</div>
+  </div>
+
+  <!-- 持续性图 -->
+  <div class="chart-panel" id="chart-persistence">
+    <div class="chart-label">持续性图 (H₀ · H₁)</div>
+  </div>
+</div>
+
+<script>
+// ========== 全局数据 ==========
+const N_NODES = 30;
+const CLUSTER_CONFIG = [
+  { center: [ 3.0,  1.5,  0.5], color: 0xff6e40, name: '聚类 1' },
+  { center: [-2.0, -0.8, -1.2], color: 0x40c4ff, name: '聚类 2' },
+  { center: [ 0.0,  0.2,  0.8], color: 0x69f0ae, name: '聚类 3' },
+];
+const NODES_PER_CLUSTER = 10;
+
+// 生成节点数据
+function generateNodeData() {
+  const nodes = [];
+  for (let c = 0; c < 3; c++) {
+    const cfg = CLUSTER_CONFIG[c];
+    for (let i = 0; i < NODES_PER_CLUSTER; i++) {
+      nodes.push({
+        basePos: [
+          cfg.center[0] + (Math.random() - 0.5) * 2.0,
+          cfg.center[1] + (Math.random() - 0.5) * 2.0,
+          cfg.center[2] + (Math.random() - 0.5) * 2.0,
+        ],
+        cluster: c,
+        color: cfg.color,
+        phase: Math.random() * Math.PI * 2,
+        pulseSpeed: 0.8 + Math.random() * 1.6,
+        pulseAmp: 0.08 + Math.random() * 0.22,
+      });
+    }
+  }
+  return nodes;
+}
+const nodeData = generateNodeData();
+
+// ========== Three.js 3D 场景 ==========
+const container = document.getElementById('three-container');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0a18);
+scene.fog = new THREE.FogExp2(0x0a0a18, 0.0003);
+
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+camera.position.set(8, 5, 10);
+camera.lookAt(0.5, 0.2, 0);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+container.appendChild(renderer.domElement);
+
+// 光源
+const ambientLight = new THREE.AmbientLight(0x222244, 2.5);
+scene.add(ambientLight);
+const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
+directionalLight.position.set(5, 10, 5);
+directionalLight.castShadow = true;
+directionalLight.shadow.mapSize.set(512, 512);
+directionalLight.shadow.camera.near = 0.5;
+directionalLight.shadow.camera.far = 50;
+scene.add(directionalLight);
+
+// 点光源制造氛围
+const pointLight1 = new THREE.PointLight(0x4488ff, 30, 20);
+pointLight1.position.set(3, 2, 2);
+scene.add(pointLight1);
+const pointLight2 = new THREE.PointLight(0xff4488, 20, 18);
+pointLight2.position.set(-2, -1, -1);
+scene.add(pointLight2);
+
+// 网格参考面
+const gridHelper = new THREE.PolarGridHelper(8, 32, 24, 64, 0x222244, 0x222244);
+scene.add(gridHelper);
+
+// 坐标轴指示
+const axisLen = 6;
+function createAxis(dir, color, len) {
+  const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.45 });
+  const pts = [new THREE.Vector3(0, 0, 0), dir.clone().multiplyScalar(len)];
+  const geo = new THREE.BufferGeometry().setFromPoints(pts);
+  return new THREE.Line(geo, mat);
+}
+scene.add(createAxis(new THREE.Vector3(1, 0, 0), 0xff4444, axisLen));
+scene.add(createAxis(new THREE.Vector3(0, 1, 0), 0x44ff44, axisLen));
+scene.add(createAxis(new THREE.Vector3(0, 0, 1), 0x4444ff, axisLen));
+
+// 小箭头标记轴端
+function createAxisLabel(pos, text, color) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 64; canvas.height = 32;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = color;
+  ctx.font = 'bold 14px monospace';
+  ctx.fillText(text, 4, 20);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.minFilter = THREE.LinearFilter;
+  const spriteMat = new THREE.SpriteMaterial({ map: tex, transparent: true });
+  const sprite = new THREE.Sprite(spriteMat);
+  sprite.position.copy(pos);
+  sprite.scale.set(1.2, 0.6, 1);
+  return sprite;
+}
+scene.add(createAxisLabel(new THREE.Vector3(axisLen + 0.6, 0, 0), 'X', '#ff6666'));
+scene.add(createAxisLabel(new THREE.Vector3(0, axisLen + 0.6, 0), 'Y', '#66ff66'));
+scene.add(createAxisLabel(new THREE.Vector3(0, 0, axisLen + 0.6), 'Z', '#6666ff'));
+
+// 创建球体节点
+const sphereGeo = new THREE.SphereGeometry(0.12, 16, 16);
+const glowGeo = new THREE.SphereGeometry(0.24, 16, 16);
+
+const nodeMeshes = [];
+const glowMeshes = [];
+
+nodeData.forEach((nd) => {
+  // 主体球
+  const mat = new THREE.MeshStandardMaterial({
+    color: nd.color,
+    roughness: 0.35,
+    metalness: 0.2,
+    emissive: nd.color,
+    emissiveIntensity: 0.5,
+  });
+  const sphere = new THREE.Mesh(sphereGeo, mat);
+  sphere.position.set(...nd.basePos);
+  sphere.castShadow = true;
+  sphere.receiveShadow = true;
+  sphere.userData = { nodeData: nd };
+  scene.add(sphere);
+  nodeMeshes.push(sphere);
+
+  // 光晕
+  const glowMat = new THREE.MeshBasicMaterial({
+    color: nd.color,
+    transparent: true,
+    opacity: 0.18,
+    depthWrite: false,
+  });
+  const glow = new THREE.Mesh(glowGeo, glowMat);
+  glow.position.copy(sphere.position);
+  glow.renderOrder = 1;
+  glow.material.depthTest = true;
+  glow.material.depthWrite = false;
+  scene.add(glow);
+  glowMeshes.push(glow);
+});
+
+// 聚类中心连线（弱连接）
+const clusterGroupCenters = CLUSTER_CONFIG.map(c => new THREE.Vector3(...c.center));
+for (let i = 0; i < 3; i++) {
+  for (let j = i + 1; j < 3; j++) {
+    const pts = [clusterGroupCenters[i], clusterGroupCenters[j]];
+    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+    const line = new THREE.Line(geo, new THREE.LineBasicMaterial({
+      color: 0x334466,
+      transparent: true,
+      opacity: 0.35,
+      depthWrite: true,
+    }));
+    scene.add(line);
+  }
+}
+
+// 边缘连线（选部分节点对）
+const allPositions = nodeMeshes.map(m => m.position.clone());
+for (let i = 0; i < N_NODES; i++) {
+  for (let j = i + 1; j < N_NODES; j++) {
+    const dist = allPositions[i].distanceTo(allPositions[j]);
+    if (dist < 2.2 && Math.random() < 0.35) {
+      const pts = [allPositions[i], allPositions[j]];
+      const geo = new THREE.BufferGeometry().setFromPoints(pts);
+      const line = new THREE.Line(geo, new THREE.LineBasicMaterial({
+        color: 0x334466,
+        transparent: true,
+        opacity: 0.15,
+        depthWrite: true,
+      }));
+      line.userData = { i, j };
+      scene.add(line);
+      // 存储引用以便后续更新
+      if (!scene.userData.edges) scene.userData.edges = [];
+      scene.userData.edges.push(line);
+    }
+  }
+}
+if (!scene.userData.edges) scene.userData.edges = [];
+
+// ========== Orbit Controls ==========
+let isDragging = false;
+let prevMouse = { x: 0, y: 0 };
+let spherical = { theta: Math.PI / 4, phi: Math.PI / 3, radius: 12 };
+const target = new THREE.Vector3(0.5, 0.2, 0);
+
+function updateCameraFromSpherical() {
+  const sp = spherical;
+  camera.position.set(
+    target.x + sp.radius * Math.sin(sp.phi) * Math.cos(sp.theta),
+    target.y + sp.radius * Math.cos(sp.phi),
+    target.z + sp.radius * Math.sin(sp.phi) * Math.sin(sp.theta),
+  );
+  camera.lookAt(target);
+}
+updateCameraFromSpherical();
+
+container.addEventListener('mousedown', (e) => {
+  isDragging = true;
+  prevMouse.x = e.clientX;
+  prevMouse.y = e.clientY;
+});
+window.addEventListener('mouseup', () => { isDragging = false; });
+window.addEventListener('mousemove', (e) => {
+  if (!isDragging) return;
+  const dx = e.clientX - prevMouse.x;
+  const dy = e.clientY - prevMouse.y;
+  spherical.theta -= dx * 0.005;
+  spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi - dy * 0.005));
+  spherical.radius = Math.max(3, Math.min(30, spherical.radius));
+  prevMouse.x = e.clientX;
+  prevMouse.y = e.clientY;
+  updateCameraFromSpherical();
+});
+container.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  spherical.radius *= (1 + e.deltaY * 0.001);
+  spherical.radius = Math.max(3, Math.min(30, spherical.radius));
+  updateCameraFromSpherical();
+}, { passive: false });
+
+// 触摸支持
+container.addEventListener('touchstart', (e) => {
+  if (e.touches.length === 1) {
+    isDragging = true;
+    prevMouse.x = e.touches[0].clientX;
+    prevMouse.y = e.touches[0].clientY;
+  }
+});
+window.addEventListener('touchend', () => { isDragging = false; });
+window.addEventListener('touchmove', (e) => {
+  if (!isDragging || e.touches.length !== 1) return;
+  const dx = e.touches[0].clientX - prevMouse.x;
+  const dy = e.touches[0].clientY - prevMouse.y;
+  spherical.theta -= dx * 0.005;
+  spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi - dy * 0.005));
+  prevMouse.x = e.touches[0].clientX;
+  prevMouse.y = e.touches[0].clientY;
+  updateCameraFromSpherical();
+});
+
+// ========== 3D 渲染循环 ==========
+function resizeThree() {
+  const rect = container.getBoundingClientRect();
+  const w = rect.width;
+  const h = rect.height;
+  if (w <= 0 || h <= 0) return;
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resizeThree);
+
+const clock = new THREE.Clock();
+function animate() {
+  requestAnimationFrame(animate);
+  const t = clock.getElapsedTime();
+
+  // 节点脉动
+  for (let i = 0; i < nodeMeshes.length; i++) {
+    const nd = nodeData[i];
+    const sphere = nodeMeshes[i];
+    const glow = glowMeshes[i];
+    const pulse = Math.sin(t * nd.pulseSpeed + nd.phase) * nd.pulseAmp;
+
+    // 位置微调
+    sphere.position.set(
+      nd.basePos[0] + pulse * 0.5,
+      nd.basePos[1] + pulse * 0.5,
+      nd.basePos[2] + pulse * 0.5,
+    );
+    // 缩放脉动
+    const s = 1 + pulse;
+    sphere.scale.setScalar(s);
+    glow.scale.setScalar(s * 2.2);
+    // 光晕透明度脉动
+    glow.material.opacity = 0.12 + Math.abs(pulse) * 0.8;
+    // 自发光强度脉动
+    sphere.material.emissiveIntensity = 0.4 + Math.abs(pulse) * 1.0;
+  }
+
+  // 更新边缘连线
+  scene.userData.edges.forEach((line) => {
+    const { i, j } = line.userData;
+    const posA = nodeMeshes[i].position;
+    const posB = nodeMeshes[j].position;
+    const positions = line.geometry.attributes.position;
+    positions.setXYZ(0, posA.x, posA.y, posA.z);
+    positions.setXYZ(1, posB.x, posB.y, posB.z);
+    positions.needsUpdate = true;
+  });
+
+  // 光源微动
+  pointLight1.intensity = 28 + Math.sin(t * 0.7) * 5;
+  pointLight2.intensity = 18 + Math.cos(t * 0.9) * 4;
+
+  renderer.render(scene, camera);
+}
+
+// ========== ECharts 通用主题 ==========
+const darkTheme = {
+  textStyle: { color: '#c0c0d0' },
+  backgroundColor: 'transparent',
+};
+
+// ========== 图表1: 拉普拉斯特征值谱 ==========
+function createEigenvalueChart() {
+  const dom = document.getElementById('chart-eigenvalues');
+  const chart = echarts.init(dom);
+
+  // 生成特征值：λ₀=0, λ₁=0.35 (Fiedler), spectral_gap=0.18 意味着 λ₂-λ₁=0.18 → λ₂=0.53
+  const eigenvalues = [0.00, 0.35, 0.53, 0.82, 1.14, 1.55, 2.03, 2.61, 3.28, 4.12, 5.08, 6.21];
+  const labels = eigenvalues.map((_, i) => `λ${i}`);
+  const barColors = eigenvalues.map((v, i) => {
+    if (i === 0) return '#666688';
+    if (i === 1) return '#00e676';
+    return new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+      { offset: 0, color: '#448aff' },
+      { offset: 1, color: '#1a237e' },
+    ]);
+  });
+
+  const option = {
+    ...darkTheme,
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      formatter: (p) => `${p[0].name}: <b>${p[0].value.toFixed(3)}</b>`,
+    },
+    grid: { left: 48, right: 16, top: 32, bottom: 28 },
+    xAxis: {
+      type: 'category',
+      data: labels,
+      axisLabel: { color: '#8888aa', fontSize: 10, interval: 0, rotate: 30 },
+      axisLine: { lineStyle: { color: '#2a2a4a' } },
+      axisTick: { show: false },
+    },
+    yAxis: {
+      type: 'value',
+      name: '特征值',
+      nameTextStyle: { color: '#8888aa', fontSize: 10 },
+      axisLabel: { color: '#8888aa', fontSize: 10 },
+      splitLine: { lineStyle: { color: '#1a1a33', type: 'dashed' } },
+    },
+    series: [{
+      type: 'bar',
+      data: eigenvalues.map((v, i) => ({
+        value: v,
+        itemStyle: { color: barColors[i], borderRadius: [3, 3, 0, 0] },
+      })),
+      barWidth: '55%',
+      emphasis: {
+        itemStyle: { shadowBlur: 10, shadowColor: 'rgba(68,138,255,0.5)' },
+      },
+      markLine: {
+        silent: true,
+        symbol: 'none',
+        lineStyle: { color: '#ff9100', type: 'dashed', width: 1.5 },
+        label: { color: '#ff9100', fontSize: 10, formatter: '谱隙 = 0.18' },
+        data: [{ yAxis: 0.53, label: { formatter: '谱隙\n0.18', position: 'end' } }],
+      },
+    }],
+  };
+  chart.setOption(option);
+  return chart;
+}
+
+// ========== 图表2: H₁/H₀ 比率演化 ==========
+function createH1H0Chart() {
+  const dom = document.getElementById('chart-h1h0');
+  const chart = echarts.init(dom);
+
+  const timePoints = [];
+  const h1h0Values = [];
+  const h0Values = [];
+  const h1Values = [];
+  const n = 40;
+  for (let i = 0; i < n; i++) {
+    const t = i / (n - 1);
+    timePoints.push(`t${i}`);
+    // 模拟拓扑复杂度随时间演化：H1/H0 先增后趋于稳定
+    const base = 0.15 + 0.45 * (1 - Math.exp(-t * 4));
+    const noise = (Math.sin(t * 8) * 0.03 + Math.cos(t * 13) * 0.02);
+    const h0 = 3 + Math.floor(t * 2) + Math.round(Math.sin(t * 6) * 0.5);
+    const h1 = Math.max(0, Math.round(h0 * (base + noise)));
+    h0Values.push(h0);
+    h1Values.push(h1);
+    h1h0Values.push(h0 > 0 ? h1 / h0 : 0);
+  }
+
+  const option = {
+    ...darkTheme,
+    tooltip: {
+      trigger: 'axis',
+      formatter: (params) => {
+        const lines = params.map(p => `${p.seriesName}: <b>${typeof p.value === 'number' ? p.value.toFixed(3) : p.value}</b>`);
+        return lines.join('<br/>');
+      },
+    },
+    legend: {
+      data: ['H₁/H₀', 'H₀', 'H₁'],
+      bottom: 0,
+      textStyle: { color: '#8888aa', fontSize: 10 },
+      itemWidth: 14,
+      itemHeight: 8,
+    },
+    grid: { left: 48, right: 16, top: 32, bottom: 36 },
+    xAxis: {
+      type: 'category',
+      data: timePoints,
+      axisLabel: { color: '#8888aa', fontSize: 9, interval: 7 },
+      axisLine: { lineStyle: { color: '#2a2a4a' } },
+      axisTick: { show: false },
+    },
+    yAxis: [{
+      type: 'value',
+      name: '比率',
+      nameTextStyle: { color: '#8888aa', fontSize: 10 },
+      axisLabel: { color: '#8888aa', fontSize: 10 },
+      splitLine: { lineStyle: { color: '#1a1a33', type: 'dashed' } },
+      min: 0,
+      max: 0.7,
+    }, {
+      type: 'value',
+      name: '计数',
+      nameTextStyle: { color: '#8888aa', fontSize: 10 },
+      axisLabel: { color: '#8888aa', fontSize: 10 },
+      splitLine: { show: false },
+      min: 0,
+    }],
+    series: [{
+      name: 'H₁/H₀',
+      type: 'line',
+      data: h1h0Values,
+      smooth: true,
+      symbol: 'none',
+      lineStyle: { color: '#00e5ff', width: 2 },
+      areaStyle: {
+        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+          { offset: 0, color: 'rgba(0,229,255,0.25)' },
+          { offset: 1, color: 'rgba(0,229,255,0.02)' },
+        ]),
+      },
+    }, {
+      name: 'H₀',
+      type: 'line',
+      yAxisIndex: 1,
+      data: h0Values,
+      step: 'end',
+      lineStyle: { color: '#ff9100', width: 1.5, type: 'dashed' },
+      symbol: 'none',
+    }, {
+      name: 'H₁',
+      type: 'line',
+      yAxisIndex: 1,
+      data: h1Values,
+      step: 'end',
+      lineStyle: { color: '#ff4081', width: 1.5, type: 'dashed' },
+      symbol: 'none',
+    }],
+  };
+  chart.setOption(option);
+  return chart;
+}
+
+// ========== 图表3: 持续性图 ==========
+function createPersistenceChart() {
+  const dom = document.getElementById('chart-persistence');
+  const chart = echarts.init(dom);
+
+  // H0 持续性对：出生在0附近，死亡值递增
+  const h0Pairs = [];
+  for (let i = 0; i < 8; i++) {
+    h0Pairs.push({
+      birth: Math.random() * 0.08,
+      death: 0.3 + i * 0.7 + Math.random() * 0.5,
+    });
+  }
+  // H1 持续性对
+  const h1Pairs = [];
+  for (let i = 0; i < 12; i++) {
+    const birth = 1.0 + Math.random() * 4.5;
+    const death = birth + 0.3 + Math.random() * 2.5;
+    h1Pairs.push({ birth, death });
+  }
+
+  const diagMax = 7.5;
+  const option = {
+    ...darkTheme,
+    tooltip: {
+      trigger: 'item',
+      formatter: (p) => {
+        const d = p.data;
+        const persistence = (d[1] - d[0]).toFixed(3);
+        return `${p.seriesName}<br/>出生: <b>${d[0].toFixed(3)}</b><br/>死亡: <b>${d[1].toFixed(3)}</b><br/>持续性: <b>${persistence}</b>`;
+      },
+    },
+    legend: {
+      data: ['H₀ (连通分量)', 'H₁ (环/洞)'],
+      bottom: 0,
+      textStyle: { color: '#8888aa', fontSize: 10 },
+      itemWidth: 14,
+      itemHeight: 8,
+    },
+    grid: { left: 52, right: 20, top: 32, bottom: 36 },
+    xAxis: {
+      type: 'value',
+      name: '出生 (Birth)',
+      nameTextStyle: { color: '#8888aa', fontSize: 10 },
+      axisLabel: { color: '#8888aa', fontSize: 10 },
+      splitLine: { lineStyle: { color: '#1a1a33', type: 'dashed' } },
+      min: 0,
+      max: diagMax,
+    },
+    yAxis: {
+      type: 'value',
+      name: '死亡 (Death)',
+      nameTextStyle: { color: '#8888aa', fontSize: 10 },
+      axisLabel: { color: '#8888aa', fontSize: 10 },
+      splitLine: { lineStyle: { color: '#1a1a33', type: 'dashed' } },
+      min: 0,
+      max: diagMax,
+    },
+    series: [{
+      name: 'H₀ (连通分量)',
+      type: 'scatter',
+      data: h0Pairs.map(p => [p.birth, p.death]),
+      symbolSize: val => 6 + (val[1] - val[0]) * 3,
+      itemStyle: {
+        color: '#69f0ae',
+        shadowBlur: 6,
+        shadowColor: 'rgba(105,240,174,0.5)',
+      },
+      emphasis: {
+        scale: 1.6,
+        itemStyle: { shadowBlur: 14, shadowColor: 'rgba(105,240,174,0.8)' },
+      },
+    }, {
+      name: 'H₁ (环/洞)',
+      type: 'scatter',
+      data: h1Pairs.map(p => [p.birth, p.death]),
+      symbolSize: val => 6 + (val[1] - val[0]) * 2,
+      itemStyle: {
+        color: '#ff6e40',
+        shadowBlur: 6,
+        shadowColor: 'rgba(255,110,64,0.5)',
+      },
+      emphasis: {
+        scale: 1.6,
+        itemStyle: { shadowBlur: 14, shadowColor: 'rgba(255,110,64,0.8)' },
+      },
+    }, {
+      // 对角线 (birth = death)
+      type: 'line',
+      data: [[0, 0], [diagMax, diagMax]],
+      showSymbol: false,
+      silent: true,
+      lineStyle: { color: '#444466', type: 'dashed', width: 1 },
+      z: 0,
+    }],
+  };
+  chart.setOption(option);
+  return chart;
+}
+
+// ========== 初始化所有图表 ==========
+const eigenvalueChart = createEigenvalueChart();
+const h1h0Chart = createH1H0Chart();
+const persistenceChart = createPersistenceChart();
+
+// 响应式调整图表
+function resizeCharts() {
+  eigenvalueChart.resize();
+  h1h0Chart.resize();
+  persistenceChart.resize();
+}
+window.addEventListener('resize', resizeCharts);
+
+// ========== 启动 ==========
+resizeThree();
+animate();
+
+// 使用 ResizeObserver 监听容器变化
+const ro = new ResizeObserver(() => {
+  resizeThree();
+  resizeCharts();
+});
+ro.observe(container);
+ro.observe(document.getElementById('chart-eigenvalues'));
+ro.observe(document.getElementById('chart-h1h0'));
+ro.observe(document.getElementById('chart-persistence'));
+
+console.log('✅ 拉普拉斯拓扑演化 3D 可视化已就绪');
+console.log('   - 30个语义嵌入节点，3个聚类');
+console.log('   - 谱隙: 0.18 | Fiedler值: 0.35 | 谱熵: 0.75');
+console.log('   - 拖拽鼠标旋转视角，滚轮缩放');
+</script>
+</body>
+</html>
