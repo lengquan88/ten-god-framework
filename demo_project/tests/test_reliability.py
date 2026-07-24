@@ -1,3 +1,9 @@
+覆盖: TokenBucket, SlidingWindow, RateLimiter, CircuitBreaker,
+      EnhancedHealthChecker, PerformanceBenchmark, ReliabilityMonitor
+      timeit, retry, safe_call
+"""
+
+import time
 """
 Tests for tengod.reliability — comprehensive reliability module.
 

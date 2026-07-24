@@ -1,3 +1,5 @@
+覆盖: PluginMetadata, PluginRegistry, PluginSandbox, PluginHookManager
+"""
 """tengod.plugins 完整测试集 —— 目标 90%+ 覆盖率。"""
 
 from __future__ import annotations
