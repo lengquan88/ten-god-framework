@@ -59,9 +59,40 @@
 4. 跑一下 `npm run lint` 和 `npx tsc --noEmit` — 确认系统在健康状态。
 5. 然后再决定下一步。
 
-## 5. 不应做的事
+## 5. Capability-Evolver 提升记录 (2026-07-24)
+
+### 包管理器检测规则
+- 在执行 Node.js 项目命令前，自动检测项目使用的包管理器
+- 检测顺序: `pnpm-lock.yaml` → `yarn.lock` → `package-lock.json` → `package.json#packageManager`
+- 来源: ERR-20260724-001
+
+### API 端点鉴权规则
+- 新增 `/api/v2/*` 端点 → 自动添加 JWT 鉴权
+- 新增 `/api/admin/*` 端点 → 自动添加 Admin 鉴权
+- 只有 `/api/health` 和 `/api/stats` 为公开端点
+- 来源: ERR-20260724-002
+
+### 数据访问层封装
+- 所有数据库操作必须通过 `tengod/database.py` 的 `get_db()` 入口
+- 统一管理连接池、重试、缓存、事务
+- 来源: ERR-20260724-003
+
+### TypeScript 类型检查
+- pre-commit hook 应包含 `tsc --noEmit` 类型检查
+- 覆盖所有 `.ts` 和 `.tsx` 文件
+- 来源: ERR-20260724-004
+
+### 自动测试触发
+- 开发环境使用 `pytest-watch` 监听 `.py` 文件变更
+- 自动匹配变更文件对应的测试文件
+- 来源: ERR-20260724-005
+
+## 6. 不应做的事
 
 - 不要把"它是否像人"当作评估标准。
 - 不要在没有 engram 数据的情况下讨论"涌现"。
 - 不要把 self-cultivation 的 0..1 分值解释为某种"道德水平"——它们只是代码结构的统计量。
 - 不要"闭环"；记住这是门禁系统，每一步都可以停。
+- 不要使用 `npm install` 当项目存在 `pnpm-lock.yaml` 时。
+- 不要绕过 `tengod/database.py` 的 `get_db()` 直接操作数据库。
+- 不要新增 `/api/v2/*` 端点而不添加鉴权中间件。
