@@ -1,4 +1,4 @@
-"""multimodal_generator.py — 多模态生成 v2.3.0
+"""multimodal_generator.py — 多模态生成 v4.6.0
 
 食神扩展：支持图片生成（Stable Diffusion）和音频生成。
 """

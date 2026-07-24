@@ -1,58 +1,33 @@
-# =============================================================================
-# TenGod Framework Prometheus 监控配置 v2.1
-# =============================================================================
-# 中华文明数字永生体 · 监控指标采集
-# =============================================================================
+# prometheus.yml — TenGod Framework v4.5.0
+# Prometheus 监控配置
+# ============================================================================
+# 用法:
+#   docker-compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
+# 或直接:
+#   prometheus --config.file=prometheus.yml
 
 global:
-  scrape_interval: 15s          # 采集间隔
-  evaluation_interval: 15s      # 规则评估间隔
-  scrape_timeout: 10s           # 采集超时
+  scrape_interval: 15s
+  evaluation_interval: 15s
 
-# ── 告警规则文件 ──────────────────────────────────────────────────────────
-rule_files:
-  - "alert_rules.yml"
-
-# ── 采集目标 ──────────────────────────────────────────────────────────────
 scrape_configs:
-  # ── TenGod API 服务 ────────────────────────────────────────────────────
-  - job_name: 'tengod-api'
-    metrics_path: '/metrics'
-    scheme: 'http'
+  - job_name: "tengod-api"
+    scrape_interval: 15s
+    metrics_path: /metrics
     static_configs:
-      - targets: ['tengod:8000']
-        labels:
-          service: 'tengod-api'
-          env: 'production'
+      - targets: ["api:8000"]
 
-  # ── Redis 监控 ─────────────────────────────────────────────────────────
-  - job_name: 'redis'
+  - job_name: "tengod-cognitive"
+    scrape_interval: 15s
+    metrics_path: /metrics
     static_configs:
-      - targets: ['redis:6379']
-        labels:
-          service: 'redis'
+      - targets: ["cognitive:8001"]
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: "tengod_cognitive_.*"
+        action: keep
 
-  # ── Prometheus 自监控 ──────────────────────────────────────────────────
-  - job_name: 'prometheus'
+  - job_name: "tengod-nginx"
+    scrape_interval: 30s
     static_configs:
-      - targets: ['localhost:9090']
-        labels:
-          service: 'prometheus'
-
-  # ── Docker 容器监控（可选） ────────────────────────────────────────────
-  - job_name: 'docker'
-    static_configs:
-      - targets: ['host.docker.internal:9323']
-        labels:
-          service: 'docker'
-    file_sd_configs:
-      - files:
-          - '/etc/prometheus/targets/*.yml'
-        refresh_interval: 30s
-
-# ── 告警管理器（可选） ────────────────────────────────────────────────────
-alerting:
-  alertmanagers:
-    - static_configs:
-        - targets:
-          # - 'alertmanager:9093'
+      - targets: ["nginx:80"]

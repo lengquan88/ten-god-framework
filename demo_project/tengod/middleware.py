@@ -1,5 +1,5 @@
 """
-tianmen_middleware.py — 天眼全局中间件 v2.15.0
+tianmen_middleware.py — 天眼全局中间件 v4.6.0
 ====================================================
 道曰："天门开阖，能为雌乎？"
 
@@ -214,7 +214,7 @@ class TianmenMiddleware(BaseHTTPMiddleware):
         
         在实际 Transformer 部署中，应替换为真实的 hidden_states[-1].mean(dim=1)。
         
-        方法（v2.16.1 升级）：
+        方法（v4.6.0 升级）：
           1. 基向量 = 中庸锚点 p_0（中性"道"态）
           2. 对六类情感标记做密度统计，按密度向对应原型向量偏移
           3. 偏移量 = 密度 × 原型向量，叠加到基向量

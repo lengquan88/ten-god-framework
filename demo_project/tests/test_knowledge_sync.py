@@ -8,6 +8,10 @@
 - sync_all() / get_history()
 - 经典数据完整性
 """
+import json
+from unittest.mock import patch, MagicMock
+import urllib.request
+
 import pytest
 from tengod.正财_知识固化.knowledge_sync import KnowledgeSyncPlugin
 
@@ -287,3 +291,227 @@ class TestClassicData:
         assert node["properties"]["category"] == "哲学"
         assert node["properties"]["source"] == "中华经典古籍库"
         assert "synced_at" in node["properties"]
+
+
+# ── _fetch_wikipedia ────────────────────────────────────────────────────────
+
+class TestFetchWikipedia:
+    """测试 _fetch_wikipedia 内部方法"""
+
+    def test_fetch_wikipedia_success(self, plugin_without_kb):
+        """_fetch_wikipedia — mock 返回有效 Wikipedia API JSON"""
+        mock_resp = MagicMock()
+        mock_resp.__enter__.return_value = mock_resp
+        mock_resp.read.return_value = json.dumps({
+            "query": {
+                "pages": {
+                    "12345": {
+                        "title": "儒家",
+                        "extract": "儒家是中国古代主流思想流派。",
+                    }
+                }
+            }
+        }).encode("utf-8")
+
+        with patch.object(urllib.request, "urlopen", return_value=mock_resp):
+            title, summary = plugin_without_kb._fetch_wikipedia("儒家", "zh")
+        assert title == "儒家"
+        assert summary == "儒家是中国古代主流思想流派。"
+
+    def test_fetch_wikipedia_no_page(self, plugin_without_kb):
+        """_fetch_wikipedia — page_id 为 -1 时返回 (None, None)"""
+        mock_resp = MagicMock()
+        mock_resp.__enter__.return_value = mock_resp
+        mock_resp.read.return_value = json.dumps({
+            "query": {
+                "pages": {
+                    "-1": {"title": "不存在", "extract": ""},
+                }
+            }
+        }).encode("utf-8")
+
+        with patch.object(urllib.request, "urlopen", return_value=mock_resp):
+            title, summary = plugin_without_kb._fetch_wikipedia("不存在", "zh")
+        assert title is None
+        assert summary is None
+
+    def test_fetch_wikipedia_network_error(self, plugin_without_kb):
+        """_fetch_wikipedia — URLError 时返回 (None, None)"""
+        with patch.object(urllib.request, "urlopen", side_effect=Exception("network error")):
+            title, summary = plugin_without_kb._fetch_wikipedia("儒家", "zh")
+        assert title is None
+        assert summary is None
+
+    def test_fetch_wikipedia_json_decode_error(self, plugin_without_kb):
+        """_fetch_wikipedia — 无效 JSON 时返回 (None, None)"""
+        mock_resp = MagicMock()
+        mock_resp.__enter__.return_value = mock_resp
+        mock_resp.read.return_value = b"not valid json {{{"
+
+        with patch.object(urllib.request, "urlopen", return_value=mock_resp):
+            title, summary = plugin_without_kb._fetch_wikipedia("儒家", "zh")
+        assert title is None
+        assert summary is None
+
+
+# ── sync_from_wikipedia 成功路径 ──────────────────────────────────────────────
+
+class TestSyncWikipediaSuccess:
+    """测试 sync_from_wikipedia 成功路径（mock 网络）"""
+
+    def test_sync_from_wikipedia_success(self, plugin_with_kb, mock_kb):
+        """sync_from_wikipedia — mock _fetch_wikipedia，验证 add_node 被调用"""
+        with patch.object(plugin_with_kb, "_fetch_wikipedia",
+                          return_value=("儒家", "儒家思想摘要")):
+            result = plugin_with_kb.sync_from_wikipedia(["儒家"])
+        assert result["synced"] == 1
+        assert result["failed"] == 0
+        assert result["details"][0]["status"] == "ok"
+        assert result["details"][0]["title"] == "儒家"
+        assert len(mock_kb.nodes) == 1
+        assert mock_kb.nodes[0]["node_id"] == "Wikipedia:儒家"
+        assert mock_kb.nodes[0]["node_type"] == "wikipedia"
+        assert mock_kb.nodes[0]["properties"]["source"] == "Wikipedia"
+
+    def test_sync_from_wikipedia_empty_title(self, plugin_with_kb, mock_kb):
+        """sync_from_wikipedia — _fetch_wikipedia 返回 (None, None) 时计为 failed"""
+        with patch.object(plugin_with_kb, "_fetch_wikipedia",
+                          return_value=(None, None)):
+            result = plugin_with_kb.sync_from_wikipedia(["儒家"])
+        assert result["synced"] == 0
+        assert result["failed"] == 1
+        assert result["details"][0]["status"] == "empty"
+        assert mock_kb.nodes == []
+
+    def test_sync_from_wikipedia_empty_summary(self, plugin_with_kb, mock_kb):
+        """sync_from_wikipedia — _fetch_wikipedia 返回 title 但 summary 为 None"""
+        with patch.object(plugin_with_kb, "_fetch_wikipedia",
+                          return_value=("儒家", None)):
+            result = plugin_with_kb.sync_from_wikipedia(["儒家"])
+        assert result["synced"] == 0
+        assert result["failed"] == 1
+        assert mock_kb.nodes == []
+
+    def test_sync_from_wikipedia_custom_language(self, plugin_with_kb, mock_kb):
+        """sync_from_wikipedia — 自定义 language='en' 时 URL 使用 en.wikipedia.org"""
+        with patch.object(plugin_with_kb, "_fetch_wikipedia") as mock_fetch:
+            mock_fetch.return_value = ("Confucianism", "Confucianism summary...")
+            plugin_with_kb.sync_from_wikipedia(["Confucianism"], language="en")
+            mock_fetch.assert_called_once_with("Confucianism", "en")
+
+    def test_sync_from_wikipedia_empty_topics(self, plugin_with_kb):
+        """sync_from_wikipedia — 空 topics 列表返回 0,0"""
+        result = plugin_with_kb.sync_from_wikipedia([])
+        assert result["synced"] == 0
+        assert result["failed"] == 0
+        assert result["details"] == []
+
+
+# ── _fetch_baidu_baike ──────────────────────────────────────────────────────
+
+class TestFetchBaiduBaike:
+    """测试 _fetch_baidu_baike 内部方法"""
+
+    def test_fetch_baidu_baike_success(self, plugin_without_kb):
+        """_fetch_baidu_baike — mock 返回有效 JSON"""
+        mock_resp = MagicMock()
+        mock_resp.__enter__.return_value = mock_resp
+        mock_resp.read.return_value = json.dumps({
+            "abstract": "儒家思想核心内容...",
+            "url": "https://baike.baidu.com/item/儒家",
+        }).encode("utf-8")
+
+        with patch.object(urllib.request, "urlopen", return_value=mock_resp):
+            entry = plugin_without_kb._fetch_baidu_baike("儒家")
+        assert entry is not None
+        assert entry["abstract"] == "儒家思想核心内容..."
+        assert entry["url"] == "https://baike.baidu.com/item/儒家"
+
+    def test_fetch_baidu_baike_network_error(self, plugin_without_kb):
+        """_fetch_baidu_baike — URLError 时返回 None"""
+        with patch.object(urllib.request, "urlopen", side_effect=Exception("network error")):
+            entry = plugin_without_kb._fetch_baidu_baike("儒家")
+        assert entry is None
+
+
+# ── sync_from_baidu_baike 成功路径 ────────────────────────────────────────────
+
+class TestSyncBaiduBaikeSuccess:
+    """测试 sync_from_baidu_baike 成功路径（mock 网络）"""
+
+    def test_sync_from_baidu_baike_success(self, plugin_with_kb, mock_kb):
+        """sync_from_baidu_baike — mock _fetch_baidu_baike，验证 add_node 被调用"""
+        with patch.object(plugin_with_kb, "_fetch_baidu_baike",
+                          return_value={"abstract": "摘要内容", "url": "http://example.com"}):
+            result = plugin_with_kb.sync_from_baidu_baike(["儒家"])
+        assert result["synced"] == 1
+        assert result["failed"] == 0
+        assert result["details"][0]["status"] == "ok"
+        assert len(mock_kb.nodes) == 1
+        assert mock_kb.nodes[0]["node_id"] == "百度百科:儒家"
+        assert mock_kb.nodes[0]["node_type"] == "baidu_baike"
+        assert mock_kb.nodes[0]["properties"]["source"] == "百度百科"
+
+    def test_sync_from_baidu_baike_empty_topics(self, plugin_with_kb):
+        """sync_from_baidu_baike — 空 topics 列表返回 0,0"""
+        result = plugin_with_kb.sync_from_baidu_baike([])
+        assert result["synced"] == 0
+        assert result["failed"] == 0
+        assert result["details"] == []
+
+
+# ── sync_from_classics (kb=None) ─────────────────────────────────────────────
+
+class TestSyncClassicsExtended:
+    """测试 sync_from_classics 边界情况"""
+
+    def test_sync_from_classics_without_kb(self, plugin_without_kb):
+        """sync_from_classics — kb=None 时返回结构化结果，details 为空"""
+        result = plugin_without_kb.sync_from_classics(["易经", "论语"])
+        assert result["synced"] == 0
+        assert result["failed"] == 0
+        assert result["details"] == []
+
+
+# ── sync_all with kb ─────────────────────────────────────────────────────────
+
+class TestSyncAllWithKb:
+    """测试 sync_all 带 kb 的情况"""
+
+    def test_sync_all_with_kb(self, plugin_with_kb, mock_kb):
+        """sync_all — 有 kb 时 3 个数据源都被调用"""
+        with patch.object(plugin_with_kb, "sync_from_wikipedia",
+                          return_value={"synced": 1, "failed": 0, "details": []}) as mock_wiki, \
+             patch.object(plugin_with_kb, "sync_from_baidu_baike",
+                          return_value={"synced": 1, "failed": 0, "details": []}) as mock_baidu, \
+             patch.object(plugin_with_kb, "sync_from_classics",
+                          return_value={"synced": 7, "failed": 0, "details": []}) as mock_classics:
+            result = plugin_with_kb.sync_all()
+        assert set(result.keys()) == {"wikipedia", "baidu_baike", "classics"}
+        mock_wiki.assert_called_once()
+        mock_baidu.assert_called_once()
+        mock_classics.assert_called_once()
+
+
+class TestSyncWikipediaException:
+    """sync_from_wikipedia — _fetch_wikipedia 抛出异常"""
+
+    def test_sync_from_wikipedia_exception(self, plugin_with_kb):
+        """_fetch_wikipedia 抛出异常时，记录失败"""
+        with patch.object(plugin_with_kb, "_fetch_wikipedia", side_effect=RuntimeError("boom")):
+            result = plugin_with_kb.sync_from_wikipedia(["test"])
+        assert result["synced"] == 0
+        assert result["failed"] == 1
+        assert result["details"][0]["status"] == "boom"
+
+
+class TestSyncBaiduBaikeException:
+    """sync_from_baidu_baike — _fetch_baidu_baike 抛出异常"""
+
+    def test_sync_from_baidu_baike_exception(self, plugin_with_kb):
+        """_fetch_baidu_baike 抛出异常时，记录失败"""
+        with patch.object(plugin_with_kb, "_fetch_baidu_baike", side_effect=RuntimeError("boom")):
+            result = plugin_with_kb.sync_from_baidu_baike(["test"])
+        assert result["synced"] == 0
+        assert result["failed"] == 1
+        assert result["details"][0]["status"] == "boom"

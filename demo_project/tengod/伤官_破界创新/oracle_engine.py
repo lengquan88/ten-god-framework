@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-oracle_engine.py — 推背图 Oracle 认知引擎 v2.0.0
+oracle_engine.py — 推背图 Oracle 认知引擎 v4.6.0
 基于六十甲子和卦象符号的推演引擎，与十神框架深度集成。
 """
 

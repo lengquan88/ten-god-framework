@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-plugin_manager.py — 十神插件系统 v2.0.0
+plugin_manager.py — 十神插件系统 v4.6.0
 支持动态加载/卸载/生命周期管理的插件框架。
 """
 

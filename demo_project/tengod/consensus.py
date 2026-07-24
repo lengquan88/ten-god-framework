@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-consensus.py — 十神多实例共识引擎 v2.0.0
+consensus.py — 十神多实例共识引擎 v4.6.0
 ===========================================
 Raft-inspired 分布式共识协议：
 - Leader 选举（基于心跳/任期）

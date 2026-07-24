@@ -135,6 +135,9 @@ class KnowledgeBase:
 
         if backend != StorageBackend.MEMORY:
             self._init_storage()
+        else:
+            # 内存模式：自动播种默认节点（v4.7.1）
+            self._seed_default_nodes()
 
     def _init_storage(self) -> None:
         """初始化存储后端"""
@@ -144,6 +147,115 @@ class KnowledgeBase:
             self._init_json()
         elif self._backend == StorageBackend.POSTGRES:
             self._init_postgres()
+
+    def _seed_default_nodes(self) -> None:
+        """播种默认命理知识节点（v4.7.1）
+
+        当知识库在内存模式下初始化时，自动创建核心命理概念节点。
+        涵盖八字、紫微、六爻、风水、姓名学五大领域的基础知识。
+        """
+        import json
+
+        default_nodes = [
+            # ── 八字基础 ──────────────────────────────────────────
+            {"id": "kb_8z_001", "name": "天干五合", "type": "concept",
+             "props": {"field": "八字", "category": "天干地支",
+                       "content": "甲己合土、乙庚合金、丙辛合水、丁壬合木、戊癸合火"}},
+            {"id": "kb_8z_002", "name": "地支三合", "type": "concept",
+             "props": {"field": "八字", "category": "天干地支",
+                       "content": "申子辰合水局、亥卯未合木局、寅午戌合火局、巳酉丑合金局"}},
+            {"id": "kb_8z_003", "name": "地支六合", "type": "concept",
+             "props": {"field": "八字", "category": "天干地支",
+                       "content": "子丑合土、寅亥合木、卯戌合火、辰酉合金、巳申合水、午未合日月"}},
+            {"id": "kb_8z_004", "name": "地支六冲", "type": "concept",
+             "props": {"field": "八字", "category": "天干地支",
+                       "content": "子午冲、丑未冲、寅申冲、卯酉冲、辰戌冲、巳亥冲"}},
+            {"id": "kb_8z_005", "name": "五行生克", "type": "concept",
+             "props": {"field": "八字", "category": "五行",
+                       "content": "木生火、火生土、土生金、金生水、水生木；木克土、土克水、水克火、火克金、金克木"}},
+            {"id": "kb_8z_006", "name": "十神定义", "type": "concept",
+             "props": {"field": "八字", "category": "十神",
+                       "content": "以日干为我：生我者印（正印/偏印），我生者食伤（食神/伤官），克我者官杀（正官/七杀），我克者财（正财/偏财），同我者比劫（比肩/劫财）"}},
+            {"id": "kb_8z_007", "name": "正官格", "type": "concept",
+             "props": {"field": "八字", "category": "格局",
+                       "content": "以月令正官为用，主贵气、自律、正直。喜财生官、印护官，忌伤官见官"}},
+            {"id": "kb_8z_008", "name": "七杀格", "type": "concept",
+             "props": {"field": "八字", "category": "格局",
+                       "content": "以月令七杀为用，主威权、果断、竞争。喜食神制杀或印化杀"}},
+            {"id": "kb_8z_009", "name": "食神格", "type": "concept",
+             "props": {"field": "八字", "category": "格局",
+                       "content": "以月令食神为用，主才华、口福、悠闲。喜生财，忌偏印夺食"}},
+            {"id": "kb_8z_010", "name": "大运排法", "type": "concept",
+             "props": {"field": "八字", "category": "大运",
+                       "content": "以月柱为基准，阳男阴女顺排，阴男阳女逆排。起运岁数=节气差天数÷3"}},
+            {"id": "kb_8z_011", "name": "用神取法", "type": "concept",
+             "props": {"field": "八字", "category": "用神",
+                       "content": "扶抑法（身强克泄耗、身弱生扶）、通关法（五行战斗取通关）、调候法（寒暖燥湿取调候）、病药法"}},
+            {"id": "kb_8z_012", "name": "十二长生", "type": "concept",
+             "props": {"field": "八字", "category": "旺衰",
+                       "content": "长生、沐浴、冠带、临官、帝旺、衰、病、死、墓、绝、胎、养。以日干看四柱地支"}},
+
+            # ── 紫微斗数 ──────────────────────────────────────────
+            {"id": "kb_zw_001", "name": "紫微斗数十四主星", "type": "concept",
+             "props": {"field": "紫微", "category": "星曜",
+                       "content": "北斗六星：紫微、天机、太阳、武曲、天同、廉贞；南斗八星：天府、太阴、贪狼、巨门、天相、天梁、七杀、破军"}},
+            {"id": "kb_zw_002", "name": "紫微十二宫", "type": "concept",
+             "props": {"field": "紫微", "category": "宫位",
+                       "content": "命宫、兄弟宫、夫妻宫、子女宫、财帛宫、疾厄宫、迁移宫、交友宫、官禄宫、田宅宫、福德宫、父母宫"}},
+            {"id": "kb_zw_003", "name": "紫微四化", "type": "concept",
+             "props": {"field": "紫微", "category": "四化",
+                       "content": "化禄主财禄、化权主权势、化科主名声、化忌主困扰。以生年天干确定"}},
+            {"id": "kb_zw_004", "name": "紫微星坐命", "type": "concept",
+             "props": {"field": "紫微", "category": "星曜",
+                       "content": "气质高贵，有领导力，自尊心强。喜得左辅右弼相夹"}},
+
+            # ── 六爻 ──────────────────────────────────────────────
+            {"id": "kb_ly_001", "name": "六爻世应", "type": "concept",
+             "props": {"field": "六爻", "category": "基础",
+                       "content": "世爻代表自己或问卦人，应爻代表对方或所问之事。世应相生则吉，相克则凶"}},
+            {"id": "kb_ly_002", "name": "六爻六亲", "type": "concept",
+             "props": {"field": "六爻", "category": "基础",
+                       "content": "以卦宫五行为我：生我者父母，我生者子孙，克我者官鬼，我克者妻财，同我者兄弟"}},
+            {"id": "kb_ly_003", "name": "六爻六兽", "type": "concept",
+             "props": {"field": "六爻", "category": "基础",
+                       "content": "青龙主喜、朱雀主口舌、勾陈主田土、螣蛇主虚惊、白虎主凶伤、玄武主盗贼"}},
+            {"id": "kb_ly_004", "name": "六爻用神", "type": "concept",
+             "props": {"field": "六爻", "category": "用神",
+                       "content": "问财取妻财、问官取官鬼、问文书取父母、问子女取子孙。用神旺相不受伤克为吉"}},
+
+            # ── 风水 ──────────────────────────────────────────────
+            {"id": "kb_fs_001", "name": "玄空飞星", "type": "concept",
+             "props": {"field": "风水", "category": "理气",
+                       "content": "以洛书九宫为基础，根据元运将九星飞布九宫：一白二黑三碧四绿五黄六白七赤八白九紫"}},
+            {"id": "kb_fs_002", "name": "三元九运", "type": "concept",
+             "props": {"field": "风水", "category": "元运",
+                       "content": "上元一二三运、中元四五六运、下元七八九运，每运20年，共180年"}},
+            {"id": "kb_fs_003", "name": "四灵诀", "type": "concept",
+             "props": {"field": "风水", "category": "峦头",
+                       "content": "左青龙宜高、右白虎宜低、前朱雀宜开阔、后玄武宜有靠"}},
+
+            # ── 姓名学 ────────────────────────────────────────────
+            {"id": "kb_xm_001", "name": "五格数理", "type": "concept",
+             "props": {"field": "姓名学", "category": "数理",
+                       "content": "天格（祖运）、人格（主运）、地格（前运）、外格（副运）、总格（后运）。以姓名笔画数计算"}},
+            {"id": "kb_xm_002", "name": "三才配置", "type": "concept",
+             "props": {"field": "姓名学", "category": "配置",
+                       "content": "天格、人格、地格的五行配置需相生为吉，相克为凶"}},
+        ]
+
+        for node in default_nodes:
+            props = node["props"]
+            knowledge_node = KnowledgeNode(
+                id=node["id"],
+                name=node["name"],
+                node_type=node["type"],
+                properties={
+                    "field": props.get("field", ""),
+                    "category": props.get("category", ""),
+                    "content": props.get("content", ""),
+                },
+            )
+            self._nodes[node["id"]] = knowledge_node
 
     def _init_sqlite(self) -> None:
         """初始化 SQLite（WAL模式 + 连接优化）"""
@@ -537,17 +649,80 @@ class KnowledgeBase:
 
         # 按分数降序
         candidates.sort(key=lambda x: x[1], reverse=True)
-        top = candidates[:top_k]
 
         return [
             {
-                "id": n.id,
-                "name": n.name,
-                "node_type": n.node_type,
-                "score": round(s, 4),
-                "node": n,
+                "id": cid,
+                "name": node.name,
+                "node_type": node.node_type,
+                "score": round(score, 4),
+                "node": node,
             }
-            for _, s, n in top
+            for cid, score, node in candidates[:top_k]
+        ]
+
+    # ── 门禁化检索（v4.6.0）─────────────────────────────────────────
+
+    def query_with_gates(
+        self,
+        query: str,
+        top_k: int = 10,
+        node_type: Optional[str] = None,
+        threshold: float = 0.3,
+    ) -> List[Dict[str, Any]]:
+        """门禁化检索：六维投影 + 测地线距离（替代 n-gram cosine）
+
+        v4.6.0: 知识库门禁化，用 TBCE 六维投影 + 黎曼测地线距离
+        替代原 n-gram cosine 相似度。门禁系数可随九宫格调整。
+
+        Args:
+            query: 查询文本
+            top_k: 返回数量
+            node_type: 可选的节点类型过滤
+            threshold: 测地线距离阈值
+
+        Returns:
+            [{id, name, node_type, score, node}, ...]
+        """
+        from ..gate_torch import TBCESixDimProjector, retrieve_with_gates, geodesic_distance
+        from ..local_embedding import LocalEmbedder
+
+        if not query or not self._nodes:
+            return []
+
+        # 嵌入查询
+        embedder = LocalEmbedder(dim=384, mode="tfidf_svd")
+        embedder.fit([query] + [self._node_text(n) for n in self._nodes.values()])
+        query_emb = embedder.encode(query)
+
+        # 嵌入所有节点
+        chunks = []
+        node_map = {}
+        for node_id, node in self._nodes.items():
+            if node_type and node.node_type != node_type:
+                continue
+            text = self._node_text(node)
+            emb = embedder.encode(text)
+            chunks.append((node_id, emb))
+            node_map[node_id] = node
+
+        # 门禁检索
+        projector = TBCESixDimProjector(dim=embedder.get_dim())
+        results = retrieve_with_gates(
+            query_emb, chunks, projector=projector,
+            threshold=threshold, top_k=top_k,
+        )
+
+        return [
+            {
+                "id": cid,
+                "name": node_map[cid].name,
+                "node_type": node_map[cid].node_type,
+                "score": 1.0 - min(dist, 1.0),  # 距离转相似度
+                "node": node_map[cid],
+            }
+            for cid, dist in results
+            if cid in node_map
         ]
 
     # -------- 便捷批量导入 --------
