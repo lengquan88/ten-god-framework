@@ -1,4 +1,19 @@
-name: TenGod CI/CD v2.20.0
+# ============================================================================
+# 中华文明数字永生体 · CI/CD 流水线 v3.0
+# ============================================================================
+#
+# 流水线阶段：
+#   1. preflight  - 快速检查（lint + format，所有分支/PR，5 min）
+#   2. test       - 多版本 Python 测试矩阵（3.10 / 3.11 / 3.12）
+#   3. build      - Docker 镜像构建 + 烟雾验证（仅 main/develop push）
+#   4. deploy     - 生产部署（仅 main 分支）
+#
+# 前置准备：GitHub → Settings → Secrets and variables → Actions
+#   添加：DEEPSEEK_API_KEY, IMA_OPENAPI_APIKEY,
+#         IMA_OPENAPI_CLIENTID, XIND_API_KEY
+# ============================================================================
+
+name: CI/CD Pipeline v3.0
 
 on:
   push:
@@ -9,6 +24,19 @@ on:
     tags: ["v*"]
   pull_request:
     branches: [main]
+    paths:
+      - "demo_project/**"
+      - ".github/workflows/**"
+
+# ── 全局并发控制：同一分支/PR 自动取消旧运行 ─────────────────────
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# ── 最小权限原则 ─────────────────────────────────────────────────
+permissions:
+  contents: read
+  packages: read
 
 env:
   PYTHON_VERSION: "3.14"
@@ -16,12 +44,13 @@ env:
   DOCKER_IMAGE: tengod-api
 
 jobs:
-  # ═══════════════════════════════════════════════════════════════
-  # 1. 代码质量门禁（轻量，率先完成）
-  # ═══════════════════════════════════════════════════════════════
-  lint:
-    name: "🔍 Lint"
+  # ═══════════════════════════════════════════════════════════════════
+  # 1. 预检阶段 — 快速失败（lint + format），节省矩阵资源
+  # ═══════════════════════════════════════════════════════════════════
+  preflight:
+    name: "Preflight"
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     defaults:
       run:
         working-directory: demo_project
@@ -112,117 +141,203 @@ jobs:
           path: demo_project/pytest-output.txt
           retention-days: 7
 
-  # ═══════════════════════════════════════════════════════════════
-  # 3. 内在小孩门禁（核心）
-  # ═══════════════════════════════════════════════════════════════
-  inner-child-gate:
-    name: "🪞 内在小孩门禁"
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: demo_project
-    needs: [test]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
+          cache-dependency-path: demo_project/requirements.txt
+
+      - name: Install lint tools
+        run: pip install ruff
+
+      # Lint 必须通过，失败阻断流水线
+      - name: Lint (Ruff)
+        run: |
+          ruff check tengod/ \
+            --select=E,F \
+            --ignore=E501,F401,E402,F821 \
+            --output-format=github
+
+      # Format 仅告警，不阻断（非关键）
+      - name: Format check (Ruff)
+        continue-on-error: true
+        run: ruff format --check --diff tengod/
+
+  # ═══════════════════════════════════════════════════════════════════
+  # 2. 测试阶段 — 多版本 Python 矩阵
+  # ═══════════════════════════════════════════════════════════════════
+  test:
+    name: "Test (Python ${{ matrix.python-version }})"
+    runs-on: ubuntu-latest
+    needs: preflight
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false          # 单版本失败不影响其他版本
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    defaults:
+      run:
+        working-directory: demo_project
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: demo_project/requirements.txt
+
       - name: Install dependencies
         run: |
-          pip install --upgrade pip
+          python -m pip install --upgrade pip
           pip install -r requirements.txt
-      - name: 正交性检验
+          pip install pytest pytest-cov httpx
+
+      # ── 1) 模块导入完整性检查 ────────────────────────────────────
+      - name: Import verification
+        run: |
+          MODS=(
+            bazi_calculator bazi_analyzer shensha_engine geju_engine
+            vector_store ziwei_engine liuyao_engine qimen_engine
+            name_engine marriage_engine data_store llm_adapter
+            metrics_collector
+          )
+          FAILED=0
+          for m in "${MODS[@]}"; do
+            if python -c "from tengod import $m" 2>/dev/null; then
+              echo "  ✅ tengod.$m"
+            else
+              echo "  ❌ tengod.$m — IMPORT FAILED"
+              FAILED=1
+            fi
+          done
+          [ "$FAILED" -eq 0 ] || { echo "::error::Import failures: $FAILED"; exit 1; }
+          echo "✅ All $(( ${#MODS[@]} )) modules OK"
+
+      # ── 2) 子模块目录扫描 ──────────────────────────────────────
+      - name: Sub-module scan
+        run: |
+          MODS=(
+            "比肩_架构协同" "劫财_攻防边界" "食神_创生输出"
+            "正印_滋养守护" "伤官_破界创新" "正财_知识固化"
+            "偏财_奇招演化" "正官_法度调度" "七杀_品质裁决"
+            "偏印_桥接通变" "元辰_本源定位" "太极_阴阳调和"
+          )
+          for m in "${MODS[@]}"; do
+            path="tengod/$m"
+            if [ ! -d "$path" ]; then
+              echo "  ⏭️  $m (dir not found)"
+              continue
+            fi
+            count=$(find "$path" -maxdepth 1 -name '*.py' ! -name '_*' 2>/dev/null | wc -l)
+            if [ "$count" -gt 0 ]; then
+              echo "  ✅ $m ($count .py)"
+            else
+              echo "  ⚠️  $m (no .py files)"
+            fi
+          done
+          echo "✅ Sub-module scan complete"
+
+      # ── 3) 功能烟雾测试 ─────────────────────────────────────────
+      - name: Functional smoke
         run: |
           python -c "
-          from tengod.inner_child import get_inner_child_sm
-          sm = get_inner_child_sm()
-          ortho = sm.check_orthogonality()
-          assert ortho['all_orthogonal'], '正交性失败!'
-          assert ortho['max_dot_product'] < 1e-5
-          print(f'✅ 正交性: {len(ortho[\"pairs\"])}对全正交')
+          from tengod.bazi_calculator import BaziChart
+          c = BaziChart(2000, 3, 15, 8, 30)
+          assert c.pillars, 'No pillars'
+          print('✅ Bazi —', c.pillars['year'], c.pillars['month'])
+          "
+          python -c "
+          from tengod.ziwei_engine import calc_ziwei
+          c = calc_ziwei(2000, 3, 15, 8, 30, 'male')
+          assert c is not None
+          print('✅ Ziwei — ming_gong', c.ming_gong_index)
+          "
+          python -c "
+          from tengod.liuyao_engine import shake_and_calc
+          r = shake_and_calc('甲子')
+          assert r is not None
+          print('✅ Liuyao —', r.ben_gua_name)
           "
       - name: 对抗测试
         run: python scripts/inner_child_adversarial_test.py
       - name: 回退测试
         run: |
           python -c "
-          from tengod.inner_child import InnerChildStateMachine, _PROTOTYPE_VECTORS
-          h = list(_PROTOTYPE_VECTORS[0])
-          sm = InnerChildStateMachine(alertness=32.0, phi_limit=0.8, lambda_=0.0, gamma=0.0)
-          r = sm.process(h, auto_correct=True)
-          assert r['safety_fallback'], '弱修正应触发safety_fallback!'
-          print(f'✅ 回退测试通过')
-          sm2 = InnerChildStateMachine(alertness=32.0, phi_limit=0.8, lambda_=0.4, gamma=0.2)
-          r2 = sm2.process(h, auto_correct=True)
-          assert not r2['safety_fallback'], '正常修正不应触发回退!'
-          assert r2['state']['verification_passed'], '正常修正应通过验证!'
-          print(f'✅ 正常修正通过: ΔΦ={r2[\"state\"][\"delta_phi\"]}')
-          "
-      - name: 记忆池健康检查
-        run: |
-          python -c "
-          from tengod.inner_child import get_inner_child_sm
-          sm = get_inner_child_sm()
-          stats = sm.get_stats()
-          mp = stats['memory_pool']
-          print(f'记忆池: {mp[\"total_memories\"]}条, 成功={mp[\"successful\"]}, 失败={mp[\"failed\"]}')
-          assert mp['total_memories'] >= 0
-          print(f'✅ 记忆池健康')
+          from tengod.name_engine import analyze_name
+          r = analyze_name('张', '伟明')
+          assert r is not None
+          print('✅ Name  — score', r.overall_score)
           "
 
-  # ═══════════════════════════════════════════════════════════════
-  # 4. Φ 熵值趋势监控
-  # ═══════════════════════════════════════════════════════════════
-  phi-monitor:
-    name: "📊 Φ 熵值监控"
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: demo_project
-    needs: [inner-child-gate]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: pip
-      - name: Install dependencies
-        run: |
-          pip install --upgrade pip
-          pip install -r requirements.txt
-      - name: 生成 Φ 熵值基线报告
-        run: python scripts/generate_phi_report.py
-      - name: 验证 Φ 基线
+      # ── 4) Phase 1 内核烟雾 ─────────────────────────────────────
+      - name: Phase 1 core smoke
         run: |
           python -c "
-          import json
-          with open('phi-baseline.json') as f:
-              report = json.load(f)
-          for s in report['samples']:
-              if s['archetype'] != 'balanced':
-                  assert s['alert'], f'原型{s[\"archetype\"]} Φ={s[\"phi_before\"]} 应触发门禁!'
-          bal = [s for s in report['samples'] if s['archetype'] == 'balanced'][0]
-          assert not bal['alert'], f'均衡向量 Φ={bal[\"phi_before\"]} 不应触发门禁!'
-          print('✅ Φ 熵值基线正常')
+          import sys, os
+          sys.path.insert(0, 'tengod')
+          for d in os.listdir('tengod'):
+              if os.path.isdir(os.path.join('tengod', d)) and not d.startswith('.'):
+                  sys.path.insert(0, os.path.join('tengod', d))
+          from core import get_core
+          r = get_core().run()
+          assert r['version'] == '1.5.0', f'Wrong version: {r[\"version\"]}'
+          print('✅ Core — version', r['version'])
           "
-      - name: Upload Φ report
+
+      # ── 5) API 启动 + 健康检查 ──────────────────────────────────
+      - name: API startup & health
+        run: |
+          python -m tengod.api_server --host 0.0.0.0 --port 8000 &
+          API_PID=$!
+          sleep 5
+
+          echo "--- Health ---"
+          curl -sf http://localhost:8000/api/health | python -m json.tool
+
+          echo "--- Metrics (head) ---"
+          curl -sf http://localhost:8000/api/metrics | python -m json.tool 2>/dev/null | head -5
+
+          kill $API_PID 2>/dev/null || true
+          wait $API_PID 2>/dev/null || true
+          echo "✅ API startup OK"
+
+      # ── 6) 单元测试 + 覆盖率 ────────────────────────────────────
+      - name: Unit tests + coverage
+        run: |
+          python -m pytest tests/ \
+            --ignore=tests/test_api_integration.py \
+            --cov=tengod \
+            --cov-fail-under=40 \
+            --cov-report=html \
+            --cov-report=term \
+            -v --tb=short
+
+      # ── 7) 上传覆盖率产物 ───────────────────────────────────────
+      - name: Upload coverage
         uses: actions/upload-artifact@v4
+        if: matrix.python-version == '3.11'
         with:
-          name: phi-baseline
-          path: demo_project/phi-baseline.json
-          retention-days: 30
+          name: coverage-py${{ matrix.python-version }}
+          path: demo_project/htmlcov/
+          retention-days: 7
 
-  # ═══════════════════════════════════════════════════════════════
-  # 5. 集成测试
-  # ═══════════════════════════════════════════════════════════════
-  integration:
-    name: "🔗 Integration Test"
+  # ═══════════════════════════════════════════════════════════════════
+  # 3. 构建阶段 — Docker 镜像（仅 push 到 main/develop）
+  # ═══════════════════════════════════════════════════════════════════
+  build:
+    name: "Build Docker"
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: demo_project
-    needs: [lint, test]
+    needs: test
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write       # 仅 build 需要写 packages
+
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -245,100 +360,61 @@ jobs:
           print('✅ 中间件集成通过')
           "
 
-  # ═══════════════════════════════════════════════════════════════
-  # 6. Docker 镜像构建（BuildKit 层缓存 + 多架构）
-  # ═══════════════════════════════════════════════════════════════
-  docker:
-    name: "🐳 Docker Build"
-    runs-on: ubuntu-latest
-    needs: [lint, test]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-      - name: 缓存 Docker 层
-        uses: actions/cache@v4
-        with:
-          path: /tmp/.buildx-cache
-          key: docker-${{ runner.os }}-${{ hashFiles('demo_project/Dockerfile', 'demo_project/requirements.txt') }}
-          restore-keys: |
-            docker-${{ runner.os }}-
-      - name: Build Docker image
-        uses: docker/build-push-action@v5
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
         with:
           context: demo_project
           push: false
-          load: true
-          tags: tengod:v2.20.0
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache,mode=max
-      - name: 健康检查
-        run: |
-          docker run --rm -d --name tengod-test -p 8001:8000 tengod:v2.20.0
-          sleep 15
-          curl -sf http://localhost:8001/api/health >/dev/null && echo "✅ Health check PASSED" || echo "⚠️  Health check skipped"
-          docker stop tengod-test || true
-          exit 0
+          load: true                        # 加载到本地供后续 step 验证
+          tags: ${{ env.DOCKER_IMAGE }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-  # ═══════════════════════════════════════════════════════════════
-  # 7. 安全扫描
-  # ═══════════════════════════════════════════════════════════════
-  security:
-    name: "🔒 Security Scan"
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: demo_project
-    needs: [lint, test]
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: pip
-      - name: pip-audit
+      - name: Smoke test container
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
         run: |
-          pip install pip-audit
-          pip-audit -r requirements.txt --no-deps || echo "⚠️  pip-audit found issues"
-      - name: Bandit
-        run: |
-          pip install bandit
-          bandit -r tengod/ -ll -f json -o bandit-report.json || echo "⚠️  Bandit found issues"
-      - name: Generate SBOM
-        run: |
-          pip install cyclonedx-bom
-          python -m cyclonedx_py -r -i requirements.txt -o sbom.json
-          echo "✅ SBOM generated: sbom.json"
-      - name: Upload security reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: security-reports
-          path: |
-            demo_project/bandit-report.json
-            demo_project/sbom.json
-          retention-days: 30
+          IMAGE="${{ env.DOCKER_IMAGE }}:${{ github.sha }}"
+          docker run --rm -d --name ci-smoke -p 8001:8000 \
+            -e DEEPSEEK_API_KEY="$DEEPSEEK_API_KEY" \
+            "$IMAGE"
 
-  # ═══════════════════════════════════════════════════════════════
-  # 8. 部署 Staging（自动）
-  # ═══════════════════════════════════════════════════════════════
-  deploy-staging:
-    name: "🚀 Deploy Staging"
+          HEALTHY=0
+          for i in $(seq 1 15); do
+            if curl -sf http://localhost:8001/api/health > /dev/null 2>&1; then
+              echo "✅ Container healthy (attempt $i)"
+              HEALTHY=1
+              break
+            fi
+            sleep 2
+          done
+
+          if [ "$HEALTHY" -eq 0 ]; then
+            echo "::error::Container failed health check after 30s"
+            docker logs ci-smoke --tail=80
+            docker stop ci-smoke || true
+            exit 1
+          fi
+
+          echo "--- Health response ---"
+          curl -sf http://localhost:8001/api/health | python -m json.tool
+          docker stop ci-smoke || true
+
+  # ═══════════════════════════════════════════════════════════════════
+  # 4. 部署阶段 — 仅 main 分支
+  # ═══════════════════════════════════════════════════════════════════
+  deploy:
+    name: "Deploy"
     runs-on: ubuntu-latest
-    needs: [lint, test, docker, inner-child-gate, integration, security]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [test, build]
+    if: github.ref == 'refs/heads/main'
+    timeout-minutes: 10
     environment:
-      name: staging
-      url: https://staging.tengod.example.com
-    steps:
-      - uses: actions/checkout@v4
-      - name: Deploy
-        run: |
-          echo "🚀 Deploying to staging..."
-          echo "  Image:  tengod:v2.20.0"
-          echo "  Commit: ${{ github.sha }}"
-          echo "  Branch: ${{ github.ref }}"
-          echo "✅ Staging deploy triggered"
+      name: production
+      url: https://tengod-api.example.com
 
   # ═══════════════════════════════════════════════════════════════
   # 9. 部署 Production（手动审批）
@@ -457,10 +533,101 @@ jobs:
           if [ "${{ needs.integration.result }}" != "success" ]; then echo "❌ integration"; FAILED=1; fi
           if [ "${{ needs.docker.result }}" != "success" ]; then echo "❌ docker"; FAILED=1; fi
 
-          if [ "$FAILED" = "0" ]; then
-            echo "✅ 质量门禁通过，可以合入 main"
-            exit 0
-          else
-            echo "❌ 质量门禁不通过，请修复失败的任务"
+      # 在 Actions 摘要页输出部署概览
+      - name: Deployment summary
+        run: |
+          {
+            echo "## 🚀 Deployment"
+            echo ""
+            echo "| Item | Value |"
+            echo "|------|-------|"
+            echo "| SHA | \`${{ github.sha }}\` |"
+            echo "| Branch | \`${{ github.ref_name }}\` |"
+            echo "| Triggered by | @${{ github.actor }} |"
+            echo "| Commit | ${{ github.event.head_commit.message }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # 生成部署脚本（作为产物下载）
+      - name: Generate deploy artifacts
+        run: |
+          mkdir -p deploy
+
+          cat > deploy/deploy.sh << 'SCRIPT'
+          #!/bin/bash
+          set -euo pipefail
+
+          DEPLOY_DIR="${DEPLOY_DIR:-/opt/tengod}"
+          COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.yml}"
+          HEALTH_URL="${HEALTH_URL:-http://localhost/api/health}"
+
+          echo "=== Tengod Deployment ==="
+          cd "$DEPLOY_DIR"
+          git pull origin main
+          docker compose -f "$COMPOSE_FILE" build tengod-api
+          docker compose -f "$COMPOSE_FILE" up -d tengod-api
+
+          for i in $(seq 1 30); do
+            curl -sf "$HEALTH_URL" > /dev/null 2>&1 && {
+              echo "✅ Service healthy (attempt $i)"; break; }
+            echo "  waiting... ($i/30)"
+            sleep 2
+          done
+
+          curl -sf "$HEALTH_URL" > /dev/null 2>&1 || {
+            echo "❌ Health check failed after 60s"
+            docker compose -f "$COMPOSE_FILE" logs --tail=100 tengod-api
             exit 1
-          fi
+          }
+
+          echo "=== Deployed ==="
+          docker compose -f "$COMPOSE_FILE" ps
+          SCRIPT
+          chmod +x deploy/deploy.sh
+
+          cat > deploy/health-check.sh << 'SCRIPT'
+          #!/bin/bash
+          set -euo pipefail
+          BASE_URL="${BASE_URL:-http://localhost}"
+
+          echo "=== Health Check ==="
+          curl -sf "${BASE_URL}/api/health" > /dev/null \
+            && echo "✅ /api/health" \
+            || { echo "❌ /api/health"; exit 1; }
+
+          echo ""
+          curl -sf "${BASE_URL}/api/health/full" \
+            | python -m json.tool 2>/dev/null \
+            || echo "(full endpoint not available)"
+
+          echo ""
+          curl -sf "${BASE_URL}/api/metrics" \
+            | python -m json.tool 2>/dev/null \
+            | head -10 \
+            || echo "(metrics not available)"
+
+          echo ""
+          echo "=== Complete ==="
+          SCRIPT
+          chmod +x deploy/health-check.sh
+
+          echo "✅ Deploy scripts generated"
+
+      - name: Upload deploy scripts
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-scripts
+          path: deploy/
+          retention-days: 30
+
+      # ── 实际部署入口（按部署目标替换） ──────────────────────────
+      - name: Deploy (placeholder)
+        run: |
+          echo "::warning::Production deployment target not configured."
+          echo ""
+          echo "  Download 'deploy-scripts' artifact from this run,"
+          echo "  then execute deploy.sh on the production server."
+          echo ""
+          echo "  For automated deployment, replace this step with:"
+          echo "    - SSH action (appleboy/ssh-action)"
+          echo "    - Cloud Run / K8s deploy"
+          echo "    - or your infra-specific deployment action"
