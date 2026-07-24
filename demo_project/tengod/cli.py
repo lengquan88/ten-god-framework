@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""tengod — 十神架构 CLI 工具 v2.1.0
+"""tengod — 十神架构 CLI 工具 v4.6.0
 
 命令:
     tengod serve         启动 HTTP 服务

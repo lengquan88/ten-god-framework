@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-knowledge_fusion.py — 命理知识融合引擎 v2.2.0
+knowledge_fusion.py — 命理知识融合引擎 v4.6.0
 第二阶段：知识图谱 + 向量存储 + Deepseek AI 推理融合
 
 功能：

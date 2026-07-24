@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-api_server.py — 十神架构 · REST API 服务 v2.10.0
+api_server.py — 十神架构 · REST API 服务 v4.6.0
 
 FastAPI-based HTTP REST API，将全部六阶段能力服务化。
 

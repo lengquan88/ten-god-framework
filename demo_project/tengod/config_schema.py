@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-config_schema.py — Pydantic v2 配置 Schema 严格校验 v2.0.1
+config_schema.py — Pydantic v2 配置 Schema 严格校验 v4.6.0
 ==============================================================
 用 Pydantic v2 定义所有配置项的严格类型、范围和约束。
 运行时自动校验 + 自动填充默认值 + 友好的错误提示。

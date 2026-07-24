@@ -1096,3 +1096,209 @@ class TestEdgeCases:
         payload = call_args.kwargs["json"]
         # 0 is falsy, so `0 or self.config.max_tokens` → 2048
         assert payload["max_tokens"] == 2048
+
+
+# ════════════════════════════════════════════════════════════════
+# 10. ImportError 分支覆盖（httpx 未安装时模块导入）
+# ════════════════════════════════════════════════════════════════
+
+
+class TestHttpxImportFallback:
+    """测试 httpx 未安装时的降级行为"""
+
+    def test_httpx_none_on_import_error(self):
+        """测试当 httpx 不可用时，模块内 httpx 为 None（覆盖 except ImportError 分支）"""
+        import sys
+        import builtins
+
+        # 保存原始 sys.modules 快照和 __import__
+        original_modules = dict(sys.modules)
+        original_import = builtins.__import__
+
+        def blocking_import(name, *args, **kwargs):
+            if name == "httpx":
+                raise ImportError("No module named 'httpx'")
+            return original_import(name, *args, **kwargs)
+
+        try:
+            # 移除 tengod 相关模块，以便重新导入
+            keys_to_remove = [k for k in list(sys.modules) if k == "tengod" or k.startswith("tengod.")]
+            for k in keys_to_remove:
+                del sys.modules[k]
+
+            builtins.__import__ = blocking_import
+
+            import tengod.deepseek_adapter as adapter
+
+            assert adapter.httpx is None
+        finally:
+            # 完全恢复 sys.modules
+            builtins.__import__ = original_import
+            sys.modules.clear()
+            sys.modules.update(original_modules)
+
+
+# ════════════════════════════════════════════════════════════════
+# 11. analyze_bazi 错误传播
+# ════════════════════════════════════════════════════════════════
+
+
+class TestAnalyzeBaziErrors:
+    """analyze_bazi 错误处理测试"""
+
+    @pytest.mark.asyncio
+    async def test_analyze_bazi_propagates_chat_error(self):
+        """测试 analyze_bazi 正确传播底层 chat 的错误"""
+        mock_client = AsyncMock()
+        mock_client.chat = AsyncMock(side_effect=RuntimeError("API 调用失败"))
+
+        with patch("tengod.deepseek_adapter.get_client", return_value=mock_client):
+            with pytest.raises(RuntimeError, match="API 调用失败"):
+                await analyze_bazi(
+                    {"pillars": {"year": "甲子"}},
+                    "运势如何？",
+                )
+
+    @pytest.mark.asyncio
+    async def test_analyze_bazi_propagates_import_error(self):
+        """测试 analyze_bazi 传播 ImportError"""
+        mock_client = AsyncMock()
+        mock_client.chat = AsyncMock(side_effect=ImportError("httpx is required"))
+
+        with patch("tengod.deepseek_adapter.get_client", return_value=mock_client):
+            with pytest.raises(ImportError, match="httpx is required"):
+                await analyze_bazi(
+                    {"pillars": {"year": "甲子"}},
+                    "运势如何？",
+                )
+
+
+# ════════════════════════════════════════════════════════════════
+# 12. DeepseekClient 超时测试
+# ════════════════════════════════════════════════════════════════
+
+
+class TestDeepseekClientTimeout:
+    """超时场景测试"""
+
+    @pytest.mark.asyncio
+    async def test_chat_timeout(self):
+        """测试 chat 请求超时"""
+        import httpx as real_httpx
+
+        mock_httpx = AsyncMock()
+        mock_httpx.is_closed = False
+        mock_httpx.post = AsyncMock(side_effect=real_httpx.TimeoutException("request timed out"))
+
+        client = DeepseekClient(DeepseekConfig(api_key="test"))
+        client._client = mock_httpx
+
+        with pytest.raises(RuntimeError, match="Deepseek request failed"):
+            await client.chat([Message(role="user", content="测试")])
+
+    @pytest.mark.asyncio
+    async def test_stream_chat_timeout(self):
+        """测试 stream_chat 请求超时"""
+        import httpx as real_httpx
+
+        mock_httpx = AsyncMock()
+        mock_httpx.is_closed = False
+        mock_httpx.stream = MagicMock(side_effect=real_httpx.TimeoutException("stream timed out"))
+
+        client = DeepseekClient(DeepseekConfig(api_key="test"))
+        client._client = mock_httpx
+
+        with pytest.raises(RuntimeError, match="Deepseek stream error"):
+            async for _ in client.stream_chat([Message(role="user", content="测试")]):
+                pass
+
+
+# ════════════════════════════════════════════════════════════════
+# 13. stream_chat HTTP 状态错误（在 stream 内部）
+# ════════════════════════════════════════════════════════════════
+
+
+class TestStreamChatHTTPErrors:
+    """stream_chat HTTP 错误测试"""
+
+    @pytest.mark.asyncio
+    async def test_stream_chat_http_status_error(self):
+        """测试 stream_chat 中 raise_for_status 抛出 HTTPStatusError"""
+        import httpx as real_httpx
+
+        mock_response = MagicMock()
+        mock_response.raise_for_status.side_effect = real_httpx.HTTPStatusError(
+            "error", request=MagicMock(), response=MagicMock(status_code=500, text="Internal Server Error")
+        )
+
+        class _AsyncCtxManager:
+            async def __aenter__(self):
+                return mock_response
+
+            async def __aexit__(self, *args):
+                pass
+
+        mock_httpx = AsyncMock()
+        mock_httpx.is_closed = False
+        mock_httpx.stream = MagicMock(return_value=_AsyncCtxManager())
+
+        client = DeepseekClient(DeepseekConfig(api_key="test"))
+        client._client = mock_httpx
+
+        with pytest.raises(RuntimeError, match="Deepseek stream error"):
+            async for _ in client.stream_chat([Message(role="user", content="测试")]):
+                pass
+
+    @pytest.mark.asyncio
+    async def test_stream_chat_network_error(self):
+        """测试 stream_chat 中网络错误（如 ConnectionError）"""
+        mock_httpx = AsyncMock()
+        mock_httpx.is_closed = False
+        mock_httpx.stream = MagicMock(side_effect=ConnectionError("network unreachable"))
+
+        client = DeepseekClient(DeepseekConfig(api_key="test"))
+        client._client = mock_httpx
+
+        with pytest.raises(RuntimeError, match="Deepseek stream error"):
+            async for _ in client.stream_chat([Message(role="user", content="测试")]):
+                pass
+
+
+# ════════════════════════════════════════════════════════════════
+# 14. __all__ 导出验证
+# ════════════════════════════════════════════════════════════════
+
+
+class TestModuleExports:
+    """模块导出验证测试"""
+
+    def test_all_exports_match_public_api(self):
+        """测试 __all__ 包含所有公开 API"""
+        from tengod import deepseek_adapter
+
+        expected = {
+            "DeepseekConfig",
+            "DeepseekClient",
+            "DeepseekResponse",
+            "Message",
+            "BAZI_SYSTEM_PROMPT",
+            "QIMEN_SYSTEM_PROMPT",
+            "get_client",
+            "analyze_bazi",
+        }
+        assert set(deepseek_adapter.__all__) == expected
+
+    def test_all_names_are_importable(self):
+        """测试 __all__ 中的每个名称都可以直接导入"""
+        for name in [
+            "DeepseekConfig",
+            "DeepseekClient",
+            "DeepseekResponse",
+            "Message",
+            "BAZI_SYSTEM_PROMPT",
+            "QIMEN_SYSTEM_PROMPT",
+            "get_client",
+            "analyze_bazi",
+        ]:
+            obj = getattr(__import__("tengod.deepseek_adapter", fromlist=[name]), name)
+            assert obj is not None

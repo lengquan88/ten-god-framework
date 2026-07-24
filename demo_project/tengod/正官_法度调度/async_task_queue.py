@@ -1,4 +1,4 @@
-"""async_task_queue.py — 异步任务队列 (v2.1.0)
+"""async_task_queue.py — 异步任务队列 (v4.6.0)
 
 用 asyncio.Queue 替代当前 in-memory thread 方案，支持任务优先级。
 """

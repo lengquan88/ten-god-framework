@@ -7,8 +7,11 @@
 import json
 import os
 import tempfile
+import threading
 import time
 from pathlib import Path
+from unittest.mock import patch, MagicMock
+from urllib.error import URLError
 
 import pytest
 
@@ -780,3 +783,557 @@ def test_persistence_truncates_logs():
         assert engine2._logs[0].command == "cmd_50"
         assert engine2._logs[-1].command == "cmd_149"
         engine2.stop()
+
+
+# ═══════════════════════════════════════════════════════════
+# 新增: _reset_election_timer
+# ═══════════════════════════════════════════════════════════
+
+def test_reset_election_timer_creates_timer():
+    """_reset_election_timer 创建并启动选举计时器"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        engine = _make_engine(tmpdir, election_timeout=(10.0, 20.0))
+        old_timer = engine._election_timer
+        engine._reset_election_timer()
+        assert engine._election_timer is not None
+        assert isinstance(engine._election_timer, threading.Timer)
+        assert engine._election_timer.daemon is True
+        engine.stop()
+
+
+def test_reset_election_timer_cancels_old_timer():
+    """_reset_election_timer 取消旧计时器"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        engine = _make_engine(tmpdir, election_timeout=(10.0, 20.0))
+        engine._election_timer = threading.Timer(999, lambda: None)
+        old_timer = engine._election_timer
+        engine._reset_election_timer()
+        assert engine._election_timer is not old_timer
+        # 旧计时器应已被 cancel
+        assert old_timer.is_alive() is False
+        engine.stop()
+
+
+# ═══════════════════════════════════════════════════════════
+# 新增: _start_election
+# ═══════════════════════════════════════════════════════════
+
+def test_start_election_no_peers_becomes_leader():
+    """无 peer 的单节点 _start_election 立即成为 Leader"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        engine = _make_engine(tmpdir, election_timeout=(10.0, 20.0))
+        engine._running = True
+        engine._start_election()
+        assert engine._role == NodeRole.LEADER
+        assert engine._leader_id == "test-node"
+        assert engine._current_term == 1
+        assert engine._voted_for == "test-node"
+        engine.stop()
+
+
+def test_start_election_increments_term():
+    """_start_election 递增 current_term"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        engine = _make_engine(tmpdir, election_timeout=(10.0, 20.0))
+        engine._running = True
+        engine._current_term = 5
+        engine._start_election()
+        assert engine._current_term == 6
+        engine.stop()
+
+
+def test_start_election_not_running_returns_early():
+    """_start_election 在 _running=False 时直接返回"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        engine = _make_engine(tmpdir, election_timeout=(10.0, 20.0))
+        engine._running = False
+        engine._start_election()
+        assert engine._role == NodeRole.FOLLOWER
+        assert engine._current_term == 0
+        engine.stop()
+
+
+# ═══════════════════════════════════════════════════════════
+# 新增: _request_vote
+# ═══════════════════════════════════════════════════════════
+
+def test_request_vote_success():
+    """_request_vote — mock urlopen 返回 vote_granted=True"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        engine = _make_engine(tmpdir)
+        peer = PeerConfig("p1", "http://peer1:8000")
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps({"vote_granted": True}).encode("utf-8")
+
+        with patch("tengod.consensus.urlopen", return_value=mock_resp):
+            result = engine._request_vote(peer, term=1, last_log_index=0, last_log_term=0)
+        assert result is True
+        assert peer.healthy is True
+        assert peer.last_heartbeat > 0
+        engine.stop()
+
+
+def test_request_vote_network_error():
+    """_request_vote — mock urlopen 抛 URLError，peer 标记为 unhealthy"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        engine = _make_engine(tmpdir)
+        peer = PeerConfig("p1", "http://peer1:8000", healthy=True)
+
+        with patch("tengod.consensus.urlopen", side_effect=URLError("unreachable")):
+            result = engine._request_vote(peer, term=1, last_log_index=0, last_log_term=0)
+        assert result is False
+        assert peer.healthy is False
+        engine.stop()
+
+
+def test_request_vote_vote_not_granted():
+    """_request_vote — peer 返回 vote_granted=False"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        engine = _make_engine(tmpdir)
+        peer = PeerConfig("p1", "http://peer1:8000")
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps({"vote_granted": False}).encode("utf-8")
+
+        with patch("tengod.consensus.urlopen", return_value=mock_resp):
+            result = engine._request_vote(peer, term=1, last_log_index=0, last_log_term=0)
+        assert result is False
+        engine.stop()
+
+
+# ═══════════════════════════════════════════════════════════
+# 新增: _become_leader
+# ═══════════════════════════════════════════════════════════
+
+def test_become_leader_initializes_indices():
+    """_become_leader 初始化 next_index 和 match_index"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        p1 = PeerConfig("p1", "http://p1:8000")
+        p2 = PeerConfig("p2", "http://p2:8000")
+        engine = _make_engine(tmpdir, peers=[p1, p2])
+        engine._become_leader()
+        assert engine._role == NodeRole.LEADER
+        assert engine._leader_id == "test-node"
+        # next_index 初始化为 last_idx + 1 = -1 + 1 = 0
+        assert engine._next_index["p1"] == 0
+        assert engine._next_index["p2"] == 0
+        assert engine._next_index["test-node"] == 0
+        # match_index 初始化为 -1
+        assert engine._match_index["p1"] == -1
+        assert engine._match_index["p2"] == -1
+        engine.stop()
+
+
+def test_become_leader_with_existing_leader():
+    """_become_leader 传递旧 leader 给回调"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        engine = _make_engine(tmpdir, election_timeout=(10.0, 20.0))
+        engine._leader_id = "old-leader-99"
+        calls = []
+
+        def cb(old: str, new: str):
+            calls.append((old, new))
+
+        engine.on_leader_change(cb)
+        engine._become_leader()
+        assert len(calls) == 1
+        assert calls[0][0] == "old-leader-99"
+        assert calls[0][1] == "test-node"
+        engine.stop()
+
+
+def test_become_leader_no_previous_leader():
+    """_become_leader 无旧 leader 时回调收到空字符串"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        engine = _make_engine(tmpdir, election_timeout=(10.0, 20.0))
+        engine._leader_id = None
+        calls = []
+
+        def cb(old: str, new: str):
+            calls.append((old, new))
+
+        engine.on_leader_change(cb)
+        engine._become_leader()
+        assert len(calls) == 1
+        assert calls[0][0] == ""
+        assert calls[0][1] == "test-node"
+        engine.stop()
+
+
+# ═══════════════════════════════════════════════════════════
+# 新增: _send_append_entries
+# ═══════════════════════════════════════════════════════════
+
+def test_send_append_entries_with_entries():
+    """_send_append_entries — mock urlopen，验证 payload 结构"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        p1 = PeerConfig("p1", "http://p1:8000")
+        engine = _make_engine(tmpdir, peers=[p1])
+        engine._logs = [LogEntry(index=0, term=1, command="cmd0", data={"k": "v"})]
+        engine._next_index["p1"] = 0
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps({"success": True}).encode("utf-8")
+
+        with patch("tengod.consensus.urlopen", return_value=mock_resp):
+            engine._send_append_entries(p1, term=1, commit_index=-1)
+
+        assert p1.healthy is True
+        # next_index 应更新
+        assert engine._next_index["p1"] == 1
+        assert engine._match_index["p1"] == 0
+        engine.stop()
+
+
+def test_send_append_entries_network_error():
+    """_send_append_entries — mock urlopen 抛 URLError，peer 标记为 unhealthy"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        p1 = PeerConfig("p1", "http://p1:8000", healthy=True)
+        engine = _make_engine(tmpdir, peers=[p1])
+
+        with patch("tengod.consensus.urlopen", side_effect=URLError("unreachable")):
+            engine._send_append_entries(p1, term=1, commit_index=-1)
+
+        assert p1.healthy is False
+        engine.stop()
+
+
+def test_send_append_entries_no_entries():
+    """_send_append_entries — 无新日志时的空心跳"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        p1 = PeerConfig("p1", "http://p1:8000")
+        engine = _make_engine(tmpdir, peers=[p1])
+        engine._next_index["p1"] = 0
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps({"success": True}).encode("utf-8")
+
+        with patch("tengod.consensus.urlopen", return_value=mock_resp):
+            engine._send_append_entries(p1, term=1, commit_index=-1)
+
+        assert p1.healthy is True
+        # 没有 entries，next_index 不变
+        assert engine._next_index["p1"] == 0
+        engine.stop()
+
+
+# ═══════════════════════════════════════════════════════════
+# 新增: _check_commit
+# ═══════════════════════════════════════════════════════════
+
+def test_check_commit_advances_commit_index():
+    """_check_commit — 单节点多数派提交"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        engine = _make_engine(tmpdir)
+        engine._logs = [
+            LogEntry(index=0, term=1, command="e0"),
+            LogEntry(index=1, term=1, command="e1"),
+        ]
+        engine._commit_index = -1
+        # 无 peer，quorum = (0+1)//2 + 1 = 1，Leader 自己算 1 票
+        engine._check_commit()
+        assert engine._commit_index == 1
+        assert engine._logs[0].committed is True
+        assert engine._logs[1].committed is True
+        engine.stop()
+
+
+def test_check_commit_with_on_commit_callback():
+    """_check_commit — 触发 on_commit 回调"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        committed = []
+        engine = _make_engine(
+            tmpdir,
+            on_commit=lambda e: committed.append(e.command),
+        )
+        engine._logs = [
+            LogEntry(index=0, term=1, command="e0"),
+            LogEntry(index=1, term=1, command="e1"),
+        ]
+        engine._commit_index = -1
+        engine._check_commit()
+        assert len(committed) == 2
+        assert committed[0] == "e0"
+        assert committed[1] == "e1"
+        engine.stop()
+
+
+def test_check_commit_quorum_with_peers():
+    """_check_commit — 有 peer 时需达到多数派"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        p1 = PeerConfig("p1", "http://p1:8000")
+        p2 = PeerConfig("p2", "http://p2:8000")
+        engine = _make_engine(tmpdir, peers=[p1, p2])
+        engine._logs = [LogEntry(index=0, term=1, command="e0")]
+        engine._commit_index = -1
+        # quorum = (2+1)//2 + 1 = 2，Leader 1票，需 1 个 peer 也匹配
+        # 无 peer 匹配 → 不提交
+        engine._check_commit()
+        assert engine._commit_index == -1
+        assert engine._logs[0].committed is False
+
+        # 设 p1 的 match_index >= 0 → 达到 quorum
+        engine._match_index["p1"] = 0
+        engine._check_commit()
+        assert engine._commit_index == 0
+        assert engine._logs[0].committed is True
+        engine.stop()
+
+
+# ═══════════════════════════════════════════════════════════
+# 新增: handle_append_entries — gap filling / term mismatch
+# ═══════════════════════════════════════════════════════════
+
+def test_handle_append_entries_gap_filling():
+    """handle_append_entries — prev_log_index 超出当前日志，创建间隙条目"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        engine = _make_engine(tmpdir, election_timeout=(10.0, 20.0))
+        # 发送 entry index=3, prev_log_index=-1 (跳过 prev 检查)
+        resp = engine.handle_append_entries({
+            "term": 1,
+            "leader_id": "leader-1",
+            "prev_log_index": -1,
+            "prev_log_term": 0,
+            "entries": [
+                {"index": 3, "term": 1, "command": "real", "data": {}, "timestamp": time.time()},
+            ],
+            "leader_commit": -1,
+        })
+        assert resp["success"] is True
+        assert len(engine._logs) == 4
+        # 间隙条目
+        assert engine._logs[0].command == "__gap__"
+        assert engine._logs[0].term == 0
+        assert engine._logs[1].command == "__gap__"
+        assert engine._logs[2].command == "__gap__"
+        assert engine._logs[3].command == "real"
+        assert engine._logs[3].term == 1
+        engine.stop()
+
+
+def test_handle_append_entries_term_mismatch_truncation():
+    """handle_append_entries — 已有条目 term 不匹配时截断日志"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        engine = _make_engine(tmpdir, election_timeout=(10.0, 20.0))
+        engine._logs = [
+            LogEntry(index=0, term=1, command="old0"),
+            LogEntry(index=1, term=1, command="old1"),
+            LogEntry(index=2, term=1, command="old2"),
+        ]
+        # 发送 entry index=1 但 term=99（不匹配），prev_log_index=0
+        resp = engine.handle_append_entries({
+            "term": 2,
+            "leader_id": "leader-1",
+            "prev_log_index": 0,
+            "prev_log_term": 1,  # 匹配
+            "entries": [
+                {"index": 1, "term": 99, "command": "new1", "data": {}, "timestamp": time.time()},
+            ],
+            "leader_commit": -1,
+        })
+        assert resp["success"] is True
+        # 日志被截断到 index 0，然后追加新条目
+        assert len(engine._logs) == 2
+        assert engine._logs[0].command == "old0"
+        assert engine._logs[1].command == "new1"
+        assert engine._logs[1].term == 99
+        engine.stop()
+
+
+# ═══════════════════════════════════════════════════════════
+# 新增: handle_vote_request — log_ok 逻辑
+# ═══════════════════════════════════════════════════════════
+
+def test_handle_vote_request_log_ok_better_term():
+    """handle_vote_request — 候选人 last_log_term 更高 → log_ok=True"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        engine = _make_engine(tmpdir, election_timeout=(10.0, 20.0))
+        engine._current_term = 3
+        engine._logs = [LogEntry(index=0, term=1, command="x")]
+        # 候选人 last_log_term=5 > 我们的 last_log_term=1
+        resp = engine.handle_vote_request({
+            "term": 4,
+            "candidate_id": "c1",
+            "last_log_index": 0,
+            "last_log_term": 5,
+        })
+        assert resp["vote_granted"] is True
+        engine.stop()
+
+
+def test_handle_vote_request_log_ok_same_term_more_entries():
+    """handle_vote_request — 相同 term 但候选人日志更多 → log_ok=True"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        engine = _make_engine(tmpdir, election_timeout=(10.0, 20.0))
+        engine._current_term = 3
+        engine._logs = [LogEntry(index=0, term=2, command="x")]
+        # 候选人 last_log_term=2 (相同), last_log_index=5 >= 我们的 0
+        resp = engine.handle_vote_request({
+            "term": 4,
+            "candidate_id": "c1",
+            "last_log_index": 5,
+            "last_log_term": 2,
+        })
+        assert resp["vote_granted"] is True
+        engine.stop()
+
+
+def test_handle_vote_request_log_not_ok_lower_term():
+    """handle_vote_request — 候选人 last_log_term 更低 → log_ok=False → 拒绝"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        engine = _make_engine(tmpdir, election_timeout=(10.0, 20.0))
+        engine._current_term = 3
+        engine._logs = [LogEntry(index=0, term=5, command="x")]
+        # 候选人 last_log_term=2 < 我们的 last_log_term=5
+        resp = engine.handle_vote_request({
+            "term": 4,
+            "candidate_id": "c1",
+            "last_log_index": 10,
+            "last_log_term": 2,
+        })
+        assert resp["vote_granted"] is False
+        engine.stop()
+
+
+def test_handle_vote_request_log_not_ok_same_term_less_entries():
+    """handle_vote_request — 相同 term 但候选人日志更少 → log_ok=False → 拒绝"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        engine = _make_engine(tmpdir, election_timeout=(10.0, 20.0))
+        engine._current_term = 3
+        engine._logs = [
+            LogEntry(index=0, term=2, command="x"),
+            LogEntry(index=1, term=2, command="y"),
+        ]
+        # 候选人 last_log_term=2 (相同), last_log_index=0 < 我们的 last_log_index=1
+        resp = engine.handle_vote_request({
+            "term": 4,
+            "candidate_id": "c1",
+            "last_log_index": 0,
+            "last_log_term": 2,
+        })
+        assert resp["vote_granted"] is False
+        engine.stop()
+
+
+# ═══════════════════════════════════════════════════════════
+# 新增: _save_persistent / _load_persistent 边界
+# ═══════════════════════════════════════════════════════════
+
+def test_save_persistent_empty_logs():
+    """_save_persistent 空日志 → 文件包含 logs: []"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        engine = _make_engine(tmpdir)
+        engine._current_term = 3
+        engine._voted_for = "c1"
+        engine._logs = []
+        engine._save_persistent()
+        state_path = os.path.join(tmpdir, "test-node_state.json")
+        with open(state_path, "r") as f:
+            data = json.load(f)
+        assert data["current_term"] == 3
+        assert data["voted_for"] == "c1"
+        assert data["logs"] == []
+        engine.stop()
+
+
+def test_load_persistent_missing_fields():
+    """_load_persistent — 部分 JSON 字段缺失时使用默认值"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        state_path = os.path.join(tmpdir, "test-node_state.json")
+        # 只写 current_term，不写 voted_for 和 logs
+        with open(state_path, "w") as f:
+            json.dump({"current_term": 5}, f)
+        engine = _make_engine(tmpdir)
+        assert engine._current_term == 5
+        assert engine._voted_for is None
+        assert engine._logs == []
+        engine.stop()
+
+
+def test_load_persistent_empty_logs_list():
+    """_load_persistent — 恢复时 logs 为空列表"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        state_path = os.path.join(tmpdir, "test-node_state.json")
+        with open(state_path, "w") as f:
+            json.dump({"current_term": 2, "voted_for": "x", "logs": []}, f)
+        engine = _make_engine(tmpdir)
+        assert engine._current_term == 2
+        assert engine._voted_for == "x"
+        assert engine._logs == []
+        engine.stop()
+
+
+# ═══════════════════════════════════════════════════════════
+# 新增: query / propose 边界
+# ═══════════════════════════════════════════════════════════
+
+def test_query_after_start_uptime():
+    """query() — start 后 uptime > 0"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        engine = _make_engine(tmpdir, election_timeout=(10.0, 20.0))
+        engine.start()
+        state = engine.query()
+        assert state.uptime > 0
+        engine.stop()
+
+
+def test_propose_with_data_none():
+    """propose() — data=None 时默认为空 dict"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        engine = _make_engine(tmpdir, election_timeout=(10.0, 20.0))
+        engine._running = True
+        engine._start_election()  # 单节点，立即成为 Leader
+        assert engine._role == NodeRole.LEADER
+        result = engine.propose("test_cmd")  # data=None
+        assert result is True
+        assert engine._logs[0].data == {}
+        engine.stop()
+
+
+def test_propose_not_leader_multiple():
+    """propose() — Follower 多次调用均返回 False"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        engine = _make_engine(tmpdir)
+        for i in range(3):
+            assert engine.propose(f"cmd_{i}") is False
+        assert engine._logs == []
+        engine.stop()
+
+
+# ═══════════════════════════════════════════════════════════
+# 新增: handle_append_entries 重置选举计时器
+# ═══════════════════════════════════════════════════════════
+
+def test_handle_append_entries_resets_election_timer():
+    """handle_append_entries — 收到有效心跳时重置选举计时器"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        engine = _make_engine(tmpdir, election_timeout=(10.0, 20.0))
+        # 用 patch.object 验证 _reset_election_timer 被调用
+        with patch.object(engine, "_reset_election_timer") as mock_reset:
+            resp = engine.handle_append_entries({
+                "term": 1,
+                "leader_id": "leader-1",
+                "prev_log_index": -1,
+                "prev_log_term": 0,
+                "entries": [],
+                "leader_commit": -1,
+            })
+            assert resp["success"] is True
+            mock_reset.assert_called_once()
+        engine.stop()
+
+
+def test_handle_append_entries_no_reset_on_term_less():
+    """handle_append_entries — term < current_term 时不重置计时器"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        engine = _make_engine(tmpdir)
+        engine._current_term = 5
+        with patch.object(engine, "_reset_election_timer") as mock_reset:
+            resp = engine.handle_append_entries({
+                "term": 3,
+                "leader_id": "leader-1",
+                "prev_log_index": -1,
+                "prev_log_term": 0,
+                "entries": [],
+                "leader_commit": -1,
+            })
+            assert resp["success"] is False
+            mock_reset.assert_not_called()
+        engine.stop()

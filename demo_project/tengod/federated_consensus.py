@@ -1,4 +1,4 @@
-"""federated_consensus.py — 联邦学习共识 v2.3.0
+"""federated_consensus.py — 联邦学习共识 v4.6.0
 
 共识引擎从 Raft 扩展到联邦学习场景，多实例协同训练模型。
 """
