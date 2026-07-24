@@ -191,6 +191,61 @@ class TestDatabaseCRUD:
         counts = temp_db.import_all(export)
         assert counts["cases"] >= 1
 
+    def test_import_sql_injection_table_name(self, temp_db):
+        """测试 import_all 对恶意表名的 SQL 注入防护"""
+        malicious_data = {
+            "tables": {
+                "cases; DROP TABLE users;--": [{"id": 1, "name": "hack"}]
+            }
+        }
+        with pytest.raises(ValueError, match="Invalid table name"):
+            temp_db.import_all(malicious_data)
+        # 验证 users 表仍然存在
+        users = temp_db.get_user(username="nonexistent")
+        assert users is None
+
+    def test_import_sql_injection_column_name(self, temp_db):
+        """测试 import_all 对恶意列名的 SQL 注入防护"""
+        # 包含有效列和恶意列，恶意列应该被过滤掉
+        malicious_data = {
+            "tables": {
+                "cases": [
+                    {
+                        "id": 1,
+                        "name": "valid_name",
+                        "name) VALUES ('hack'); DROP TABLE feedback;--": "malicious_value"
+                    }
+                ]
+            }
+        }
+        # 恶意列名应该被过滤掉，只保留有效的列
+        counts = temp_db.import_all(malicious_data)
+        assert counts["cases"] == 1
+        # 验证数据正确插入（只有有效列）
+        case = temp_db.get_case(1)
+        assert case is not None
+        assert case["name"] == "valid_name"
+        # 验证 feedback 表仍然存在且正常工作
+        temp_db.insert_feedback({"session_id": "test", "domain": "test"})
+        feedback_list = temp_db.list_feedback(limit=10)
+        assert len(feedback_list) >= 1
+
+    def test_import_unknown_table_rejected(self, temp_db):
+        """测试导入未知表名被拒绝"""
+        bad_data = {
+            "tables": {
+                "nonexistent_table": [{"col1": "value1"}]
+            }
+        }
+        with pytest.raises(ValueError, match="Invalid table name"):
+            temp_db.import_all(bad_data)
+
+    def test_import_empty_tables(self, temp_db):
+        """测试导入空表数据"""
+        data = {"tables": {"cases": []}}
+        counts = temp_db.import_all(data)
+        assert counts["cases"] == 0
+
     def test_is_persistent(self, temp_db):
         """测试持久化状态"""
         from tengod.database import is_persistent
