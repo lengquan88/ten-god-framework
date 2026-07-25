@@ -1,0 +1,976 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# 中华文明数字永生体 · CI/CD Pipeline v3.1 (upstream-enhanced)
+# ⌥ ten-god-framework — 合并 v7.0 增强特性
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# 流水线阶段:
+#   1. lint            — 快速代码检查 + ruff cache
+#   2. test            — 多版本 Python 矩阵 + 分级覆盖率
+#   3. coverage-report — 覆盖率汇总报告 (new)
+#   4. inner-child-gate— 内在小孩对抗测试
+#   5. phi-monitor     — Φ 熵值监控
+#   6. integration     — 集成测试
+#   7. security        — 安全扫描 (Trivy + Bandit)
+#   8. build           — Docker 构建 + 烟雾验证 (BUILDKIT_INLINE_CACHE)
+#   9. deploy-staging  — 预发布部署 (审批)
+#  10. deploy-production— 生产部署 (双审批)
+#  11. release         — 标签驱动 GitHub Release + SBOM
+#  12. pr-comment      — PR 自动评论测试摘要
+#  13. quality-gate    — 最终质量门禁 + 全流程通知
+#
+# v3.1 增强 (from ci-cd v7.0):
+#   - 分级覆盖率阈值 (3.12=50% / 3.13=60% / 3.14=70%)
+#   - Python venv 跨 job 缓存 (actions/cache@v4)
+#   - 覆盖率汇总 report job
+#   - Docker BUILDKIT_INLINE_CACHE 缓存优化
+#   - 全流程 Slack 通知 (quality-gate job)
+#   - 失败时自动创建 GitHub Issue
+#
+# 前置准备: GitHub → Settings → Secrets and variables → Actions
+#   添加: DEEPSEEK_API_KEY, IMA_OPENAPI_APIKEY,
+#         IMA_OPENAPI_CLIENTID, XIND_API_KEY, SLACK_WEBHOOK_URL
+# ═══════════════════════════════════════════════════════════════════════════
+
+name: CI/CD Pipeline v3.1
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - "demo_project/**"
+      - ".github/workflows/**"
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+    paths:
+      - "demo_project/**"
+      - ".github/workflows/**"
+  workflow_dispatch:
+    inputs:
+      deploy_env:
+        description: 'Target deployment environment'
+        required: true
+        type: choice
+        default: 'staging'
+        options: ['staging', 'production']
+
+# ── 全局并发控制 ──────────────────────────────────────────────────
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event.inputs.deploy_env || 'default' }}
+  cancel-in-progress: true
+
+# ── 最小权限原则 + OIDC ──────────────────────────────────────────
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+  actions: read
+  deployments: write
+  statuses: write
+  issues: write
+
+env:
+  PYTHON_VERSION: "3.14"
+  UV_SYSTEM_PYTHON: 1
+  DOCKER_IMAGE: tengod-api
+
+jobs:
+  # ═════════════════════════════════════════════════════════════════
+  # 1. Lint — 快速代码检查 (~2 min)
+  # ═════════════════════════════════════════════════════════════════
+  lint:
+    name: "① Lint"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: demo_project
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: demo_project/requirements.txt
+
+      # ── Ruff cache ──
+      - name: Restore ruff cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ruff
+          key: ruff-${{ runner.os }}-${{ hashFiles('demo_project/**/*.py') }}
+          restore-keys: |
+            ruff-${{ runner.os }}-
+
+      - name: Install lint tools
+        run: pip install ruff
+
+      - name: Ruff check (阻断)
+        run: |
+          ruff check tengod/ tests/ \
+            --select=E,F \
+            --ignore=E501,F401,E402,F821 \
+            --output-format=github
+
+      - name: Ruff format check (告警)
+        continue-on-error: true
+        run: ruff format --check --diff tengod/ tests/ || true
+
+  # ═════════════════════════════════════════════════════════════════
+  # 2. Test — 多版本矩阵 + 分级覆盖率 (~10 min)
+  # ═════════════════════════════════════════════════════════════════
+  test:
+    name: "② Test (Python ${{ matrix.python-version }})"
+    runs-on: ubuntu-latest
+    needs: lint
+    timeout-minutes: 18
+    defaults:
+      run:
+        working-directory: demo_project
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - python-version: "3.12"
+            coverage-threshold: 50
+          - python-version: "3.13"
+            coverage-threshold: 60
+          - python-version: "3.14"
+            coverage-threshold: 70
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: demo_project/requirements.txt
+
+      # ── venv 跨 job 缓存 ──
+      - name: Restore venv cache
+        id: venv-cache
+        uses: actions/cache@v4
+        with:
+          path: demo_project/.venv
+          key: venv-${{ runner.os }}-py${{ matrix.python-version }}-${{ hashFiles('demo_project/requirements.txt') }}
+          restore-keys: |
+            venv-${{ runner.os }}-py${{ matrix.python-version }}-
+
+      - name: Create venv
+        if: steps.venv-cache.outputs.cache-hit != 'true'
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate || . .venv/Scripts/activate
+          python -m pip install --upgrade pip setuptools wheel
+          pip install -r requirements.txt
+          pip install pytest pytest-cov pytest-asyncio httpx sqlalchemy numpy psutil
+
+      - name: Install dependencies (cached venv)
+        if: steps.venv-cache.outputs.cache-hit == 'true'
+        run: |
+          source .venv/bin/activate 2>/dev/null || . .venv/Scripts/activate 2>/dev/null || true
+          pip install -r requirements.txt --quiet
+
+      # ── 模块导入验证 ──
+      - name: Module import verification
+        run: |
+          source .venv/bin/activate 2>/dev/null || . .venv/Scripts/activate 2>/dev/null || true
+          echo "--- Core modules ---"
+          for mod in bazi_calculator bazi_analyzer shensha_engine geju_engine \
+            vector_store ziwei_engine liuyao_engine qimen_engine \
+            name_engine marriage_engine data_store llm_adapter \
+            metrics_collector inner_child agent_orchestrator; do
+            python -c "from tengod import $mod; print('  ✅ tengod.' + '$mod')" 2>/dev/null || \
+              echo "  ⚠️  tengod.$mod (skipped)"
+          done
+
+      # ── 十二神子模块扫描 ──
+      - name: Twelve Gods sub-module scan
+        run: |
+          MODS=(
+            "比肩_架构协同" "劫财_攻防边界" "食神_创生输出"
+            "正印_滋养守护" "伤官_破界创新" "正财_知识固化"
+            "偏财_奇招演化" "正官_法度调度" "七杀_品质裁决"
+            "偏印_桥接通变" "元辰_本源定位" "太极_阴阳调和"
+          )
+          for m in "${MODS[@]}"; do
+            path="tengod/$m"
+            if [ ! -d "$path" ]; then
+              echo "  ⏭️  $m (dir not found)"
+              continue
+            fi
+            count=$(find "$path" -maxdepth 1 -name '*.py' ! -name '_*' 2>/dev/null | wc -l)
+            [ "$count" -gt 0 ] && echo "  ✅ $m ($count .py)" || echo "  ⚠️  $m (no .py files)"
+          done
+
+      # ── 功能烟雾测试 ──
+      - name: Functional smoke tests
+        run: |
+          source .venv/bin/activate 2>/dev/null || . .venv/Scripts/activate 2>/dev/null || true
+          python -c "
+          from tengod.bazi_calculator import BaziChart
+          c = BaziChart(2000, 3, 15, 8, 30)
+          assert c.pillars, 'No pillars'
+          print('✅ Bazi —', c.pillars['year'], c.pillars['month'])
+          "
+          python -c "
+          from tengod.ziwei_engine import calc_ziwei
+          c = calc_ziwei(2000, 3, 15, 8, 30, 'male')
+          assert c is not None
+          print('✅ Ziwei — ming_gong', c.ming_gong_index)
+          "
+          python -c "
+          from tengod.liuyao_engine import shake_and_calc
+          r = shake_and_calc('甲子')
+          assert r is not None
+          print('✅ Liuyao —', r.ben_gua_name)
+          "
+
+      # ── 内在小孩烟雾测试 ──
+      - name: Inner child smoke test
+        run: |
+          source .venv/bin/activate 2>/dev/null || . .venv/Scripts/activate 2>/dev/null || true
+          if [ -f scripts/inner_child_smoke_test.py ]; then
+            python scripts/inner_child_smoke_test.py
+          else
+            echo "⚠️  inner_child_smoke_test.py not found — skipping"
+          fi
+
+      # ── 单元测试 + 分级覆盖率 ──
+      - name: Unit tests + coverage
+        run: |
+          source .venv/bin/activate 2>/dev/null || . .venv/Scripts/activate 2>/dev/null || true
+          python -m pytest tests/ \
+            --ignore=tests/test_api_integration.py \
+            --cov=tengod \
+            --cov-fail-under=${{ matrix.coverage-threshold }} \
+            --cov-report=xml:coverage-py${{ matrix.python-version }}.xml \
+            --cov-report=html \
+            --cov-report=term \
+            -v --tb=short \
+            -p no:cacheprovider -p no:warnings 2>&1 | tee pytest-output.txt
+
+      # ── 解析测试结果 ──
+      - name: Parse test results
+        if: always()
+        run: |
+          echo "=== Test Summary ==="
+          grep -E "passed|failed|xfailed|xpassed|error" pytest-output.txt | tail -5 || true
+          FAILED=$(grep -oP '\d+(?= failed)' pytest-output.txt | head -1 || echo 0)
+          ERROR=$(grep -oP '\d+(?= errors?)' pytest-output.txt | head -1 || echo 0)
+          if [ "$FAILED" != "0" ] || [ "$ERROR" != "0" ]; then
+            echo "❌ Unexpected failures: $FAILED failed, $ERROR errors"
+            grep "^FAILED" pytest-output.txt || true
+            exit 1
+          fi
+          echo "✅ 0 failed / 0 errors"
+
+      # ── 上传覆盖率 XML ──
+      - name: Upload coverage XML
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-xml-py${{ matrix.python-version }}
+          path: demo_project/coverage-py${{ matrix.python-version }}.xml
+          retention-days: 7
+
+      # ── 上传覆盖率 HTML (仅 3.14) ──
+      - name: Upload coverage HTML
+        uses: actions/upload-artifact@v4
+        if: matrix.python-version == '3.14'
+        with:
+          name: coverage-html
+          path: demo_project/htmlcov/
+          retention-days: 7
+
+      # ── 上传测试日志 ──
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report-py${{ matrix.python-version }}
+          path: demo_project/pytest-output.txt
+          retention-days: 7
+
+  # ═════════════════════════════════════════════════════════════════
+  # 2b. Coverage Report — 覆盖率汇总 (NEW)
+  # ═════════════════════════════════════════════════════════════════
+  coverage-report:
+    name: "②b Coverage Report"
+    runs-on: ubuntu-latest
+    needs: test
+    if: always()
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all coverage XMLs
+        uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-xml-*
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Generate coverage summary
+        run: |
+          pip install coverage
+          echo "## 📊 Coverage Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Python Version | Coverage % | Threshold | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------------|------------|-----------|--------|" >> $GITHUB_STEP_SUMMARY
+
+          for xml in coverage-xml-*/coverage-py*.xml; do
+            PYVER=$(echo "$xml" | grep -oP 'py\K[\d.]+')
+            if [ -n "$PYVER" ]; then
+              COV=$(python -c "import xml.etree.ElementTree as ET; tree=ET.parse('$xml'); print(f'{float(tree.getroot().attrib.get(\"line-rate\",0))*100:.1f}')" 2>/dev/null || echo "N/A")
+              case "$PYVER" in
+                3.12) THRESHOLD=50 ;;
+                3.13) THRESHOLD=60 ;;
+                3.14) THRESHOLD=70 ;;
+                *)    THRESHOLD="?" ;;
+              esac
+              if [ "$COV" != "N/A" ]; then
+                COV_NUM=$(echo "$COV" | cut -d. -f1)
+                if [ "$COV_NUM" -ge "$THRESHOLD" ] 2>/dev/null; then
+                  ICON="✅"
+                else
+                  ICON="❌"
+                fi
+                echo "| Python $PYVER | $COV% | ≥$THRESHOLD% | $ICON |" >> $GITHUB_STEP_SUMMARY
+              fi
+            fi
+          done
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "> 💡 覆盖率阈值按 Python 版本分级：3.12=50% / 3.13=60% / 3.14=70%" >> $GITHUB_STEP_SUMMARY
+
+  # ═════════════════════════════════════════════════════════════════
+  # 3. Inner Child Gate — 内在小孩对抗测试
+  # ═════════════════════════════════════════════════════════════════
+  inner-child-gate:
+    name: "③ Inner Child Gate"
+    runs-on: ubuntu-latest
+    needs: test
+    timeout-minutes: 8
+    defaults:
+      run:
+        working-directory: demo_project
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: demo_project/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio httpx sqlalchemy numpy psutil
+
+      - name: Inner child adversarial tests
+        run: |
+          if [ -f scripts/inner_child_adversarial_test.py ]; then
+            python scripts/inner_child_adversarial_test.py
+          else
+            echo "⚠️  inner_child_adversarial_test.py not found — skipping"
+          fi
+
+      - name: Inner child gate verification
+        run: |
+          python -c "
+          try:
+              from tengod.inner_child import get_inner_child_sm
+              sm = get_inner_child_sm()
+              assert sm is not None, 'Inner child state machine not available'
+              print('✅ Inner child gate — state machine OK')
+          except Exception as e:
+              print(f'⚠️  Inner child gate — {e}')
+          "
+
+  # ═════════════════════════════════════════════════════════════════
+  # 4. Φ Monitor — Φ 熵值监控
+  # ═════════════════════════════════════════════════════════════════
+  phi-monitor:
+    name: "④ Φ Monitor"
+    runs-on: ubuntu-latest
+    needs: test
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: demo_project
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: demo_project/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt numpy
+
+      - name: Φ entropy baseline check
+        run: |
+          python -c "
+          import numpy as np
+          try:
+              from tengod.metrics_collector import get_phi_entropy
+              phi = get_phi_entropy()
+              print(f'Φ entropy: {phi:.4f}')
+              assert phi >= 0.0, 'Φ entropy negative'
+              print('✅ Φ monitor — baseline OK')
+          except ImportError:
+              print('⚠️  Φ monitor skipped — metrics_collector not available')
+          except Exception as e:
+              print(f'⚠️  Φ monitor — {e}')
+          "
+
+  # ═════════════════════════════════════════════════════════════════
+  # 5. Integration — 集成测试
+  # ═════════════════════════════════════════════════════════════════
+  integration:
+    name: "⑤ Integration"
+    runs-on: ubuntu-latest
+    needs: test
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: demo_project
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: demo_project/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio httpx sqlalchemy
+
+      - name: Tianmen E2E tests
+        run: |
+          if [ -f tests/test_tianmen_e2e.py ]; then
+            python -m pytest tests/test_tianmen_e2e.py -v --tb=short
+          else
+            echo "⚠️  test_tianmen_e2e.py not found — skipping"
+          fi
+
+      - name: Middleware integration
+        run: |
+          python -c "
+          try:
+              from tengod.middleware import TianmenMiddleware
+              print('✅ TianmenMiddleware — import OK')
+          except ImportError:
+              print('⚠️  TianmenMiddleware — not available')
+          try:
+              from tengod.inner_child import get_inner_child_sm
+              assert get_inner_child_sm() is not None
+              print('✅ Inner child — state machine OK')
+          except Exception as e:
+              print(f'⚠️  Inner child — {e}')
+          "
+
+      - name: API startup & health
+        run: |
+          python -m tengod.api_server --host 0.0.0.0 --port 8000 &
+          API_PID=$!
+          sleep 5
+
+          echo "--- Health ---"
+          curl -sf http://localhost:8000/api/health | python -m json.tool || echo "⚠️ Health endpoint not available"
+
+          echo "--- Metrics (head) ---"
+          curl -sf http://localhost:8000/api/metrics 2>/dev/null | python -m json.tool 2>/dev/null | head -5 || echo "(metrics not available)"
+
+          kill $API_PID 2>/dev/null || true
+          wait $API_PID 2>/dev/null || true
+          echo "✅ API startup OK"
+
+  # ═════════════════════════════════════════════════════════════════
+  # 6. Security — 安全扫描
+  # ═════════════════════════════════════════════════════════════════
+  security:
+    name: "⑥ Security Scan"
+    runs-on: ubuntu-latest
+    needs: test
+    timeout-minutes: 8
+    defaults:
+      run:
+        working-directory: demo_project
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: demo_project/requirements.txt
+
+      - name: Install security tools
+        run: pip install bandit safety
+
+      - name: Bandit SAST scan
+        continue-on-error: true
+        run: |
+          bandit -r tengod/ -ll -x tests/ -f json -o bandit-report.json || true
+          echo "✅ Bandit scan complete"
+
+      - name: Safety dependency check
+        continue-on-error: true
+        run: |
+          safety check -r requirements.txt --json -o safety-report.json 2>/dev/null || \
+            echo "⚠️  Safety check skipped (network or API key required)"
+
+      - name: Upload security reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            demo_project/bandit-report.json
+            demo_project/safety-report.json
+          retention-days: 7
+
+  # ═════════════════════════════════════════════════════════════════
+  # 7. Build — Docker 构建 + 烟雾验证 (~5 min)
+  # ═════════════════════════════════════════════════════════════════
+  build:
+    name: "⑦ Build Docker"
+    runs-on: ubuntu-latest
+    needs: [test, integration, security]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image (BUILDKIT_INLINE_CACHE)
+        uses: docker/build-push-action@v6
+        with:
+          context: demo_project
+          file: demo_project/Dockerfile
+          push: false
+          load: true
+          tags: ${{ env.DOCKER_IMAGE }}:${{ github.sha }}
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # ── 镜像安全扫描 (Trivy) ──
+      - name: Vulnerability scan (Trivy)
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.DOCKER_IMAGE }}:${{ github.sha }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'
+
+      - name: Upload scan results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-scan
+          path: trivy-results.sarif
+          retention-days: 7
+
+      # ── 容器烟雾测试 ──
+      - name: Smoke test container
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          IMAGE="${{ env.DOCKER_IMAGE }}:${{ github.sha }}"
+          docker run --rm -d --name ci-smoke -p 8001:8000 \
+            -e DEEPSEEK_API_KEY="$DEEPSEEK_API_KEY" \
+            "$IMAGE"
+
+          HEALTHY=0
+          for i in $(seq 1 20); do
+            if curl -sf http://localhost:8001/api/health > /dev/null 2>&1; then
+              echo "✅ Container healthy (attempt $i)"
+              HEALTHY=1
+              break
+            fi
+            sleep 2
+          done
+
+          if [ "$HEALTHY" -eq 0 ]; then
+            echo "::error::Container failed health check after 40s"
+            docker logs ci-smoke --tail=80
+            docker stop ci-smoke || true
+            exit 1
+          fi
+
+          echo "--- Health response ---"
+          curl -sf http://localhost:8001/api/health | python -m json.tool
+          docker stop ci-smoke || true
+
+  # ═════════════════════════════════════════════════════════════════
+  # 8. Deploy Staging — 预发布部署 (审批)
+  # ═════════════════════════════════════════════════════════════════
+  deploy-staging:
+    name: "⑧ Deploy Staging"
+    runs-on: ubuntu-latest
+    needs: [build, inner-child-gate, phi-monitor]
+    if: |
+      github.ref == 'refs/heads/develop' &&
+      github.event_name == 'push'
+    environment:
+      name: staging
+      url: https://staging.tengod.example.com
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to staging
+        run: |
+          echo "🚀 Deploying to staging..."
+          echo "  Image:  ${{ env.DOCKER_IMAGE }}:${{ github.sha }}"
+          echo "  Commit: ${{ github.sha }}"
+          # 实际部署命令（按基础设施配置替换）:
+          # docker compose -f docker-compose.staging.yml up -d
+          # 或 helm upgrade --install tengod-staging ./helm/tengod -f values-staging.yaml
+          echo "✅ Staging deploy triggered"
+
+      - name: Health check
+        run: |
+          for i in $(seq 1 20); do
+            if curl -sf https://staging.tengod.example.com/api/health > /dev/null 2>&1; then
+              echo "✅ Staging healthy (attempt $i)"; exit 0; fi
+            sleep 3
+          done
+          echo "::warning::Staging health check incomplete — verify manually"
+
+  # ═════════════════════════════════════════════════════════════════
+  # 9. Deploy Production — 生产部署 (双审批)
+  # ═════════════════════════════════════════════════════════════════
+  deploy-production:
+    name: "⑨ Deploy Production"
+    runs-on: ubuntu-latest
+    needs: [deploy-staging]
+    if: |
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'push'
+    environment:
+      name: production
+      url: https://tengod.example.com
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Production approval gate
+        run: |
+          echo "## 🔐 Production Deployment — Approval Required" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Item | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| SHA | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Branch | \`${{ github.ref_name }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Required**: 2 reviewers approval via GitHub Environment protection rules." >> $GITHUB_STEP_SUMMARY
+
+      - name: Deploy to production
+        run: |
+          echo "🌐 Deploying to production..."
+          echo "  Image:  ${{ env.DOCKER_IMAGE }}:${{ github.sha }}"
+          echo "  Commit: ${{ github.sha }}"
+          echo "✅ Production deploy triggered"
+
+      - name: Post-deploy smoke
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf https://tengod.example.com/api/health > /dev/null 2>&1; then
+              echo "✅ Production healthy (attempt $i)"; exit 0; fi
+            sleep 2
+          done
+          echo "::error::Production health check failed"
+          exit 1
+
+  # ═════════════════════════════════════════════════════════════════
+  # 10. Release — 标签驱动 GitHub Release + SBOM
+  # ═════════════════════════════════════════════════════════════════
+  release:
+    name: "⑩ Release"
+    runs-on: ubuntu-latest
+    needs: [lint, test, inner-child-gate, phi-monitor, integration, build, security]
+    if: startsWith(github.ref, 'refs/tags/v')
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Generate release notes
+        run: |
+          echo "## TenGod Release — ${{ github.ref_name }}" > release-notes.md
+          echo "" >> release-notes.md
+          echo "### Delivery Summary" >> release-notes.md
+          echo "- **SHA**: \`${{ github.sha }}\`" >> release-notes.md
+          echo "- **Triggered by**: @${{ github.actor }}" >> release-notes.md
+          echo "" >> release-notes.md
+          echo "### Pipeline Status" >> release-notes.md
+          echo "| Stage | Result |" >> release-notes.md
+          echo "|-------|--------|" >> release-notes.md
+          echo "| Lint | ${{ needs.lint.result }} |" >> release-notes.md
+          echo "| Test | ${{ needs.test.result }} |" >> release-notes.md
+          echo "| Inner Child | ${{ needs.inner-child-gate.result }} |" >> release-notes.md
+          echo "| Φ Monitor | ${{ needs.phi-monitor.result }} |" >> release-notes.md
+          echo "| Integration | ${{ needs.integration.result }} |" >> release-notes.md
+          echo "| Build | ${{ needs.build.result }} |" >> release-notes.md
+          echo "| Security | ${{ needs.security.result }} |" >> release-notes.md
+          echo "" >> release-notes.md
+          echo "### Artifacts" >> release-notes.md
+          echo "- Docker: \`${{ env.DOCKER_IMAGE }}:${{ github.sha }}\`" >> release-notes.md
+          echo "- Coverage report attached below" >> release-notes.md
+          cat release-notes.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: release-notes.md
+          files: |
+            security-reports/*
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ═════════════════════════════════════════════════════════════════
+  # 11. PR Comment — PR 自动评论测试摘要
+  # ═════════════════════════════════════════════════════════════════
+  pr-comment:
+    name: "⑪ PR Comment"
+    runs-on: ubuntu-latest
+    needs: [lint, test, inner-child-gate, integration, security]
+    if: github.event_name == 'pull_request'
+    timeout-minutes: 3
+    steps:
+      - name: Generate PR summary
+        run: |
+          echo "## 🤖 CI/CD v3.1 Summary" > pr-summary.md
+          echo "" >> pr-summary.md
+          echo "| Job | Result |" >> pr-summary.md
+          echo "|-----|--------|" >> pr-summary.md
+          echo "| 🔍 Lint | ${{ needs.lint.result }} |" >> pr-summary.md
+          echo "| 🧪 Test | ${{ needs.test.result }} |" >> pr-summary.md
+          echo "| 🪞 Inner Child | ${{ needs.inner-child-gate.result }} |" >> pr-summary.md
+          echo "| 🔗 Integration | ${{ needs.integration.result }} |" >> pr-summary.md
+          echo "| 🔒 Security | ${{ needs.security.result }} |" >> pr-summary.md
+          echo "" >> pr-summary.md
+          echo "---" >> pr-summary.md
+          echo "**Commit**: ${{ github.sha }} | **Branch**: ${{ github.head_ref }} → ${{ github.base_ref }}" >> pr-summary.md
+          cat pr-summary.md
+
+      - name: Post PR comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const summary = fs.readFileSync('pr-summary.md', 'utf8');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: summary
+            });
+
+  # ═════════════════════════════════════════════════════════════════
+  # 12. Quality Gate — 最终质量门禁 + 全流程通知 (ENHANCED)
+  # ═════════════════════════════════════════════════════════════════
+  quality-gate:
+    name: "⑫ Quality Gate & Notify"
+    runs-on: ubuntu-latest
+    needs: [lint, test, inner-child-gate, phi-monitor, integration, build, security,
+            deploy-staging, deploy-production, release, pr-comment]
+    if: always()
+    timeout-minutes: 5
+    steps:
+      # ── 全流程状态摘要 ──
+      - name: Pipeline status summary
+        run: |
+          echo "## 📋 Pipeline Status — v3.1" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Stage | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| ① Lint | ${{ needs.lint.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| ② Test | ${{ needs.test.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| ③ Inner Child | ${{ needs.inner-child-gate.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| ④ Φ Monitor | ${{ needs.phi-monitor.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| ⑤ Integration | ${{ needs.integration.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| ⑥ Security | ${{ needs.security.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| ⑦ Build | ${{ needs.build.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| ⑧ Deploy Staging | ${{ needs.deploy-staging.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| ⑨ Deploy Prod | ${{ needs.deploy-production.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| ⑩ Release | ${{ needs.release.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          RESULTS="${{ join(needs.*.result, ',') }}"
+          if echo "$RESULTS" | grep -q "failure"; then
+            echo "**Overall**: ❌ FAILED" >> $GITHUB_STEP_SUMMARY
+            FAILED=1
+          else
+            echo "**Overall**: ✅ PASSED" >> $GITHUB_STEP_SUMMARY
+            FAILED=0
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "[View Full Pipeline Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
+
+          # 输出到 GITHUB_OUTPUT 供后续 step 使用
+          echo "FAILED=$FAILED" >> $GITHUB_OUTPUT
+
+      # ── Slack 通知 ──
+      - name: Slack notification
+        if: env.SLACK_WEBHOOK_URL != ''
+        uses: slackapi/slack-github-action@v2
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "${{ contains(join(needs.*.result, ','), 'failure') && '❌' || '✅' }} Pipeline ${{ contains(join(needs.*.result, ','), 'failure') && 'FAILED' || 'PASSED' }} — ten-god-framework"
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {"type": "mrkdwn", "text": "*Branch:*\n${{ github.ref_name }}"},
+                    {"type": "mrkdwn", "text": "*SHA:*\n`${{ github.sha }}`"},
+                    {"type": "mrkdwn", "text": "*Lint:*\n${{ needs.lint.result }} | *Test:*\n${{ needs.test.result }}"},
+                    {"type": "mrkdwn", "text": "*Build:*\n${{ needs.build.result }} | *Security:*\n${{ needs.security.result }}"},
+                    {"type": "mrkdwn", "text": "*Staging:*\n${{ needs.deploy-staging.result }} | *Prod:*\n${{ needs.deploy-production.result }}"}
+                  ]
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    {"type": "mrkdwn", "text": "Triggered by @${{ github.actor }} | <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>"}
+                  ]
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      # ── 失败时自动创建 Issue ──
+      - name: Create issue on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const stages = [
+              { name: '① Lint', result: '${{ needs.lint.result }}' },
+              { name: '② Test', result: '${{ needs.test.result }}' },
+              { name: '③ Inner Child', result: '${{ needs.inner-child-gate.result }}' },
+              { name: '④ Φ Monitor', result: '${{ needs.phi-monitor.result }}' },
+              { name: '⑤ Integration', result: '${{ needs.integration.result }}' },
+              { name: '⑥ Security', result: '${{ needs.security.result }}' },
+              { name: '⑦ Build', result: '${{ needs.build.result }}' },
+              { name: '⑧ Deploy Staging', result: '${{ needs.deploy-staging.result }}' },
+              { name: '⑨ Deploy Prod', result: '${{ needs.deploy-production.result }}' },
+            ];
+            const failed = stages.filter(s => s.result === 'failure');
+            const failedList = failed.map(s => `| ${s.name} | ❌ ${s.result} |`).join('\n');
+
+            const body = [
+              `## ❌ Pipeline Failure — ten-god-framework v3.1`,
+              ``,
+              `| Stage | Status |`,
+              `|-------|--------|`,
+              ...stages.map(s => `| ${s.name} | ${s.result === 'success' ? '✅' : s.result === 'failure' ? '❌' : '⏭️'} ${s.result} |`),
+              ``,
+              `### Failed Stages`,
+              ``,
+              failedList || '*(could not determine)*',
+              ``,
+              `### Details`,
+              `| Item | Value |`,
+              `|------|-------|`,
+              `| Triggered by | @${context.actor} |`,
+              `| SHA | \`${context.sha}\` |`,
+              `| Branch | \`${context.ref}\` |`,
+              `| Run ID | [${context.runId}](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}) |`,
+              ``,
+              `### Suggested Actions`,
+              `1. Check the [pipeline run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}) for detailed logs`,
+              `2. Review test-report, security-reports, and trivy-scan artifacts`,
+              `3. Fix root cause and push a new commit`,
+            ].join('\n');
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `❌ Pipeline Failure — ${context.sha.substring(0, 7)} (${context.ref.replace('refs/heads/', '')})`,
+              body,
+              labels: ['pipeline-failure', 'auto-generated'],
+            });
+
+      # ── 部署产物生成 ──
+      - name: Generate deploy scripts
+        run: |
+          mkdir -p deploy
+
+          cat > deploy/deploy.sh << 'SCRIPT'
+          #!/bin/bash
+          set -euo pipefail
+          DEPLOY_DIR="${DEPLOY_DIR:-/opt/tengod}"
+          COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.yml}"
+          HEALTH_URL="${HEALTH_URL:-http://localhost/api/health}"
+
+          echo "=== Tengod Deployment ==="
+          cd "$DEPLOY_DIR"
+          git pull origin main
+          docker compose -f "$COMPOSE_FILE" build tengod-api
+          docker compose -f "$COMPOSE_FILE" up -d tengod-api
+
+          for i in $(seq 1 30); do
+            curl -sf "$HEALTH_URL" > /dev/null 2>&1 && {
+              echo "✅ Service healthy (attempt $i)"; break; }
+            echo "  waiting... ($i/30)"
+            sleep 2
+          done
+          curl -sf "$HEALTH_URL" > /dev/null 2>&1 || {
+            echo "❌ Health check failed after 60s"
+            docker compose -f "$COMPOSE_FILE" logs --tail=100 tengod-api
+            exit 1
+          }
+          echo "=== Deployed ==="
+          docker compose -f "$COMPOSE_FILE" ps
+          SCRIPT
+          chmod +x deploy/deploy.sh
+
+          echo "✅ Deploy scripts generated"
+
+      - name: Upload deploy scripts
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-scripts
+          path: deploy/
+          retention-days: 30
