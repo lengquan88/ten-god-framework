@@ -159,15 +159,16 @@ CREATE_TABLES_SQL = [
     # ── 用户/配额表 ──
     """
     CREATE TABLE IF NOT EXISTS users (
-        id          INTEGER PRIMARY KEY AUTOINCREMENT,
-        username    TEXT NOT NULL UNIQUE,
-        api_key     TEXT NOT NULL DEFAULT '',
-        role        TEXT NOT NULL DEFAULT 'user',
-        quota_used  INTEGER NOT NULL DEFAULT 0,
-        quota_limit INTEGER NOT NULL DEFAULT 1000,
-        metadata    TEXT NOT NULL DEFAULT '{}',
-        created_at  REAL NOT NULL DEFAULT (strftime('%s', 'now')),
-        updated_at  REAL NOT NULL DEFAULT (strftime('%s', 'now'))
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        username        TEXT NOT NULL UNIQUE,
+        password_hash   TEXT NOT NULL DEFAULT '',
+        api_key         TEXT NOT NULL DEFAULT '',
+        role            TEXT NOT NULL DEFAULT 'user',
+        quota_used      INTEGER NOT NULL DEFAULT 0,
+        quota_limit     INTEGER NOT NULL DEFAULT 1000,
+        metadata        TEXT NOT NULL DEFAULT '{}',
+        created_at      REAL NOT NULL DEFAULT (strftime('%s', 'now')),
+        updated_at      REAL NOT NULL DEFAULT (strftime('%s', 'now'))
     )
     """,
     "CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)",
@@ -616,10 +617,11 @@ class DatabaseManager:
         """创建用户"""
         with self._cursor() as cur:
             cur.execute(
-                "INSERT INTO users (username, api_key, role, quota_limit, metadata) "
-                "VALUES (?, ?, ?, ?, ?)",
+                "INSERT INTO users (username, password_hash, api_key, role, quota_limit, metadata) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
                 (
                     data["username"],
+                    data.get("password_hash", ""),
                     data.get("api_key", ""),
                     data.get("role", "user"),
                     data.get("quota_limit", 1000),
@@ -648,6 +650,7 @@ class DatabaseManager:
         return {
             "id": row["id"],
             "username": row["username"],
+            "password_hash": row["password_hash"],
             "api_key": row["api_key"],
             "role": row["role"],
             "quota_used": row["quota_used"],

@@ -153,6 +153,8 @@ class ConsensusEngine:
                 data = json.load(f)
                 self._current_term = data.get("current_term", 0)
                 self._voted_for = data.get("voted_for")
+                self._commit_index = data.get("commit_index", -1)
+                self._last_applied = data.get("last_applied", -1)
                 logs = data.get("logs", [])
                 self._logs = [LogEntry(**e) for e in logs]
         except (FileNotFoundError, json.JSONDecodeError):
@@ -165,6 +167,8 @@ class ConsensusEngine:
             data = {
                 "current_term": self._current_term,
                 "voted_for": self._voted_for,
+                "commit_index": self._commit_index,
+                "last_applied": self._last_applied,
                 "logs": [
                     {
                         "index": e.index,
@@ -174,8 +178,8 @@ class ConsensusEngine:
                         "timestamp": e.timestamp,
                         "committed": e.committed,
                     }
-                    for e in self._logs[-100:]
-                ],  # 保留最近 100 条
+                    for e in self._logs
+                ],
             }
         with open(path, "w") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
