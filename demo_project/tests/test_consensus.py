@@ -769,8 +769,8 @@ def test_persistence_handles_corrupted_file():
         engine.stop()
 
 
-def test_persistence_truncates_logs():
-    """持久化只保留最近 100 条日志"""
+def test_persistence_preserves_all_logs():
+    """持久化保留所有日志（不截断）"""
     with tempfile.TemporaryDirectory() as tmpdir:
         engine = _make_engine(tmpdir)
         engine._logs = [
@@ -779,9 +779,29 @@ def test_persistence_truncates_logs():
         engine._save_persistent()
 
         engine2 = _make_engine(tmpdir)
-        assert len(engine2._logs) == 100
-        assert engine2._logs[0].command == "cmd_50"
+        assert len(engine2._logs) == 150
+        assert engine2._logs[0].command == "cmd_0"
         assert engine2._logs[-1].command == "cmd_149"
+        engine2.stop()
+
+
+def test_persistence_preserves_commit_index_and_last_applied():
+    """持久化保存并恢复 commit_index 和 last_applied"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        engine1 = _make_engine(tmpdir)
+        engine1._logs = [
+            LogEntry(index=i, term=1, command=f"cmd_{i}", committed=True)
+            for i in range(10)
+        ]
+        engine1._commit_index = 7
+        engine1._last_applied = 5
+        engine1._save_persistent()
+        engine1.stop()
+
+        engine2 = _make_engine(tmpdir)
+        assert engine2._commit_index == 7
+        assert engine2._last_applied == 5
+        assert len(engine2._logs) == 10
         engine2.stop()
 
 

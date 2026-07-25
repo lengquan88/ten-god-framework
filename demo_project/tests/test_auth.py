@@ -943,7 +943,7 @@ class TestDBIntegration:
             assert "user_id" in result
 
     def test_sync_user_to_db_persistent_new_user(self):
-        """持久化模式创建新用户"""
+        """持久化模式创建新用户（包含密码哈希）"""
         mock_db = MagicMock()
         mock_db.get_user.return_value = None
 
@@ -958,6 +958,9 @@ class TestDBIntegration:
                     assert call_args["username"] == "newuser"
                     assert call_args["api_key"] == "test_api_key_32bytes_long!"
                     assert call_args["role"] == "user"
+                    assert "password_hash" in call_args
+                    assert call_args["password_hash"].startswith("pbkdf2_sha256$")
+                    assert PasswordHasher.verify("pass", call_args["password_hash"]) is True
 
     def test_sync_user_to_db_persistent_existing_user(self):
         """持久化模式已有用户不重复创建"""

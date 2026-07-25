@@ -507,8 +507,10 @@ def sync_user_to_db(username: str, password: str, role: str = "user") -> Dict[st
         existing = db.get_user(username=username)
         if not existing:
             api_key = _generate_api_key()
+            password_hash = PasswordHasher.hash(password)
             db.create_user({
                 "username": username,
+                "password_hash": password_hash,
                 "api_key": api_key,
                 "role": role,
                 "quota_limit": ROLE_PERMISSIONS.get(role, {}).get("quota_daily", 100),
