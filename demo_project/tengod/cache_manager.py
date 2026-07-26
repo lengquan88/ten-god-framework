@@ -474,8 +474,7 @@ class MemoryCacheManager:
         now = self._now()
         key = _rate_limit_key(user_id, endpoint)
         member = f"{now:.6f}:{os.urandom(4).hex()}"
-        with self._lock:
-            # 存储结构：{ key: List[timestamp] }
+        with self._timeline_lock:
             timeline: List[float] = self._timeline_store.get(key, [])
             cutoff = now - window_seconds
             timeline = [ts for ts in timeline if ts >= cutoff]
@@ -484,14 +483,14 @@ class MemoryCacheManager:
                 return False
             timeline.append(now)
             self._timeline_store[key] = timeline
-            _ = member  # 保留与 Redis 版本相同的随机成员语义（无实际作用）
+            _ = member
             return True
 
     def get_rate_limit_remaining(self, user_id: str, endpoint: str,
                                  limit: int, window_seconds: int) -> int:
         now = self._now()
         key = _rate_limit_key(user_id, endpoint)
-        with self._lock:
+        with self._timeline_lock:
             timeline: List[float] = self._timeline_store.get(key, [])
             cutoff = now - window_seconds
             timeline = [ts for ts in timeline if ts >= cutoff]
@@ -521,6 +520,7 @@ class MemoryCacheManager:
 
 # 将限流器的时间线存放在独立字典中，避免与普通缓存冲突
 MemoryCacheManager._timeline_store: Dict[str, List[float]] = {}
+MemoryCacheManager._timeline_lock = threading.RLock()
 
 
 # ============================================================================

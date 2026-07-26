@@ -793,13 +793,16 @@ class DataStore:
 # ============================================================================
 
 _store: Optional[DataStore] = None
+_store_lock = threading.Lock()
 
 
 def get_data_store(db_path: Optional[str] = None) -> DataStore:
-    """获取全局 DataStore 实例"""
+    """获取全局 DataStore 实例（线程安全）"""
     global _store
     if _store is None:
-        _store = DataStore(db_path)
+        with _store_lock:
+            if _store is None:
+                _store = DataStore(db_path)
     return _store
 
 
