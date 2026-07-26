@@ -301,10 +301,14 @@ def get_middleware(
     global _tianmen_middleware
     if _tianmen_middleware is None:
         _tianmen_middleware = TianmenMiddleware(
-            None,  # type: ignore
+            None,
             exclude_paths,
             mandatory_gate,
         )
+    if exclude_paths is not None:
+        _tianmen_middleware._exclude_paths = set(exclude_paths)
+    if mandatory_gate is not None:
+        _tianmen_middleware._mandatory_gate = set(mandatory_gate)
     return _tianmen_middleware
 
 
