@@ -83,6 +83,8 @@ class TianmenMiddleware(BaseHTTPMiddleware):
 
     def should_gate(self, path: str) -> bool:
         """判断是否需要门禁"""
+        if path is None:
+            return False
         # 先检查排除列表（前缀匹配）
         for exclude in self._exclude_paths:
             if path == exclude:
