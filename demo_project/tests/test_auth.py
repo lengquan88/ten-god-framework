@@ -1134,3 +1134,162 @@ class TestIntegrationScenarios:
         payload = JWTManager.verify_token(tokens["access_token"])
         assert payload["username"] == "bob"
         assert payload["sub"] == "99"
+
+
+class TestQuotaManagerThreadSafety:
+    """QuotaManager 线程安全测试"""
+
+    def test_concurrent_consume(self):
+        """多线程并发消耗配额"""
+        import threading
+
+        QuotaManager.reset(1000)
+        errors = []
+        consumed_count = [0]
+
+        def worker():
+            try:
+                for _ in range(100):
+                    QuotaManager.consume(1000)
+                    consumed_count[0] += 1
+            except Exception as e:
+                errors.append(e)
+
+        threads = [threading.Thread(target=worker) for _ in range(10)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert len(errors) == 0
+        assert consumed_count[0] == 1000
+
+    def test_concurrent_check_and_consume(self):
+        """多线程并发检查和消耗"""
+        import threading
+
+        QuotaManager.reset(2000)
+        errors = []
+        results = []
+
+        def worker(idx):
+            try:
+                for _ in range(50):
+                    allowed, used, remaining = QuotaManager.check(2000, 1000)
+                    if allowed:
+                        QuotaManager.consume(2000)
+                    results.append((idx, allowed, used, remaining))
+            except Exception as e:
+                errors.append(e)
+
+        threads = [threading.Thread(target=worker, args=(j,)) for j in range(5)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert len(errors) == 0
+        assert len(results) == 250
+
+    def test_concurrent_reset(self):
+        """多线程并发重置"""
+        import threading
+
+        errors = []
+
+        def worker(user_id):
+            try:
+                QuotaManager.reset(user_id)
+                QuotaManager.consume(user_id)
+            except Exception as e:
+                errors.append(e)
+
+        threads = [threading.Thread(target=worker, args=(i,)) for i in range(50)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert len(errors) == 0
+
+
+class TestAuthorizeEdgeCases:
+    """authorize 函数边界情况测试"""
+
+    def test_authorize_with_expired_user_token_returns_guest(self):
+        """用户 token 已过期，转为 guest 用户处理"""
+        request = MagicMock()
+        user = CurrentUser(id=1, username="u", role="user",
+                           permissions=["bazi:calc"],
+                           is_authenticated=False)
+        request.state.current_user = user
+
+        with patch("tengod.auth.QuotaManager.check", return_value=(True, 0, 10)):
+            with patch("tengod.auth.QuotaManager.consume"):
+                result = authorize(request, "bazi:calc")
+                assert result.role == "guest"
+                assert result.is_authenticated is False
+
+    def test_authorize_with_empty_permission_raises_403(self):
+        """空权限字符串，用户无此权限时抛 403"""
+        request = MagicMock()
+        user = CurrentUser(id=1, username="u", role="user",
+                           permissions=["bazi:calc"])
+        request.state.current_user = user
+
+        with pytest.raises(HTTPException) as exc_info:
+            authorize(request, "")
+        assert exc_info.value.status_code == 403
+
+    def test_authorize_with_none_permission_raises_403(self):
+        """None 权限，用户无此权限时抛 403"""
+        request = MagicMock()
+        user = CurrentUser(id=1, username="u", role="user",
+                           permissions=["bazi:calc"])
+        request.state.current_user = user
+
+        with pytest.raises(HTTPException) as exc_info:
+            authorize(request, None)
+        assert exc_info.value.status_code == 403
+
+    def test_authorize_guest_no_permission(self):
+        """guest 用户无权限"""
+        request = MagicMock()
+        request.state.current_user = None
+
+        with pytest.raises(HTTPException) as exc_info:
+            authorize(request, "admin:delete")
+        assert exc_info.value.status_code == 401
+
+    def test_authorize_quota_check_propagates_exception(self):
+        """QuotaManager.check 异常直接传播"""
+        request = MagicMock()
+        user = CurrentUser(id=1, username="u", role="user",
+                           permissions=["bazi:calc"])
+        request.state.current_user = user
+
+        with patch("tengod.auth.QuotaManager.check", side_effect=RuntimeError("DB error")):
+            with pytest.raises(RuntimeError, match="DB error"):
+                authorize(request, "bazi:calc")
+
+    def test_authorize_quota_consume_propagates_exception(self):
+        """QuotaManager.consume 异常直接传播"""
+        request = MagicMock()
+        user = CurrentUser(id=1, username="u", role="user",
+                           permissions=["bazi:calc"])
+        request.state.current_user = user
+
+        with patch("tengod.auth.QuotaManager.check", return_value=(True, 0, 100)):
+            with patch("tengod.auth.QuotaManager.consume", side_effect=RuntimeError("DB error")):
+                with pytest.raises(RuntimeError, match="DB error"):
+                    authorize(request, "bazi:calc")
+
+    def test_authorize_guest_with_guest_permission(self):
+        """guest 用户拥有 guest 权限时正常通过"""
+        request = MagicMock()
+        request.state.current_user = None
+
+        with patch("tengod.auth.QuotaManager.check", return_value=(True, 0, 10)):
+            with patch("tengod.auth.QuotaManager.consume"):
+                result = authorize(request, "bazi:calc")
+                assert result.role == "guest"

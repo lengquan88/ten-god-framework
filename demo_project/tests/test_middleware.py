@@ -357,6 +357,82 @@ class TestShouldGate:
             assert mw.should_gate('/ap') is False
             assert mw.should_gate('/a') is False
 
+    def test_should_gate_unicode_paths(self):
+        """Unicode 路径测试"""
+        from tengod.middleware import TianmenMiddleware
+        with patch('tengod.middleware.get_tianmen'), \
+             patch('tengod.middleware.get_daemon'), \
+             patch('tengod.middleware.get_inner_child_sm'):
+            mw = TianmenMiddleware(None)
+            # 中文 API 路径应该触发门禁
+            assert mw.should_gate('/api/中文/endpoint') is True
+            # 纯中文非 API 路径不应触发
+            assert mw.should_gate('/首页') is False
+
+    def test_should_gate_path_with_special_chars(self):
+        """特殊字符路径测试"""
+        from tengod.middleware import TianmenMiddleware
+        with patch('tengod.middleware.get_tianmen'), \
+             patch('tengod.middleware.get_daemon'), \
+             patch('tengod.middleware.get_inner_child_sm'):
+            mw = TianmenMiddleware(None)
+            assert mw.should_gate('/api/test?query=value') is True
+            assert mw.should_gate('/api/path/with spaces') is True
+            assert mw.should_gate('/api/path/with/special!chars@#$%') is True
+
+    def test_should_gate_very_long_path(self):
+        """超长路径测试"""
+        from tengod.middleware import TianmenMiddleware
+        with patch('tengod.middleware.get_tianmen'), \
+             patch('tengod.middleware.get_daemon'), \
+             patch('tengod.middleware.get_inner_child_sm'):
+            mw = TianmenMiddleware(None)
+            long_path = '/api/' + 'a' * 10000
+            assert mw.should_gate(long_path) is True
+
+    def test_should_gate_mandatory_path_with_nested_subpaths(self):
+        """强制路径的嵌套子路径"""
+        from tengod.middleware import TianmenMiddleware
+        with patch('tengod.middleware.get_tianmen'), \
+             patch('tengod.middleware.get_daemon'), \
+             patch('tengod.middleware.get_inner_child_sm'):
+            mw = TianmenMiddleware(None)
+            # /api/v2/ 是强制路径，其子路径都应触发门禁
+            assert mw.should_gate('/api/v2/users') is True
+            assert mw.should_gate('/api/v2/users/123/profile') is True
+            assert mw.should_gate('/api/v2/admin/settings') is True
+
+    def test_should_gate_exclude_path_precedence_over_mandatory(self):
+        """排除路径优先于强制路径"""
+        from tengod.middleware import TianmenMiddleware
+        with patch('tengod.middleware.get_tianmen'), \
+             patch('tengod.middleware.get_daemon'), \
+             patch('tengod.middleware.get_inner_child_sm'):
+            mw = TianmenMiddleware(None)
+            # /api/v2/gate/ 在排除列表中，即使 /api/v2/ 在强制列表中
+            # 排除检查先于强制检查，所以排除优先
+            assert mw.should_gate('/api/v2/gate/stats') is False
+            assert mw.should_gate('/api/v2/gate/config') is False
+
+    def test_should_gate_empty_string_path(self):
+        """空字符串路径"""
+        from tengod.middleware import TianmenMiddleware
+        with patch('tengod.middleware.get_tianmen'), \
+             patch('tengod.middleware.get_daemon'), \
+             patch('tengod.middleware.get_inner_child_sm'):
+            mw = TianmenMiddleware(None)
+            assert mw.should_gate('') is False
+
+    def test_should_gate_none_path(self):
+        """None 路径（防御性测试）"""
+        from tengod.middleware import TianmenMiddleware
+        with patch('tengod.middleware.get_tianmen'), \
+             patch('tengod.middleware.get_daemon'), \
+             patch('tengod.middleware.get_inner_child_sm'):
+            mw = TianmenMiddleware(None)
+            # None 路径不应崩溃，应返回 False
+            assert mw.should_gate(None) is False  # type: ignore[arg-type]
+
 
 # ---------------------------------------------------------------------------
 # 测试 dispatch()
