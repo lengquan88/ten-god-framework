@@ -59,9 +59,15 @@ class SecurityContext:
 
     @classmethod
     def from_token(
-        cls, token: str, guard: "Guard", secret: str = "default-secret"
+        cls, token: str, guard: "Guard", secret: Optional[str] = None
     ) -> Optional["SecurityContext"]:
-        """从 JWT Token 构造安全上下文"""
+        """从 JWT Token 构造安全上下文
+
+        Args:
+            token: JWT token 字符串
+            guard: Guard 实例
+            secret: 密钥，若为 None 则使用 guard 实例的密钥
+        """
         payload = guard.verify_token(token, secret)
         if payload is None:
             return None
@@ -94,7 +100,7 @@ class Guard:
 
     VERSION = "1.3.0"
 
-    def __init__(self, audit_log_path: str = "audit.log"):
+    def __init__(self, audit_log_path: str = "audit.log", secret: Optional[str] = None):
         self._users: Dict[str, SecurityContext] = {}
         self._role_permissions: Dict[str, Set[Permission]] = {}
         self._rate_limits: Dict[str, List[float]] = {}
@@ -104,6 +110,16 @@ class Guard:
         self._audit_buffer_lock = threading.Lock()
         self._token_bucket_lock = threading.Lock()
         self._token_buckets: Dict[str, Dict[str, Any]] = {}
+        # JWT 密钥：优先使用传入参数，其次从环境变量读取
+        self._jwt_secret = secret or os.environ.get("TENGOD_JWT_SECRET", "")
+        if not self._jwt_secret:
+            import warnings
+            warnings.warn(
+                "JWT 密钥未设置。请通过 secret 参数或 TENGOD_JWT_SECRET 环境变量配置，"
+                "否则 JWT 认证将不安全。",
+                RuntimeWarning,
+                stacklevel=2,
+            )
         self._init_audit_db()
 
     def _init_audit_db(self) -> None:
@@ -146,7 +162,7 @@ class Guard:
         self,
         user_id: str,
         roles: List[str],
-        secret: str = "default-secret",
+        secret: Optional[str] = None,
         expires_in: int = 86400,
     ) -> str:
         """生成 JWT Token
@@ -154,12 +170,18 @@ class Guard:
         Args:
             user_id: 用户 ID
             roles: 用户角色列表
-            secret: 密钥
+            secret: 密钥，若为 None 则使用实例初始化时的密钥
             expires_in: 有效期（秒），默认 86400
 
         Returns:
             JWT token 字符串
         """
+        _secret = secret or self._jwt_secret
+        if not _secret:
+            raise ValueError(
+                "JWT 密钥未配置。请通过 Guard(secret=...) 参数或 "
+                "TENGOD_JWT_SECRET 环境变量设置。"
+            )
         now = time.time()
         exp = now + expires_in
 
@@ -179,23 +201,29 @@ class Guard:
         )
 
         message = f"{header_b64}.{payload_b64}"
-        signature = hmac.new(secret.encode(), message.encode(), hashlib.sha256).digest()
+        signature = hmac.new(_secret.encode(), message.encode(), hashlib.sha256).digest()
         signature_b64 = self._base64url_encode(signature)
 
         return f"{message}.{signature_b64}"
 
     def verify_token(
-        self, token: str, secret: str = "default-secret"
+        self, token: str, secret: Optional[str] = None
     ) -> Optional[Dict]:
         """验证 JWT Token
 
         Args:
             token: JWT token 字符串
-            secret: 密钥
+            secret: 密钥，若为 None 则使用实例初始化时的密钥
 
         Returns:
             payload dict 或 None（验证失败）
         """
+        _secret = secret or self._jwt_secret
+        if not _secret:
+            raise ValueError(
+                "JWT 密钥未配置。请通过 Guard(secret=...) 参数或 "
+                "TENGOD_JWT_SECRET 环境变量设置。"
+            )
         try:
             parts = token.split(".")
             if len(parts) != 3:
@@ -206,7 +234,7 @@ class Guard:
             # 验证签名
             message = f"{header_b64}.{payload_b64}"
             expected_sig = hmac.new(
-                secret.encode(), message.encode(), hashlib.sha256
+                _secret.encode(), message.encode(), hashlib.sha256
             ).digest()
             expected_sig_b64 = self._base64url_encode(expected_sig)
 

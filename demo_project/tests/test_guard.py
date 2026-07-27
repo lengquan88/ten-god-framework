@@ -159,7 +159,7 @@ class TestSecurityContext:
 
     def test_from_token_valid(self):
         """从有效 token 创建 SecurityContext"""
-        guard = Guard(audit_log_path=":memory:")
+        guard = Guard(audit_log_path=":memory:", secret="test-secret-key")
         guard.register_role("admin", {Permission.READ, Permission.WRITE})
         token = guard.generate_token("user1", ["admin"], expires_in=3600)
         ctx = SecurityContext.from_token(token, guard)
@@ -174,13 +174,13 @@ class TestSecurityContext:
 
     def test_from_token_invalid_token(self):
         """从无效 token 创建返回 None"""
-        guard = Guard(audit_log_path=":memory:")
+        guard = Guard(audit_log_path=":memory:", secret="test-secret-key")
         ctx = SecurityContext.from_token("invalid.token.here", guard)
         assert ctx is None
 
     def test_from_token_expired_token(self):
         """从过期 token 创建返回 None"""
-        guard = Guard(audit_log_path=":memory:")
+        guard = Guard(audit_log_path=":memory:", secret="test-secret-key")
         token = guard.generate_token("user1", ["admin"], expires_in=-1)
         # 等待确保过期
         time.sleep(0.01)
@@ -189,13 +189,13 @@ class TestSecurityContext:
 
     def test_from_token_malformed(self):
         """从畸形 token 创建返回 None"""
-        guard = Guard(audit_log_path=":memory:")
+        guard = Guard(audit_log_path=":memory:", secret="test-secret-key")
         ctx = SecurityContext.from_token("not-a-token", guard)
         assert ctx is None
 
     def test_from_token_registers_user(self):
         """from_token 将用户注册到 guard._users"""
-        guard = Guard(audit_log_path=":memory:")
+        guard = Guard(audit_log_path=":memory:", secret="test-secret-key")
         guard.register_role("user", {Permission.READ})
         token = guard.generate_token("user1", ["user"], expires_in=3600)
         ctx = SecurityContext.from_token(token, guard)
@@ -213,7 +213,7 @@ class TestGuardBase64:
 
     def test_encode_decode_roundtrip_simple(self):
         """简单字符串编解码往返"""
-        guard = Guard(audit_log_path=":memory:")
+        guard = Guard(audit_log_path=":memory:", secret="test-secret-key")
         original = b"hello world"
         encoded = guard._base64url_encode(original)
         decoded = guard._base64url_decode(encoded)
@@ -222,7 +222,7 @@ class TestGuardBase64:
     def test_encode_decode_roundtrip_json(self):
         """JSON 数据编解码往返"""
         import json
-        guard = Guard(audit_log_path=":memory:")
+        guard = Guard(audit_log_path=":memory:", secret="test-secret-key")
         data = json.dumps({"user_id": "test", "roles": ["admin"]}).encode()
         encoded = guard._base64url_encode(data)
         decoded = guard._base64url_decode(encoded)
@@ -230,7 +230,7 @@ class TestGuardBase64:
 
     def test_encode_decode_roundtrip_binary(self):
         """二进制数据编解码往返"""
-        guard = Guard(audit_log_path=":memory:")
+        guard = Guard(audit_log_path=":memory:", secret="test-secret-key")
         original = os.urandom(64)
         encoded = guard._base64url_encode(original)
         decoded = guard._base64url_decode(encoded)
@@ -238,13 +238,13 @@ class TestGuardBase64:
 
     def test_encode_no_padding(self):
         """base64url 编码无 padding 字符"""
-        guard = Guard(audit_log_path=":memory:")
+        guard = Guard(audit_log_path=":memory:", secret="test-secret-key")
         encoded = guard._base64url_encode(b"test")
         assert "=" not in encoded
 
     def test_decode_with_padding(self):
         """解码自动补充 padding"""
-        guard = Guard(audit_log_path=":memory:")
+        guard = Guard(audit_log_path=":memory:", secret="test-secret-key")
         encoded = guard._base64url_encode(b"test")
         # 手动移除 padding 后仍然能解码
         decoded = guard._base64url_decode(encoded)
@@ -252,7 +252,7 @@ class TestGuardBase64:
 
     def test_encode_empty(self):
         """空字节编码"""
-        guard = Guard(audit_log_path=":memory:")
+        guard = Guard(audit_log_path=":memory:", secret="test-secret-key")
         encoded = guard._base64url_encode(b"")
         decoded = guard._base64url_decode(encoded)
         assert decoded == b""
@@ -267,7 +267,7 @@ class TestGuardJWT:
 
     @pytest.fixture
     def guard(self):
-        return Guard(audit_log_path=":memory:")
+        return Guard(audit_log_path=":memory:", secret="test-secret-key")
 
     def test_generate_token_defaults(self, guard):
         """默认参数生成 token"""
@@ -349,7 +349,7 @@ class TestGuardJWT:
         payload_b64 = guard._base64url_encode(b"not-json")
         message = f"{header_b64}.{payload_b64}"
         sig = guard._base64url_encode(
-            hmac.new(b"default-secret", message.encode(), hashlib.sha256).digest()
+            hmac.new(b"test-secret-key", message.encode(), hashlib.sha256).digest()
         )
         token = f"{message}.{sig}"
         assert guard.verify_token(token) is None
@@ -371,7 +371,7 @@ class TestGuardTokenBucket:
 
     @pytest.fixture
     def guard(self):
-        return Guard(audit_log_path=":memory:")
+        return Guard(audit_log_path=":memory:", secret="test-secret-key")
 
     def test_rate_limit_token_bucket_default(self, guard):
         """默认容量令牌桶"""
@@ -484,7 +484,7 @@ class TestGuardAuditSQLite:
 
     @pytest.fixture
     def guard(self):
-        return Guard(audit_log_path=":memory:")
+        return Guard(audit_log_path=":memory:", secret="test-secret-key")
 
     def test_audit_creates_entry(self, guard):
         """_audit 创建审计条目"""
@@ -628,7 +628,7 @@ class TestGuardAuditTextLog:
     @pytest.fixture
     def guard(self, tmp_path):
         log_path = str(tmp_path / "audit.log")
-        return Guard(audit_log_path=log_path)
+        return Guard(audit_log_path=log_path, secret="test-secret-key")
 
     def test_audit_text_log_persist(self, guard):
         """文本日志持久化到文件"""
@@ -667,7 +667,7 @@ class TestGuardRoles:
 
     @pytest.fixture
     def guard(self):
-        return Guard(audit_log_path=":memory:")
+        return Guard(audit_log_path=":memory:", secret="test-secret-key")
 
     def test_register_role(self, guard):
         """注册角色"""
@@ -829,7 +829,7 @@ class TestGuardEnforce:
 
     @pytest.fixture
     def guard(self):
-        return Guard(audit_log_path=":memory:")
+        return Guard(audit_log_path=":memory:", secret="test-secret-key")
 
     def test_enforce_with_sufficient_permission(self, guard):
         """权限充足时函数正常执行"""
@@ -919,7 +919,7 @@ class TestGuardRateLimit:
 
     @pytest.fixture
     def guard(self):
-        return Guard(audit_log_path=":memory:")
+        return Guard(audit_log_path=":memory:", secret="test-secret-key")
 
     def test_rate_limit_within_limit(self, guard):
         """在限制内允许请求"""
@@ -977,14 +977,14 @@ class TestGuardEdgeCases:
 
     def test_empty_roles_empty_permissions(self):
         """空角色空权限"""
-        guard = Guard(audit_log_path=":memory:")
+        guard = Guard(audit_log_path=":memory:", secret="test-secret-key")
         ctx = guard.create_context("user1", roles=[], direct_permissions=[])
         assert ctx.has_permission(Permission.READ) is False
         assert ctx.has_role("any") is False
 
     def test_multiple_roles_combine_permissions(self):
         """多角色权限合并"""
-        guard = Guard(audit_log_path=":memory:")
+        guard = Guard(audit_log_path=":memory:", secret="test-secret-key")
         guard.register_role("reader", {Permission.READ})
         guard.register_role("writer", {Permission.WRITE})
         guard.register_role("executor", {Permission.EXECUTE})
@@ -996,7 +996,7 @@ class TestGuardEdgeCases:
 
     def test_token_with_special_characters_in_user_id(self):
         """特殊字符 user_id"""
-        guard = Guard(audit_log_path=":memory:")
+        guard = Guard(audit_log_path=":memory:", secret="test-secret-key")
         special_ids = [
             "user@domain.com",
             "user with spaces",
@@ -1015,7 +1015,7 @@ class TestGuardEdgeCases:
 
     def test_audit_with_empty_user_id(self):
         """空 user_id 审计"""
-        guard = Guard(audit_log_path=":memory:")
+        guard = Guard(audit_log_path=":memory:", secret="test-secret-key")
         guard._audit("", "action", "resource", True)
         logs = guard.get_audit_log(user_id="")
         assert len(logs) == 1
@@ -1026,19 +1026,19 @@ class TestGuardEdgeCases:
 
     def test_guard_init_sqlite_memory(self):
         """SQLite :memory: 模式初始化"""
-        guard = Guard(audit_log_path=":memory:")
+        guard = Guard(audit_log_path=":memory:", secret="test-secret-key")
         assert guard._audit_log_path == ":memory:"
         assert guard._audit_buffer == []
         assert guard._audit_log == []
 
     def test_guard_init_text_log(self):
         """文本日志模式初始化"""
-        guard = Guard(audit_log_path="test_audit.log")
+        guard = Guard(audit_log_path="test_audit.log", secret="test-secret-key")
         assert guard._audit_log_path == "test_audit.log"
 
     def test_concurrent_audit_buffer_access(self):
         """并发审计缓冲区访问"""
-        guard = Guard(audit_log_path=":memory:")
+        guard = Guard(audit_log_path=":memory:", secret="test-secret-key")
         errors = []
 
         def audit_worker(worker_id):
@@ -1062,7 +1062,7 @@ class TestGuardEdgeCases:
 
     def test_enter_gate_with_admin_role(self):
         """ADMIN 角色可通过所有 gate"""
-        guard = Guard(audit_log_path=":memory:")
+        guard = Guard(audit_log_path=":memory:", secret="test-secret-key")
         ctx = guard.create_context("admin_user", direct_permissions=[Permission.ADMIN])
         assert guard.enter_gate("admin_user", Permission.READ) is True
         assert guard.enter_gate("admin_user", Permission.WRITE) is True
@@ -1071,14 +1071,14 @@ class TestGuardEdgeCases:
 
     def test_overwrite_role(self):
         """覆盖角色权限"""
-        guard = Guard(audit_log_path=":memory:")
+        guard = Guard(audit_log_path=":memory:", secret="test-secret-key")
         guard.register_role("editor", {Permission.READ})
         guard.register_role("editor", {Permission.READ, Permission.WRITE})
         assert guard._role_permissions["editor"] == {Permission.READ, Permission.WRITE}
 
     def test_get_audit_log_nonexistent_user(self):
         """查询不存在的用户日志"""
-        guard = Guard(audit_log_path=":memory:")
+        guard = Guard(audit_log_path=":memory:", secret="test-secret-key")
         logs = guard.get_audit_log(user_id="nonexistent")
         assert logs == []
 
@@ -1088,7 +1088,7 @@ class TestGuardEdgeCases:
         import hmac
         import json
 
-        guard = Guard(audit_log_path=":memory:")
+        guard = Guard(audit_log_path=":memory:", secret="test-secret-key")
         now = time.time()
         header = {"alg": "HS256", "typ": "JWT"}
         header_b64 = guard._base64url_encode(
@@ -1100,7 +1100,7 @@ class TestGuardEdgeCases:
         )
         message = f"{header_b64}.{payload_b64}"
         sig = guard._base64url_encode(
-            hmac.new(b"default-secret", message.encode(), hashlib.sha256).digest()
+            hmac.new(b"test-secret-key", message.encode(), hashlib.sha256).digest()
         )
         token = f"{message}.{sig}"
         result = guard.verify_token(token)
@@ -1114,7 +1114,7 @@ class TestGuardEdgeCases:
         import hmac
         import json
 
-        guard = Guard(audit_log_path=":memory:")
+        guard = Guard(audit_log_path=":memory:", secret="test-secret-key")
         now = time.time()
         header = {"alg": "HS256", "typ": "JWT"}
         header_b64 = guard._base64url_encode(
@@ -1132,7 +1132,7 @@ class TestGuardEdgeCases:
         )
         message = f"{header_b64}.{payload_b64}"
         sig = guard._base64url_encode(
-            hmac.new(b"default-secret", message.encode(), hashlib.sha256).digest()
+            hmac.new(b"test-secret-key", message.encode(), hashlib.sha256).digest()
         )
         token = f"{message}.{sig}"
         result = guard.verify_token(token)
@@ -1141,7 +1141,7 @@ class TestGuardEdgeCases:
 
     def test_token_bucket_thread_safety(self):
         """令牌桶线程安全"""
-        guard = Guard(audit_log_path=":memory:")
+        guard = Guard(audit_log_path=":memory:", secret="test-secret-key")
         capacity = 100
         refill_rate = 1000.0
         errors = []
@@ -1169,7 +1169,7 @@ class TestGuardEdgeCases:
 
     def test_create_context_with_role_containing_admin(self):
         """角色包含 ADMIN 权限时，上下文获得 ADMIN"""
-        guard = Guard(audit_log_path=":memory:")
+        guard = Guard(audit_log_path=":memory:", secret="test-secret-key")
         guard.register_role("superadmin", {Permission.ADMIN})
         ctx = guard.create_context("user1", roles=["superadmin"])
         assert Permission.ADMIN in ctx.permissions
@@ -1179,7 +1179,7 @@ class TestGuardEdgeCases:
     def test_audit_log_persist_sqlite_error(self):
         """SQLite persist 错误不崩溃：使用目录路径而非文件路径"""
         import tempfile
-        guard = Guard(audit_log_path=":memory:")  # 初始化成功
+        guard = Guard(audit_log_path=":memory:", secret="test-secret-key")  # 初始化成功
         # 修改路径为目录，让后续 SQLite 操作失败
         guard._audit_log_path = tempfile.gettempdir()
         guard._audit("user1", "action", "res", True)
@@ -1189,7 +1189,7 @@ class TestGuardEdgeCases:
     def test_get_audit_log_sqlite_error(self):
         """get_audit_log SQLite 错误不崩溃"""
         import tempfile
-        guard = Guard(audit_log_path=":memory:")  # 初始化成功
+        guard = Guard(audit_log_path=":memory:", secret="test-secret-key")  # 初始化成功
         guard._audit_log_path = tempfile.gettempdir()
         guard._audit("user1", "action", "res", True)
         logs = guard.get_audit_log()
@@ -1198,7 +1198,7 @@ class TestGuardEdgeCases:
 
     def test_guard_init_creates_sqlite_tables(self):
         """SQLite 模式初始化创建表"""
-        guard = Guard(audit_log_path=":memory:")
+        guard = Guard(audit_log_path=":memory:", secret="test-secret-key")
         import sqlite3
         conn = sqlite3.connect(":memory:")
         # 新连接看不到之前的表（:memory: 是独立连接）
@@ -1211,7 +1211,7 @@ class TestGuardEdgeCases:
 
     def test_audit_log_persist_partial_limit(self):
         """limit 小于 buffer 大小时部分刷新"""
-        guard = Guard(audit_log_path=":memory:")
+        guard = Guard(audit_log_path=":memory:", secret="test-secret-key")
         # 手动添加到 buffer 避免触发死锁
         for i in range(15):
             guard._audit_buffer.append({
@@ -1228,7 +1228,7 @@ class TestGuardEdgeCases:
 
     def test_rate_limit_with_zero_window(self):
         """极小窗口限流"""
-        guard = Guard(audit_log_path=":memory:")
+        guard = Guard(audit_log_path=":memory:", secret="test-secret-key")
         # 极小窗口下，第二次请求就会超限
         assert guard.rate_limit("user1", max_requests=1, window_seconds=0.001) is True
         assert guard.rate_limit("user1", max_requests=1, window_seconds=0.001) is False
@@ -1238,7 +1238,7 @@ class TestGuardEdgeCases:
 
     def test_check_audits_denied(self):
         """check 拒绝时审计 granted=False"""
-        guard = Guard(audit_log_path=":memory:")
+        guard = Guard(audit_log_path=":memory:", secret="test-secret-key")
         ctx = guard.create_context("user1", direct_permissions=[Permission.READ])
         guard.check(ctx, Permission.WRITE)
         logs = guard.get_audit_log(user_id="user1")
@@ -1249,7 +1249,7 @@ class TestGuardEdgeCases:
 
     def test_from_token_with_roles_in_context(self):
         """from_token 使用已注册角色"""
-        guard = Guard(audit_log_path=":memory:")
+        guard = Guard(audit_log_path=":memory:", secret="test-secret-key")
         guard.register_role("reader", {Permission.READ})
         guard.register_role("writer", {Permission.WRITE})
         token = guard.generate_token("user1", ["reader", "writer"], expires_in=3600)
@@ -1261,7 +1261,7 @@ class TestGuardEdgeCases:
 
     def test_auto_flush_via_audit(self):
         """通过 mock 验证 _audit 在缓冲区满 10 时触发 _audit_log_persist"""
-        guard = Guard(audit_log_path=":memory:")
+        guard = Guard(audit_log_path=":memory:", secret="test-secret-key")
         # 手动添加 9 条到 buffer
         for i in range(9):
             guard._audit_buffer.append({
@@ -1293,7 +1293,7 @@ class TestGuardEdgeCases:
             f.write('{"timestamp": 1.0, "user_id": "user1", "action": "ok", "resource": "r", "granted": true}\n')
             f.write('this is not json\n')
             f.write('{"timestamp": 2.0, "user_id": "user2", "action": "ok2", "resource": "r2", "granted": false}\n')
-        guard = Guard(audit_log_path=log_path)
+        guard = Guard(audit_log_path=log_path, secret="test-secret-key")
         logs = guard.get_audit_log()
         # 应该只返回 2 条有效日志
         assert len(logs) == 2
@@ -1301,7 +1301,7 @@ class TestGuardEdgeCases:
     def test_get_audit_log_sqlite_read_error(self):
         """get_audit_log SQLite 读取错误不崩溃"""
         import tempfile
-        guard = Guard(audit_log_path=":memory:")
+        guard = Guard(audit_log_path=":memory:", secret="test-secret-key")
         guard._audit_log_path = tempfile.gettempdir()  # 目录路径，SQLite 连接会失败
         guard._audit("user1", "action", "res", True)
         logs = guard.get_audit_log()
@@ -1311,7 +1311,7 @@ class TestGuardEdgeCases:
         """使用 mock 覆盖 _audit 中自动刷新调用路径"""
         from unittest.mock import patch
 
-        guard = Guard(audit_log_path=":memory:")
+        guard = Guard(audit_log_path=":memory:", secret="test-secret-key")
         # 手动填充 9 条到 buffer
         for i in range(9):
             guard._audit_buffer.append({
@@ -1332,7 +1332,7 @@ class TestGuardEdgeCases:
         import tempfile
         from unittest.mock import patch
 
-        guard = Guard(audit_log_path=":memory:")
+        guard = Guard(audit_log_path=":memory:", secret="test-secret-key")
         guard._audit_log_path = tempfile.gettempdir()
         guard._audit_buffer.append({
             "timestamp": time.time(),

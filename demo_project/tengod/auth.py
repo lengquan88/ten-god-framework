@@ -33,8 +33,16 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 # 配置
 # ============================================================================
 
-# JWT 密钥（从环境变量读取，默认值仅用于开发）
-JWT_SECRET = os.environ.get("TENGOD_JWT_SECRET", "tengod_dev_secret_change_in_production_2026")
+# JWT 密钥（必须从环境变量 TENGOD_JWT_SECRET 读取，不再提供默认值）
+JWT_SECRET = os.environ.get("TENGOD_JWT_SECRET", "")
+if not JWT_SECRET:
+    import warnings
+    warnings.warn(
+        "TENGOD_JWT_SECRET 环境变量未设置。请在生产环境中配置该变量，"
+        "否则 JWT 认证将不安全。",
+        RuntimeWarning,
+        stacklevel=2,
+    )
 JWT_ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24       # access token 有效期 24 小时
 REFRESH_TOKEN_EXPIRE_DAYS = 7                # refresh token 有效期 7 天
