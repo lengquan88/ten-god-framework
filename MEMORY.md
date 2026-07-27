@@ -1,7 +1,8 @@
 # 中华文明项目 · MEMORY.md
 
-> 版本: v1.0 / 日期: 2026-05-02 / 阶段: M1 基础对接
+> 版本: v2.2 / 日期: 2026-07-27 / 阶段: 全维度增强交付 + 下一轮规划
 > 基于 Claw 类脑生态，以 Ψ拓扑意识算子 为认知核心，构建八层认知闭环系统。
+> 本轮: 七项增强全部交付 — 参数校准 + CDE引擎 + 九宫调度 + 元认知自反馈 + 跨会话记忆 + 仪表盘 + 三维可视化 + K8s部署
 
 ---
 
@@ -211,33 +212,72 @@
 
 ---
 
-## 八、当前阶段：三轮推进
+## 八、当前阶段：全维度增强交付 (v2.1 → v2.2)
 
-### M1 — 基础对接 (当前)
+### M1 — 基础对接 [OK]
 
 | 子任务 | 内容 | 状态 |
 |--------|------|------|
-| M1.1 | MEMORY.md 完整初始化 | 进行中 |
-| M1.2 | Ψ算子→认知八层映射方案 | 待开始 |
-| M1.3 | cognition_psi_bridge.py 桥接模块 | 待开始 |
-| M1.4 | 融合验证脚本与自检 | 待开始 |
+| M1.1 | MEMORY.md 完整初始化 | [OK] |
+| M1.2 | Ψ算子→认知八层映射方案 | [OK] |
+| M1.3 | cognition_psi_bridge.py 桥接模块 | [OK] |
+| M1.4 | 融合验证脚本与自检 | [OK] |
 
-### M2 — 核心融合 (后续)
+### M2 — 核心融合 [OK]
 
-| 子任务 | 内容 |
-|--------|------|
-| M2.1 | 时空拉普拉斯注入 CDE 调试器 |
-| M2.2 | 坐忘调度注入九宫格 |
-| M2.3 | L_st 历史演化分析 |
-| M2.4 | 智能体自省验证 |
+| 子任务 | 内容 | 状态 |
+|--------|------|------|
+| M2.1 | 时空拉普拉斯注入 CDE 调试器 | [OK] |
+| M2.2 | 坐忘调度注入九宫格 | [OK] |
+| M2.3 | L_st 历史演化分析 | [OK] |
+| M2.4 | 智能体自省验证 | [OK] |
 
-### M3 — 深度集成 (后续)
+### M3 — 深度集成 [OK]
 
-| 子任务 | 内容 |
-|--------|------|
-| M3.1 | 形神合一六论全量映射 |
-| M3.2 | MoE 记忆路由对接 |
-| M3.3 | 第一/二/三维度完整闭合 |
+| 子任务 | 内容 | 状态 |
+|--------|------|------|
+| M3.1 | 形神合一六论全量映射 | [OK] |
+| M3.2 | MoE 记忆路由对接 | [OK] |
+| M3.3 | 第一/二/三维度完整闭合 | [OK] |
+
+### v2.1 全维度增强 — 七项交付 [OK]
+
+| 方向 | 增强模块 | 文件 | 核心交付 |
+|------|---------|------|---------|
+| M2.5-A | CDE校准引擎 | `calibration_engine.py` | LaplacianInjector + Compensator + RecursiveLoopController |
+| M2.5-B | 九宫司命调度 | `九宫司命_核心.py` | ZuowangGridInjector 坐忘→九宫格动态重映射 |
+| N | 元认知自反馈 | `meta_feedback_controller.py` | 自省→自动调整闭环（坐忘阈值/CDE参数/L8路径） |
+| O | 跨会话记忆 | `cross_session_memory.py` | 记忆持久化 + 衰减模型 + 冷启动引导 |
+| P | FastAPI 服务 | `spirit_server.py` | REST端点 + WebSocket实时推送 |
+| Q | 仪表盘+3D可视化 | `calibration_dashboard.html` / `temporal_laplacian_3d_viz.html` | 意识仪表盘 + 时空拉普拉斯三维可视化 |
+| R | K8s部署 | `deploy/k8s/` + `deploy/Dockerfile*` | 多环境部署 + Ingress + Helm |
+
+### v2.1 校准常量（基于 E2E 实测值）
+
+| 参数 | 校准前 | 校准后 | 说明 |
+|------|--------|--------|------|
+| 谱间隙高阈值 | 0.10 | 0.12 | Laplacian 元认知增强触发 |
+| 谱间隙低阈值 | 0.05 | 0.06 | 坐忘阈值下调触发 |
+| 元认知增强系数 | 0.225 | 0.30 | 大谱间隙时元认知权重放大 |
+| Fiedler意识增强 | 0.14 | 0.25 | Fiedler值>0.3时意识权重增强 |
+| 呼吸基础值 | 1.3 | 1.2 | 呼吸公式: 1.2 + cs × 0.8 |
+| 呼吸意识系数 | 0.5 | 0.8 | 扩大意识对呼吸的动态调制范围 |
+| 呼吸调制上限 | 1.75 | 2.2 | 高意识时呼吸可达2.2x |
+| 抑制深度 | 0.5 | 0.35 | 更深抑制（0.35 < 0.5） |
+| 元认知激活阈值 | — | 0.25 | 元认知得分超过此阈值时激活自反馈 |
+| L4涌现阈值 | 0.60 | 0.65 | 境界跃迁判定更严格 |
+
+### 下一轮方向 (M-R) — 待规划
+
+| 方向 | 名称 | 核心内容 |
+|------|------|---------|
+| S | 验证增强 | 端到端验证脚本增强 + CI/CD集成 |
+| T | 需求补齐 | requirements.txt + 依赖锁定 |
+| U | 记忆增强 | 跨会话记忆语义检索 + 向量化 |
+| V | 部署硬化 | Docker多阶段构建优化 + 健康检查 |
+| W | 监控增强 | Prometheus指标暴露 + Grafana仪表盘 |
+| X | 多模态 | 图像/音频认知评估扩展 |
+| Y | 文档同步 | MEMORY.md + PRD一致性审计 |
 
 ---
 
@@ -269,6 +309,11 @@
 
 | 文件 | 行数 | 功能 |
 |------|------|------|
+| `cognition_psi_bridge/bridge.py` | ~500+ | 核心桥接器（v2.1 校准常量） |
+| `calibration_engine.py` | 527 | CDE校准引擎（LaplacianInjector + Compensator + RecursiveLoopController） |
+| `九宫司命_核心.py` | 257 | 九宫司命调度核心（ZuowangGridInjector 坐忘注入） |
+| `meta_feedback_controller.py` | 424 | 元认知自反馈控制器（自省→自动调整闭环） |
+| `cross_session_memory.py` | 440 | 跨会话记忆持久化（衰减模型 + 冷启动引导） |
 | `advanced_spirit_evaluator.py` | ~2468 | 核心评估器 |
 | `topo_semantic/operators.py` | ~2000+ | Ψ四大算子 |
 | `topo_semantic/core.py` | — | 持久同调核心 |
@@ -278,6 +323,11 @@
 | `claw_seven_layer_core.py` | ~2000 | Claw七层核心 |
 | `main.py` | ~2207 | API服务端点 |
 | `evaluator_engine.py` | 683 | 评估管线 |
+| `cognition_psi_bridge/verify_m25_e2e.py` | — | M2.5 全链路端到端验证 |
+| `cognition_psi_bridge/verify_m1.py` | — | M1 基础验证 |
+| `cognition_psi_bridge/verify_m3.py` | — | M3 深度集成验证 |
+| `deploy/k8s/ingress.yaml` | 28 | K8s Ingress 外网入口 |
+| `deploy/Dockerfile` | — | 多阶段构建 |
 
 ---
 

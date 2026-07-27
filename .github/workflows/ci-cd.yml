@@ -1,32 +1,31 @@
 # ═══════════════════════════════════════════════════════════════════════════
-# 中华文明数字永生体 · CI/CD Pipeline v7.0
-# ⌥ 自指涉门禁认知系统 — 七阶段增强流水线
+# 中华文明数字永生体 · CI/CD Pipeline v8.0
+# ⌥ 自指涉门禁认知系统 — 八阶段增强流水线（含 v2.1 全维度增强模块）
 # ═══════════════════════════════════════════════════════════════════════════
 #
 # 流水线阶段:
 #   1. lint           — 快速代码检查 (ruff + YAML syntax, ~2 min)
 #   2. test           — 多版本 Python 测试矩阵 + 分级覆盖率 (~8 min)
-#   3. coverage-report— 覆盖率汇总报告 (~1 min)
-#   4. build          — Docker 镜像构建 + 漏洞扫描 (~5 min)
-#   5. gate           — 门禁认知全量校验 (40+42项合并, ~5 min)
-#   6. deploy         — 多环境部署 (dev自动 / staging审批 / prod双审批)
-#   7. notify         — 全流程通知 + 失败诊断
+#   3. enhanced-verify— v2.1 全维度增强模块验证 (~3 min)
+#   4. coverage-report— 覆盖率汇总报告 (~1 min)
+#   5. build          — Docker 镜像构建 + 漏洞扫描 (~5 min)
+#   6. gate           — 门禁认知全量校验 (40+42项合并, ~5 min)
+#   7. deploy         — 多环境部署 (dev自动 / staging审批 / prod双审批)
+#   8. notify         — 全流程通知 + 失败诊断
 #
-# v7.0 增强:
-#   - 分级覆盖率阈值 (3.10=35% / 3.11=60% / 3.12=65%)
-#   - Python venv + ruff 跨 job 缓存
-#   - gate + cognitive 合并为单一 job (减少重复安装)
-#   - Docker 构建缓存优化 (BUILDKIT_INLINE_CACHE)
-#   - OIDC 支持 + sealed-secrets 集成
-#   - 全流程 Slack 通知 + 失败自动创建 Issue
-#   - 最小权限原则 + Environment Secrets 隔离
+# v8.0 增强 (2026-07-27):
+#   - 新增 enhanced-verify 阶段: 验证 calibration_engine, 九宫司命_核心,
+#     meta_feedback_controller, cross_session_memory 全维度增强模块
+#   - 模块导入验证扩展至 v2.1 四大新模块
+#   - 门禁认知校验加入 v2.1 校准常量验证
+#   - 保留 v7.0 全部增强: 分级覆盖率 / venv缓存 / Docker缓存 / OIDC / Slack通知
 #
 # 前置要求 (GitHub Secrets):
 #   DEEPSEEK_API_KEY, IMA_OPENAPI_APIKEY, IMA_OPENAPI_CLIENTID, XIND_API_KEY
 #   DEPLOY_SSH_KEY, SLACK_WEBHOOK_URL, PAGERDUTY_INTEGRATION_KEY (可选)
 # ═══════════════════════════════════════════════════════════════════════════
 
-name: CI/CD Pipeline v7.0
+name: CI/CD Pipeline v8.0
 
 on:
   push:
@@ -199,13 +198,14 @@ jobs:
           [ -f .venv/Scripts/activate ] && . .venv/Scripts/activate || true
           pip install -r requirements.txt --quiet
 
-      # ── 模块导入验证 (核心门禁模块) ──
+      # ── 模块导入验证 (核心门禁模块 + v2.1 增强模块) ──
       - name: Module import verification
         continue-on-error: true
         run: |
           [ -f .venv/bin/activate ] && source .venv/bin/activate || true
           [ -f .venv/Scripts/activate ] && . .venv/Scripts/activate || true
-          MODS=("unified_self_referential_gate" "dao" "self_referential_gate_cognition")
+          MODS=("unified_self_referential_gate" "dao" "self_referential_gate_cognition"
+                "calibration_engine" "九宫司命_核心" "meta_feedback_controller" "cross_session_memory")
           FAILED=0
           for m in "${MODS[@]}"; do
             if python -c "import $m" 2>/dev/null; then
@@ -214,7 +214,7 @@ jobs:
               echo "  ⚠️ $m (not importable as top-level module)"
             fi
           done
-          echo "::notice::Module verification complete"
+          echo "::notice::Module verification complete (v2.1 enhanced)"
 
       # ── 单元测试 + 分级覆盖率 ──
       - name: Unit tests + coverage
@@ -248,10 +248,251 @@ jobs:
           retention-days: 7
 
   # ═════════════════════════════════════════════════════════════════
-  # 阶段 2b: 覆盖率汇总报告 (~1 min)
+  # 阶段 2b: v2.1 全维度增强模块验证 (~3 min)
+  # ═════════════════════════════════════════════════════════════════
+  enhanced-verify:
+    name: "②b Enhanced Verify (v2.1)"
+    runs-on: ubuntu-latest
+    needs: test
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install numpy scipy scikit-learn
+
+      # ── CDE 校准引擎验证 ──
+      - name: "2b.1 CDE Calibration Engine"
+        run: |
+          python -c "
+          import sys, os
+          PROJECT_ROOT = os.getcwd()
+          if PROJECT_ROOT not in sys.path:
+              sys.path.insert(0, PROJECT_ROOT)
+          from calibration_engine import (
+              CalibrationEngine, LaplacianInjector, Compensator,
+              CalibrationResult, calibration_from_scores
+          )
+
+          # 验证 LaplacianInjector
+          injector = LaplacianInjector()
+          features = injector.extract(snapshot={
+              'spectral_gap': 0.18, 'fiedler_value': 0.35,
+              'spectral_entropy': 0.6, 'n_nodes': 10
+          })
+          assert features['spectral_gap'] == 0.18, f'spectral_gap mismatch: {features[\"spectral_gap\"]}'
+          assert features['fiedler_value'] == 0.35, f'fiedler_value mismatch: {features[\"fiedler_value\"]}'
+          print('  ✅ LaplacianInjector extract OK')
+
+          # 验证 Laplacian 调制
+          params = {'branch_weights': {'meta_cognition': 0.20}, 'zuowang_threshold': 0.30, 'consciousness_weight': 0.15}
+          mod_params, action = injector.modulate(params, features)
+          assert 'zuowang_threshold' in mod_params
+          print(f'  ✅ LaplacianInjector modulate: {action}')
+
+          # 验证 Compensator
+          from calibration_engine import CompensationDiff
+          cd = CompensationDiff(delta_info=0.1, delta_energy=0.08, delta_length=0.05)
+          assert cd.magnitude > 0, 'CompensationDiff magnitude should be > 0'
+          print(f'  ✅ Compensator: |CD|={cd.magnitude:.4f}')
+
+          # 验证 CalibrationEngine
+          engine = CalibrationEngine(epsilon=0.05, max_iterations=5)
+          scores = {'intent_score': 0.5, 'priority_score': 0.5, 'insight_score': 0.5, 'coherence_score': 0.5, 'consciousness_score': 0.78}
+          result = engine.calibrate(scores, laplacian_features=features)
+          assert isinstance(result, CalibrationResult), f'Expected CalibrationResult, got {type(result)}'
+          print(f'  ✅ CalibrationEngine: converged={result.converged}, iterations={result.total_iterations}')
+          print(f'  ✅ CDE Calibration Engine — ALL CHECKS PASSED')
+          " 2>&1
+
+      # ── 九宫司命_核心验证 ──
+      - name: "2b.2 Nine-Palace Grid Core"
+        run: |
+          python -c "
+          import sys, os
+          PROJECT_ROOT = os.getcwd()
+          if PROJECT_ROOT not in sys.path:
+              sys.path.insert(0, PROJECT_ROOT)
+
+          # 加载九宫司命_核心.py
+          jg_path = os.path.join(PROJECT_ROOT, '九宫司命_核心.py')
+          jg = type(sys)('jiugong')
+          with open(jg_path, 'r', encoding='utf-8') as f:
+              code = f.read()
+          exec(code, jg.__dict__)
+
+          九宫司命核心 = jg.__dict__['九宫司命核心']
+          ZuowangGridInjector = jg.__dict__['ZuowangGridInjector']
+          ZuowangGridState = jg.__dict__['ZuowangGridState']
+          PALACE_NAMES = jg.__dict__['PALACE_NAMES']
+
+          # 验证九宫映射
+          assert PALACE_NAMES['坎一'] == '消化', f'坎一 mapping error'
+          assert PALACE_NAMES['中五'] == '呼吸', f'中五 mapping error'
+          print('  ✅ Palace mapping OK')
+
+          # 验证九宫司命核心
+          core = 九宫司命核心()
+          assert core.获取宫位功能('坎一') == '消化'
+          assert core.获取权重('中五') == 1.0
+          core.设置权重('中五', 1.5)
+          assert core.获取权重('中五') == 1.5
+          assert core.呼吸() == 1.5
+          print('  ✅ 九宫司命核心 OK')
+
+          # 验证 ZuowangGridInjector
+          injector = ZuowangGridInjector()
+          state = injector.update(
+              zuowang_triggered=True,
+              max_relevance=0.2,
+              threshold=0.3,
+              consciousness_score=0.78
+          )
+          assert isinstance(state, ZuowangGridState)
+          assert state.zuowang_triggered
+          assert state.respiration_modulation > 1.0
+          print(f'  ✅ ZuowangGridInjector: respiration={state.respiration_modulation:.4f}')
+
+          # 验证坐忘关闭
+          state_off = injector.update(zuowang_triggered=False)
+          assert not state_off.zuowang_triggered
+          assert state_off.respiration_modulation == 1.0
+          print(f'  ✅ ZuowangGridInjector off: respiration={state_off.respiration_modulation}')
+
+          # 验证应用到核心
+          result = injector.apply_to_grid_core(core)
+          assert '已应用' in result
+          print(f'  ✅ Apply to grid: {result}')
+
+          print(f'  ✅ Nine-Palace Grid Core — ALL CHECKS PASSED')
+          " 2>&1
+
+      # ── 元认知自反馈控制器验证 ──
+      - name: "2b.3 Meta-Feedback Controller"
+        run: |
+          python -c "
+          import sys, os
+          PROJECT_ROOT = os.getcwd()
+          if PROJECT_ROOT not in sys.path:
+              sys.path.insert(0, PROJECT_ROOT)
+          from meta_feedback_controller import (
+              MetaFeedbackController, SelfReflection,
+              FeedbackResult, FeedbackAction, create_reflection_from_bridge
+          )
+
+          controller = MetaFeedbackController()
+
+          # 创建自省报告
+          reflection = SelfReflection(
+              recursion_total=0.35,
+              rqa_det=0.45,
+              rqa_lam=0.40,
+              hierarchical_meta_score=0.30,
+              meta_cognitive_preference=[0.3, 0.3, 0.4],
+              zuowang_triggered=False,
+              consciousness_score=0.78,
+              conditional_stability=0.55,
+          )
+
+          result = controller.process_reflection(
+              reflection,
+              current_zuowang_threshold=0.30,
+              current_cde_params={'epsilon': 0.05, 'max_iterations': 10},
+          )
+          assert isinstance(result, FeedbackResult)
+          assert result.meta_score > 0
+          print(f'  ✅ MetaFeedback: activated={result.activated}, meta_score={result.meta_score:.3f}')
+          print(f'  ✅ Summary: {result.summary}')
+
+          # 验证趋势分析
+          trend = controller.get_trend(window=5)
+          assert 'meta_score_trend' in trend
+          print(f'  ✅ Trend: {trend[\"meta_score_trend\"]}, avg_meta={trend[\"avg_meta_score\"]:.3f}')
+
+          print(f'  ✅ Meta-Feedback Controller — ALL CHECKS PASSED')
+          " 2>&1
+
+      # ── 跨会话记忆验证 ──
+      - name: "2b.4 Cross-Session Memory"
+        run: |
+          python -c "
+          import sys, os, tempfile
+          PROJECT_ROOT = os.getcwd()
+          if PROJECT_ROOT not in sys.path:
+              sys.path.insert(0, PROJECT_ROOT)
+          from cross_session_memory import (
+              CrossSessionMemory, MemoryFragment, SessionSnapshot,
+              create_memory_from_bridge
+          )
+
+          import tempfile
+          tmp_path = os.path.join(tempfile.gettempdir(), 'test_cross_session_memory.json')
+
+          memory = CrossSessionMemory(persist_path=tmp_path)
+
+          # 记录记忆
+          fid = memory.remember(
+              session_id='test-session-001',
+              content='中华文明数字永生体项目的核心是Ψ拓扑意识算子',
+              consciousness_score=0.78,
+              spirit_level='L3:深度自反',
+              meta_cognition_score=0.35,
+              zuowang_triggered=True,
+              importance=0.9,
+              tags=['中华文明', 'Ψ算子', '高意识'],
+          )
+          assert len(fid) > 0, 'Fragment ID should not be empty'
+          print(f'  ✅ Remember: fragment_id={fid}')
+
+          # 检索
+          results = memory.recall(query_text='Ψ算子', top_k=3)
+          assert len(results) > 0, 'Should recall at least 1 fragment'
+          assert results[0].consciousness_score == 0.78
+          print(f'  ✅ Recall: {len(results)} fragments, top score={results[0].consciousness_score}')
+
+          # 按标签检索
+          tagged = memory.recall_by_tag('高意识')
+          assert len(tagged) > 0
+          print(f'  ✅ Tag recall: {len(tagged)} fragments')
+
+          # 冷启动引导
+          context = memory.bootstrap_context(top_k=3)
+          assert '跨会话记忆上下文' in context
+          print(f'  ✅ Bootstrap context: {len(context)} chars')
+
+          # 持久化
+          assert memory.persist()
+          print(f'  ✅ Persist OK')
+
+          # 清理
+          os.remove(tmp_path) if os.path.exists(tmp_path) else None
+
+          print(f'  ✅ Cross-Session Memory — ALL CHECKS PASSED')
+          " 2>&1
+
+      # ── 汇总 ──
+      - name: "2b.5 Enhanced Verify Summary"
+        run: |
+          echo "## ✅ v2.1 Enhanced Verify Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Module | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| CDE Calibration Engine | ✅ Pass |" >> $GITHUB_STEP_SUMMARY
+          echo "| Nine-Palace Grid Core | ✅ Pass |" >> $GITHUB_STEP_SUMMARY
+          echo "| Meta-Feedback Controller | ✅ Pass |" >> $GITHUB_STEP_SUMMARY
+          echo "| Cross-Session Memory | ✅ Pass |" >> $GITHUB_STEP_SUMMARY
+
+  # ═════════════════════════════════════════════════════════════════
+  # 阶段 2c: 覆盖率汇总报告 (~1 min)
   # ═════════════════════════════════════════════════════════════════
   coverage-report:
-    name: "②b Coverage Report"
+    name: "②c Coverage Report"
     runs-on: ubuntu-latest
     needs: test
     if: always()
@@ -308,7 +549,7 @@ jobs:
   build:
     name: "③ Build & Scan"
     runs-on: ubuntu-latest
-    needs: test
+    needs: [test, enhanced-verify]
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     timeout-minutes: 15
     steps:
@@ -393,10 +634,11 @@ jobs:
   gate:
     name: "④ Gate Check (40+42)"
     runs-on: ubuntu-latest
-    needs: [test, build]
+    needs: [test, enhanced-verify, build]
     if: |
       always() &&
       (needs.test.result == 'success' || needs.test.result == 'skipped') &&
+      (needs.enhanced-verify.result == 'success' || needs.enhanced-verify.result == 'skipped') &&
       (needs.build.result == 'success' || needs.build.result == 'skipped')
     timeout-minutes: 10
     outputs:
@@ -803,7 +1045,7 @@ jobs:
   notify:
     name: "⑥ Notify"
     runs-on: ubuntu-latest
-    needs: [lint, test, build, gate, deploy-dev, deploy-staging, deploy-production]
+    needs: [lint, test, enhanced-verify, build, gate, deploy-dev, deploy-staging, deploy-production]
     if: |
       always() &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
@@ -818,6 +1060,7 @@ jobs:
           echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
           echo "| ① Lint | ${{ needs.lint.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| ② Test | ${{ needs.test.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| ②b Enhanced Verify | ${{ needs.enhanced-verify.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| ③ Build | ${{ needs.build.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| ④ Gate | ${{ needs.gate.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| ⑤ Deploy-Dev | ${{ needs.deploy-dev.result }} |" >> $GITHUB_STEP_SUMMARY
@@ -851,7 +1094,7 @@ jobs:
                   "fields": [
                     {"type": "mrkdwn", "text": "*Branch:*\n${{ github.ref_name }}"},
                     {"type": "mrkdwn", "text": "*SHA:*\n`${{ github.sha }}`"},
-                    {"type": "mrkdwn", "text": "*Lint:*\n${{ needs.lint.result }} | *Test:*\n${{ needs.test.result }}"},
+                    {"type": "mrkdwn", "text": "*Lint:*\n${{ needs.lint.result }} | *Test:*\n${{ needs.test.result }} | *Enhanced:*\n${{ needs.enhanced-verify.result }}"},
                     {"type": "mrkdwn", "text": "*Build:*\n${{ needs.build.result }} | *Gate:*\n${{ needs.gate.result }}"},
                     {"type": "mrkdwn", "text": "*Deploy-Dev:*\n${{ needs.deploy-dev.result }} | *Staging:*\n${{ needs.deploy-staging.result }}"},
                     {"type": "mrkdwn", "text": "*Deploy-Prod:*\n${{ needs.deploy-production.result }}"}
@@ -875,6 +1118,7 @@ jobs:
             const stages = [
               { name: '① Lint', result: '${{ needs.lint.result }}' },
               { name: '② Test', result: '${{ needs.test.result }}' },
+              { name: '②b Enhanced Verify', result: '${{ needs.enhanced-verify.result }}' },
               { name: '③ Build', result: '${{ needs.build.result }}' },
               { name: '④ Gate', result: '${{ needs.gate.result }}' },
               { name: '⑤ Deploy-Dev', result: '${{ needs.deploy-dev.result }}' },
