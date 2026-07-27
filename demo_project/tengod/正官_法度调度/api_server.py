@@ -49,9 +49,19 @@ class JWTAuth:
     """纯 Python 实现的 JWT 认证（HS256）"""
 
     def __init__(
-        self, secret_key: str = "tengod-default-secret-key-change-in-production"
+        self, secret_key: Optional[str] = None
     ):
-        self.secret_key = secret_key.encode("utf-8")
+        # 优先使用传入参数，其次从环境变量读取
+        _key = secret_key or os.environ.get("TENGOD_JWT_SECRET", "")
+        if not _key:
+            import warnings
+            warnings.warn(
+                "JWT 密钥未设置。请通过 secret_key 参数或 TENGOD_JWT_SECRET 环境变量配置，"
+                "否则 JWT 认证将不安全。",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+        self.secret_key = _key.encode("utf-8")
         self.algorithm = "HS256"
         self.default_expiry = 24 * 3600  # 24小时
 

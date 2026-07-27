@@ -302,7 +302,7 @@ class WebhookManager:
             if attempt < self.max_retries:
                 time.sleep(0.5 * (2 ** (attempt - 1)))
 
-        # 记录交付历史
+        # 记录交付历史（对 payload 脱敏，避免存储敏感数据）
         try:
             with self._session() as s:
                 sub = s.query(WebhookSubscription).filter_by(id=sub_id).first()
@@ -315,7 +315,7 @@ class WebhookManager:
                     delivery = WebhookDelivery(
                         subscription_id=sub_id,
                         event_type=event_type,
-                        payload=body.decode("utf-8"),
+                        payload=self._sanitize_delivery_payload(body, event_type),
                         status_code=status_code,
                         response_body=response_body,
                         success=success,
@@ -390,6 +390,54 @@ class WebhookManager:
             }
 
     # ─── 工具方法 ──────────────────────────────────────
+
+    # 需要脱敏的敏感字段名（递归处理嵌套字典）
+    _SENSITIVE_KEYS = frozenset([
+        "password", "password_hash", "secret", "api_key",
+        "token", "access_token", "refresh_token",
+        "email", "phone", "mobile", "id_card",
+    ])
+
+    def _sanitize_value(self, value: Any) -> Any:
+        """递归脱敏字典中的敏感字段值"""
+        if isinstance(value, dict):
+            result = {}
+            for k, v in value.items():
+                if k.lower() in self._SENSITIVE_KEYS:
+                    result[k] = "***REDACTED***"
+                else:
+                    result[k] = self._sanitize_value(v)
+            return result
+        if isinstance(value, list):
+            return [self._sanitize_value(item) for item in value]
+        return value
+
+    def _sanitize_delivery_payload(self, body: bytes, event_type: str) -> str:
+        """对交付 payload 进行脱敏处理，仅保留必要信息用于审计
+
+        Args:
+            body: 原始请求体（JSON 编码的字节串）
+            event_type: 事件类型
+
+        Returns:
+            脱敏后的 JSON 字符串
+        """
+        try:
+            data = json.loads(body.decode("utf-8"))
+            # 对 payload 字段递归脱敏
+            if "payload" in data and isinstance(data["payload"], dict):
+                data["payload"] = self._sanitize_value(data["payload"])
+            # 截断过长的 payload 防止存储膨胀
+            result = json.dumps(data, ensure_ascii=False)
+            if len(result) > 4096:
+                result = result[:4096] + "...[truncated]"
+            return result
+        except Exception:
+            # 解析失败时仅返回元信息
+            return json.dumps(
+                {"event": event_type, "note": "payload redacted (parse error)"},
+                ensure_ascii=False,
+            )
 
     def _subscription_to_dict(self, sub) -> Dict[str, Any]:
         return {
