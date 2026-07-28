@@ -392,6 +392,8 @@ class CognitiveMetricsCollector:
                 element="未知",
                 passed=False,
                 score=0.0,
+                element_boost=0.0,
+                reason="",
                 unit_id=unit_id,
             )
 
