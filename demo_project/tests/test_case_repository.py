@@ -1125,3 +1125,67 @@ class TestIntegrationScenarios:
 
             # Delete non-existent
             assert repo.delete_case(999) is False
+
+
+# ══════════════════════════════════════════════════════════════
+# 路径遍历防护测试
+# ══════════════════════════════════════════════════════════════
+
+class TestPathTraversalProtection:
+    """导入导出路径遍历防护测试"""
+
+    def _make_mock_db(self):
+        db = MagicMock()
+        db.list_cases.return_value = []
+        db.count_cases.return_value = 0
+        return db
+
+    def test_export_to_json_blocks_path_traversal(self):
+        """export_to_json 应拒绝导出到安全目录外的路径"""
+        repo = CaseRepository()
+        mock_db = self._make_mock_db()
+        with patch("tengod.case_repository.is_persistent", return_value=True), \
+             patch("tengod.case_repository.get_db", return_value=mock_db):
+            with pytest.raises(ValueError, match="导出路径不允许"):
+                repo.export_to_json("/etc/passwd")
+
+    def test_export_to_json_blocks_parent_traversal(self):
+        """export_to_json 应拒绝 ../ 路径遍历"""
+        repo = CaseRepository()
+        mock_db = self._make_mock_db()
+        with patch("tengod.case_repository.is_persistent", return_value=True), \
+             patch("tengod.case_repository.get_db", return_value=mock_db):
+            with pytest.raises(ValueError, match="导出路径不允许"):
+                repo.export_to_json("/tmp/../../../etc/shadow")
+
+    def test_export_to_json_allows_safe_dir(self):
+        """export_to_json 应允许安全目录内的路径"""
+        import tempfile
+        repo = CaseRepository()
+        mock_db = self._make_mock_db()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            safe_path = os.path.join(tmpdir, "export.json")
+            with patch("tengod.case_repository.is_persistent", return_value=True), \
+                 patch("tengod.case_repository.get_db", return_value=mock_db), \
+                 patch.dict(os.environ, {"TENGOD_EXPORT_DIR": tmpdir}):
+                count = repo.export_to_json(safe_path)
+                assert count == 0
+                assert os.path.exists(safe_path)
+
+    def test_import_from_json_blocks_path_traversal(self):
+        """import_from_json 应拒绝从安全目录外的路径导入"""
+        repo = CaseRepository()
+        mock_db = self._make_mock_db()
+        with patch("tengod.case_repository.is_persistent", return_value=True), \
+             patch("tengod.case_repository.get_db", return_value=mock_db):
+            with pytest.raises(ValueError, match="导入路径不允许"):
+                repo.import_from_json("/etc/passwd")
+
+    def test_import_from_json_blocks_parent_traversal(self):
+        """import_from_json 应拒绝 ../ 路径遍历"""
+        repo = CaseRepository()
+        mock_db = self._make_mock_db()
+        with patch("tengod.case_repository.is_persistent", return_value=True), \
+             patch("tengod.case_repository.get_db", return_value=mock_db):
+            with pytest.raises(ValueError, match="导入路径不允许"):
+                repo.import_from_json("/tmp/../../../etc/shadow")
