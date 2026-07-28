@@ -201,9 +201,15 @@ class CaseRepository:
 
     def export_to_json(self, filepath: str) -> int:
         """导出案例到 JSON 文件，返回导出数量"""
+        import os as _os
+        safe_dir = _os.environ.get("TENGOD_EXPORT_DIR", "/tmp")
+        abs_safe_dir = _os.path.abspath(safe_dir)
+        abs_filepath = _os.path.abspath(filepath)
+        if not abs_filepath.startswith(abs_safe_dir + _os.sep) and abs_filepath != abs_safe_dir:
+            raise ValueError(f"导出路径不允许，必须位于 {safe_dir} 目录内")
         result = self.list_cases(page=1, page_size=10000)
         items = result["items"]
-        with open(filepath, "w", encoding="utf-8") as f:
+        with open(abs_filepath, "w", encoding="utf-8") as f:
             json.dump({
                 "version": "2.11.0",
                 "exported_at": time.time(),
@@ -214,10 +220,16 @@ class CaseRepository:
 
     def import_from_json(self, filepath: str) -> int:
         """从 JSON 文件导入案例，返回导入数量"""
-        if not os.path.exists(filepath):
+        import os as _os
+        safe_dir = _os.environ.get("TENGOD_IMPORT_DIR", "/tmp")
+        abs_safe_dir = _os.path.abspath(safe_dir)
+        abs_filepath = _os.path.abspath(filepath)
+        if not abs_filepath.startswith(abs_safe_dir + _os.sep) and abs_filepath != abs_safe_dir:
+            raise ValueError(f"导入路径不允许，必须位于 {safe_dir} 目录内")
+        if not _os.path.exists(abs_filepath):
             return 0
 
-        with open(filepath, "r", encoding="utf-8") as f:
+        with open(abs_filepath, "r", encoding="utf-8") as f:
             data = json.load(f)
 
         cases = data.get("cases", [])
