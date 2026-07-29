@@ -25,7 +25,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Tuple
 
-from fastapi import HTTPException, Request, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 
@@ -244,7 +244,7 @@ security = HTTPBearer(auto_error=False)
 
 
 async def get_current_user(
-    credentials: Optional[HTTPAuthorizationCredentials] = None,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ) -> CurrentUser:
     """
     FastAPI 依赖：从 Bearer token 获取当前用户
@@ -283,7 +283,7 @@ async def get_current_user(
 
 
 async def get_current_user_optional(
-    credentials: Optional[HTTPAuthorizationCredentials] = None,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ) -> CurrentUser:
     """可选认证：未登录返回 guest 用户"""
     if credentials is None or credentials.scheme != "Bearer":
@@ -315,9 +315,8 @@ def require_permission(perm: str):
     权限检查依赖工厂
     用法: @app.post("/api/xxx", dependencies=[Depends(require_permission("bazi:calc"))])
     """
-    async def check_perm(user: CurrentUser = None):
+    async def check_perm(user: CurrentUser = Depends(get_current_user)):
         if user is None:
-            # 尝试从 request 获取
             raise HTTPException(status_code=401, detail="未认证")
         if not user.has_permission(perm):
             raise HTTPException(
@@ -333,7 +332,7 @@ def require_role(*roles: str):
     角色检查依赖工厂
     用法: @app.get("/api/admin/xxx", dependencies=[Depends(require_role("admin"))])
     """
-    async def check_role(user: CurrentUser = None):
+    async def check_role(user: CurrentUser = Depends(get_current_user)):
         if user is None:
             raise HTTPException(status_code=401, detail="未认证")
         if user.role not in roles:
