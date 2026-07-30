@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -736,6 +737,10 @@ class DataStore:
             return {
                 "users": [
                     {"id": u.id, "username": u.username, "display_name": u.display_name,
+                     "password_hash": u.password_hash, "role": u.role,
+                     "email": u.email, "is_active": u.is_active,
+                     "api_quota_daily": u.api_quota_daily,
+                     "last_login_at": str(u.last_login_at) if u.last_login_at else None,
                      "created_at": str(u.created_at)}
                     for u in s.query(User).all()
                 ],
@@ -743,6 +748,7 @@ class DataStore:
                     {"id": r.id, "user_id": r.user_id, "label": r.label,
                      "year": r.year, "month": r.month, "day": r.day,
                      "hour": r.hour, "minute": r.minute, "gender": r.gender,
+                     "longitude": r.longitude, "latitude": r.latitude,
                      "day_master": r.day_master,
                      "pillars_json": r.pillars_json,
                      "analysis_json": r.analysis_json,
@@ -751,8 +757,28 @@ class DataStore:
                      "yongshen_json": r.yongshen_json,
                      "tiaohou_json": r.tiaohou_json,
                      "tags": r.tags, "notes": r.notes,
-                     "created_at": str(r.created_at)}
+                     "created_at": str(r.created_at),
+                     "updated_at": str(r.updated_at)}
                     for r in s.query(BaziRecord).all()
+                ],
+                "cached_reports": [
+                    {"id": c.id, "bazi_record_id": c.bazi_record_id,
+                     "format": c.format, "content": c.content,
+                     "content_hash": c.content_hash,
+                     "created_at": str(c.created_at)}
+                    for c in s.query(ReportCache).all()
+                ],
+                "cases": [
+                    {"id": c.id, "title": c.title, "summary": c.summary,
+                     "analysis_text": c.analysis_text, "category": c.category,
+                     "is_public": c.is_public, "is_featured": c.is_featured,
+                     "bazi_record_id": c.bazi_record_id, "user_id": c.user_id,
+                     "pillars_json": c.pillars_json, "geju_json": c.geju_json,
+                     "yongshen_json": c.yongshen_json, "day_master": c.day_master,
+                     "tags": c.tags, "fts_vector": c.fts_vector,
+                     "created_at": str(c.created_at),
+                     "updated_at": str(c.updated_at)}
+                    for c in s.query(LegacyCase).all()
                 ],
             }
 
@@ -762,7 +788,16 @@ class DataStore:
             for u in data.get("users", []):
                 existing = s.query(User).filter(User.username == u["username"]).first()
                 if not existing:
-                    s.add(User(username=u["username"], display_name=u.get("display_name")))
+                    s.add(User(
+                        id=u.get("id"),
+                        username=u["username"],
+                        display_name=u.get("display_name"),
+                        password_hash=u.get("password_hash"),
+                        role=u.get("role", "user"),
+                        email=u.get("email"),
+                        is_active=u.get("is_active", 1),
+                        api_quota_daily=u.get("api_quota_daily", 100),
+                    ))
 
             for r in data.get("records", []):
                 existing = s.query(BaziRecord).filter(BaziRecord.id == r.get("id")).first()
@@ -772,6 +807,8 @@ class DataStore:
                         year=r["year"], month=r["month"], day=r["day"],
                         hour=r["hour"], minute=r.get("minute", 0),
                         gender=r.get("gender", "male"),
+                        longitude=r.get("longitude", 116.4),
+                        latitude=r.get("latitude", 39.9),
                         day_master=r.get("day_master"),
                         pillars_json=r.get("pillars_json"),
                         analysis_json=r.get("analysis_json"),
@@ -780,6 +817,38 @@ class DataStore:
                         yongshen_json=r.get("yongshen_json"),
                         tiaohou_json=r.get("tiaohou_json"),
                         tags=r.get("tags"), notes=r.get("notes"),
+                    ))
+
+            for c in data.get("cached_reports", []):
+                existing = s.query(ReportCache).filter(ReportCache.id == c.get("id")).first()
+                if not existing:
+                    s.add(ReportCache(
+                        id=c.get("id"),
+                        bazi_record_id=c["bazi_record_id"],
+                        format=c.get("format", "text"),
+                        content=c["content"],
+                        content_hash=c.get("content_hash"),
+                    ))
+
+            for c in data.get("cases", []):
+                existing = s.query(LegacyCase).filter(LegacyCase.id == c.get("id")).first()
+                if not existing:
+                    s.add(LegacyCase(
+                        id=c.get("id"),
+                        title=c["title"],
+                        summary=c.get("summary"),
+                        analysis_text=c.get("analysis_text"),
+                        category=c.get("category"),
+                        is_public=c.get("is_public", True),
+                        is_featured=c.get("is_featured", False),
+                        bazi_record_id=c.get("bazi_record_id"),
+                        user_id=c.get("user_id"),
+                        pillars_json=c.get("pillars_json"),
+                        geju_json=c.get("geju_json"),
+                        yongshen_json=c.get("yongshen_json"),
+                        day_master=c.get("day_master"),
+                        tags=c.get("tags"),
+                        fts_vector=c.get("fts_vector"),
                     ))
             s.commit()
             return True

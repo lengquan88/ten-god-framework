@@ -361,7 +361,7 @@ class QuotaManager:
     @classmethod
     def check(cls, user_id: int, quota: int) -> Tuple[bool, int, int]:
         """
-        检查配额
+        检查配额（只读，不消耗）
         返回: (是否允许, 已用次数, 剩余次数)
         """
         today = cls._today()
@@ -381,8 +381,32 @@ class QuotaManager:
             return True, used, remaining
 
     @classmethod
+    def check_and_consume(cls, user_id: int, quota: int) -> Tuple[bool, int, int]:
+        """
+        原子性地检查并消耗一次配额（推荐在 authorize 等路径使用，避免 TOCTOU 竞态）
+        返回: (是否允许, 已用次数, 剩余次数)
+        """
+        today = cls._today()
+        key = str(user_id)
+
+        with cls._lock:
+            if key not in cls._usage:
+                cls._usage[key] = {}
+
+            cls._usage[key] = {d: c for d, c in cls._usage[key].items() if d >= today}
+
+            used = cls._usage[key].get(today, 0)
+            if used >= quota:
+                return False, used, 0
+
+            # 原子性：在同一锁内消耗
+            cls._usage[key][today] = used + 1
+            remaining = max(0, quota - (used + 1))
+            return True, used + 1, remaining
+
+    @classmethod
     def consume(cls, user_id: int):
-        """消耗一次配额"""
+        """消耗一次配额（仅当已通过 check 确认有额度时使用，否则优先使用 check_and_consume）"""
         today = cls._today()
         key = str(user_id)
         with cls._lock:
@@ -470,13 +494,13 @@ def authorize(request: Request, perm: str, consume_quota: bool = True) -> Curren
 
     if consume_quota:
         quota = ROLE_PERMISSIONS.get(user.role, {}).get("quota_daily", 10)
-        allowed, used, _ = QuotaManager.check(user.id, quota)
+        # 原子性检查+消耗，避免 TOCTOU 竞态导致的配额绕过
+        allowed, used, _ = QuotaManager.check_and_consume(user.id, quota)
         if not allowed:
             raise HTTPException(
                 status_code=429,
                 detail=f"今日配额已用尽（{used}/{quota}），请明日再试或升级账号",
             )
-        QuotaManager.consume(user.id)
 
     return user
 

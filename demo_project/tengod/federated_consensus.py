@@ -120,16 +120,40 @@ class FederatedConsensus:
         return aggregated
 
     def _median_aggregate(self, peers: Dict) -> Dict:
-        """中位数聚合（抗拜占庭）"""
+        """中位数聚合（抗拜占庭）
+
+        健壮处理：各 peer 的 model 键可能不统一（增量训练、剪枝等场景）。
+        只对至少拥有该键的 peer 的值求中位数，避免 KeyError 崩溃。
+        """
         aggregated = {}
-        for key in list(peers.values())[0]["model"].keys():
-            all_values = []
+
+        # 1. 收集所有 peer 的所有键的并集（而非仅取第一个 peer 的键）
+        all_keys: set = set()
+        for info in peers.values():
+            all_keys.update(info["model"].keys())
+
+        for key in all_keys:
+            # 2. 仅从拥有该键的 peer 收集值，过滤掉 None 或长度不一致
+            per_key_vectors: List[List[float]] = []
             for info in peers.values():
-                all_values.append(info["model"][key])
-            # 转置并取中位数
-            transposed = list(zip(*all_values))
-            medians = [sorted(col)[len(col) // 2] for col in transposed]
-            aggregated[key] = medians
+                vec = info["model"].get(key)
+                if isinstance(vec, list) and len(vec) > 0:
+                    per_key_vectors.append(vec)
+
+            if not per_key_vectors:
+                continue  # 无有效数据，跳过该键
+
+            # 3. 对齐维度：只对各 peer 都提供的索引位置求中位数
+            min_len = min(len(v) for v in per_key_vectors)
+            medians: List[float] = []
+            for i in range(min_len):
+                col = [v[i] for v in per_key_vectors]
+                col_sorted = sorted(col)
+                medians.append(col_sorted[len(col_sorted) // 2])
+
+            if medians:
+                aggregated[key] = medians
+
         return aggregated
 
     def add_differential_privacy(

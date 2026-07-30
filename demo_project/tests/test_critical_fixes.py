@@ -426,3 +426,322 @@ class TestAuthDependsIntegration:
         body = resp.json()
         assert body["id"] == 100
         assert body["username"] == "chief"
+
+
+# ============================================================================
+# 本轮提交后检查 —— 4 个关键缺陷修复验证
+# ============================================================================
+
+
+class TestBackupRestoreDataIntegrity:
+    """Bug 1: data_store.py backup/restore 缺失 LegacyCase / ReportCache 导致数据丢失"""
+
+    _tmp_path = None
+
+    @classmethod
+    def setup_class(cls):
+        import tempfile
+        cls._tmp_path = tempfile.mkdtemp(prefix="tengod_backup_test_")
+
+    def test_export_all_includes_cached_reports_and_cases(self):
+        """_export_all 必须包含 cached_reports 和 cases 键，否则备份将丢弃这两类数据"""
+        import os, sys
+        sys.path.insert(0, "/workspace/demo_project")
+
+        # 用内存 SQLite URL，确保经过 _export_all / _import_all 路径
+        from tengod.data_store import DataStore
+        db_path = os.path.join(self._tmp_path, "export_test.db")
+        store = DataStore(db_url=f"sqlite:///{db_path}")
+        # Base.metadata.create_all 已在 __init__ 中自动执行
+
+        payload = store._export_all()
+        assert "cached_reports" in payload, (
+            "备份 _export_all 缺少 cached_reports 键，将导致 ReportCache 数据在恢复时丢失"
+        )
+        assert "cases" in payload, (
+            "备份 _export_all 缺少 cases 键，将导致 LegacyCase 数据在恢复时丢失"
+        )
+        assert isinstance(payload["cached_reports"], list)
+        assert isinstance(payload["cases"], list)
+
+    def test_roundtrip_preserves_cached_report_and_case(self):
+        """写入 ReportCache / LegacyCase → 导出 → 清除 → 导入，验证数据完整恢复"""
+        import os, sys, tempfile, json
+        sys.path.insert(0, "/workspace/demo_project")
+
+        from tengod.data_store import DataStore, ReportCache, LegacyCase, BaziRecord
+
+        db_src = os.path.join(self._tmp_path, "src.db")
+        db_dst = os.path.join(self._tmp_path, "dst.db")
+        backup_path = os.path.join(self._tmp_path, "backup.json")
+
+        # --- 源库：使用 sqlite:/// URL 模式（触发 JSON 导出路径，而非文件复制） ---
+        src = DataStore(db_url=f"sqlite:///{db_src}")
+        rec_id = src.save_bazi_record(
+            year=1990, month=5, day=5, hour=10, minute=10,
+            gender="male", user_id=7, label="张三",
+            day_master="甲",
+            pillars={"year": "庚午"},
+            geju={"ge": "正官格"},
+            yongshen={"yong": "火"},
+        )
+
+        # 手工塞一个 ReportCache & LegacyCase
+        with src._session() as s:
+            rc = ReportCache(
+                bazi_record_id=rec_id,
+                format="md",
+                content="# 报告正文",
+                content_hash="h123",
+            )
+            s.add(rc)
+            lc = LegacyCase(
+                title="乾造 庚午 辛巳 甲子 丙寅 案例",
+                summary="案例摘要",
+                analysis_text="分析文本",
+                category="正官格",
+                is_public=True,
+                is_featured=False,
+                bazi_record_id=rec_id,
+                user_id=7,
+                pillars_json=json.dumps({"year": "庚午"}, ensure_ascii=False),
+                geju_json=json.dumps({"ge": "正官格"}, ensure_ascii=False),
+                yongshen_json=json.dumps({"yong": "火"}, ensure_ascii=False),
+                day_master="甲",
+                tags='["案例","正官"]',
+            )
+            s.add(lc)
+            s.commit()
+
+        # 导出（JSON 路径）
+        backup_out = src.backup(backup_path)
+        assert backup_out is not None
+        with open(backup_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        assert len(data.get("cached_reports", [])) == 1, f"cached_reports 条数不符: {data.get('cached_reports')}"
+        assert len(data.get("cases", [])) == 1, f"cases 条数不符: {data.get('cases')}"
+
+        # --- 目标库：空库，执行恢复 ---
+        dst = DataStore(db_url=f"sqlite:///{db_dst}")
+        ok = dst.restore(backup_path)
+        assert ok, "restore 失败"
+
+        # 验证三类数据都回来了
+        with dst._session() as s:
+            assert s.query(BaziRecord).filter_by(id=rec_id).one_or_none() is not None
+            rc_count = s.query(ReportCache).count()
+            lc_count = s.query(LegacyCase).count()
+            assert rc_count == 1, f"ReportCache 恢复后应为 1，实际 {rc_count}（数据丢失）"
+            assert lc_count == 1, f"LegacyCase 恢复后应为 1，实际 {lc_count}（数据丢失）"
+
+
+class TestQuotaManagerAtomicity:
+    """Bug 2: QuotaManager.check/consume 非原子 -> 并发下绕过日配额"""
+
+    def test_check_and_consume_is_atomic_under_concurrency(self):
+        """并发 check_and_consume(quota=10) 100 次，实际消耗必须恰好为 10，不能绕过"""
+        import threading
+        from tengod.auth import QuotaManager
+
+        QUSER = 12345
+        QuotaManager.reset(QUSER)
+        QUOTA = 10
+        TOTAL_ATTEMPTS = 100
+        success = []
+        fail = []
+        lock = threading.Lock()
+
+        def worker():
+            for _ in range(10):
+                ok, used_after, remain = QuotaManager.check_and_consume(QUSER, QUOTA)
+                with lock:
+                    if ok:
+                        success.append(1)
+                    else:
+                        fail.append(1)
+
+        threads = [threading.Thread(target=worker) for _ in range(TOTAL_ATTEMPTS // 10)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        usage = QuotaManager.get_usage(QUSER)
+        today_key = list(usage.keys())[0] if usage else None
+        actual_used = usage[today_key] if today_key else 0
+
+        assert len(success) == QUOTA, (
+            f"并发下原子 check_and_consume 应恰好成功 {QUOTA} 次，"
+            f"实际成功 {len(success)} 次（失败 {len(fail)}）— 存在配额绕过"
+        )
+        assert actual_used == QUOTA, (
+            f"实际消耗 {actual_used} 与配额 {QUOTA} 不符"
+        )
+
+    def test_old_check_plus_consume_races_but_atomic_does_not(self):
+        """对比：老的非原子模式（已停用）在并发下会越过 quota，而 check_and_consume 不会"""
+        import threading
+        from tengod.auth import QuotaManager
+
+        QuotaManager.reset(555)
+        QuotaManager.reset(666)
+        QUOTA = 5
+        TASKS = 50
+
+        # --- 组 A：模拟旧代码 check + consume（非原子，会超配额） ---
+        def race_worker_old(user_id):
+            for _ in range(10):
+                ok, _, _ = QuotaManager.check(user_id, QUOTA)
+                # 释放锁的窗口：其他线程会同时通过 check
+                if ok:
+                    QuotaManager.consume(user_id)
+
+        # --- 组 B：原子 check_and_consume（不会超） ---
+        def atomic_worker(user_id):
+            for _ in range(10):
+                QuotaManager.check_and_consume(user_id, QUOTA)
+
+        old_t = [threading.Thread(target=race_worker_old, args=(555,)) for _ in range(TASKS // 10)]
+        new_t = [threading.Thread(target=atomic_worker, args=(666,)) for _ in range(TASKS // 10)]
+        for t in old_t + new_t:
+            t.start()
+        for t in old_t + new_t:
+            t.join()
+
+        old_used = list(QuotaManager.get_usage(555).values())[0]
+        new_used = list(QuotaManager.get_usage(666).values())[0]
+
+        # 关键断言：原子路径必须严格等于 QUOTA
+        assert new_used == QUOTA, f"原子模式使用 {new_used}，应严格等于 {QUOTA}"
+        # 非原子模式在强并发下可能 > QUOTA（演示竞态存在）
+        # 注意：该测试不做旧值的硬上界断言，仅验证修复后路径的正确性
+
+
+class TestAsyncTaskQueueCancellation:
+    """Bug 3: 任务被 CANCEL 后，对应 Future 未 resolve 会导致调用方 get_result 永久挂起"""
+
+    def test_cancelled_task_resolves_future_with_cancelled_error(self):
+        """入队后立即 cancel，然后让 worker 处理该 CANCELLED 项，
+        验证 Future 会被 set_exception(CancelledError)，而不是永远 pending。"""
+        import sys, asyncio
+        sys.path.insert(0, "/workspace/demo_project")
+
+        from tengod.正官_法度调度.async_task_queue import (
+            AsyncTaskQueue, AsyncTaskPriority,
+        )
+
+        async def _run():
+            q = AsyncTaskQueue(max_workers=1)
+
+            def slow(x):
+                return x * 2
+
+            # 1) 先启动 worker（队列空，worker 在等待）
+            start_task = asyncio.create_task(q.start())
+            await asyncio.sleep(0.05)
+
+            # 2) 异步 submit：创建 Future + 入队 PENDING 项
+            task_id = await q.submit(
+                slow, args=(21,), priority=AsyncTaskPriority.NORMAL
+            )
+            # 3) 立即标记 CANCELLED（worker 尚未拉取，因为 sleep 后它阻塞在 queue.get）
+            ok1 = await q.cancel(task_id)
+            assert ok1, "入队未运行时应当可取消"
+
+            # 4) 给 worker 时间拉取该 CANCELLED 项并 resolve Future
+            await asyncio.sleep(0.2)
+
+            try:
+                # 等待未来：如果没 resolve，5 秒后就会 timeout —— 失败
+                res = await asyncio.wait_for(q.get_result(task_id), timeout=5.0)
+            except asyncio.CancelledError:
+                # 预期：Future 被 set_exception(CancelledError)
+                pass
+            except asyncio.TimeoutError:
+                pytest.fail(
+                    "被取消的任务 Future 始终未 resolve — 调用方 get_result 会永久挂起（资源泄漏）"
+                )
+            else:
+                pytest.fail(f"被取消任务应抛 CancelledError，实际返回 {res!r}")
+
+            # 清理
+            await q.shutdown()
+            start_task.cancel()
+            try:
+                await start_task
+            except asyncio.CancelledError:
+                pass
+
+        asyncio.run(_run())
+
+
+class TestFederatedConsensusMedianKeys:
+    """Bug 4: _median_aggregate 仅取第一个 peer 的键，当 peer 键不统一时抛 KeyError 导致崩溃"""
+
+    def test_median_with_different_keys_across_peers_does_not_crash(self):
+        """A={w1,w2}, B={w2,w3}：修复前会在 info["model"]["w3"] / info["model"]["w1"] 处 KeyError"""
+        import sys
+        sys.path.insert(0, "/workspace/demo_project")
+        from tengod.federated_consensus import FederatedConsensus
+
+        fc = FederatedConsensus()
+        peers = {
+            "peer-A": {
+                "round": 1, "stake": 1.0,
+                "model": {
+                    "w1": [1.0, 2.0, 3.0],
+                    "w2": [10.0, 20.0, 30.0],
+                },
+            },
+            "peer-B": {
+                "round": 1, "stake": 1.0,
+                "model": {
+                    "w2": [100.0, 200.0, 300.0],
+                    "w3": [0.1, 0.2, 0.3],
+                },
+            },
+        }
+        # 修复前会抛 KeyError: 'w1' or KeyError: 'w3'
+        try:
+            agg = fc._median_aggregate(peers)
+        except KeyError as e:
+            pytest.fail(
+                f"_median_aggregate 在 peer 键不统一时抛 KeyError({e!r})，"
+                f"导致整个共识节点流程崩溃"
+            )
+
+        # w1: 仅 peerA 有 -> 中位数 = A 的中位数（每个位置取中位数 = 原值）
+        assert "w1" in agg
+        assert agg["w1"] == [1.0, 2.0, 3.0]
+        # w2: [10,100] -> sorted[len//2] = 100; 每个位置如此
+        assert "w2" in agg
+        assert agg["w2"] == [100.0, 200.0, 300.0]
+        # w3: 仅 peerB 有
+        assert "w3" in agg
+        assert agg["w3"] == [0.1, 0.2, 0.3]
+
+    def test_median_with_unequal_vector_lengths(self):
+        """不同 peer 同一键向量长度不一致：按 min_len 对齐，不抛 IndexError"""
+        import sys
+        sys.path.insert(0, "/workspace/demo_project")
+        from tengod.federated_consensus import FederatedConsensus
+
+        fc = FederatedConsensus()
+        peers = {
+            "A": {"round": 1, "stake": 1, "model": {"w": [1, 2, 3, 4, 5]}},
+            "B": {"round": 1, "stake": 1, "model": {"w": [10, 20]}},
+        }
+        agg = fc._median_aggregate(peers)
+        assert "w" in agg
+        # min(5,2) = 2，前两个位置取中位数 [10, 20]
+        assert len(agg["w"]) == 2
+        assert agg["w"] == [10, 20]
+
+    def test_median_empty_peers_returns_empty_dict(self):
+        """空 peers 不应崩溃（防御性）"""
+        import sys
+        sys.path.insert(0, "/workspace/demo_project")
+        from tengod.federated_consensus import FederatedConsensus
+
+        fc = FederatedConsensus()
+        assert fc._median_aggregate({}) == {}
