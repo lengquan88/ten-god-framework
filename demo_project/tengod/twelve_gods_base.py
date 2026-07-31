@@ -75,6 +75,28 @@ class FiveElements(Enum):
         }
         return cycle.get(self, FiveElements.TRANSCENDENT)
 
+    @staticmethod
+    def generate_cycle() -> List["FiveElements"]:
+        """返回完整相生链：木→火→土→金→水→木（首尾相接）"""
+        return [
+            FiveElements.WOOD,
+            FiveElements.FIRE,
+            FiveElements.EARTH,
+            FiveElements.METAL,
+            FiveElements.WATER,
+        ]
+
+    @staticmethod
+    def restrict_cycle() -> List["FiveElements"]:
+        """返回完整相克链：木→土→水→火→金→木（首尾相接）"""
+        return [
+            FiveElements.WOOD,
+            FiveElements.EARTH,
+            FiveElements.WATER,
+            FiveElements.FIRE,
+            FiveElements.METAL,
+        ]
+
 
 class TwelveGods(Enum):
     """十二神位"""

@@ -341,30 +341,72 @@ class SevenTheoriesJudge:
     ) -> TheoryVerdict:
         """混沌海裁决：是否应该保持为"疑"而非"解"？
 
-        混沌海裁决逻辑：
-        - 如果前六论都开 → 混沌海也开（不需要存疑）
-        - 如果前六论有徘徊 → 混沌海开（支持存疑）
-        - 如果前六论有关 → 混沌海开（覆盖为徘徊）
-        - 如果E维度极高 → 混沌海开（边界探索需要存疑空间）
+        混沌海裁决逻辑（E 阈值三分支 + S/P 配合）：
+        - E < 0.4 → CLOSED（FAIL）：无需存疑，直接关闭
+        - 0.4 ≤ E ≤ 0.7 → PENDING：徘徊区间，需要 S/P 配合决定倾向
+        - E > 0.7 → OPEN（PASS）：高度探索，保持存疑空间
+
+        S/P 配合：
+        - S（事实可信度）和 P（投影保真度）较高时，可以在边界上"升一档"
+        - S/P 较低时，在边界上"降一档"
         """
         coord = unit.coordinates
-        # 检查前六论状态
+        E = coord.E
+        S = coord.S
+        P = coord.P
+
+        # 检查前六论状态（用于 S/P 配合修正）
         all_open = all(v.state == GateState.OPEN for v in pre_verdicts)
         any_closed = any(v.state == GateState.CLOSED for v in pre_verdicts)
         any_pending = any(v.state == GateState.PENDING for v in pre_verdicts)
 
-        if all_open and coord.E < 0.5:
-            score = 0.9
-            state = GateState.OPEN
-            reason = "六论全开，不需要存疑"
-        elif any_closed:
-            score = 0.8
-            state = GateState.OPEN
-            reason = "存在裁决关闭，混沌海覆盖为存疑"
+        # E 主阈值判断
+        if E < 0.4:
+            # FAIL 档：默认 CLOSED
+            state = GateState.CLOSED
+            score = 0.2
+            reason = f"E={E:.2f}<0.4，无需存疑"
+            # S/P 配合：若两者都极高（>0.9），且六论全开 → 提升到 PENDING
+            if S > 0.9 and P > 0.9 and all_open:
+                state = GateState.PENDING
+                score = 0.45
+                reason = f"E={E:.2f}但S/P双高，徘徊观察"
+            # 前6论多数关闭（≥3）→ 混沌海保持 OPEN，触发整体覆盖机制
+            # 避免"低质量但强关"失去最后一道存疑缓冲
+            elif any_closed:
+                closed_count = sum(1 for v in pre_verdicts if v.state == GateState.CLOSED)
+                if closed_count >= 3:
+                    state = GateState.OPEN
+                    score = 0.8
+                    reason = f"E={E:.2f}但前{closed_count}论关闭，混沌海保持存疑"
+        elif E <= 0.7:
+            # PENDING 档：0.4 ≤ E ≤ 0.7
+            state = GateState.PENDING
+            score = 0.5 + 0.2 * (E - 0.4) / 0.3  # 0.5 ~ 0.7
+            reason = f"E={E:.2f}∈[0.4,0.7]，徘徊存疑"
+            # S/P 配合：若 S/P 都低（<0.3），降级为 CLOSED
+            if S < 0.3 and P < 0.3:
+                state = GateState.CLOSED
+                score = 0.3
+                reason = f"E={E:.2f}但S/P双低，关闭"
+            # 若六论有关闭 → 倾向 OPEN（存疑覆盖）
+            elif any_closed:
+                state = GateState.OPEN
+                score = 0.8
+                reason = f"E={E:.2f}且有裁决关闭，混沌海覆盖为存疑"
         else:
-            score = 0.7
+            # PASS 档：E > 0.7
             state = GateState.OPEN
-            reason = "混沌海保持存疑空间"
+            score = 0.85
+            reason = f"E={E:.2f}>0.7，开放存疑空间"
+            # S/P 配合：若 S/P 双低 且 前六论全不差(全开或全徘徊 没关)，才降档
+            # 注意：只要有任何一论关闭，则保持 OPEN 让混沌海覆盖逻辑生效
+            if (S < 0.3 and P < 0.3
+                    and not any_closed
+                    and (all_open or any_pending)):
+                state = GateState.PENDING
+                score = 0.5
+                reason = f"E={E:.2f}但S/P双低且无关闭裁决，徘徊"
 
         return TheoryVerdict(
             theory_name="混沌海",

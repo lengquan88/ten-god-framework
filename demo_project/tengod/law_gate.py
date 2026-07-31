@@ -47,6 +47,26 @@ class SchedulingPolicy:
     target_speedup: float = 5.0
     max_retries: int = 3
     timeout_ms: float = 1000.0
+    #: 自定义规则：Dict[规则名, 阈值]，会合并/覆盖默认规则
+    custom_rules: Dict[str, Any] = field(default_factory=dict)
+
+    def merged_rules(self) -> Dict[str, Any]:
+        """返回默认规则与自定义规则合并后的完整规则集"""
+        defaults = {
+            "max_burst_size": self.max_burst_size,
+            "min_confidence_threshold": self.min_confidence_threshold,
+            "max_queue_depth": self.max_queue_depth,
+            "target_speedup": self.target_speedup,
+            "max_retries": self.max_retries,
+            "timeout_ms": self.timeout_ms,
+            "min_timeliness": 0.5,       # T 维度最低实时性
+            "min_parallelism": 0.5,      # P 维度最低并行度
+            "min_consistency": 0.5,      # C 维度最低一致性
+            "deadline_miss_penalty": 0.1,
+            "priority_mismatch_penalty": 0.08,
+        }
+        merged = {**defaults, **self.custom_rules}
+        return merged
 
     def is_compliant(self, actual: "SchedulingMetrics") -> Tuple[bool, List[str]]:
         """检查实际调度是否合规"""
@@ -73,6 +93,8 @@ class SchedulingMetrics:
     latency_ms: float = 100.0
     throughput: float = 1.0
     anomaly_score: float = 0.0  # 异常分数 [0, 1]
+    deadline_miss: bool = False  # 是否错过截止时间
+    priority_mismatch: bool = False  # 优先级是否不匹配
     timestamp: float = field(default_factory=time.time)
 
 
@@ -168,7 +190,61 @@ class LawGate(TwelveGodsGate):
         # 异常分数：E（边缘探索度）的映射
         metrics.anomaly_score = coords.E
 
+        # 截止时间错过：从metadata提取
+        if unit.metadata and "deadline_miss" in unit.metadata:
+            metrics.deadline_miss = bool(unit.metadata["deadline_miss"])
+
+        # 优先级不匹配：从metadata提取
+        if unit.metadata and "priority_mismatch" in unit.metadata:
+            metrics.priority_mismatch = bool(unit.metadata["priority_mismatch"])
+
         return metrics
+
+    def _evaluate_policy(
+        self, metrics: SchedulingMetrics, unit: CognitiveUnit
+    ) -> Tuple[List[str], List[str], float]:
+        """策略评估：检查 T/P/C 三维度 + deadline/priority 惩罚
+
+        返回：(issues, evidence, total_penalty)
+        """
+        coords = unit.coordinates
+        rules = self.policy.merged_rules()
+        issues = []
+        evidence = []
+        total_penalty = 0.0
+
+        # 实时性（T 维度）
+        if coords.T < rules["min_timeliness"]:
+            issues.append(f"实时性不足(T={coords.T:.2f}<{rules['min_timeliness']})")
+            total_penalty += 0.08
+        else:
+            evidence.append(f"实时性达标(T={coords.T:.2f})")
+
+        # 并行度（P 维度）
+        if coords.P < rules["min_parallelism"]:
+            issues.append(f"并行度不足(P={coords.P:.2f}<{rules['min_parallelism']})")
+            total_penalty += 0.08
+        else:
+            evidence.append(f"并行度达标(P={coords.P:.2f})")
+
+        # 一致性（C 维度）
+        if coords.C < rules["min_consistency"]:
+            issues.append(f"一致性不够(C={coords.C:.2f}<{rules['min_consistency']})")
+            total_penalty += 0.08
+        else:
+            evidence.append(f"一致性达标(C={coords.C:.2f})")
+
+        # 截止时间错过惩罚
+        if metrics.deadline_miss:
+            issues.append("错过截止时间(deadline_miss)")
+            total_penalty += rules["deadline_miss_penalty"]
+
+        # 优先级不匹配惩罚
+        if metrics.priority_mismatch:
+            issues.append("优先级不匹配(priority_mismatch)")
+            total_penalty += rules["priority_mismatch_penalty"]
+
+        return issues, evidence, total_penalty
 
     def _evaluate(
         self, metrics: SchedulingMetrics, unit: CognitiveUnit
@@ -238,6 +314,34 @@ class LawGate(TwelveGodsGate):
             speedup=sum(m.speedup for m in self._metrics_log) / n,
             anomaly_score=sum(m.anomaly_score for m in self._metrics_log) / n,
         )
+
+    def get_gate_stats(self) -> Dict[str, Any]:
+        """获取门禁统计（空/非空）。
+
+        返回：
+          - 空门禁：{}
+          - 非空：包含裁决数、状态分布、平均得分、门禁神位等字段
+        """
+        if not self._verdict_log:
+            return {}
+        total = len(self._verdict_log)
+        states = {'open': 0, 'pending': 0, 'closed': 0}
+        scores = []
+        for v in self._verdict_log:
+            states[v.state] += 1
+            scores.append(v.score)
+        return {
+            'god': self.god.value,
+            'god_name': self.god.name,
+            'element': self.element.value,
+            'total_verdicts': total,
+            'states': states,
+            'avg_score': sum(scores) / total if scores else 0.0,
+            'max_score': max(scores) if scores else 0.0,
+            'min_score': min(scores) if scores else 0.0,
+            'policy_id': self.policy.policy_id,
+            'metrics_count': len(self._metrics_log),
+        }
 
 
 __all__ = [

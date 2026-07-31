@@ -482,3 +482,238 @@ class TestAutoCoordinateGenerator:
             "stable", 500, 10, True, True, 0.98,
         )
         assert coords.E < 0.5
+
+
+# ============================================================================
+# 补充边界测试 1: 非对角度量张量 distance() 交叉项
+# ============================================================================
+
+class TestTBCEDistanceOffDiagonal:
+    """非对角度量张量下 distance() 的交叉项验证"""
+
+    def test_off_diagonal_metric_cross_terms_present(self):
+        """有非零 M[i][j] (i≠j) 时，距离必须包含交叉项，结果与对角张量不同"""
+        c1 = TBCECoordinates(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+        c2 = TBCECoordinates(1.0, 1.0, 0.0, 0.0, 0.0, 0.0)
+
+        diagonal_metric = [
+            [1.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
+        ]
+        d_diag = c1.distance(c2, diagonal_metric)
+        # 对角：1^2 + 1^2 = 2 → sqrt(2)
+        assert abs(d_diag - math.sqrt(2.0)) < 1e-9
+
+        # 非对角：加入 M[0][1]=M[1][0]=0.5
+        # ds² = 1*1*1 + 0.5*1*1 + 0.5*1*1 + 1*1*1 = 1 + 0.5 + 0.5 + 1 = 3
+        offdiag_metric = [row[:] for row in diagonal_metric]
+        offdiag_metric[0][1] = 0.5
+        offdiag_metric[1][0] = 0.5
+        d_off = c1.distance(c2, offdiag_metric)
+        expected = math.sqrt(3.0)
+        assert abs(d_off - expected) < 1e-9
+        # 非对角距离必须大于对角距离（正交叉项）
+        assert d_off > d_diag
+
+    def test_negative_off_diagonal_reduces_distance(self):
+        """负交叉项会减少距离平方"""
+        c1 = TBCECoordinates(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+        c2 = TBCECoordinates(1.0, 1.0, 0.0, 0.0, 0.0, 0.0)
+
+        identity = [[1.0 if i == j else 0.0 for j in range(6)] for i in range(6)]
+        d_base = c1.distance(c2, identity)
+
+        # M[0][1]=M[1][0]=-0.5 → ds²=1-0.5-0.5+1=1 → d=1
+        neg = [row[:] for row in identity]
+        neg[0][1] = -0.5
+        neg[1][0] = -0.5
+        d_neg = c1.distance(c2, neg)
+        assert abs(d_neg - 1.0) < 1e-9
+        assert d_neg < d_base
+
+    def test_three_dim_off_diagonal_cross(self):
+        """P/C/I 三维联合偏移，验证交叉项总和"""
+        c1 = TBCECoordinates(0.0, 0.0, 0.5, 0.5, 0.5, 0.0)
+        c2 = TBCECoordinates(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+
+        identity = [[1.0 if i == j else 0.0 for j in range(6)] for i in range(6)]
+        d_diag = c1.distance(c2, identity)
+        # 对角: 0.25 + 0.25 + 0.25 = 0.75 → sqrt(0.75)
+        assert abs(d_diag - math.sqrt(0.75)) < 1e-9
+
+        # P-C, P-I, C-I 各 +0.5
+        # 额外交叉: 0.5*0.5*0.5*2 (P↔C) + 0.5*0.5*0.5*2 (P↔I) + 0.5*0.5*0.5*2 (C↔I)
+        # = 0.25 + 0.25 + 0.25 = 0.75
+        # 总和: 0.75 + 0.75 = 1.5 → sqrt(1.5)
+        off = [row[:] for row in identity]
+        for (i, j) in [(2, 3), (3, 2), (2, 4), (4, 2), (3, 4), (4, 3)]:
+            off[i][j] = 0.5
+        d_off = c1.distance(c2, off)
+        assert abs(d_off - math.sqrt(1.5)) < 1e-9
+
+
+# ============================================================================
+# 补充边界测试 2: assign_cognitive_layer(S 阈值)
+# ============================================================================
+
+class TestAssignCognitiveLayerByS:
+    """assign_cognitive_layer(S) 的阈值边界"""
+
+    @pytest.fixture
+    def gen(self):
+        return AutoCoordinateGenerator(seed=0)
+
+    def test_s_zero_is_layer_1(self, gen):
+        assert gen.assign_cognitive_layer(0.0) == 1
+
+    def test_s_0499_just_below_05_is_layer_1(self, gen):
+        """S=0.499 刚好在 0.5 之下 → L1"""
+        assert gen.assign_cognitive_layer(0.499) == 1
+
+    def test_s_05_exact_boundary_is_layer_2(self, gen):
+        """S=0.5 刚好在阈值 → L2"""
+        assert gen.assign_cognitive_layer(0.5) == 2
+
+    def test_s_0799_just_below_08_is_layer_2(self, gen):
+        """S=0.799 刚好在 0.8 之下 → L2"""
+        assert gen.assign_cognitive_layer(0.799) == 2
+
+    def test_s_08_exact_boundary_is_layer_3(self, gen):
+        """S=0.8 刚好在阈值 → L3"""
+        assert gen.assign_cognitive_layer(0.8) == 3
+
+    def test_s_10_max_is_layer_3(self, gen):
+        assert gen.assign_cognitive_layer(1.0) == 3
+
+    def test_mid_values(self, gen):
+        """中间值验证"""
+        assert gen.assign_cognitive_layer(0.001) == 1
+        assert gen.assign_cognitive_layer(0.49) == 1
+        assert gen.assign_cognitive_layer(0.6) == 2
+        assert gen.assign_cognitive_layer(0.65) == 2
+        assert gen.assign_cognitive_layer(0.9) == 3
+        assert gen.assign_cognitive_layer(0.999) == 3
+
+    def test_original_three_arg_mode_still_works(self, gen):
+        """验证原有三参数调用未被破坏"""
+        assert gen.assign_cognitive_layer(100, False, True) == 8
+        assert gen.assign_cognitive_layer(100, True, False) == 6
+        assert gen.assign_cognitive_layer(1200, False, False) == 4
+        assert gen.assign_cognitive_layer(600, False, False) == 3
+        assert gen.assign_cognitive_layer(100, False, False) == 1
+
+
+# ============================================================================
+# 补充边界测试 3: CognitiveUnit add_tag / remove_tag / has_tag
+# ============================================================================
+
+class TestCognitiveUnitTags:
+    """CognitiveUnit 标签系统：去重、不抛异常、大小写不敏感"""
+
+    @pytest.fixture
+    def unit(self):
+        return CognitiveUnit(
+            unit_id="test.tag",
+            name="标签测试",
+            module_path="test.tag",
+            coordinates=TBCECoordinates.default(),
+            cognitive_layer=1,
+            psi_operator="EmbeddingProvider",
+        )
+
+    def test_add_tag_basic(self, unit):
+        unit.add_tag("logic")
+        assert unit.has_tag("logic")
+
+    def test_add_tag_dedup_same_case(self, unit):
+        """同大小写重复添加 → 去重"""
+        unit.add_tag("logic")
+        unit.add_tag("logic")
+        assert len(unit._tags) == 1
+
+    def test_add_tag_dedup_case_insensitive(self, unit):
+        """大小写不同但语义相同 → 去重，保留第一个添加的"""
+        unit.add_tag("Logic")
+        unit.add_tag("LOGIC")
+        unit.add_tag("logic")
+        assert len(unit._tags) == 1
+        # 保留第一个添加的 ("Logic")
+        assert "Logic" in unit._tags
+
+    def test_has_tag_case_insensitive(self, unit):
+        """has_tag 大小写不敏感"""
+        unit.add_tag("MyTag")
+        assert unit.has_tag("mytag")
+        assert unit.has_tag("MYTAG")
+        assert unit.has_tag("MyTag")
+        assert unit.has_tag("  mytag  ") is True
+
+    def test_remove_tag_existing(self, unit):
+        """移除存在的标签"""
+        unit.add_tag("Logic")
+        assert unit.has_tag("logic")
+        unit.remove_tag("logic")
+        assert not unit.has_tag("LOGIC")
+        assert len(unit._tags) == 0
+
+    def test_remove_tag_case_insensitive(self, unit):
+        """remove_tag 大小写不敏感匹配"""
+        unit.add_tag("MyTag")
+        unit.remove_tag("MYTAG")
+        assert not unit.has_tag("mytag")
+
+    def test_remove_tag_nonexistent_no_exception(self, unit):
+        """移除不存在的标签 → 不抛异常"""
+        try:
+            unit.remove_tag("does_not_exist")
+        except Exception as e:
+            pytest.fail(f"remove_tag 不存在标签时抛出了异常: {e}")
+        assert len(unit._tags) == 0
+
+    def test_remove_tag_nonexistent_after_adding_others(self, unit):
+        """存在一些标签时，移除另一个不存在的也不抛"""
+        unit.add_tag("a")
+        unit.add_tag("b")
+        try:
+            unit.remove_tag("c")
+        except Exception as e:
+            pytest.fail(f"remove_tag 抛异常: {e}")
+        assert len(unit._tags) == 2
+
+    def test_empty_and_whitespace_tags_ignored(self, unit):
+        """空字符串和纯空白不应被添加"""
+        unit.add_tag("")
+        unit.add_tag("   ")
+        unit.add_tag("\t\n")
+        assert len(unit._tags) == 0
+
+    def test_tag_stripping(self, unit):
+        """添加时去除首尾空白"""
+        unit.add_tag("  logic  ")
+        assert "logic" in unit._tags
+        assert len(unit._tags) == 1
+        assert unit.has_tag("logic")
+
+    def test_multiple_tags_mixed_operations(self, unit):
+        """添加多个、去重、混合大小写、部分删除"""
+        tags_in = ["Alpha", "alpha", "BETA", "Beta", "gamma", "Gamma", "DELTA"]
+        for t in tags_in:
+            unit.add_tag(t)
+        # alpha/Beta/gamma 各被去重 → 剩 Alpha,BETA,gamma,DELTA = 4
+        assert len(unit._tags) == 4
+
+        # 全部 has_tag 通过（大小写不敏感）
+        for t in ["alpha", "beta", "GAMMA", "delta"]:
+            assert unit.has_tag(t)
+
+        # 删除 beta，保留其余
+        unit.remove_tag("BETA")
+        assert not unit.has_tag("beta")
+        assert len(unit._tags) == 3
+        assert unit.has_tag("alpha")
+        assert unit.has_tag("gamma")
+        assert unit.has_tag("delta")

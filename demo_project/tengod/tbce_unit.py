@@ -258,6 +258,9 @@ class CognitiveUnit:
     #: 元数据，存储额外信息
     metadata: Dict[str, Any] = field(default_factory=dict)
 
+    #: 标签集合（支持去重、大小写不敏感查询）
+    _tags: Set[str] = field(default_factory=set)
+
     def update_coordinates(self, new_coords: TBCECoordinates) -> None:
         """更新坐标，更新时间戳"""
         self.coordinates = new_coords
@@ -315,6 +318,30 @@ class CognitiveUnit:
             verification_count=data.get('verification_count', 0),
             metadata=data.get('metadata', {}),
         )
+
+    def add_tag(self, tag: str) -> None:
+        """添加标签（自动去重，大小写不敏感去重）"""
+        normalized = tag.strip().lower()
+        if normalized:
+            existing_lower = {t.lower() for t in self._tags}
+            if normalized not in existing_lower:
+                self._tags.add(tag.strip())
+
+    def remove_tag(self, tag: str) -> None:
+        """移除标签，标签不存在时不抛异常"""
+        normalized = tag.strip().lower()
+        to_remove = None
+        for t in self._tags:
+            if t.lower() == normalized:
+                to_remove = t
+                break
+        if to_remove is not None:
+            self._tags.remove(to_remove)
+
+    def has_tag(self, tag: str) -> bool:
+        """检查是否包含标签（大小写不敏感）"""
+        normalized = tag.strip().lower()
+        return any(t.lower() == normalized for t in self._tags)
 
 
 # ============================================================================
@@ -410,11 +437,40 @@ class AutoCoordinateGenerator:
 
     def assign_cognitive_layer(
         self,
-        lines_of_code: int,
-        is_metacognition: bool,
-        is_evaluation: bool,
+        *args,
+        **kwargs,
     ) -> int:
-        """自动分配认知层"""
+        """自动分配认知层。
+
+        支持两种调用方式：
+        1. assign_cognitive_layer(lines_of_code, is_metacognition, is_evaluation)
+           基于模块特征与布尔标志分配 L1/L3/L4/L6/L8
+        2. assign_cognitive_layer(S: float)
+           基于 S 可信度分数分配 L1/L2/L3：
+           - S < 0.5 → L1 信息编码
+           - 0.5 ≤ S < 0.8 → L2 语义流
+           - S ≥ 0.8 → L3 拓扑结构
+        """
+        # 调用方式 2：单一 float S 参数
+        if len(args) == 1 and not kwargs and isinstance(args[0], (int, float)) and not isinstance(args[0], bool):
+            S = float(args[0])
+            if S >= 0.8:
+                return 3
+            elif S >= 0.5:
+                return 2
+            else:
+                return 1
+
+        # 调用方式 1：原有三参数签名
+        if args:
+            lines_of_code = args[0]
+            is_metacognition = args[1] if len(args) > 1 else kwargs.get('is_metacognition', False)
+            is_evaluation = args[2] if len(args) > 2 else kwargs.get('is_evaluation', False)
+        else:
+            lines_of_code = kwargs['lines_of_code']
+            is_metacognition = kwargs.get('is_metacognition', False)
+            is_evaluation = kwargs.get('is_evaluation', False)
+
         if is_evaluation:
             return 8  # L8 境界跃迁
         if is_metacognition:

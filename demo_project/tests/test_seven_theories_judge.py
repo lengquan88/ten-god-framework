@@ -279,7 +279,7 @@ class TestMetacognitionJudge:
 
 class TestChaosSeaJudge:
     def test_all_open_low_e(self, judge):
-        """六论全开+低E → 混沌海开（不需要存疑）"""
+        """六论全开 + 低E + S/P 双极高 (>0.9) → 混沌海升档 PENDING"""
         from tengod.tbce_unit import GateState
         pre_verdicts = [
             TheoryVerdict("本体论", 1, GateState.OPEN, 0.9, "S=0.90"),
@@ -291,12 +291,13 @@ class TestChaosSeaJudge:
         ]
         unit = CognitiveUnit(
             unit_id="test", name="test", module_path="test",
-            coordinates=TBCECoordinates(S=0.9, T=0.9, P=0.9, C=0.9, I=0.9, E=0.1),
+            coordinates=TBCECoordinates(S=0.99, T=0.99, P=0.99, C=0.99, I=0.99, E=0.1),
             cognitive_layer=1, psi_operator="EmbeddingProvider",
         )
         v = judge._chaos_sea_judge(unit, pre_verdicts)
-        assert v.state == GateState.OPEN
-        assert v.score == 0.9
+        # E<0.4 默认 CLOSED，但 S/P>0.9 + all_open → 升一档 PENDING
+        assert v.state == GateState.PENDING
+        assert v.score == pytest.approx(0.45)
 
     def test_any_closed(self, judge):
         """有关闭 → 混沌海开（覆盖存疑）"""
@@ -314,11 +315,12 @@ class TestChaosSeaJudge:
             cognitive_layer=1, psi_operator="EmbeddingProvider",
         )
         v = judge._chaos_sea_judge(unit, pre_verdicts)
+        # E∈[0.4, 0.7] 且 any_closed → 混沌海介入 → OPEN
         assert v.state == GateState.OPEN
-        assert v.score == 0.8
+        assert v.score == pytest.approx(0.8)
 
     def test_any_pending(self, judge):
-        """有徘徊 → 混沌海保持存疑"""
+        """有徘徊，低E(E<0.4)，SP中等，无S/P双高 → 无升档，CLOSED"""
         pre_verdicts = [
             TheoryVerdict("本体论", 1, GateState.OPEN, 0.8, "S=0.80"),
             TheoryVerdict("认识论", 2, GateState.PENDING, 0.6, "P=0.60"),
@@ -333,8 +335,9 @@ class TestChaosSeaJudge:
             cognitive_layer=5, psi_operator="ZuowangAttention",
         )
         v = judge._chaos_sea_judge(unit, pre_verdicts)
-        assert v.state == GateState.OPEN
-        assert v.score == 0.7
+        # E=0.3 < 0.4，无 closed，无 all_open+SP双高 → 保持 CLOSED
+        assert v.state == GateState.CLOSED
+        assert v.score == pytest.approx(0.2)
 
 
 # ── 11. _majority_vote ────────────────────────────────────
@@ -513,3 +516,249 @@ class TestEdgeCases:
             "本体论", "认识论", "实践论", "境界论",
             "未来观论", "元认知论", "混沌海",
         ]
+
+
+# ============================================================================
+# 补充 1: _majority_vote 阈值边界（>50% 即 ≥4）
+# ============================================================================
+
+class TestMajorityVoteBoundary:
+    """_majority_vote 多数投票边界：阈值是 >50% 即 ≥4"""
+
+    @pytest.fixture
+    def j(self):
+        return SevenTheoriesJudge(interruptible=False)
+
+    @staticmethod
+    def _make_verdicts(front_open, front_closed, front_pending, chaos_state=GateState.OPEN):
+        """构造前6论+混沌海的裁决列表。前6论按 open/closed/pending 数填充。"""
+        from tengod.tbce_unit import GateState as GS
+        verdicts = []
+        names = ["本体论", "认识论", "实践论", "境界论", "未来观论", "元认知论"]
+        idx = 0
+        for _ in range(front_open):
+            verdicts.append(TheoryVerdict(names[idx], idx + 1, GS.OPEN, 0.9, ""))
+            idx += 1
+        for _ in range(front_closed):
+            verdicts.append(TheoryVerdict(names[idx], idx + 1, GS.CLOSED, 0.1, ""))
+            idx += 1
+        for _ in range(front_pending):
+            verdicts.append(TheoryVerdict(names[idx], idx + 1, GS.PENDING, 0.5, ""))
+            idx += 1
+        # 第7论：混沌海
+        verdicts.append(TheoryVerdict("混沌海", 7, chaos_state, 0.7, ""))
+        return verdicts
+
+    def test_all_seven_pass_front_6_open(self, j):
+        """7项全 PASS → 前6 OPEN 6个 → ≥4 → OPEN"""
+        verdicts = self._make_verdicts(front_open=6, front_closed=0, front_pending=0,
+                                       chaos_state=GateState.OPEN)
+        result = j._majority_vote(verdicts)
+        assert result == GateState.OPEN
+
+    def test_6_pass_1_fail_front_6_open_5_closed_1(self, j):
+        """6 PASS 1 FAIL → 前6 OPEN=5 ≥4 → OPEN (PASS)"""
+        verdicts = self._make_verdicts(front_open=5, front_closed=1, front_pending=0)
+        result = j._majority_vote(verdicts)
+        assert result == GateState.OPEN
+
+    def test_3_pass_4_fail_front_3_open_4_closed(self, j):
+        """3 PASS 4 FAIL（论全7项：3 open + 4 closed）→ 失败 (CLOSED)
+
+        构造:前6论 2 open + 4 closed，chaos海=OPEN → 全7论合计 3 open, 4 closed（3+4=7）
+        投票: front_counts open=2 < closed=4 → 关多 → CLOSED
+        """
+        verdicts = self._make_verdicts(
+            front_open=2, front_closed=4, front_pending=0,
+            chaos_state=GateState.OPEN,
+        )
+        # 验证总票数:3 open + 4 closed = 7
+        open_count = sum(1 for v in verdicts if v.state == GateState.OPEN)
+        closed_count = sum(1 for v in verdicts if v.state == GateState.CLOSED)
+        assert open_count == 3
+        assert closed_count == 4
+        # 阈值：>50% 即 ≥4 才 PASS。3 < 4 → FAIL/CLOSED
+        result = j._majority_vote(verdicts)
+        assert result == GateState.CLOSED
+
+    def test_all_fail_front_6_all_closed(self, j):
+        """全 FAIL → 前6全 CLOSED → CLOSED"""
+        verdicts = self._make_verdicts(front_open=0, front_closed=6, front_pending=0)
+        result = j._majority_vote(verdicts)
+        assert result == GateState.CLOSED
+
+    def test_4_pass_3_fail_exact_threshold(self, j):
+        """4 PASS 3 FAIL → 前6 OPEN=4 刚好 ≥4 → PASS (OPEN)"""
+        # 前6论 4 open + 2 closed = 6 (3 fail 的其中 1 个是混沌海 closed)
+        verdicts = self._make_verdicts(front_open=4, front_closed=2, front_pending=0,
+                                       chaos_state=GateState.CLOSED)
+        result = j._majority_vote(verdicts)
+        assert result == GateState.OPEN
+
+    def test_exactly_3_open_3_pending_is_pending(self, j):
+        """3 OPEN + 3 PENDING → 不足4 → PENDING"""
+        verdicts = self._make_verdicts(front_open=3, front_closed=0, front_pending=3)
+        result = j._majority_vote(verdicts)
+        # open=3 >= pending=3 and open >= closed(0) → but 3 < 4 → PENDING
+        assert result == GateState.PENDING
+
+    def test_2_open_4_closed(self, j):
+        """2 OPEN + 4 CLOSED → CLOSED (FAIL)"""
+        verdicts = self._make_verdicts(front_open=2, front_closed=4, front_pending=0)
+        result = j._majority_vote(verdicts)
+        assert result == GateState.CLOSED
+
+    def test_5_closed_1_pending(self, j):
+        """5 CLOSED + 1 PENDING → CLOSED"""
+        verdicts = self._make_verdicts(front_open=0, front_closed=5, front_pending=1)
+        # front_counts: open=0 >= pending? no. pending(1) >= closed(5)? No → CLOSED
+        result = j._majority_vote(verdicts)
+        assert result == GateState.CLOSED
+
+
+# ============================================================================
+# 补充 2: _chaos_sea_judge E 阈值三分支 + S/P 配合
+# ============================================================================
+
+class TestChaosSeaJudgeEBranches:
+    """_chaos_sea_judge E阈值三分支 + S/P 配合"""
+
+    @pytest.fixture
+    def j(self):
+        return SevenTheoriesJudge(interruptible=False)
+
+    @staticmethod
+    def _unit_with(S, P, E):
+        return CognitiveUnit(
+            unit_id="test.cs",
+            name="混沌海测试",
+            module_path="test.cs",
+            coordinates=TBCECoordinates(S=S, T=0.5, P=P, C=0.5, I=0.5, E=E),
+            cognitive_layer=3,
+            psi_operator="EmbeddingProvider",
+        )
+
+    @staticmethod
+    def _pre_open_all():
+        """前6论全部 OPEN"""
+        vs = []
+        for i, n in enumerate(["本体论", "认识论", "实践论", "境界论", "未来观论", "元认知论"]):
+            vs.append(TheoryVerdict(n, i + 1, GateState.OPEN, 0.9 + i * 0.01, ""))
+        return vs
+
+    @staticmethod
+    def _pre_all_closed():
+        """前6论全部 CLOSED"""
+        vs = []
+        for i, n in enumerate(["本体论", "认识论", "实践论", "境界论", "未来观论", "元认知论"]):
+            vs.append(TheoryVerdict(n, i + 1, GateState.CLOSED, 0.05, ""))
+        return vs
+
+    @staticmethod
+    def _pre_mixed_pending():
+        """前6论有 PENDING + 一些 OPEN"""
+        vs = [
+            TheoryVerdict("本体论", 1, GateState.OPEN, 0.9, ""),
+            TheoryVerdict("认识论", 2, GateState.PENDING, 0.5, ""),
+            TheoryVerdict("实践论", 3, GateState.OPEN, 0.8, ""),
+            TheoryVerdict("境界论", 4, GateState.OPEN, 0.8, ""),
+            TheoryVerdict("未来观论", 5, GateState.OPEN, 0.7, ""),
+            TheoryVerdict("元认知论", 6, GateState.PENDING, 0.5, ""),
+        ]
+        return vs
+
+    # ── FAIL 档: E < 0.4 ──────────────────────────────────
+
+    def test_e_0399_fail_closed(self, j):
+        """E=0.399 < 0.4 → FAIL (CLOSED)"""
+        unit = self._unit_with(S=0.5, P=0.5, E=0.399)
+        v = j._chaos_sea_judge(unit, self._pre_mixed_pending())
+        assert v.state == GateState.CLOSED
+
+    def test_e_00_fail_closed(self, j):
+        """E=0.0 极低端 → CLOSED"""
+        unit = self._unit_with(S=0.5, P=0.5, E=0.0)
+        v = j._chaos_sea_judge(unit, self._pre_mixed_pending())
+        assert v.state == GateState.CLOSED
+
+    def test_e_low_with_sp_upgrade_to_pending(self, j):
+        """E<0.4 但 S/P 都 >0.9 且六论全开 → 升级到 PENDING (S/P 配合)"""
+        unit = self._unit_with(S=0.95, P=0.95, E=0.3)
+        v = j._chaos_sea_judge(unit, self._pre_open_all())
+        assert v.state == GateState.PENDING
+
+    # ── PENDING 档: 0.4 ≤ E ≤ 0.7 ────────────────────────
+
+    def test_e_04_exact_pending(self, j):
+        """E=0.4 边界 → PENDING"""
+        unit = self._unit_with(S=0.5, P=0.5, E=0.4)
+        v = j._chaos_sea_judge(unit, self._pre_mixed_pending())
+        assert v.state == GateState.PENDING
+
+    def test_e_07_exact_pending(self, j):
+        """E=0.7 边界 → PENDING"""
+        unit = self._unit_with(S=0.5, P=0.5, E=0.7)
+        v = j._chaos_sea_judge(unit, self._pre_mixed_pending())
+        assert v.state == GateState.PENDING
+
+    def test_e_055_mid_pending(self, j):
+        """E=0.55 中间 → PENDING"""
+        unit = self._unit_with(S=0.5, P=0.5, E=0.55)
+        v = j._chaos_sea_judge(unit, self._pre_mixed_pending())
+        assert v.state == GateState.PENDING
+
+    def test_e_pending_with_any_closed_upgrade_to_open(self, j):
+        """E∈[0.4,0.7] 且前六论有 CLOSED → 升级到 OPEN (S/P 配合：覆盖存疑)"""
+        unit = self._unit_with(S=0.5, P=0.5, E=0.5)
+        # 构造一个含 CLOSED 的前序
+        pre = [
+            TheoryVerdict("本体论", 1, GateState.CLOSED, 0.0, "S低"),
+            TheoryVerdict("认识论", 2, GateState.OPEN, 0.8, ""),
+            TheoryVerdict("实践论", 3, GateState.OPEN, 0.8, ""),
+            TheoryVerdict("境界论", 4, GateState.PENDING, 0.5, ""),
+            TheoryVerdict("未来观论", 5, GateState.OPEN, 0.7, ""),
+            TheoryVerdict("元认知论", 6, GateState.OPEN, 0.7, ""),
+        ]
+        v = j._chaos_sea_judge(unit, pre)
+        assert v.state == GateState.OPEN
+
+    def test_e_pending_sp_very_low_downgrade(self, j):
+        """E∈[0.4,0.7] 但 S<0.3 且 P<0.3 → 降级到 CLOSED"""
+        unit = self._unit_with(S=0.2, P=0.2, E=0.55)
+        v = j._chaos_sea_judge(unit, self._pre_mixed_pending())
+        assert v.state == GateState.CLOSED
+
+    # ── PASS 档: E > 0.7 ─────────────────────────────────
+
+    def test_e_0701_pass_open(self, j):
+        """E=0.701 > 0.7 → PASS (OPEN)"""
+        unit = self._unit_with(S=0.5, P=0.5, E=0.701)
+        v = j._chaos_sea_judge(unit, self._pre_mixed_pending())
+        assert v.state == GateState.OPEN
+
+    def test_e_10_max_pass_open(self, j):
+        """E=1.0 最大 → OPEN"""
+        unit = self._unit_with(S=0.5, P=0.5, E=1.0)
+        v = j._chaos_sea_judge(unit, self._pre_open_all())
+        assert v.state == GateState.OPEN
+
+    def test_e_high_sp_very_low_downgrade(self, j):
+        """E>0.7 且 S<0.3、P<0.3 但前六论 CLOSED 很多（≥3）→ 不降级，保持 OPEN
+        以便触发混沌海 override 机制（最终 overall 仍被提升为 PENDING，比直接降更好）
+        """
+        unit = self._unit_with(S=0.2, P=0.2, E=0.9)
+        # all_closed → 6 论都关闭，会让覆盖机制生效，保持 chaos_sea=OPEN
+        v = j._chaos_sea_judge(unit, self._pre_all_closed())
+        # 保持 OPEN 以便 override（整体最终也会是 PENDING 的等效效果）
+        assert v.state == GateState.OPEN
+        assert v.score == pytest.approx(0.85)
+
+    def test_e_high_but_sp_low_with_pending_no_downgrade(self, j):
+        """E>0.7 且 S/P 低但前六论有 PENDING → 不降级（保持 OPEN）"""
+        unit = self._unit_with(S=0.2, P=0.2, E=0.9)
+        pre = self._pre_all_closed()
+        # 加一个 pending
+        pre[0] = TheoryVerdict("本体论", 1, GateState.PENDING, 0.5, "")
+        v = j._chaos_sea_judge(unit, pre)
+        # any_pending → 跳过降级条件
+        assert v.state == GateState.OPEN

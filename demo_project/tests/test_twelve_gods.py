@@ -499,3 +499,238 @@ class TestFullTwelveGods:
         )
         boost = gate._compute_element_boost(unit)
         assert boost == -0.05  # 火克金 → 克我 → 削弱
+
+
+# ============================================================================
+# 补充 1: FiveElements.generate_cycle / restrict_cycle 完整链 + 首尾相接
+# ============================================================================
+
+class TestFiveElementsCycles:
+    """FiveElements 生成完整相生/相克链，验证元素和首尾相接"""
+
+    def test_generate_cycle_has_five_elements(self):
+        """相生链长度=5，无重复"""
+        cycle = FiveElements.generate_cycle()
+        assert len(cycle) == 5
+        assert len(set(cycle)) == 5
+
+    def test_generate_cycle_consecutive_generates(self):
+        """相生链中每个相邻对都满足 generates 关系"""
+        cycle = FiveElements.generate_cycle()
+        # 木生火、火生土、土生金、金生水
+        for i in range(len(cycle) - 1):
+            assert cycle[i].generates == cycle[i + 1], \
+                f"{cycle[i].value} 应该生 {cycle[i+1].value}"
+
+    def test_generate_cycle_closure_last_generates_first(self):
+        """相生链首尾相接：最后一个（水）应该生第一个（木）"""
+        cycle = FiveElements.generate_cycle()
+        last = cycle[-1]
+        first = cycle[0]
+        assert last.generates == first, \
+            f"{last.value} 应生 {first.value}（水生木）"
+
+    def test_generate_cycle_expected_order(self):
+        """相生链顺序：木 → 火 → 土 → 金 → 水"""
+        expected = [
+            FiveElements.WOOD,
+            FiveElements.FIRE,
+            FiveElements.EARTH,
+            FiveElements.METAL,
+            FiveElements.WATER,
+        ]
+        assert FiveElements.generate_cycle() == expected
+
+    def test_restrict_cycle_has_five_elements(self):
+        """相克链长度=5，无重复"""
+        cycle = FiveElements.restrict_cycle()
+        assert len(cycle) == 5
+        assert len(set(cycle)) == 5
+
+    def test_restrict_cycle_consecutive_overcomes(self):
+        """相克链中每个相邻对满足 overcomes 关系"""
+        cycle = FiveElements.restrict_cycle()
+        # 木克土、土克水、水克火、火克金
+        for i in range(len(cycle) - 1):
+            assert cycle[i].overcomes == cycle[i + 1], \
+                f"{cycle[i].value} 应该克 {cycle[i+1].value}"
+
+    def test_restrict_cycle_closure_last_overcomes_first(self):
+        """相克链首尾相接：最后一个（金）应该克第一个（木）"""
+        cycle = FiveElements.restrict_cycle()
+        last = cycle[-1]
+        first = cycle[0]
+        assert last.overcomes == first, \
+            f"{last.value} 应克 {first.value}（金克木）"
+
+    def test_restrict_cycle_expected_order(self):
+        """相克链顺序：木 → 土 → 水 → 火 → 金"""
+        expected = [
+            FiveElements.WOOD,
+            FiveElements.EARTH,
+            FiveElements.WATER,
+            FiveElements.FIRE,
+            FiveElements.METAL,
+        ]
+        assert FiveElements.restrict_cycle() == expected
+
+    def test_both_cycles_start_with_wood(self):
+        """两个链都以木开头"""
+        assert FiveElements.generate_cycle()[0] == FiveElements.WOOD
+        assert FiveElements.restrict_cycle()[0] == FiveElements.WOOD
+
+
+# ============================================================================
+# 补充 2: _compute_element_boost 6 宫位逐一测，覆盖生/克/同/无关系
+# ============================================================================
+
+class TestElementBoostSixPalaces:
+    """五行生克加成在 6 宫位逐一验证，覆盖生/克/同/无关系四种方向"""
+
+    @staticmethod
+    def _unit(palace_id):
+        return CognitiveUnit(
+            unit_id="t", name="t", module_path="t",
+            coordinates=TBCECoordinates.default(),
+            cognitive_layer=1, psi_operator="e",
+            palace_id=palace_id,
+        )
+
+    # ── 6 宫位 + 生/克/同/无 四种关系 ──────────────
+
+    def test_palace_7_dui7_metal_same_element(self):
+        """palace=7（兑7=金）+ god=金（正官/七杀）→ 同五行 +0.05"""
+        gate = LawGate(TwelveGods.ZHENGGUAN)  # 金属性
+        unit = self._unit(palace_id=7)
+        boost = gate._compute_element_boost(unit)
+        assert boost == pytest.approx(0.05)
+
+    def test_palace_8_gen8_earth_generates_metal(self):
+        """palace=8（艮8=土）+ god=金 → 土生金（生我） +0.08"""
+        gate = LawGate(TwelveGods.ZHENGGUAN)  # 金
+        unit = self._unit(palace_id=8)  # 土
+        boost = gate._compute_element_boost(unit)
+        assert boost == pytest.approx(0.08)
+
+    def test_palace_1_kan1_water_overcomes_fire(self):
+        """palace=1（坎1=水）+ god=火（食神/伤官）→ 水克火 → 克我 -0.05"""
+        gate = InnovationGate(TwelveGods.SHISHEN)  # 食神 = 火
+        unit = self._unit(palace_id=1)  # 水
+        boost = gate._compute_element_boost(unit)
+        assert boost == pytest.approx(-0.05)
+
+    def test_palace_3_zhen3_wood_generates_god_fire(self):
+        """palace=3（震3=木）+ god=火（食神）→ 宫生火 = 生我 → +0.08"""
+        gate = InnovationGate(TwelveGods.SHISHEN)  # 食神 = 火
+        unit = self._unit(palace_id=3)  # 震3=木
+        boost = gate._compute_element_boost(unit)
+        # 宫=木 生 神=火 → 生我（unit生god）→ +0.08
+        assert boost == pytest.approx(0.08)
+
+    def test_palace_6_qian6_metal_overcomes_god_wood(self):
+        """palace=6（乾6=金）+ god=木（比肩）→ 宫金克神木 = 克我 → -0.05"""
+        gate = ArchitectureGate(TwelveGods.BIJIAN)  # 比肩 = 木
+        unit = self._unit(palace_id=6)  # 乾6=金
+        boost = gate._compute_element_boost(unit)
+        # 宫=金 克 神=木 → 克我 → -0.05
+        assert boost == pytest.approx(-0.05)
+
+    def test_palace_9_li9_fire_same_as_shishen(self):
+        """palace=9（离9=火）+ god=火（食神）→ 同五行 +0.05"""
+        gate = InnovationGate(TwelveGods.SHISHEN)  # 火
+        unit = self._unit(palace_id=9)  # 火
+        boost = gate._compute_element_boost(unit)
+        assert boost == pytest.approx(0.05)
+
+    # ── 额外：同宫不同神位验证更多关系 ──────
+
+    def test_palace_2_kun2_earth_generates_metal(self):
+        """palace=2（坤2=土）→ 土生金（生我）+0.08"""
+        gate = LawGate(TwelveGods.QISHA)  # 七杀也是金
+        unit = self._unit(palace_id=2)  # 坤2=土
+        boost = gate._compute_element_boost(unit)
+        assert boost == pytest.approx(0.08)
+
+    def test_palace_5_zhong5_earth_same_as_zhengcai(self):
+        """palace=5（中5=土）+ 正财(土) → 同五行 +0.05"""
+        gate = KnowledgeGate(TwelveGods.ZHENGCAI)  # 正财 = 土
+        unit = self._unit(palace_id=5)  # 中五=土
+        boost = gate._compute_element_boost(unit)
+        assert boost == pytest.approx(0.05)
+
+    def test_palace_4_xun4_wood_generates_fire(self):
+        """palace=4（巽4=木）生火（食神）→ 生我 +0.08"""
+        gate = InnovationGate(TwelveGods.SHISHEN)  # 火
+        unit = self._unit(palace_id=4)  # 木
+        boost = gate._compute_element_boost(unit)
+        assert boost == pytest.approx(0.08)
+
+    def test_none_palace_defaults_earth(self):
+        """palace_id=None → 默认土，正对正财(土) +0.05"""
+        gate = KnowledgeGate(TwelveGods.ZHENGCAI)  # 土
+        unit = self._unit(palace_id=None)
+        # 修改 palace_id 为 None
+        unit.palace_id = None
+        boost = gate._compute_element_boost(unit)
+        # 默认是土，所以正财(土)和默认土同五行 → +0.05
+        assert boost == pytest.approx(0.05)
+
+    def test_transcendent_god_always_zero_boost(self):
+        """太极/元辰（超越五行）任何宫位都返回 0 加成"""
+        # 使用基类直接测试
+        from tengod.twelve_gods_base import TwelveGodsGate, GateVerdict
+
+        class DummyGate(TwelveGodsGate):
+            def _judge_impl(self, u):
+                return GateVerdict(
+                    god=self.god, state=GateState.OPEN, score=0.5,
+                    reason="d", element=self.element,
+                )
+
+        for palace in [1, 2, 3, 4, 5, 6, 7, 8, 9, None]:
+            taiji_gate = DummyGate(TwelveGods.TAIJI)
+            unit = self._unit(palace_id=palace)
+            unit.palace_id = palace
+            boost = taiji_gate._compute_element_boost(unit)
+            assert boost == 0.0, f"TAIJI 在 palace={palace} 时 boost 应为 0"
+
+    # ── 完整覆盖 4 种 boost 方向关系 ───────────
+
+    def test_boost_direction_same_element(self):
+        """关系1：同五行 → +0.05  (palace=9火 + 食神火)"""
+        gate = InnovationGate(TwelveGods.SHISHEN)
+        boost = gate._compute_element_boost(self._unit(9))
+        assert boost == pytest.approx(0.05)
+
+    def test_boost_direction_unit_generates_god(self):
+        """关系2：生我（宫生神）→ +0.08 (palace=3木 + 食神火)"""
+        gate = InnovationGate(TwelveGods.SHISHEN)
+        boost = gate._compute_element_boost(self._unit(3))
+        # 宫=木生火=神 → +0.08
+        assert boost == pytest.approx(0.08)
+
+    def test_boost_direction_god_generates_unit(self):
+        """关系3：我生（神生宫）→ -0.03 (palace=9火 + 正印水)"""
+        # 正印=水；宫=火。水克火？不对，正印是水，宫是火：
+        # 神是水，宫是火：水克火 = 神克宫 → 我克 +0.03
+        # 重新选一个"我生"的：神是木（比肩）生宫火(9)
+        gate = ArchitectureGate(TwelveGods.BIJIAN)  # 木
+        boost = gate._compute_element_boost(self._unit(9))  # 火
+        # 神=木生宫=火 → 我生 → -0.03
+        assert boost == pytest.approx(-0.03)
+
+    def test_boost_direction_god_overcomes_unit(self):
+        """关系4：我克（神克宫）→ +0.03 (palace=7金 + 比肩木)"""
+        # 神=木，宫=金：金克木 → 宫克神 → 克我 → -0.05
+        # 再选一个真正我克的：神=金(正官) 克 宫=木(3)
+        gate = LawGate(TwelveGods.ZHENGGUAN)  # 金
+        boost = gate._compute_element_boost(self._unit(3))  # 震3=木
+        # 神=金克宫=木 → 我克 → +0.03
+        assert boost == pytest.approx(0.03)
+
+    def test_boost_direction_unit_overcomes_god(self):
+        """关系5：克我（宫克神）→ -0.05 (palace=1水克火食神)"""
+        gate = InnovationGate(TwelveGods.SHISHEN)  # 火
+        boost = gate._compute_element_boost(self._unit(1))  # 坎1=水
+        # 宫=水克神=火 → 克我 → -0.05
+        assert boost == pytest.approx(-0.05)
