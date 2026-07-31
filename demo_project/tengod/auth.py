@@ -43,6 +43,10 @@ if not JWT_SECRET:
         RuntimeWarning,
         stacklevel=2,
     )
+    # 安全兜底：使用进程级随机密钥替代空密钥，避免攻击者使用「已知空密钥」伪造任意 token。
+    # 该密钥仅存在于内存中，进程重启即失效——生产环境仍必须设置固定的 TENGOD_JWT_SECRET。
+    import secrets as _secrets
+    JWT_SECRET = "_fallback_" + _secrets.token_hex(32)
 JWT_ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24       # access token 有效期 24 小时
 REFRESH_TOKEN_EXPIRE_DAYS = 7                # refresh token 有效期 7 天
@@ -582,6 +586,17 @@ def check_db_quota(username: str) -> Tuple[bool, int, int]:
     return get_db().check_quota(username)
 
 
+def check_and_consume_db_quota(username: str, delta: int = 1) -> Tuple[bool, int, int]:
+    """原子性地检查并消耗数据库配额（避免 TOCTOU 竞态）。
+
+    返回: (是否成功消耗, 消耗后已用, 上限)
+    """
+    from tengod.database import is_persistent, get_db
+    if not is_persistent():
+        return True, 0, 0
+    return get_db().check_and_consume_quota(username, delta)
+
+
 def update_db_quota(username: str, delta: int = 1) -> bool:
     """更新数据库配额"""
     from tengod.database import is_persistent, get_db
@@ -598,5 +613,5 @@ __all__ = [
     "create_token_pair", "ROLE_PERMISSIONS",
     "ACCESS_TOKEN_EXPIRE_MINUTES", "REFRESH_TOKEN_EXPIRE_DAYS",
     "sync_user_to_db", "load_users_from_db",  # v2.12
-    "check_db_quota", "update_db_quota",  # v2.12
+    "check_db_quota", "check_and_consume_db_quota", "update_db_quota",  # v2.12
 ]

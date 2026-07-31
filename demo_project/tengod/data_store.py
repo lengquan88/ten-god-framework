@@ -314,6 +314,18 @@ class DataStore:
 
     # ── 八字记录 CRUD ─────────────────────────────────────────────────────
 
+    # 允许通过 update_bazi_record 更新的字段白名单
+    # 禁止直接修改 id、created_at、updated_at（由 ORM/系统维护）
+    UPDATABLE_BAZI_FIELDS = frozenset({
+        "user_id", "label",
+        "year", "month", "day", "hour", "minute",
+        "gender", "longitude", "latitude",
+        "day_master",
+        "pillars_json", "analysis_json", "shensha_json",
+        "geju_json", "yongshen_json", "tiaohou_json",
+        "tags", "notes",
+    })
+
     def save_bazi_record(
         self,
         year: int, month: int, day: int, hour: int, minute: int = 0,
@@ -396,7 +408,14 @@ class DataStore:
             return q.order_by(BaziRecord.created_at.desc()).limit(limit).all()
 
     def update_bazi_record(self, record_id: int, **kwargs) -> bool:
-        """更新八字记录"""
+        """更新八字记录（仅允许白名单内字段）"""
+        # 字段白名单校验：阻止对 id / created_at / updated_at 等内部字段的篡改
+        invalid_keys = set(kwargs.keys()) - self.UPDATABLE_BAZI_FIELDS
+        if invalid_keys:
+            raise ValueError(
+                f"update_bazi_record: 不允许更新字段 {sorted(invalid_keys)}。"
+                f"允许的字段: {sorted(self.UPDATABLE_BAZI_FIELDS)}"
+            )
         with self._session() as s:
             record = s.query(BaziRecord).filter(BaziRecord.id == record_id).first()
             if record is None:
@@ -484,6 +503,15 @@ class DataStore:
             return count
 
     # ── 案例库 CRUD ──────────────────────────────────────────────────────
+
+    # 允许通过 update_case 更新的字段白名单
+    UPDATABLE_CASE_FIELDS = frozenset({
+        "title", "summary", "analysis_text", "category",
+        "is_public", "is_featured",
+        "bazi_record_id", "user_id",
+        "pillars_json", "geju_json", "yongshen_json",
+        "day_master", "tags", "fts_vector",
+    })
 
     def _build_fts_vector(self, title: str, summary: Optional[str],
                           analysis_text: Optional[str]) -> str:
@@ -586,7 +614,14 @@ class DataStore:
             return q.order_by(LegacyCase.created_at.desc()).limit(limit).all()
 
     def update_case(self, case_id: int, **kwargs) -> bool:
-        """更新案例字段"""
+        """更新案例字段（仅允许白名单内字段）"""
+        # 字段白名单校验：阻止对 id / created_at / updated_at 等内部字段的篡改
+        invalid_keys = set(kwargs.keys()) - self.UPDATABLE_CASE_FIELDS
+        if invalid_keys:
+            raise ValueError(
+                f"update_case: 不允许更新字段 {sorted(invalid_keys)}。"
+                f"允许的字段: {sorted(self.UPDATABLE_CASE_FIELDS)}"
+            )
         with self._session() as s:
             case = s.query(LegacyCase).filter(LegacyCase.id == case_id).first()
             if case is None:

@@ -639,6 +639,75 @@ class DatabaseManager:
             )
             return cur.rowcount > 0
 
+    def check_and_consume_quota(self, username: str, delta: int = 1) -> Tuple[bool, int, int]:
+        """原子性地检查并消耗配额（使用 SQLite 行级锁避免 TOCTOU 竞态）。
+
+        返回: (是否成功消耗, 消耗后已用, 上限)
+        若用户不存在 -> (False, 0, 0)
+        若配额不足   -> (False, 当前已用, 上限)
+        若成功消耗   -> (True,  消耗后已用, 上限)
+        """
+        with self._cursor() as cur:
+            # 先读取快照
+            cur.execute(
+                "SELECT quota_used, quota_limit FROM users WHERE username = ?",
+                (username,),
+            )
+            row = cur.fetchone()
+            if row is None:
+                return False, 0, 0
+            used, limit = row["quota_used"], row["quota_limit"]
+            if used >= limit:
+                return False, used, limit
+            # 条件式原子更新：只有 quota_used 未变化（或仍 < limit）时才写入
+            cur.execute(
+                """
+                UPDATE users
+                   SET quota_used = quota_used + ?,
+                       updated_at = ?
+                 WHERE username = ?
+                   AND quota_used = ?
+                """,
+                (delta, time.time(), username, used),
+            )
+            if cur.rowcount > 0:
+                return True, used + delta, limit
+            # 竞态丢失：重读最新值再返回
+            cur.execute(
+                "SELECT quota_used, quota_limit FROM users WHERE username = ?",
+                (username,),
+            )
+            row = cur.fetchone()
+            if row is None:
+                return False, 0, 0
+            used, limit = row["quota_used"], row["quota_limit"]
+            if used >= limit:
+                return False, used, limit
+            # 再尝试一次（限定重试一次，避免死循环）
+            cur.execute(
+                """
+                UPDATE users
+                   SET quota_used = quota_used + ?,
+                       updated_at = ?
+                 WHERE username = ?
+                   AND quota_used < quota_limit
+                """,
+                (delta, time.time(), username),
+            )
+            if cur.rowcount > 0:
+                cur.execute(
+                    "SELECT quota_used, quota_limit FROM users WHERE username = ?",
+                    (username,),
+                )
+                row = cur.fetchone()
+                return True, row["quota_used"], row["quota_limit"]
+            cur.execute(
+                "SELECT quota_used, quota_limit FROM users WHERE username = ?",
+                (username,),
+            )
+            row = cur.fetchone()
+            return False, row["quota_used"], row["quota_limit"]
+
     def check_quota(self, username: str) -> Tuple[bool, int, int]:
         """检查配额：返回 (是否可用, 已用, 上限)"""
         user = self.get_user(username=username)
