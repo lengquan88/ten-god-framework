@@ -110,8 +110,10 @@ class AsyncTaskQueue:
                     result = item.func(*item.args, **item.kwargs)
 
                 item.result = result
-                item.status = AsyncTaskStatus.COMPLETED
-                self._stats["completed"] += 1
+                # RUNNING 期间被 cancel：不标记为 COMPLETED，保持 CANCELLED
+                if item.status != AsyncTaskStatus.CANCELLED:
+                    item.status = AsyncTaskStatus.COMPLETED
+                    self._stats["completed"] += 1
             except Exception as e:
                 item.retry_count += 1
                 if item.retry_count <= item.max_retries:
@@ -120,8 +122,11 @@ class AsyncTaskQueue:
                     await self._queue.put(item)
                     continue
                 item.error = str(e)
-                item.status = AsyncTaskStatus.FAILED
-                self._stats["failed"] += 1
+                # RUNNING 期间被 cancel：同样保持 CANCELLED（避免覆盖），
+                # 统计统一由 finally 中的 CANCELLED 分支处理，避免双计数
+                if item.status != AsyncTaskStatus.CANCELLED:
+                    item.status = AsyncTaskStatus.FAILED
+                    self._stats["failed"] += 1
             finally:
                 item.completed_at = time.time()
                 if item.task_id in self._results:
@@ -131,6 +136,13 @@ class AsyncTaskQueue:
                             future.set_result(item.result)
                         elif item.status == AsyncTaskStatus.FAILED:
                             future.set_exception(RuntimeError(item.error))
+                        elif item.status == AsyncTaskStatus.CANCELLED:
+                            # RUNNING 期间触发的 cancel：也需要 resolve Future，否则调用方挂起
+                            if item.task_id in self._results:
+                                self._stats["cancelled"] += 1
+                            future.set_exception(asyncio.CancelledError(
+                                f"Task {item.task_id} was cancelled"
+                            ))
 
     async def submit(
         self,
@@ -197,7 +209,8 @@ class AsyncTaskQueue:
             item = self._tasks[task_id]
             if item.status in (AsyncTaskStatus.PENDING, AsyncTaskStatus.RUNNING):
                 item.status = AsyncTaskStatus.CANCELLED
-                self._stats["cancelled"] += 1
+                # 统计统一由 Worker 处理，避免双计数（PENDING 时 Worker L91 会计数；
+                # RUNNING 时 finally 中的 CANCELLED 分支会计数）
                 return True
         return False
 

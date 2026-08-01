@@ -237,3 +237,143 @@ class TestAsyncTaskQueueShutdown:
             await queue.get_result(task_id, timeout=0.1)
 
         await queue.shutdown()
+
+
+# ============================================================================
+# Bug #1 回归测试：cancel 计数正确性 + RUNNING cancel Future resolve
+# ============================================================================
+
+class TestAsyncTaskQueueCancelRegression:
+    """提交后正确性检查发现的 Bug #1 回归测试。
+
+    Bug 描述：
+      1. PENDING 状态 cancel 存在双计数（cancel() 方法中计数 1 次，
+         Worker 取到时又计数 1 次）→ stats.cancelled 显示为 2。
+      2. RUNNING 状态下 cancel：
+         - 原代码中 cancel() 会把 status 改为 CANCELLED，但随后 try 块
+           正常完成时 L113 会无条件覆盖 status=COMPLETED，导致 cancel
+           对 RUNNING 任务实际无效（仍返回 completed=1 的统计和结果）。
+         - 如果异常路径（fail+不再重试）中 status 被覆盖为 FAILED 也
+           同样无效。更糟的是 finally 中仅处理 COMPLETED/FAILED，
+           CANCELLED 状态的 Future 永远不 resolve，调用方无限挂起。
+    """
+
+    @pytest.mark.asyncio
+    async def test_cancel_pending_counts_exactly_once(self):
+        """PENDING cancel → cancelled=1，不双计数。"""
+        queue = AsyncTaskQueue(max_workers=1)
+        await queue.start()
+
+        async def blocker():
+            await asyncio.sleep(0.3)
+            return "blocked"
+
+        async def quick():
+            return "quick"
+
+        blocker_id = await queue.submit(blocker, priority=AsyncTaskPriority.LOW)
+        pending_id = await queue.submit(quick, priority=AsyncTaskPriority.NORMAL)
+
+        assert await queue.cancel(pending_id) is True
+
+        # PENDING 任务：Worker 未取到，stats 未更新（Worker 取到时会计数）
+        await asyncio.sleep(0.6)  # 等待 blocker 结束 + PENDING 被 Worker 处理
+
+        stats = queue.stats()
+        # 期望：blocker=1 completed；pending=1 cancelled
+        assert stats["completed"] == 1, f"completed 错误: {stats}"
+        assert stats["cancelled"] == 1, f"cancelled 双计数! stats={stats}"
+        await queue.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_cancel_pending_get_result_raises_cancelled_error(self):
+        """PENDING cancel 后 get_result() 必须抛 CancelledError（不挂起）。"""
+        queue = AsyncTaskQueue(max_workers=1)
+        await queue.start()
+
+        async def blocker():
+            await asyncio.sleep(0.2)
+            return "blocked"
+
+        def quick():
+            return 42
+
+        await queue.submit(blocker)
+        tid = await queue.submit(quick)
+        await queue.cancel(tid)
+
+        with pytest.raises(asyncio.CancelledError):
+            # 如果 Future 不 resolve，这里会挂起直到测试超时
+            await queue.get_result(tid, timeout=3.0)
+
+        await queue.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_cancel_running_successful_task_raises_cancelled(self):
+        """RUNNING 任务执行期间被 cancel → 抛 CancelledError，且不记 completed。"""
+        queue = AsyncTaskQueue(max_workers=1)
+        await queue.start()
+
+        async def slow_ok():
+            await asyncio.sleep(0.3)
+            return "success"
+
+        tid = await queue.submit(slow_ok)
+        await asyncio.sleep(0.05)  # 已进入 RUNNING
+        assert await queue.cancel(tid) is True
+
+        with pytest.raises(asyncio.CancelledError):
+            await queue.get_result(tid, timeout=3.0)
+
+        stats = queue.stats()
+        assert stats["completed"] == 0, f"RUNNING cancel 仍记为 completed! {stats}"
+        assert stats["cancelled"] == 1, f"cancelled 计数应为1: {stats}"
+        await queue.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_cancel_running_failed_task_raises_cancelled(self):
+        """RUNNING 任务失败期间被 cancel → 抛 CancelledError，不记 failed。"""
+        queue = AsyncTaskQueue(max_workers=1)
+        await queue.start()
+
+        async def slow_fail():
+            await asyncio.sleep(0.3)
+            raise RuntimeError("boom")
+
+        tid = await queue.submit(slow_fail, max_retries=0)
+        await asyncio.sleep(0.05)  # RUNNING
+        assert await queue.cancel(tid) is True
+
+        with pytest.raises(asyncio.CancelledError):
+            await queue.get_result(tid, timeout=3.0)
+
+        stats = queue.stats()
+        assert stats["failed"] == 0, f"RUNNING cancel+fail 仍记为 failed! {stats}"
+        assert stats["cancelled"] == 1, f"cancelled 应为1: {stats}"
+        await queue.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_normal_completed_stats_still_correct_after_fix(self):
+        """修复未破坏正常路径：未 cancel 的成功/失败任务计数正确。"""
+        queue = AsyncTaskQueue(max_workers=2)
+        await queue.start()
+
+        def ok():
+            return 1
+
+        def bad():
+            raise RuntimeError("x")
+
+        await queue.submit(ok)
+        await queue.submit(ok)
+        tid_bad = await queue.submit(bad, max_retries=0)
+
+        with pytest.raises(RuntimeError, match="x"):
+            await queue.get_result(tid_bad, timeout=3.0)
+
+        await asyncio.sleep(0.2)
+        stats = queue.stats()
+        assert stats["completed"] == 2
+        assert stats["failed"] == 1
+        assert stats["cancelled"] == 0
+        await queue.shutdown()

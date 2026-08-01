@@ -570,6 +570,59 @@ class TestExportImport:
         counts = fresh_db.import_all(payload)
         assert counts["cases"] == 0
 
+    def test_users_password_hash_preserved_on_export_import_roundtrip(self, persistent_db_path):
+        """Bug #2 回归测试：users.password_hash 必须在 ALLOWED_TABLES 白名单内，
+        否则 import_all 时被静默剔除，备份恢复后用户无法登录。"""
+        # 1. 白名单中应显式包含 password_hash
+        assert "password_hash" in ALLOWED_TABLES["users"], (
+            "ALLOWED_TABLES['users'] 缺少 password_hash → 备份恢复后密码丢失"
+        )
+
+        # 2. 实际往返验证
+        source = DatabaseManager(":memory:")
+        try:
+            source.init()
+            TEST_PW_HASH = "pbkdf2_sha256$200000$saltABC$deadbeefcafebabe1234"
+            source.create_user({
+                "username": "backup_user",
+                "password_hash": TEST_PW_HASH,
+                "api_key": "api-key-123",
+                "role": "user",
+                "quota_limit": 100,
+            })
+
+            # 确认写入了原始 hash
+            created = source.get_user(username="backup_user")
+            assert created["password_hash"] == TEST_PW_HASH, (
+                f"写入的 password_hash 不对: {created['password_hash']!r}"
+            )
+
+            payload = source.export_all()
+            exported_hash = payload["tables"]["users"][0].get("password_hash")
+            assert exported_hash == TEST_PW_HASH, (
+                f"export_all 导出的 password_hash 丢失: {exported_hash!r}"
+            )
+        finally:
+            source.close()
+
+        # 3. 清空 → 导入新库 → password_hash 必须保留
+        mgr2 = DatabaseManager(persistent_db_path)
+        try:
+            mgr2.init()
+            counts = mgr2.import_all(payload)
+            assert counts["users"] == 1
+
+            restored = mgr2.get_user(username="backup_user")
+            assert restored is not None, "用户未被恢复"
+            assert restored["password_hash"] == TEST_PW_HASH, (
+                f"Bug #2: 恢复后 password_hash 丢失/错误！\n"
+                f"  期望值: {TEST_PW_HASH!r}\n"
+                f"  实际值: {restored['password_hash']!r}\n"
+                f"→ 所有用户将无法登录（认证失败）！"
+            )
+        finally:
+            mgr2.close()
+
 
 # ============================================================================
 # 9. 全局单例 & 环境配置

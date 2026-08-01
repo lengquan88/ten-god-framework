@@ -62,7 +62,7 @@ ALLOWED_TABLES = {
         "confidence", "created_at"
     },
     "users": {
-        "id", "username", "api_key", "role", "quota_used",
+        "id", "username", "password_hash", "api_key", "role", "quota_used",
         "quota_limit", "metadata", "created_at", "updated_at"
     },
 }
