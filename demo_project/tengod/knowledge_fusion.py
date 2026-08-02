@@ -24,7 +24,7 @@ from typing import Any, Dict, List, Optional
 from dataclasses import dataclass
 
 from .graph_engine import KnowledgeGraphDB, GraphNode, GraphEdge, get_graph_db
-from .vector_store import VectorStore, get_vector_store
+from .vector_store import SQLiteFAISSVectorStore as VectorStore
 from .deepseek_adapter import DeepseekClient, DeepseekResponse, Message
 
 
@@ -84,8 +84,17 @@ class KnowledgeFusionEngine:
         deepseek_client: Optional[DeepseekClient] = None,
     ):
         self.graph_db = graph_db or get_graph_db()
-        self.vector_store = vector_store or get_vector_store()
+        self.vector_store = vector_store or self._create_default_vector_store()
         self.deepseek_client = deepseek_client
+
+    @staticmethod
+    def _create_default_vector_store() -> Optional[VectorStore]:
+        """Create a default vector store instance."""
+        try:
+            from .vector_store import SQLiteFAISSVectorStore
+            return SQLiteFAISSVectorStore(db_path=":memory:", dim=384)
+        except Exception:
+            return None
 
     async def deepseek_chat(self, messages: list[Message]) -> DeepseekResponse:
         """调用 Deepseek AI"""

@@ -1,11 +1,5 @@
-覆盖: TokenBucket, SlidingWindow, RateLimiter, CircuitBreaker,
-      EnhancedHealthChecker, PerformanceBenchmark, ReliabilityMonitor
-      timeit, retry, safe_call
 """
-
-import time
-"""
-Tests for tengod.reliability — comprehensive reliability module.
+Tests for tengod.reliability - comprehensive reliability module.
 
 Covers:
   - TokenBucket / SlidingWindow / RateLimiter
@@ -19,7 +13,6 @@ Covers:
 from __future__ import annotations
 
 import threading
-import time
 from unittest.mock import MagicMock, Mock, patch, PropertyMock
 
 import pytest
