@@ -193,6 +193,39 @@ class TestAsyncTaskQueueCancel:
 
         await queue.shutdown()
 
+    @pytest.mark.asyncio
+    async def test_cancel_pending_resolves_future(self):
+        """Bug #2 回归测试: cancel(PENDING) 后 get_result 必须在 1s 内抛 CancelledError，不能无限挂起"""
+        queue = AsyncTaskQueue(max_workers=0)  # 0 worker = 永远 pending
+        await queue.start()
+        try:
+            task_id = await queue.submit(lambda: 42)
+            canceled = await queue.cancel(task_id)
+            assert canceled is True
+            with pytest.raises(asyncio.CancelledError):
+                await asyncio.wait_for(queue.get_result(task_id), timeout=1.0)
+        finally:
+            await queue.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_cancel_running_resolves_future(self):
+        """Bug #2 回归测试: cancel(RUNNING) 后 get_result 必须在 1s 内抛 CancelledError，不能无限挂起"""
+        queue = AsyncTaskQueue(max_workers=1)
+        await queue.start()
+        try:
+            async def long_sleep():
+                await asyncio.sleep(5.0)
+                return "never"
+
+            task_id = await queue.submit(long_sleep, priority=AsyncTaskPriority.HIGH)
+            await asyncio.sleep(0.1)  # 等待进入 RUNNING
+            canceled = await queue.cancel(task_id)
+            assert canceled is True
+            with pytest.raises(asyncio.CancelledError):
+                await asyncio.wait_for(queue.get_result(task_id), timeout=1.0)
+        finally:
+            await queue.shutdown()
+
 
 class TestAsyncTaskQueueStats:
     @pytest.mark.asyncio

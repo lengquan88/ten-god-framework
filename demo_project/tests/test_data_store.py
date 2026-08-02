@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 """
 覆盖: User, BaziRecord, ReportCache, LegacyCase, DataStore CRUD
 """
@@ -201,19 +202,6 @@ class TestDataStore:
         assert record_dict["label"] == "测试"
         assert record_dict["pillars"] == {"year": "甲子"}
         assert record_dict["analysis"] == {"test": "data"}
-test_data_store.py — 数据持久化层测试
-
-覆盖 tengod.data_store 模块的所有公共 API：
-- ORM 模型：User, BaziRecord, ReportCache, LegacyCase
-- DataStore 类：初始化、CRUD、报告缓存、案例库、统计、备份恢复
-- 模块级函数：get_data_store 单例
-- 边界情况：缺失记录、空值、连接错误、空结果
-
-用法：
-    pytest tests/test_data_store.py -v
-"""
-
-from __future__ import annotations
 
 import json
 import os

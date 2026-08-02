@@ -745,3 +745,157 @@ class TestFederatedConsensusMedianKeys:
 
         fc = FederatedConsensus()
         assert fc._median_aggregate({}) == {}
+
+
+# ============================================================================
+# Bug #1 回归测试: database.py 默认 STORAGE_BACKEND="memory" 时应使用 :memory:
+# 并且 get_db() 应自动 init() 表结构，不会因表不存在而崩溃
+#
+# 修复前触发场景：
+#   1. 未设置任何环境变量时 STORAGE_BACKEND 默认 "memory"
+#   2. 修复前 DB_PATH 回退到 "tengod.db"（即写入文件，而非内存）
+#   3. 并且 memory 模式下未调用 init()，导致 insert_case 表不存在抛 OperationalError
+# ============================================================================
+
+
+class TestDatabaseDefaultMemoryBackend:
+    """Bug #1 回归测试: 默认数据库 memory 后端可直接使用"""
+
+    def test_default_memory_insert_and_get_case(self):
+        """默认 STORAGE_BACKEND=memory 时 get_db() 应可用且 CRUD 正常"""
+        import tempfile, os
+        import sys
+        sys.path.insert(0, "/workspace/demo_project")
+        import tengod.database as dbmod
+
+        original_backend = dbmod.STORAGE_BACKEND
+        original_dbpath = dbmod.DB_PATH
+        try:
+            # 强制切到 memory 模式并重置单例
+            dbmod.STORAGE_BACKEND = "memory"
+            dbmod.reset_db()
+            db = dbmod.get_db()
+            # insert 若表不存在会抛 OperationalError，这就是修复前的崩溃路径
+            cid = db.insert_case({
+                "name": "memory模式测试",
+                "bazi_data": {"year": 1990, "month": 6},
+                "tags": ["critical_fix"],
+            })
+            case = db.get_case(cid)
+            assert case is not None
+            assert case["name"] == "memory模式测试"
+            assert case["bazi_data"] == {"year": 1990, "month": 6}
+        finally:
+            dbmod.STORAGE_BACKEND = original_backend
+            dbmod.DB_PATH = original_dbpath
+            dbmod.reset_db()
+
+    def test_sqlite_file_backend_autoinits_tables(self):
+        """sqlite 文件后端在全新临时库上 get_db() 必须自动 init()，不能依赖外部调用"""
+        import tempfile, os
+        import sys
+        sys.path.insert(0, "/workspace/demo_project")
+        import tengod.database as dbmod
+
+        tmpdb = tempfile.mktemp(suffix=".db")
+        original_backend = dbmod.STORAGE_BACKEND
+        try:
+            dbmod.STORAGE_BACKEND = "sqlite"
+            dbmod.reset_db()
+            db = dbmod.get_db(tmpdb)
+            cid = db.insert_case({"name": "sqlite_init"})
+            assert db.get_case(cid)["name"] == "sqlite_init"
+        finally:
+            dbmod.STORAGE_BACKEND = original_backend
+            dbmod.reset_db()
+            if os.path.exists(tmpdb):
+                os.remove(tmpdb)
+
+
+# ============================================================================
+# Bug #3 回归测试: data_store.update_bazi_record / update_case 传入 dict/list 给
+# *_json 字段时必须自动 json.dumps 序列化，不能把 Python repr 当作字符串存
+#
+# 修复前触发场景：
+#   1. datastore.save_bazi_record(..., pillars={'year':'庚午'}) 内部用 json.dumps 正确
+#   2. 之后调用 datastore.update_bazi_record(rid, pillars_json={'year':'甲午'}) 传 dict
+#   3. 修复前 setattr(record, "pillars_json", {'year':'甲午'}) -> SQLite TEXT 列会转成
+#      "{'year': '甲午'}"（Python dict repr，单引号）
+#   4. 再调用 BaziRecord.to_dict() 内部 json.loads(pillars_json) -> JSONDecodeError
+#      -> 任何使用八字记录详情的页面都会 500
+# ============================================================================
+
+
+class TestDataStoreJsonFieldUpdateSerialization:
+    """Bug #3 回归测试: update_* 的 *_json 字段 dict/list 自动序列化为合法 JSON"""
+
+    def test_update_bazi_record_dict_json_fields_are_valid_json(self):
+        """update_bazi_record 传 dict/list 给 *_json 字段后 to_dict() 应能 json.loads"""
+        import tempfile, os
+        import sys
+        sys.path.insert(0, "/workspace/demo_project")
+        from tengod.data_store import DataStore
+
+        tmpdb = tempfile.mktemp(suffix=".db")
+        try:
+            store = DataStore(tmpdb)
+            rid = store.save_bazi_record(
+                year=1990, month=6, day=15, hour=10, gender="male",
+                pillars={"year": "庚午", "month": "壬午"},
+                analysis={"conclusion": "init"},
+            )
+            ok = store.update_bazi_record(
+                rid,
+                pillars_json={"year": "甲午", "month": "庚午", "day": "辛亥"},
+                analysis_json={"conclusion": "updated", "score": 95},
+                shensha_json=["驿马", "天乙贵人"],
+                geju_json={"type": "伤官佩印"},
+                yongshen_json={"element": "水", "gan": "壬"},
+                tiaohou_json={"need": "调候"},
+            )
+            assert ok is True
+            rec = store.get_bazi_record(rid)
+            # 关键断言：如果之前写入了非法 Python repr 字符串，这里会炸
+            d = rec.to_dict()
+            assert d["pillars"] == {"year": "甲午", "month": "庚午", "day": "辛亥"}
+            assert d["analysis"] == {"conclusion": "updated", "score": 95}
+            assert d["shensha"] == ["驿马", "天乙贵人"]
+            assert d["geju"] == {"type": "伤官佩印"}
+            assert d["yongshen"] == {"element": "水", "gan": "壬"}
+            assert d["tiaohou"] == {"need": "调候"}
+        finally:
+            store.close()
+            if os.path.exists(tmpdb):
+                os.remove(tmpdb)
+
+    def test_update_case_dict_json_fields_are_valid_json(self):
+        """update_case 传 dict/list 给 *_json 字段后 to_dict() 应能 json.loads"""
+        import tempfile, os
+        import sys
+        sys.path.insert(0, "/workspace/demo_project")
+        from tengod.data_store import DataStore
+
+        tmpdb = tempfile.mktemp(suffix=".db")
+        try:
+            store = DataStore(tmpdb)
+            cid = store.save_case(
+                title="案例A", summary="摘要",
+                pillars={"year": "庚午"},
+                geju={"name": "初始格"},
+            )
+            ok = store.update_case(
+                cid,
+                pillars_json={"year": "甲午", "month": "庚午", "day": "辛亥"},
+                geju_json={"name": "伤官佩印", "score": 90},
+                yongshen_json={"element": "木"},
+            )
+            assert ok is True
+            case = store.get_case(cid)
+            cd = case.to_dict()
+            assert cd["pillars"] == {"year": "甲午", "month": "庚午", "day": "辛亥"}
+            assert cd["geju"] == {"name": "伤官佩印", "score": 90}
+            assert cd["yongshen"] == {"element": "木"}
+        finally:
+            store.close()
+            if os.path.exists(tmpdb):
+                os.remove(tmpdb)

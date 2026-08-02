@@ -395,6 +395,14 @@ class DataStore:
                 q = q.filter(BaziRecord.tags.contains(tag))
             return q.order_by(BaziRecord.created_at.desc()).limit(limit).all()
 
+    _JSON_FIELDS_BAZI = frozenset({
+        "pillars_json", "analysis_json", "shensha_json",
+        "geju_json", "yongshen_json", "tiaohou_json",
+    })
+    _JSON_FIELDS_CASE = frozenset({
+        "pillars_json", "geju_json", "yongshen_json",
+    })
+
     def update_bazi_record(self, record_id: int, **kwargs) -> bool:
         """更新八字记录"""
         with self._session() as s:
@@ -403,6 +411,11 @@ class DataStore:
                 return False
             for key, value in kwargs.items():
                 if hasattr(record, key):
+                    # *_json 字段：dict/list 自动序列化为 JSON 字符串，
+                    # 避免直接 setattr 写入 Python dict 字符串表示导致
+                    # 后续 json.loads() 抛出 JSONDecodeError（数据损坏）。
+                    if key in self._JSON_FIELDS_BAZI and isinstance(value, (dict, list)):
+                        value = json.dumps(value, ensure_ascii=False)
                     setattr(record, key, value)
             record.updated_at = datetime.now(timezone.utc)
             s.commit()
@@ -593,6 +606,9 @@ class DataStore:
                 return False
             for key, value in kwargs.items():
                 if hasattr(case, key):
+                    # *_json 字段：dict/list 自动序列化为 JSON 字符串（同 Bug #3）
+                    if key in self._JSON_FIELDS_CASE and isinstance(value, (dict, list)):
+                        value = json.dumps(value, ensure_ascii=False)
                     setattr(case, key, value)
             # 若更新了文本字段，同步更新 fts_vector
             if any(k in kwargs for k in ("title", "summary", "analysis_text")):

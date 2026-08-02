@@ -33,6 +33,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 STORAGE_BACKEND = os.environ.get("STORAGE_BACKEND", "memory")
 DB_PATH = os.environ.get("TENGOD_DB_PATH", "tengod.db")
+# 内存模式使用 SQLite 内置内存数据库路径
+MEMORY_DB_PATH = ":memory:"
 
 # ============================================================================
 # Schema
@@ -708,10 +710,15 @@ def get_db(db_path: str = "") -> DatabaseManager:
     if _db_instance is None:
         with _db_lock:
             if _db_instance is None:
-                path = db_path or DB_PATH
+                if db_path:
+                    path = db_path
+                elif STORAGE_BACKEND == "memory":
+                    path = MEMORY_DB_PATH
+                else:
+                    path = DB_PATH
                 _db_instance = DatabaseManager(path)
-                if STORAGE_BACKEND == "sqlite":
-                    _db_instance.init()
+                # 无论哪种后端都必须初始化表结构
+                _db_instance.init()
     return _db_instance
 
 

@@ -131,6 +131,11 @@ class AsyncTaskQueue:
                             future.set_result(item.result)
                         elif item.status == AsyncTaskStatus.FAILED:
                             future.set_exception(RuntimeError(item.error))
+                        elif item.status == AsyncTaskStatus.CANCELLED:
+                            # 安全网：通常 cancel() 已 resolve Future，此处处理竞态情形
+                            future.set_exception(asyncio.CancelledError(
+                                f"Task {item.task_id} was cancelled"
+                            ))
 
     async def submit(
         self,
@@ -198,6 +203,14 @@ class AsyncTaskQueue:
             if item.status in (AsyncTaskStatus.PENDING, AsyncTaskStatus.RUNNING):
                 item.status = AsyncTaskStatus.CANCELLED
                 self._stats["cancelled"] += 1
+                item.completed_at = time.time()
+                # 立即 resolve Future，避免调用方 get_result() 无限阻塞
+                if item.task_id in self._results:
+                    future = self._results[item.task_id]
+                    if not future.done():
+                        future.set_exception(asyncio.CancelledError(
+                            f"Task {item.task_id} was cancelled"
+                        ))
                 return True
         return False
 
