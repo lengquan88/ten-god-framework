@@ -1,9 +1,9 @@
 {
   "status": "running",
-  "db": "unknown",
+  "db": "ok",
   "users": 0,
   "records": 0,
   "cases": 0,
   "metrics": {},
-  "timestamp": "2026-07-02T07:29:01.567323+00:00"
+  "timestamp": "2026-08-02T13:18:04.632391+00:00"
 }
