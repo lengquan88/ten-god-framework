@@ -38,6 +38,30 @@ DB_PATH = os.environ.get("TENGOD_DB_PATH", "tengod.db")
 # Schema
 # ============================================================================
 
+def _json_loads_safe(raw: Any) -> Any:
+    """json.loads 的包装：接受字符串/字节，非字符串输入直接返回原值（None 除外）。"""
+    if raw is None:
+        return None
+    if isinstance(raw, (str, bytes, bytearray)):
+        try:
+            return json.loads(raw)
+        except (ValueError, TypeError):
+            return raw
+    return raw
+
+
+def _as_dict(value: Any) -> Dict[str, Any]:
+    """确保返回 dict，非法/缺失值返回 {}，避免下游 AttributeError/TypeError。"""
+    parsed = _json_loads_safe(value)
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _as_list(value: Any) -> List[Any]:
+    """确保返回 list，非法/缺失值返回 []。"""
+    parsed = _json_loads_safe(value)
+    return parsed if isinstance(parsed, list) else []
+
+
 SCHEMA_VERSION = 1
 
 ALLOWED_TABLES = {
@@ -68,6 +92,16 @@ ALLOWED_TABLES = {
 }
 
 EXPORT_TABLES = ["cases", "feedback", "conversations", "kg_nodes", "kg_edges", "users"]
+
+# 每个表中存储时使用 json.dumps、读取时使用 json.loads 的列
+JSON_COLUMNS = {
+    "cases": {"bazi_data", "analysis", "tags", "metadata"},
+    "feedback": {"corrections", "tags"},
+    "conversations": {"intent"},
+    "kg_nodes": {"properties", "sources"},
+    "kg_edges": set(),
+    "users": {"metadata"},
+}
 
 CREATE_TABLES_SQL = [
     # ── 案例表 ──
@@ -362,15 +396,15 @@ class DatabaseManager:
             return cur.rowcount > 0
 
     def _row_to_case(self, row: sqlite3.Row) -> Dict[str, Any]:
-        """将数据库行转为案例字典"""
+        """将数据库行转为案例字典，JSON 列使用防御性类型转换。"""
         return {
             "id": row["id"],
             "name": row["name"],
-            "bazi_data": json.loads(row["bazi_data"]),
-            "analysis": json.loads(row["analysis"]),
-            "tags": json.loads(row["tags"]),
+            "bazi_data": _as_dict(row["bazi_data"]),
+            "analysis": _as_dict(row["analysis"]),
+            "tags": _as_list(row["tags"]),
             "category": row["category"],
-            "metadata": json.loads(row["metadata"]),
+            "metadata": _as_dict(row["metadata"]),
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
         }
@@ -456,8 +490,8 @@ class DatabaseManager:
             "usefulness": row["usefulness"],
             "comment": row["comment"],
             "analysis_type": row["analysis_type"],
-            "corrections": json.loads(row["corrections"]),
-            "tags": json.loads(row["tags"]),
+            "corrections": _as_list(row["corrections"]),
+            "tags": _as_list(row["tags"]),
             "created_at": row["created_at"],
         }
 
@@ -505,7 +539,7 @@ class DatabaseManager:
             "session_id": row["session_id"],
             "role": row["role"],
             "message": row["message"],
-            "intent": json.loads(row["intent"]),
+            "intent": _as_dict(row["intent"]),
             "created_at": row["created_at"],
         }
 
@@ -552,8 +586,8 @@ class DatabaseManager:
             "domain": row["domain"],
             "concept": row["concept"],
             "confidence": row["confidence"],
-            "properties": json.loads(row["properties"]),
-            "sources": json.loads(row["sources"]),
+            "properties": _as_dict(row["properties"]),
+            "sources": _as_list(row["sources"]),
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
         }
@@ -655,7 +689,7 @@ class DatabaseManager:
             "role": row["role"],
             "quota_used": row["quota_used"],
             "quota_limit": row["quota_limit"],
-            "metadata": json.loads(row["metadata"]),
+            "metadata": _as_dict(row["metadata"]),
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
         }
@@ -672,7 +706,13 @@ class DatabaseManager:
             return {"schema_version": SCHEMA_VERSION, "exported_at": time.time(), "tables": tables}
 
     def import_all(self, data: Dict[str, Any]) -> Dict[str, int]:
-        """从 JSON 导入全部数据（仅允许白名单内的表和列）"""
+        """从 JSON 导入全部数据（仅允许白名单内的表和列）
+
+        对每个表的 JSON 列进行规范化：
+        - None → 保留 None
+        - str → 保留（假定已经是合法的 JSON 字符串）
+        - dict/list/int/float/bool → json.dumps 成字符串，确保读取时 json.loads 不会得到错误类型
+        """
         counts = {}
         tables = data.get("tables", {})
         for table_name, rows in tables.items():
@@ -682,6 +722,7 @@ class DatabaseManager:
                 counts[table_name] = 0
                 continue
             allowed_cols = ALLOWED_TABLES[table_name]
+            json_cols = JSON_COLUMNS.get(table_name, set())
             with self._cursor() as cur:
                 columns = [c for c in rows[0].keys() if c in allowed_cols]
                 if not columns:
@@ -689,7 +730,18 @@ class DatabaseManager:
                 placeholders = ", ".join(["?"] * len(columns))
                 col_names = ", ".join(f'"{c}"' for c in columns)
                 sql = f'INSERT OR REPLACE INTO "{table_name}" ({col_names}) VALUES ({placeholders})'
-                cur.executemany(sql, [tuple(r.get(c) for c in columns) for r in rows])
+
+                def _coerce_value(col: str, val: Any) -> Any:
+                    if val is None:
+                        return None
+                    if col in json_cols and not isinstance(val, str):
+                        return json.dumps(val, ensure_ascii=False)
+                    return val
+
+                cur.executemany(
+                    sql,
+                    [tuple(_coerce_value(c, r.get(c)) for c in columns) for r in rows],
+                )
                 counts[table_name] = len(rows)
         return counts
 

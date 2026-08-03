@@ -89,8 +89,7 @@ class AsyncTaskQueue:
                 continue
 
             if item.status == AsyncTaskStatus.CANCELLED:
-                self._stats["cancelled"] += 1
-                # 必须 resolve Future，否则调用方 get_result() 会无限挂起
+                # Future 必须 resolve，否则调用方 get_result() 会无限挂起
                 item.completed_at = time.time()
                 if item.task_id in self._results:
                     future = self._results[item.task_id]

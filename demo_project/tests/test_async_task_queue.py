@@ -193,6 +193,39 @@ class TestAsyncTaskQueueCancel:
 
         await queue.shutdown()
 
+    @pytest.mark.asyncio
+    async def test_cancel_pending_stats_not_double_counted(self):
+        """回归：取消 PENDING 任务后 cancelled 统计只计 1 次（之前 worker 会再 +1）。"""
+        queue = AsyncTaskQueue(max_workers=1)
+        await queue.start()
+
+        # 占住 worker，确保下一个任务保持 PENDING
+        async def slow():
+            await asyncio.sleep(0.5)
+            return "ok"
+        await queue.submit(slow, priority=AsyncTaskPriority.HIGH)
+
+        task_id = await queue.submit(
+            lambda x: x, args=(42,), priority=AsyncTaskPriority.LOW
+        )
+        before = queue.stats()["cancelled"]
+
+        ok = await queue.cancel(task_id)
+        assert ok is True
+        after_cancel = queue.stats()["cancelled"]
+        assert after_cancel - before == 1, (
+            f"cancel() 应该只计 1 次，实际 delta={after_cancel - before}"
+        )
+
+        # 等 worker 处理完 CANCELLED 任务，统计不应再增加
+        await asyncio.sleep(1.2)
+        after_worker = queue.stats()["cancelled"]
+        assert after_worker - before == 1, (
+            f"worker 不应重复计数 cancelled，实际 delta={after_worker - before}"
+        )
+
+        await queue.shutdown()
+
 
 class TestAsyncTaskQueueStats:
     @pytest.mark.asyncio

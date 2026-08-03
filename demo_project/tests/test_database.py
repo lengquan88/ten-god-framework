@@ -570,6 +570,102 @@ class TestExportImport:
         counts = fresh_db.import_all(payload)
         assert counts["cases"] == 0
 
+    def test_import_all_json_columns_with_dict_list_int_types(self, fresh_db):
+        """回归：import_all 时 JSON 列传入 dict/list/int 不崩溃，读取端类型安全。"""
+        payload = {
+            "tables": {
+                "cases": [
+                    # dict/list → Python 对象而非 JSON 字符串（export 手改后常见）
+                    {
+                        "id": 1,
+                        "name": "PyDictCase",
+                        "bazi_data": {"day_master": "甲", "pillars": ["年", "月", "日", "时"]},
+                        "analysis": {"result": "吉", "score": 85},
+                        "tags": ["重要", "生意"],
+                        "metadata": {"imported": True},
+                        "category": "general",
+                        "created_at": 0,
+                        "updated_at": 0,
+                    },
+                    # int/float → 不是合法对象结构，但读取端应防御性返回 {} 或 []
+                    {
+                        "id": 2,
+                        "name": "IntCase",
+                        "bazi_data": 42,
+                        "analysis": 3.14,
+                        "tags": 999,
+                        "metadata": True,
+                        "category": "general",
+                        "created_at": 0,
+                        "updated_at": 0,
+                    },
+                    # 合法 JSON 字符串 → 保持不变
+                    {
+                        "id": 3,
+                        "name": "StrCase",
+                        "bazi_data": '{"day_master": "乙"}',
+                        "analysis": "{}",
+                        "tags": '["a", "b"]',
+                        "metadata": "{}",
+                        "category": "general",
+                        "created_at": 0,
+                        "updated_at": 0,
+                    },
+                ]
+            }
+        }
+
+        counts = fresh_db.import_all(payload)
+        assert counts["cases"] == 3
+
+        # Case 1: dict/list 导入后类型正确，字段完整
+        c1 = fresh_db.get_case(1)
+        assert isinstance(c1["bazi_data"], dict)
+        assert c1["bazi_data"]["day_master"] == "甲"
+        assert isinstance(c1["analysis"], dict) and c1["analysis"]["score"] == 85
+        assert isinstance(c1["tags"], list) and c1["tags"][0] == "重要"
+        assert isinstance(c1["metadata"], dict) and c1["metadata"]["imported"] is True
+
+        # Case 2: int/float 导入后应防御性地返回 {} / []，下游 in/.items() 不崩溃
+        c2 = fresh_db.get_case(2)
+        assert isinstance(c2["bazi_data"], dict), "bazi_data 应为 dict（默认 {}）"
+        assert isinstance(c2["analysis"], dict)
+        assert isinstance(c2["tags"], list), "tags 应为 list（默认 []）"
+        assert isinstance(c2["metadata"], dict)
+        # 下游常见访问模式，不应抛 TypeError
+        assert "day_master" in c2["bazi_data"] or True  # in 运算符安全
+        list(c2["bazi_data"].items())  # .items() 安全
+        for _ in c2["tags"]:  # 迭代安全
+            pass
+
+        # Case 3: JSON 字符串正常解析
+        c3 = fresh_db.get_case(3)
+        assert isinstance(c3["bazi_data"], dict) and c3["bazi_data"]["day_master"] == "乙"
+        assert isinstance(c3["tags"], list) and len(c3["tags"]) == 2
+
+    def test_row_helpers_defensive_on_invalid_json_string(self, fresh_db):
+        """回归：即使数据库中 JSON 列存储了非法字符串，_as_dict/_as_list 也不崩溃。"""
+        from tengod.database import _as_dict, _as_list, _json_loads_safe
+
+        # 非法 JSON 字符串
+        assert _as_dict("not json at all {{{") == {}
+        assert _as_list("not a list") == []
+        # 合法 JSON 但类型错误
+        assert _as_dict("42") == {}          # 合法数字 → {}
+        assert _as_dict('[1, 2, 3]') == {}   # list, 非 dict → {}
+        assert _as_list('{"a": 1}') == []    # dict, 非 list → []
+        # 非字符串
+        assert _as_dict(None) == {}
+        assert _as_list(None) == []
+        assert _as_dict(3.14) == {}
+        assert _as_list(12345) == []
+        # 合法 JSON + 合法类型
+        assert _as_dict('{"a": 1}') == {"a": 1}
+        assert _as_list('[1, 2]') == [1, 2]
+        # _json_loads_safe: 非字符串直接返回
+        assert _json_loads_safe(42) == 42
+        assert _json_loads_safe({"k": "v"}) == {"k": "v"}
+
 
 # ============================================================================
 # 9. 全局单例 & 环境配置
