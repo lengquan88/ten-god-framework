@@ -51,13 +51,16 @@ class JWTAuth:
     def __init__(
         self, secret_key: Optional[str] = None
     ):
-        # 优先使用传入参数，其次从环境变量读取
+        # 优先使用传入参数，其次从环境变量读取，未设置时使用加密安全的随机密钥
+        import secrets as _secrets
         _key = secret_key or os.environ.get("TENGOD_JWT_SECRET", "")
         if not _key:
+            _key = _secrets.token_urlsafe(32)
             import warnings
             warnings.warn(
-                "JWT 密钥未设置。请通过 secret_key 参数或 TENGOD_JWT_SECRET 环境变量配置，"
-                "否则 JWT 认证将不安全。",
+                "JWT 密钥未设置，已生成临时随机密钥。"
+                "请通过 secret_key 参数或 TENGOD_JWT_SECRET 环境变量显式配置，"
+                "否则服务重启后所有令牌将失效。",
                 RuntimeWarning,
                 stacklevel=2,
             )
@@ -128,23 +131,65 @@ class JWTAuth:
         return {"valid": False, "error": "invalid or expired token"}
 
 
-# 默认用户存储（生产环境应替换为数据库）
-_DEFAULT_USERS = {
-    "admin": {
-        "password_hash": hashlib.sha256("admin123".encode()).hexdigest(),
-        "user_id": "u001",
-        "roles": ["admin", "user"],
-    },
-    "user": {
-        "password_hash": hashlib.sha256("user123".encode()).hexdigest(),
-        "user_id": "u002",
-        "roles": ["user"],
-    },
-}
+# 默认用户存储：生产环境默认空，仅当显式启用开发凭据时从环境变量加载
+# 安全修复：移除源码中的硬编码弱口令字面量，避免被默认凭据登录
+_DEFAULT_USERS: Dict[str, Dict[str, Any]] = {}
+
+
+def _initialize_default_users() -> None:
+    """根据环境变量初始化默认用户（仅开发环境使用，生产环境应使用数据库用户）
+
+    支持两种开发配置：
+    1. TENGOD_ENABLE_DEV_USERS=1 + ADMIN_PASSWORD=xxx：创建单个 admin 用户
+    2. TENGOD_ENABLE_INSECURE_TEST_USERS=1：启用内置弱凭据用户（仅限本地测试，会额外警告）
+    """
+    global _DEFAULT_USERS
+    if _DEFAULT_USERS:
+        return  # 已初始化
+
+    # 方式1：通过 ADMIN_PASSWORD 创建安全的 admin 用户
+    admin_pass = os.environ.get("ADMIN_PASSWORD")
+    if admin_pass and os.environ.get("TENGOD_ENABLE_DEV_USERS") == "1":
+        _DEFAULT_USERS["admin"] = {
+            "password_hash": hashlib.sha256(admin_pass.encode()).hexdigest(),
+            "user_id": "u001",
+            "roles": ["admin", "user"],
+        }
+
+    # 方式2：启用不安全测试用户（仅用于本地集成测试，需要同时设置密码环境变量，避免源码写死弱口令）
+    if os.environ.get("TENGOD_ENABLE_INSECURE_TEST_USERS") == "1":
+        import warnings
+        warnings.warn(
+            "已启用不安全的内置测试用户（使用环境变量提供的弱口令）。"
+            "切勿在任何可公开访问的环境中使用此配置！",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        admin_pass = os.environ.get("TENGOD_INSECURE_ADMIN_PASS")
+        user_pass = os.environ.get("TENGOD_INSECURE_USER_PASS")
+        if admin_pass:
+            _DEFAULT_USERS.setdefault("admin", {
+                "password_hash": hashlib.sha256(admin_pass.encode()).hexdigest(),
+                "user_id": "u001",
+                "roles": ["admin", "user"],
+            })
+        if user_pass:
+            _DEFAULT_USERS.setdefault("user", {
+                "password_hash": hashlib.sha256(user_pass.encode()).hexdigest(),
+                "user_id": "u002",
+                "roles": ["user"],
+            })
+
+
+# 导入时尝试初始化（不会自动启用不安全用户）
+_initialize_default_users()
 
 
 def _verify_password(username: str, password: str) -> Optional[Dict[str, Any]]:
     """验证用户名密码，返回用户信息或 None"""
+    # 延迟初始化：若 _DEFAULT_USERS 仍为空，尝试从环境变量加载开发用户
+    if not _DEFAULT_USERS:
+        _initialize_default_users()
     user = _DEFAULT_USERS.get(username)
     if not user:
         return None

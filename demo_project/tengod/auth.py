@@ -33,13 +33,17 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 # 配置
 # ============================================================================
 
-# JWT 密钥（必须从环境变量 TENGOD_JWT_SECRET 读取，不再提供默认值）
+# JWT 密钥：优先从环境变量读取，未设置时生成进程内安全随机密钥
+# 注意：未设置环境变量时，重启进程会导致所有已签发令牌失效，但不会导致认证被绕过
 JWT_SECRET = os.environ.get("TENGOD_JWT_SECRET", "")
 if not JWT_SECRET:
     import warnings
+    import secrets
+    # 使用加密安全的随机密钥，避免空密钥导致攻击者可伪造令牌
+    JWT_SECRET = secrets.token_urlsafe(32)
     warnings.warn(
-        "TENGOD_JWT_SECRET 环境变量未设置。请在生产环境中配置该变量，"
-        "否则 JWT 认证将不安全。",
+        "TENGOD_JWT_SECRET 环境变量未设置，已生成临时随机密钥。"
+        "请在生产环境中显式配置该变量，否则服务重启后所有令牌将失效。",
         RuntimeWarning,
         stacklevel=2,
     )
@@ -527,25 +531,34 @@ def sync_user_to_db(username: str, password: str, role: str = "user") -> Dict[st
     """同步用户到数据库
 
     持久化用户到数据库 tables。
+    使用确定性 SHA256 哈希生成用户ID，避免 PYTHONHASHSEED 导致的跨重启ID变化。
+    若数据库中已存在该用户，则优先返回数据库中的ID，确保一致性。
     """
     from tengod.database import is_persistent, get_db
 
-    user_id = hash(username) % 100000  # 简单 ID 生成
+    # 使用确定性 SHA256 生成 6 位十进制 ID（hash() 受 PYTHONHASHSEED 影响，跨重启不一致）
+    _deterministic_hash = int(hashlib.sha256(username.encode("utf-8")).hexdigest(), 16)
+    user_id = _deterministic_hash % 100000
 
     # 持久化
     if is_persistent():
         db = get_db()
         existing = db.get_user(username=username)
-        if not existing:
+        if existing:
+            # 若用户已存在，返回数据库实际的 id，避免与 JWT 中存储的不一致
+            user_id = int(existing["id"])
+        else:
             api_key = _generate_api_key()
             password_hash = PasswordHasher.hash(password)
-            db.create_user({
+            created_id = db.create_user({
                 "username": username,
                 "password_hash": password_hash,
                 "api_key": api_key,
                 "role": role,
                 "quota_limit": ROLE_PERMISSIONS.get(role, {}).get("quota_daily", 100),
             })
+            if created_id:
+                user_id = int(created_id)
 
     return {"user_id": user_id, "username": username, "role": role}
 

@@ -89,15 +89,13 @@ class AsyncTaskQueue:
                 continue
 
             if item.status == AsyncTaskStatus.CANCELLED:
-                self._stats["cancelled"] += 1
-                # 必须 resolve Future，否则调用方 get_result() 会无限挂起
-                item.completed_at = time.time()
-                if item.task_id in self._results:
-                    future = self._results[item.task_id]
-                    if not future.done():
-                        future.set_exception(asyncio.CancelledError(
-                            f"Task {item.task_id} was cancelled"
-                        ))
+                # 任务在入队后、取出前被 cancel() 标记为已取消
+                # 注意：cancel() 已经负责 resolve Future 和统计计数，此处不重复操作
+                # 仅做队列完成标记
+                try:
+                    self._queue.task_done()
+                except AttributeError:
+                    pass
                 continue
 
             item.status = AsyncTaskStatus.RUNNING
@@ -109,28 +107,51 @@ class AsyncTaskQueue:
                 else:
                     result = item.func(*item.args, **item.kwargs)
 
-                item.result = result
-                item.status = AsyncTaskStatus.COMPLETED
-                self._stats["completed"] += 1
+                # 执行期间可能被 cancel() 异步标记为 CANCELLED，此时丢弃结果并按取消处理
+                if item.status == AsyncTaskStatus.CANCELLED:
+                    # cancel() 已负责 resolve Future，此处不重复操作
+                    pass
+                else:
+                    item.result = result
+                    item.status = AsyncTaskStatus.COMPLETED
+                    self._stats["completed"] += 1
             except Exception as e:
-                item.retry_count += 1
-                if item.retry_count <= item.max_retries:
-                    item.status = AsyncTaskStatus.PENDING
-                    item.priority = max(0, item.priority - 1)  # 提升优先级
-                    await self._queue.put(item)
-                    continue
-                item.error = str(e)
-                item.status = AsyncTaskStatus.FAILED
-                self._stats["failed"] += 1
+                # 执行期间被取消的异常路径：若已标记 CANCELLED，不再重试/标记失败
+                if item.status == AsyncTaskStatus.CANCELLED:
+                    pass
+                else:
+                    item.retry_count += 1
+                    if item.retry_count <= item.max_retries:
+                        item.status = AsyncTaskStatus.PENDING
+                        item.priority = max(0, item.priority - 1)  # 提升优先级
+                        await self._queue.put(item)
+                        try:
+                            self._queue.task_done()
+                        except AttributeError:
+                            pass
+                        continue
+                    item.error = str(e)
+                    item.status = AsyncTaskStatus.FAILED
+                    self._stats["failed"] += 1
             finally:
                 item.completed_at = time.time()
+                # 统一的 Future 解析入口：无论完成/失败/取消都保证调用方不会挂起
+                # 注意：若 cancel() 已经设置过 Future，此处 future.done() 为 True 会安全跳过
                 if item.task_id in self._results:
                     future = self._results[item.task_id]
                     if not future.done():
                         if item.status == AsyncTaskStatus.COMPLETED:
                             future.set_result(item.result)
                         elif item.status == AsyncTaskStatus.FAILED:
-                            future.set_exception(RuntimeError(item.error))
+                            future.set_exception(RuntimeError(item.error or "Task failed"))
+                        elif item.status == AsyncTaskStatus.CANCELLED:
+                            future.set_exception(asyncio.CancelledError(
+                                f"Task {item.task_id} was cancelled"
+                            ))
+                try:
+                    self._queue.task_done()
+                except AttributeError:
+                    pass
 
     async def submit(
         self,
@@ -162,13 +183,18 @@ class AsyncTaskQueue:
         return task_id
 
     async def get_result(self, task_id: str, timeout: Optional[float] = None) -> Any:
-        """等待任务结果"""
+        """等待任务结果，结果返回后自动清理内部记录以避免内存无限增长"""
         if task_id not in self._results:
             raise KeyError(f"Task {task_id} not found")
         future = self._results[task_id]
-        if timeout:
-            return await asyncio.wait_for(future, timeout=timeout)
-        return await future
+        try:
+            if timeout:
+                return await asyncio.wait_for(future, timeout=timeout)
+            return await future
+        finally:
+            # 结果消费后清理记录，防止 _tasks/_results 无限膨胀
+            self._tasks.pop(task_id, None)
+            self._results.pop(task_id, None)
 
     def get_task(self, task_id: str) -> Optional[AsyncTaskItem]:
         """获取任务状态"""
@@ -192,12 +218,27 @@ class AsyncTaskQueue:
         ]
 
     async def cancel(self, task_id: str) -> bool:
-        """取消任务"""
+        """取消任务
+
+        关键修复：立即同步 resolve 关联的 Future，避免存在竞态窗口导致调用方无限挂起。
+        无论任务处于 PENDING（在队列中）还是 RUNNING（Worker 正在执行），都保证：
+        1. 状态原子性变为 CANCELLED
+        2. Future 立即被 set_exception（若未完成）
+        3. 统计计数只在此处增加一次，Worker 侧不再重复计数
+        """
         if task_id in self._tasks:
             item = self._tasks[task_id]
             if item.status in (AsyncTaskStatus.PENDING, AsyncTaskStatus.RUNNING):
                 item.status = AsyncTaskStatus.CANCELLED
+                item.completed_at = time.time()
                 self._stats["cancelled"] += 1
+                # 关键修复：立即 resolve Future，消除竞态窗口
+                if item.task_id in self._results:
+                    future = self._results[item.task_id]
+                    if not future.done():
+                        future.set_exception(asyncio.CancelledError(
+                            f"Task {item.task_id} was cancelled"
+                        ))
                 return True
         return False
 

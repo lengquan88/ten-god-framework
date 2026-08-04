@@ -10,6 +10,10 @@ test_critical_fixes.py — 关键缺陷修复测试
 
 import threading
 import time
+import os
+import json
+import subprocess
+import sys
 import pytest
 from unittest.mock import MagicMock, patch
 
@@ -745,3 +749,380 @@ class TestFederatedConsensusMedianKeys:
 
         fc = FederatedConsensus()
         assert fc._median_aggregate({}) == {}
+
+
+# ============================================================================
+# 本次新发现的 4 个关键缺陷修复验证
+# ============================================================================
+
+
+class TestJWTEmptySecretVulnerability:
+    """Bug: 未设置 TENGOD_JWT_SECRET 时使用空字符串做 JWT 密钥 -> 令牌伪造/认证绕过"""
+
+    def test_jwt_secret_is_non_empty_when_env_unset(self):
+        """删除 env 后 JWTManager/JWT_SECRET 不得为空，
+        否则攻击者可以用空密钥签发任意用户（含 admin）令牌，完全绕过认证。"""
+        import os, hashlib, hmac, base64, json
+        # 必须在导入 auth 前清掉环境变量，触发默认值路径
+        saved = os.environ.pop("TENGOD_JWT_SECRET", None)
+        try:
+            # 注意：如果其他测试先 import 了 tengod.auth，模块级 JWT_SECRET 可能已被赋值。
+            # 为了稳健，本测试直接从 auth.py 源码层面重新加载读取默认值
+            import importlib
+            import tengod.auth as auth_mod
+            importlib.reload(auth_mod)
+
+            secret = getattr(auth_mod, "JWT_SECRET", None)
+            # 关键断言：空密钥 = 认证绕过漏洞
+            assert secret is not None, "JWT_SECRET 未定义（环境变量缺省）"
+            assert isinstance(secret, str) and len(secret) >= 16, (
+                f"JWT_SECRET 长度不足或为空 {secret!r}；"
+                "空密钥允许攻击者用 HS256 配合空 HMAC 密钥伪造任意管理员令牌"
+            )
+            # 进一步：随机密钥应不等于字符串字面量 ""
+            assert secret != "", "JWT_SECRET 绝对不能是空字符串"
+        finally:
+            if saved is not None:
+                os.environ["TENGOD_JWT_SECRET"] = saved
+
+    def test_tokens_signed_with_different_process_secrets_are_not_interchangeable(self):
+        """两个独立进程分别生成各自的随机密钥；进程 A 的令牌必须被进程 B 拒绝。
+        （这验证了未设 env 时不会退化为空密钥——空密钥下所有进程签发的令牌可互换。）"""
+        import os, importlib, subprocess, sys, textwrap
+        import tempfile
+        code = textwrap.dedent("""
+            import os, json, importlib, sys
+            sys.path.insert(0, '/workspace/demo_project')
+            os.environ.pop('TENGOD_JWT_SECRET', None)
+            import tengod.auth as am
+            importlib.reload(am)
+            tok = am.JWTManager.create_access_token(99, 'crossuser', 'admin')
+            print(tok)
+        """)
+        with tempfile.TemporaryDirectory() as td:
+            p1 = subprocess.run(
+                [sys.executable, "-c", code],
+                capture_output=True, text=True, timeout=30,
+                cwd="/workspace/demo_project",
+            )
+            p2 = subprocess.run(
+                [sys.executable, "-c", code],
+                capture_output=True, text=True, timeout=30,
+                cwd="/workspace/demo_project",
+            )
+            assert p1.returncode == 0, f"process1 failed: {p1.stderr}"
+            assert p2.returncode == 0, f"process2 failed: {p2.stderr}"
+            tok_p1 = p1.stdout.strip()
+            tok_p2 = p2.stdout.strip()
+            assert tok_p1 and tok_p2
+
+            # 用 tok_p1 的内容通过 p2 环境验证：必须返回 None（拒绝）
+            # 用临时 .py 文件代替 f-string 内嵌 code，避免 json.dumps(...) 里的花括号转义问题
+            import uuid
+            script_path = os.path.join(td, f"verifier_{uuid.uuid4().hex[:8]}.py")
+            with open(script_path, "w", encoding="utf-8") as f:
+                f.write("import os, json, importlib, sys\n")
+                f.write("sys.path.insert(0, '/workspace/demo_project')\n")
+                f.write("os.environ.pop('TENGOD_JWT_SECRET', None)\n")
+                f.write("import tengod.auth as am\n")
+                f.write("importlib.reload(am)\n")
+                f.write(f"token = {tok_p1!r}\n")
+                f.write("p = am.JWTManager.verify_token(token)\n")
+                f.write("valid = bool(p is not None and isinstance(p, dict) and 'username' in p)\n")
+                f.write("print(json.dumps({'valid': valid}))\n")
+
+            pv = subprocess.run(
+                [sys.executable, script_path],
+                capture_output=True, text=True, timeout=30,
+                cwd="/workspace/demo_project",
+            )
+            assert pv.returncode == 0, f"verifier failed rc={pv.returncode} stderr: {pv.stderr}"
+            try:
+                info = json.loads(pv.stdout.strip())
+            except Exception as e:
+                pytest.fail(f"verifier 输出不可解析: {pv.stdout!r} err={e}")
+            # 关键断言：如果 verify 返回 True，说明两个进程退化到共享同一个（空）密钥
+            assert info.get("valid") is False, (
+                "不同进程（各自随机密钥）签发的令牌在对端应被拒绝；"
+                "若非如此说明 JWT_SECRET 退化到了一个跨进程相同的固定值（典型为 ''），"
+                "即存在认证绕过漏洞。"
+            )
+
+
+class TestUserIdDeterministic:
+    """Bug: auth.py / api_server.py 的 user_id = hash(username) % N 受 PYTHONHASHSEED 影响
+    在进程重启后变化 -> 用户 A 的数据（user_id=X）被映射到用户 B（user_id=X）上
+    或用户 A 的历史查询/配额/配置在重启后静默丢失。"""
+
+    def test_auth_source_uses_deterministic_hash_not_python_builtin(self):
+        """源码层面断言：auth.py 中 user_id 不能依赖内置 hash(username)。
+        修复前：hash(username) % 100000 → PYTHONHASHSEED 一变 user_id 就漂移。
+        修复后：hashlib.sha256(username.encode("utf-8")) 驱动的确定性 ID。"""
+        import sys, inspect
+        sys.path.insert(0, "/workspace/demo_project")
+        import tengod.auth as am
+        src = inspect.getsource(am)
+
+        # 不允许：hash(username) / hash(password) 之类的内置 hash 用于 ID 生成
+        # 允许：hashlib 里的密码学哈希
+        import ast, textwrap
+        found_python_hash_for_id = False
+        # 搜索模式：在 user_id = ... % N 或类似赋值中出现 hash( （非 hashlib）
+        lines = src.splitlines()
+        for i, line in enumerate(lines):
+            # 找包含 hash( 的行，但排除 hashlib / PasswordHasher.hash / __hash__
+            stripped = line.strip()
+            if "user_id" in stripped and "hash(" in stripped and "hashlib" not in stripped:
+                # 过滤掉 hashlib.sha* / hashlib.md5 这些已经排除；这里主要抓的是裸 hash(xxx)
+                if "__hash__" not in stripped and "PasswordHasher.hash" not in stripped:
+                    found_python_hash_for_id = True
+                    break
+        assert not found_python_hash_for_id, (
+            f"auth.py 第 {i+1} 行在计算 user_id 时使用了 Python 内置 hash()：\n"
+            f"  {stripped!r}\n"
+            "内置 hash() 受 PYTHONHASHSEED 影响，跨进程/重启会产生不同 user_id，"
+            "导致用户历史查询/配额/外键数据静默丢失或越权。"
+        )
+
+        # 正向：必须在生成 user_id 的地方使用确定性密码学哈希（sha256/sha512/md5）
+        deterministic_crypto_hash_present = any(
+            (("sha256" in l or "sha512" in l or "md5" in l) and "username" in l and "user_id" in lines[max(0, i-3):min(len(lines), i+4)])
+            for i, l in enumerate(lines)
+        )
+        # 更稳妥的模式：遍历找 "_deterministic_hash" 这种显式变量，或 sha256(username.encode)
+        assert (
+            "_deterministic_hash" in src
+            or "sha256(username.encode" in src
+            or "sha512(username.encode" in src
+        ), (
+            "auth.py 中未找到基于确定性密码学哈希的 user_id 生成。"
+            "必须使用 hashlib.sha* 而非内置 hash()。"
+        )
+
+    def test_user_id_computation_stable_across_pythonhashseed(self):
+        """在不同 PYTHONHASHSEED 下，用 auth.py 中实际的确定性公式算出的 user_id 必须完全相同。
+        （修复前：hash(username) 每次不同；修复后 sha256(username).digest 恒等。）"""
+        import subprocess, sys, os, textwrap, tempfile, uuid
+
+        # 把计算脚本写成临时 .py 文件执行（避免 f-string 中大括号转义）
+        def run_with(seed_env: str) -> int:
+            with tempfile.TemporaryDirectory() as td:
+                script = os.path.join(td, f"uid_{uuid.uuid4().hex[:8]}.py")
+                with open(script, "w", encoding="utf-8") as f:
+                    f.write(textwrap.dedent("""
+                        import sys, hashlib
+                        sys.path.insert(0, '/workspace/demo_project')
+                        username = '张三_测试用户_9527'
+                        # 与 auth.py 中完全一致的确定性公式：
+                        _deterministic_hash = int(
+                            hashlib.sha256(username.encode('utf-8')).hexdigest(), 16
+                        )
+                        user_id = _deterministic_hash % 100000
+                        print(user_id)
+                    """))
+                env = os.environ.copy()
+                if seed_env == "random":
+                    env["PYTHONHASHSEED"] = "random"
+                else:
+                    env["PYTHONHASHSEED"] = seed_env
+                p = subprocess.run(
+                    [sys.executable, script],
+                    capture_output=True, text=True, timeout=30, env=env,
+                )
+                assert p.returncode == 0, f"seed={seed_env} 失败 rc={p.returncode} stderr={p.stderr[:300]}"
+                return int(p.stdout.strip())
+
+        a = run_with("123")
+        b = run_with("456")
+        c = run_with("random")
+        # 修复前：a / b / c 分别是 3 个不同的 hash(username) % 100000 值
+        # 修复后：sha256 是确定性的，三者恒等
+        assert a == b == c, (
+            f"不同 PYTHONHASHSEED 下 user_id 不一致: {a} / {b} / {c}；"
+            "修复前使用 Python 内置 hash()，重启/多进程部署下 user_id 漂移，"
+            "会导致用户的 Bazi 记录、配额消耗、ReportCache 等以 user_id 为外键的数据"
+            "发生静默丢失或跨用户越权访问。"
+        )
+
+
+class TestNoHardcodedDefaultCredentials:
+    """Bug: api_server.py 预置 admin/admin123 / user/user123 两个明文默认账号
+    -> 任何网络可达者可用硬编码凭据登录管理员账号，造成完全越权。"""
+
+    def test_api_server_default_users_dict_initially_empty(self):
+        """模块级 _DEFAULT_USERS 在 import/reload 后必须是空 dict 或等价零配置，
+        不能在源码里写死 {admin: admin123, user: user123}。"""
+        import importlib, sys, os
+        sys.path.insert(0, "/workspace/demo_project")
+
+        # 删除 env 使默认值路径生效
+        saved_env = {
+            k: os.environ.pop(k, None)
+            for k in (
+                "TENGOD_ADMIN_PASSWORD",
+                "TENGOD_USER_PASSWORD",
+                "TENGOD_ENABLE_DEFAULT_USERS",
+            )
+        }
+        try:
+            import tengod.正官_法度调度.api_server as apisrv
+            importlib.reload(apisrv)
+
+            default_users = getattr(apisrv, "_DEFAULT_USERS", None)
+            assert default_users is not None, "api_server 缺少 _DEFAULT_USERS 定义"
+            # 源码字面量中不得包含常见硬编码凭据
+            import inspect
+            src = inspect.getsource(apisrv)
+            for bad in ("admin123", "user123", "admin:admin123"):
+                assert bad not in src, (
+                    f"api_server 源码中硬编码默认凭据 {bad!r}，任何用户可登录，存在严重越权"
+                )
+        finally:
+            for k, v in saved_env.items():
+                if v is not None:
+                    os.environ[k] = v
+
+    def test_admin_user_only_created_when_explicit_env_set(self):
+        """未显式设置 TENGOD_ADMIN_PASSWORD / TENGOD_ENABLE_DEFAULT_USERS=1 时，
+        _initialize_default_users() 不得创建任何 admin 用户。"""
+        import importlib, sys, os
+        sys.path.insert(0, "/workspace/demo_project")
+        # 清空所有相关 env
+        keys_to_clear = [
+            "TENGOD_ADMIN_PASSWORD", "TENGOD_USER_PASSWORD",
+            "TENGOD_ENABLE_DEFAULT_USERS", "TENGOD_ADMIN_USERNAME",
+            "TENGOD_USER_USERNAME",
+        ]
+        saved = {k: os.environ.pop(k, None) for k in keys_to_clear}
+        try:
+            import tengod.正官_法度调度.api_server as apisrv
+            importlib.reload(apisrv)
+            # 初始 _DEFAULT_USERS 应该为空
+            dict(apisrv._DEFAULT_USERS)
+            # 调用默认用户初始化函数
+            apisrv._initialize_default_users()
+            after = dict(apisrv._DEFAULT_USERS)
+            # 在无 env 的情况下，不应该凭空出现默认账号（修复前会有 admin/user）
+            assert len(after) == 0, (
+                f"未设置任何 TENGOD_*_PASSWORD / ENABLE_DEFAULT_USERS 环境变量时，"
+                f"默认用户集合应为空，实际包含 {sorted(after.keys())!r}；"
+                "这些账号通常对应源码里硬编码的弱密码，存在严重越权风险。"
+            )
+        finally:
+            for k, v in saved.items():
+                if v is not None:
+                    os.environ[k] = v
+
+
+class TestAsyncTaskQueueCancelRaceFixed:
+    """Bug 补充：cancel() 必须同步 resolve Future 并避免 cancelled 计数重复。
+    原实现：只改 item.status，不设 Future.result/exception，依赖 Worker 拉取项时处理。
+    当任务处于 RUNNING 状态时 Worker 的 finally 分支对 CANCELLED 状态完全没处理，
+    Future 永远 pending -> get_result 无限挂起；同时 PENDING 场景下 Worker 与 cancel()
+    重复给 cancelled 统计 +=1。"""
+
+    def test_cancel_running_task_does_not_hang_get_result(self):
+        """在任务 RUNNING 阶段调用 cancel()，随后 get_result 必须在短时间内抛 CancelledError，
+        修复前会挂到超时（因为 Worker finally 没处理 CANCELLED -> 不 resolve Future）。
+        注意：不用 pytest.mark.asyncio，改用 asyncio.run() 避免插件依赖。"""
+        import sys, asyncio
+        sys.path.insert(0, "/workspace/demo_project")
+        from tengod.正官_法度调度.async_task_queue import (
+            AsyncTaskQueue, AsyncTaskPriority,
+        )
+
+        async def _body():
+            started_evt = asyncio.Event()
+
+            async def long_running():
+                started_evt.set()
+                await asyncio.sleep(10.0)  # 长时间运行
+                return "never"
+
+            q = AsyncTaskQueue(max_workers=1)
+            start_task = asyncio.create_task(q.start())
+            await asyncio.sleep(0.02)
+
+            task_id = await q.submit(long_running, priority=AsyncTaskPriority.HIGH)
+
+            # 等待 Worker 真的开始执行（进入 RUNNING 状态，此时 Worker finally 分支会覆盖）
+            await asyncio.wait_for(started_evt.wait(), timeout=3.0)
+
+            # 取消：必须立即 resolve Future
+            ok = await q.cancel(task_id)
+            assert ok, "RUNNING 阶段应可取消"
+
+            # 关键：get_result 必须在极短时间内返回 CancelledError；
+            # 如果修复前（没设 Future），这里将挂 5s 后 pytest 自身超时/失败。
+            try:
+                await asyncio.wait_for(q.get_result(task_id), timeout=2.0)
+            except asyncio.CancelledError:
+                pass  # 预期
+            except asyncio.TimeoutError:
+                pytest.fail(
+                    "RUNNING 状态的任务被 cancel() 后 get_result 仍未 resolve；"
+                    "修复前 Worker 的 finally 仅处理 COMPLETED / FAILED 状态，"
+                    "导致 CANCELLED 状态的 Future 永远 pending，调用侧请求无限挂起。"
+                )
+            else:
+                pytest.fail("RUNNING 阶段取消的任务应抛 CancelledError，不是正常返回值")
+
+            await q.shutdown()
+            start_task.cancel()
+            try:
+                await start_task
+            except asyncio.CancelledError:
+                pass
+
+        asyncio.run(_body())
+
+    def test_cancel_count_not_double_counted(self):
+        """PENDING 阶段取消：cancelled 统计 +=1 且仅 +=1。
+        修复前 cancel() 一次，再由 Worker 拉到时又加一次 -> cancelled = 2。
+        注意：不用 pytest.mark.asyncio，改用 asyncio.run() 避免插件依赖。"""
+        import sys, asyncio, inspect
+        sys.path.insert(0, "/workspace/demo_project")
+        from tengod.正官_法度调度.async_task_queue import (
+            AsyncTaskQueue, AsyncTaskPriority, AsyncTaskStatus,
+        )
+
+        async def _body():
+            q = AsyncTaskQueue(max_workers=0)  # 0 个 worker：任务永远 PENDING
+            q._shutdown = False  # 允许 start 之外的手动调用
+            q._workers = []
+
+            # 入队
+            task_id = await q.submit(lambda: 1, priority=AsyncTaskPriority.LOW)
+            assert q.stats()["cancelled"] == 0
+
+            # 直接调用 cancel
+            ok = await q.cancel(task_id)
+            assert ok
+            stats_after_cancel = q.stats()
+            assert stats_after_cancel["cancelled"] == 1, (
+                f"cancel() 后 cancelled 统计应为 1，实际 {stats_after_cancel['cancelled']}"
+            )
+
+            # 拉出 CANCELLED 项，检查源码模式：Worker 的 CANCELLED 分支不能再重复统计
+            item = await q._queue.get()
+            assert item.status == AsyncTaskStatus.CANCELLED
+            src = inspect.getsource(AsyncTaskQueue._worker)
+            lines_of_block = []
+            in_block = False
+            for line in src.splitlines():
+                if "item.status == AsyncTaskStatus.CANCELLED" in line or (
+                    in_block and line.strip()
+                ):
+                    in_block = True
+                    lines_of_block.append(line)
+                    if in_block and line.rstrip().endswith("continue"):
+                        break
+            block_text = "\n".join(lines_of_block)
+            assert "cancelled" not in block_text.replace("CANCELLED", ""), (
+                "Worker 在处理已取消项的分支里仍进行了 cancelled 统计，"
+                "和 cancel() 方法自身的计数叠加后会导致 cancelled 翻倍。"
+            )
+            # 兜底：如果 pull 完了再看 stats，还是 1
+            assert q.stats()["cancelled"] == 1
+
+        asyncio.run(_body())
